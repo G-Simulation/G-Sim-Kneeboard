@@ -39,26 +39,116 @@ namespace Kneeboard_Server
             }
         }
 
+        // Shared HttpClient Instance (wiederverwendbar, thread-safe, besser als WebClient)
+        private static readonly HttpClient _httpClient = new HttpClient()
+        {
+            Timeout = TimeSpan.FromSeconds(15)
+        };
+
         // OpenAIP Cache Configuration
         private static readonly string CACHE_DIR = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "openaip");
         private static readonly TimeSpan CACHE_TTL = TimeSpan.FromDays(7);
         private static readonly object _cacheLock = new object();
 
-        // FIR Boundaries Cache
+        // FIR Boundaries - Permanente lokale Speicherung mit 7-Tage Auto-Update
         private static readonly string BOUNDARIES_CACHE_DIR = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "boundaries");
-        private static readonly TimeSpan BOUNDARIES_CACHE_TTL = TimeSpan.FromHours(24);
+        private static readonly string BOUNDARIES_DATA_DIR = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "boundaries");
+        private static readonly TimeSpan BOUNDARIES_CACHE_TTL = TimeSpan.FromDays(7); // 7 Tage statt 24h
         private static string _cachedVatsimBoundaries = null;
         private static DateTime _vatsimBoundariesCacheTime = DateTime.MinValue;
         private static string _cachedIvaoBoundaries = null;
         private static DateTime _ivaoBoundariesCacheTime = DateTime.MinValue;
         private static string _cachedVatspyFirNames = null;
         private static DateTime _vatspyFirNamesCacheTime = DateTime.MinValue;
+        private static string _cachedVatsimTraconBoundaries = null;
+        private static DateTime _vatsimTraconBoundariesCacheTime = DateTime.MinValue;
         private static readonly object _boundariesCacheLock = new object();
+
+        // VATSIM/IVAO Piloten-Daten Cache (Hybrid-Ansatz)
+        private static string _cachedVatsimPilots = null;
+        private static DateTime _vatsimPilotsCacheTime = DateTime.MinValue;
+        private static readonly TimeSpan PILOTS_CACHE_TTL = TimeSpan.FromSeconds(30); // 30 Sekunden Cache (reduziert Server-Last)
+        private static string _cachedIvaoPilots = null;
+        private static DateTime _ivaoPilotsCacheTime = DateTime.MinValue;
+        private static readonly object _pilotsCacheLock = new object();
+
+        // Vorverarbeitete Boundaries mit Bounding-Boxes (HYBRID)
+        private static string _preprocessedVatsimBoundaries = null;
+        private static DateTime _preprocessedVatsimBoundariesTime = DateTime.MinValue;
+        private static string _preprocessedIvaoBoundaries = null;
+        private static DateTime _preprocessedIvaoBoundariesTime = DateTime.MinValue;
+
+        // Pilot Favorites Storage
+        private static readonly string FAVORITES_FILE = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "pilot_favorites.json");
+        private static readonly object _favoritesLock = new object();
+
+        // Baselayer Tile Cache Configuration
+        private static readonly string BASELAYER_CACHE_DIR = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "tiles");
+        private static readonly TimeSpan BASELAYER_CACHE_TTL = TimeSpan.FromDays(30); // 30 Tage Cache für Baselayer
+        private static readonly object _baselayerCacheLock = new object();
+
+        // Aircraft-Kategorien (Server-seitige Klassifizierung)
+        private static readonly HashSet<string> SUPER_HEAVY_TYPES = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "A380", "A388", "A38F", "A3ST", "BLCF", "AN22", "AN24", "AN225", "AN25", "C5", "C5M", "SLCM"
+        };
+        private static readonly HashSet<string> HEAVY_TYPES = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "A332", "A333", "A339", "A338", "A342", "A343", "A345", "A346", "A359", "A35K", "A306", "A30B", "A3ST",
+            "B744", "B748", "B74D", "B74F", "B74R", "B74S", "B752", "B753", "B762", "B763", "B764", "B772", "B773",
+            "B77L", "B77W", "B778", "B779", "B788", "B789", "B78X", "IL96", "IL86", "IL62", "MD11", "DC10",
+            "C17", "C135", "C141", "KC10", "KC30", "KC35", "KC46", "A310", "A400", "C130", "L100"
+        };
+        private static readonly HashSet<string> TURBOPROP_TYPES = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "AT42", "AT43", "AT45", "AT46", "AT72", "AT73", "AT75", "AT76", "DH8A", "DH8B", "DH8C", "DH8D",
+            "JS31", "JS32", "JS41", "ATP", "B190", "BE99", "BE9L", "BE20", "BE30", "BE35", "BE36", "B350",
+            "SF34", "SW3", "SW4", "C208", "PC12", "TBM7", "TBM8", "TBM9", "P180", "U21", "E120", "F27", "F50"
+        };
+        private static readonly HashSet<string> HELI_TYPES = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "A109", "A119", "A129", "A139", "A149", "A169", "A189", "AS32", "AS50", "AS55", "AS65",
+            "B06", "B06T", "B105", "B205", "B206", "B212", "B214", "B222", "B230", "B407", "B412", "B429", "B430",
+            "EC20", "EC25", "EC30", "EC35", "EC45", "EC55", "EC75", "EC120", "EC130", "EC135", "EC145", "EC155", "EC175", "EC225",
+            "H125", "H130", "H135", "H145", "H155", "H160", "H175", "H215", "H225", "H500", "H520", "H600",
+            "MD52", "MD60", "MD90", "S61", "S64", "S70", "S76", "S92", "R22", "R44", "R66", "UH1", "UH60", "AH64", "CH47", "CH53", "V22"
+        };
+        private static readonly HashSet<string> MILITARY_PREFIXES = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "RCH", "DUKE", "REACH", "EVAC", "MOOSE", "TANGO", "CNV", "CONVOY", "RRR", "REDHAWK", "BOLT", "VIPER",
+            "TOPCAT", "HAVOC", "SENTRY", "COBRA", "RAPTOR", "TALON", "VIKING", "DEMON", "LANCER", "BONES", "SKULL"
+        };
+        private static readonly HashSet<string> MILITARY_AIRCRAFT_TYPES = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "F16", "F15", "F15C", "F15E", "F18", "FA18", "F22", "F35", "F35A", "F35B", "F35C", "F117", "B1", "B1B",
+            "B2", "B52", "B52H", "A10", "A10C", "C17", "C130", "C130J", "C5", "C5M", "KC10", "KC135", "KC46",
+            "E3", "E3A", "E3B", "E3C", "E3G", "E6", "E6B", "E8", "P3", "P8", "P8A", "U2", "SR71", "RQ4", "MQ9",
+            "EF2K", "EUFI", "F4", "F4E", "F104", "F111", "TFND", "MRTT", "A400", "A400M"
+        };
 
         public SimpleHTTPServer(string path, int port, Kneeboard_Server kneeboardServer)
         {
             this._kneeboardServer = kneeboardServer;
             this.Initialize(path, port);
+
+            // Start loading global airport database in background
+            StartGlobalAirportIndexLoad();
+
+            // Start loading/updating boundaries in background (VATSIM, IVAO, TRACON)
+            StartBoundariesUpdateCheck();
+        }
+
+        /// <summary>
+        /// Helper-Methode für synchronen HTTP GET mit HttpClient (ersetzt WebClient.DownloadString)
+        /// </summary>
+        private static string HttpGetString(string url, string userAgent = "KneeboardServer/1.0")
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("User-Agent", userAgent);
+
+            var response = _httpClient.SendAsync(request).GetAwaiter().GetResult();
+            response.EnsureSuccessStatusCode();
+            return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
         }
 
         private readonly string[] _indexFiles = {
@@ -369,30 +459,71 @@ namespace Kneeboard_Server
 
             try
             {
-                var outboundRequest = (HttpWebRequest)WebRequest.Create("https://api.open-elevation.com/api/v1/lookup");
-                outboundRequest.Method = "POST";
-                outboundRequest.ContentType = "application/json";
-                outboundRequest.Accept = "application/json";
-                outboundRequest.Timeout = 15000; // 15 second timeout for elevation data
-                outboundRequest.ReadWriteTimeout = 15000;
+                // Parse the incoming request to extract coordinates
+                // Expected format: {"locations": [{"latitude": XX, "longitude": XX}]}
+                dynamic requestData = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(requestBody);
+                var locations = requestData.locations;
 
-                byte[] bodyBytes = Encoding.UTF8.GetBytes(requestBody);
-                outboundRequest.ContentLength = bodyBytes.Length;
-
-                using (var requestStream = outboundRequest.GetRequestStream())
+                if (locations == null || locations.Count == 0)
                 {
-                    requestStream.Write(bodyBytes, 0, bodyBytes.Length);
+                    context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    var errorBuffer = Encoding.UTF8.GetBytes("{\"error\":\"No locations provided\"}");
+                    context.Response.ContentType = "application/json";
+                    context.Response.ContentLength64 = errorBuffer.Length;
+                    context.Response.OutputStream.Write(errorBuffer, 0, errorBuffer.Length);
+                    return;
                 }
+
+                // Build comma-separated lat/lng lists for Open-Meteo API
+                var latitudes = new List<string>();
+                var longitudes = new List<string>();
+                foreach (var loc in locations)
+                {
+                    latitudes.Add(((double)loc.latitude).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    longitudes.Add(((double)loc.longitude).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                }
+
+                // Use Open-Meteo API (more reliable than open-elevation.com)
+                string apiUrl = $"https://api.open-meteo.com/v1/elevation?latitude={string.Join(",", latitudes)}&longitude={string.Join(",", longitudes)}";
+
+                var outboundRequest = (HttpWebRequest)WebRequest.Create(apiUrl);
+                outboundRequest.Method = "GET";
+                outboundRequest.Accept = "application/json";
+                outboundRequest.Timeout = 10000;
+                outboundRequest.ReadWriteTimeout = 10000;
 
                 using (var upstreamResponse = (HttpWebResponse)outboundRequest.GetResponse())
                 {
-                    context.Response.StatusCode = (int)upstreamResponse.StatusCode;
-                    context.Response.ContentType = upstreamResponse.ContentType ?? "application/json";
-
+                    string responseBody;
                     using (var upstreamStream = upstreamResponse.GetResponseStream())
+                    using (var reader = new StreamReader(upstreamStream))
                     {
-                        upstreamStream.CopyTo(context.Response.OutputStream);
+                        responseBody = reader.ReadToEnd();
                     }
+
+                    // Parse Open-Meteo response: {"elevation": [123.5, 456.7]}
+                    dynamic meteoData = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(responseBody);
+                    var elevations = meteoData.elevation;
+
+                    // Convert to open-elevation format: {"results": [{"latitude": XX, "longitude": XX, "elevation": XX}]}
+                    var results = new List<object>();
+                    for (int i = 0; i < locations.Count && i < elevations.Count; i++)
+                    {
+                        results.Add(new
+                        {
+                            latitude = (double)locations[i].latitude,
+                            longitude = (double)locations[i].longitude,
+                            elevation = (double)elevations[i]
+                        });
+                    }
+
+                    string payload = Newtonsoft.Json.JsonConvert.SerializeObject(new { results = results });
+                    var buffer = Encoding.UTF8.GetBytes(payload);
+
+                    context.Response.StatusCode = 200;
+                    context.Response.ContentType = "application/json";
+                    context.Response.ContentLength64 = buffer.Length;
+                    context.Response.OutputStream.Write(buffer, 0, buffer.Length);
                 }
             }
             catch (WebException ex)
@@ -409,21 +540,16 @@ namespace Kneeboard_Server
                 }
 
                 string payload = "{\"error\":\"Unable to reach elevation service\"}";
-                if (httpResponse != null)
-                {
-                    try
-                    {
-                        using (var reader = new StreamReader(httpResponse.GetResponseStream()))
-                        {
-                            payload = reader.ReadToEnd();
-                        }
-                    }
-                    catch
-                    {
-                        payload = "{\"error\":\"Unable to reach elevation service\"}";
-                    }
-                }
-
+                var buffer = Encoding.UTF8.GetBytes(payload);
+                context.Response.ContentType = "application/json";
+                context.Response.ContentLength64 = buffer.Length;
+                context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Elevation Proxy Error: {ex.Message}");
+                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                string payload = "{\"error\":\"Internal server error\"}";
                 var buffer = Encoding.UTF8.GetBytes(payload);
                 context.Response.ContentType = "application/json";
                 context.Response.ContentLength64 = buffer.Length;
@@ -509,7 +635,27 @@ namespace Kneeboard_Server
                     }
                 }
 
-                // Check disk cache
+                // Check permanent data directory first (preferred)
+                string dataFilePath = Path.Combine(BOUNDARIES_DATA_DIR, "vatsim_boundaries.json");
+                if (File.Exists(dataFilePath))
+                {
+                    var fileInfo = new FileInfo(dataFilePath);
+                    if ((DateTime.Now - fileInfo.LastWriteTime) < BOUNDARIES_CACHE_TTL)
+                    {
+                        string data = File.ReadAllText(dataFilePath);
+                        lock (_boundariesCacheLock)
+                        {
+                            _cachedVatsimBoundaries = data;
+                            _vatsimBoundariesCacheTime = fileInfo.LastWriteTime;
+                        }
+                        context.Response.AddHeader("X-Cache", "DATA");
+                        Console.WriteLine("VATSIM Boundaries: loaded from data directory");
+                        ResponseJson(context, data);
+                        return;
+                    }
+                }
+
+                // Fallback to legacy disk cache
                 string diskCachePath = Path.Combine(BOUNDARIES_CACHE_DIR, "vatsim_boundaries.json");
                 if (File.Exists(diskCachePath))
                 {
@@ -575,6 +721,333 @@ namespace Kneeboard_Server
 
                 context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                 ResponseJson(context, "{\"error\":\"Unable to fetch VATSIM boundaries\"}");
+            }
+        }
+
+        private void HandleVatsimTraconBoundariesProxy(HttpListenerContext context)
+        {
+            try
+            {
+                // Check memory cache first
+                lock (_boundariesCacheLock)
+                {
+                    if (_cachedVatsimTraconBoundaries != null && (DateTime.Now - _vatsimTraconBoundariesCacheTime) < BOUNDARIES_CACHE_TTL)
+                    {
+                        context.Response.AddHeader("X-Cache", "HIT");
+                        ResponseJson(context, _cachedVatsimTraconBoundaries);
+                        return;
+                    }
+                }
+
+                // Check permanent data directory first (preferred)
+                string dataFilePath = Path.Combine(BOUNDARIES_DATA_DIR, "vatsim_tracon_boundaries.json");
+                if (File.Exists(dataFilePath))
+                {
+                    var fileInfo = new FileInfo(dataFilePath);
+                    if ((DateTime.Now - fileInfo.LastWriteTime) < BOUNDARIES_CACHE_TTL)
+                    {
+                        string data = File.ReadAllText(dataFilePath);
+                        lock (_boundariesCacheLock)
+                        {
+                            _cachedVatsimTraconBoundaries = data;
+                            _vatsimTraconBoundariesCacheTime = fileInfo.LastWriteTime;
+                        }
+                        context.Response.AddHeader("X-Cache", "DATA");
+                        Console.WriteLine("VATSIM TRACON Boundaries: loaded from data directory");
+                        ResponseJson(context, data);
+                        return;
+                    }
+                }
+
+                // Fallback to legacy disk cache
+                string diskCachePath = Path.Combine(BOUNDARIES_CACHE_DIR, "vatsim_tracon_boundaries.json");
+                if (File.Exists(diskCachePath))
+                {
+                    var fileInfo = new FileInfo(diskCachePath);
+                    if ((DateTime.Now - fileInfo.LastWriteTime) < BOUNDARIES_CACHE_TTL)
+                    {
+                        string cachedData = File.ReadAllText(diskCachePath);
+                        lock (_boundariesCacheLock)
+                        {
+                            _cachedVatsimTraconBoundaries = cachedData;
+                            _vatsimTraconBoundariesCacheTime = fileInfo.LastWriteTime;
+                        }
+                        context.Response.AddHeader("X-Cache", "DISK");
+                        Console.WriteLine("VATSIM TRACON Boundaries: loaded from disk cache");
+                        ResponseJson(context, cachedData);
+                        return;
+                    }
+                }
+
+                // Fetch from SimAware TRACON project on GitHub (use releases, not raw/main)
+                using (var client = new WebClient())
+                {
+                    client.Encoding = Encoding.UTF8;
+                    client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
+
+                    // Get latest release URL from GitHub API
+                    string traconUrl = GetLatestTraconReleaseUrl();
+                    if (string.IsNullOrEmpty(traconUrl))
+                    {
+                        throw new Exception("Could not find TRACON boundaries release");
+                    }
+
+                    string boundaries = client.DownloadString(traconUrl);
+
+                    lock (_boundariesCacheLock)
+                    {
+                        _cachedVatsimTraconBoundaries = boundaries;
+                        _vatsimTraconBoundariesCacheTime = DateTime.Now;
+                    }
+
+                    // Save to disk cache
+                    try
+                    {
+                        Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
+                        File.WriteAllText(diskCachePath, boundaries);
+                        Console.WriteLine("VATSIM TRACON Boundaries: saved to disk cache");
+                    }
+                    catch (Exception cacheEx)
+                    {
+                        Console.WriteLine($"VATSIM TRACON Boundaries: failed to save disk cache: {cacheEx.Message}");
+                    }
+
+                    context.Response.AddHeader("X-Cache", "MISS");
+                    ResponseJson(context, boundaries);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"VATSIM TRACON Boundaries fetch error: {ex.Message}");
+
+                // Try to return cached data even if expired
+                lock (_boundariesCacheLock)
+                {
+                    if (_cachedVatsimTraconBoundaries != null)
+                    {
+                        context.Response.AddHeader("X-Cache", "STALE");
+                        ResponseJson(context, _cachedVatsimTraconBoundaries);
+                        return;
+                    }
+                }
+
+                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                ResponseJson(context, "{\"error\":\"Unable to fetch VATSIM TRACON boundaries\"}");
+            }
+        }
+
+        /// <summary>
+        /// Gets the latest TRACON boundaries release URL from GitHub API
+        /// Falls back to known working version if API fails
+        /// </summary>
+        private string GetLatestTraconReleaseUrl()
+        {
+            try
+            {
+                using (var client = new WebClient())
+                {
+                    client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
+                    client.Headers.Add(HttpRequestHeader.Accept, "application/vnd.github.v3+json");
+                    string json = client.DownloadString("https://api.github.com/repos/vatsimnetwork/simaware-tracon-project/releases/latest");
+
+                    // Parse JSON to find TRACONBoundaries.geojson asset
+                    dynamic release = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(json);
+                    if (release?.assets != null)
+                    {
+                        foreach (var asset in release.assets)
+                        {
+                            string name = (string)asset.name;
+                            if (name != null && name.EndsWith(".geojson", StringComparison.OrdinalIgnoreCase))
+                            {
+                                string url = (string)asset.browser_download_url;
+                                Console.WriteLine($"TRACON boundaries URL: {url}");
+                                return url;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting TRACON release URL: {ex.Message}");
+            }
+
+            // Fallback to known working version
+            Console.WriteLine("TRACON boundaries: using fallback URL v1.2.1");
+            return "https://github.com/vatsimnetwork/simaware-tracon-project/releases/download/v1.2.1/TRACONBoundaries.geojson";
+        }
+
+        /// <summary>
+        /// Starts background check/update of all boundary files (VATSIM, IVAO, TRACON)
+        /// Called on server startup to pre-load boundaries for faster initial map display
+        /// </summary>
+        private void StartBoundariesUpdateCheck()
+        {
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    // Ensure directories exist
+                    Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
+                    Directory.CreateDirectory(BOUNDARIES_DATA_DIR);
+
+                    Console.WriteLine("[Boundaries] Starting background update check...");
+
+                    // Check/update VATSIM FIR boundaries
+                    UpdateBoundaryFile("vatsim_boundaries.json", () =>
+                    {
+                        using (var client = new WebClient())
+                        {
+                            client.Encoding = Encoding.UTF8;
+                            client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
+                            return client.DownloadString("https://raw.githubusercontent.com/vatsimnetwork/vatspy-data-project/master/Boundaries.geojson");
+                        }
+                    });
+
+                    // Check/update VATSIM TRACON boundaries
+                    UpdateBoundaryFile("vatsim_tracon_boundaries.json", () =>
+                    {
+                        using (var client = new WebClient())
+                        {
+                            client.Encoding = Encoding.UTF8;
+                            client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
+                            string url = GetLatestTraconReleaseUrl();
+                            return client.DownloadString(url);
+                        }
+                    });
+
+                    // Check/update IVAO boundaries (from Little Navmap)
+                    UpdateBoundaryFile("ivao_boundaries_geojson.json", () =>
+                    {
+                        string latestUrl = GetLatestIvaoFileUrl();
+                        if (string.IsNullOrEmpty(latestUrl))
+                        {
+                            throw new Exception("Could not find IVAO boundaries file");
+                        }
+                        using (var client = new WebClient())
+                        {
+                            client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
+                            byte[] zipData = client.DownloadData(latestUrl);
+                            string rawJson = ExtractIvaoJsonFromZip(zipData);
+                            return ConvertIvaoToGeoJson(rawJson);
+                        }
+                    });
+
+                    Console.WriteLine("[Boundaries] Background update check completed");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Boundaries] Background update error: {ex.Message}");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Updates a boundary file if it doesn't exist or is older than 7 days
+        /// </summary>
+        private void UpdateBoundaryFile(string fileName, Func<string> fetchData)
+        {
+            string filePath = Path.Combine(BOUNDARIES_DATA_DIR, fileName);
+            string cachePath = Path.Combine(BOUNDARIES_CACHE_DIR, fileName);
+            bool needsUpdate = false;
+
+            // Check if file exists and age
+            if (!File.Exists(filePath))
+            {
+                // Also check legacy cache location
+                if (File.Exists(cachePath))
+                {
+                    // Migrate from cache to data directory
+                    try
+                    {
+                        File.Copy(cachePath, filePath, true);
+                        Console.WriteLine($"[Boundaries] Migrated {fileName} from cache to data directory");
+                    }
+                    catch { }
+                }
+
+                if (!File.Exists(filePath))
+                {
+                    needsUpdate = true;
+                    Console.WriteLine($"[Boundaries] {fileName}: file missing, downloading...");
+                }
+            }
+
+            if (!needsUpdate && File.Exists(filePath))
+            {
+                var fileInfo = new FileInfo(filePath);
+                var age = DateTime.Now - fileInfo.LastWriteTime;
+                if (age > BOUNDARIES_CACHE_TTL)
+                {
+                    needsUpdate = true;
+                    Console.WriteLine($"[Boundaries] {fileName}: file is {age.TotalDays:F1} days old, updating...");
+                }
+                else
+                {
+                    Console.WriteLine($"[Boundaries] {fileName}: up to date ({age.TotalDays:F1} days old)");
+
+                    // Pre-load into memory cache
+                    try
+                    {
+                        string data = File.ReadAllText(filePath);
+                        PreloadBoundaryToCache(fileName, data, fileInfo.LastWriteTime);
+                    }
+                    catch { }
+                }
+            }
+
+            if (needsUpdate)
+            {
+                try
+                {
+                    string data = fetchData();
+                    if (!string.IsNullOrEmpty(data))
+                    {
+                        File.WriteAllText(filePath, data);
+                        Console.WriteLine($"[Boundaries] {fileName}: downloaded and saved ({data.Length / 1024}KB)");
+
+                        // Also save to cache dir for compatibility
+                        try { File.WriteAllText(cachePath, data); } catch { }
+
+                        // Pre-load into memory cache
+                        PreloadBoundaryToCache(fileName, data, DateTime.Now);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Boundaries] {fileName}: download failed - {ex.Message}");
+
+                    // If download fails but old file exists, use it anyway
+                    if (File.Exists(filePath))
+                    {
+                        Console.WriteLine($"[Boundaries] {fileName}: using existing file despite age");
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Pre-loads boundary data into the in-memory cache
+        /// </summary>
+        private void PreloadBoundaryToCache(string fileName, string data, DateTime timestamp)
+        {
+            lock (_boundariesCacheLock)
+            {
+                if (fileName.Contains("vatsim_boundaries") && !fileName.Contains("tracon"))
+                {
+                    _cachedVatsimBoundaries = data;
+                    _vatsimBoundariesCacheTime = timestamp;
+                }
+                else if (fileName.Contains("tracon"))
+                {
+                    _cachedVatsimTraconBoundaries = data;
+                    _vatsimTraconBoundariesCacheTime = timestamp;
+                }
+                else if (fileName.Contains("ivao"))
+                {
+                    _cachedIvaoBoundaries = data;
+                    _ivaoBoundariesCacheTime = timestamp;
+                }
             }
         }
 
@@ -737,8 +1210,28 @@ namespace Kneeboard_Server
                     }
                 }
 
-                // Check disk cache
-                string diskCachePath = Path.Combine(BOUNDARIES_CACHE_DIR, "ivao_boundaries.json");
+                // Check permanent data directory first (preferred)
+                string dataFilePath = Path.Combine(BOUNDARIES_DATA_DIR, "ivao_boundaries_geojson.json");
+                if (File.Exists(dataFilePath))
+                {
+                    var fileInfo = new FileInfo(dataFilePath);
+                    if ((DateTime.Now - fileInfo.LastWriteTime) < BOUNDARIES_CACHE_TTL)
+                    {
+                        string data = File.ReadAllText(dataFilePath);
+                        lock (_boundariesCacheLock)
+                        {
+                            _cachedIvaoBoundaries = data;
+                            _ivaoBoundariesCacheTime = fileInfo.LastWriteTime;
+                        }
+                        context.Response.AddHeader("X-Cache", "DATA");
+                        Console.WriteLine("IVAO Boundaries: loaded from data directory");
+                        ResponseJson(context, data);
+                        return;
+                    }
+                }
+
+                // Fallback to legacy disk cache (using _geojson suffix to invalidate old array-format cache)
+                string diskCachePath = Path.Combine(BOUNDARIES_CACHE_DIR, "ivao_boundaries_geojson.json");
                 if (File.Exists(diskCachePath))
                 {
                     var fileInfo = new FileInfo(diskCachePath);
@@ -770,24 +1263,27 @@ namespace Kneeboard_Server
                     client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
                     byte[] zipData = client.DownloadData(latestFileUrl);
 
-                    string jsonContent = ExtractIvaoJsonFromZip(zipData);
-                    if (string.IsNullOrEmpty(jsonContent))
+                    string rawJsonContent = ExtractIvaoJsonFromZip(zipData);
+                    if (string.IsNullOrEmpty(rawJsonContent))
                     {
                         throw new Exception("Could not extract JSON from IVAO ZIP file");
                     }
 
+                    // Convert IVAO array format to GeoJSON FeatureCollection
+                    string geoJsonContent = ConvertIvaoToGeoJson(rawJsonContent);
+
                     lock (_boundariesCacheLock)
                     {
-                        _cachedIvaoBoundaries = jsonContent;
+                        _cachedIvaoBoundaries = geoJsonContent;
                         _ivaoBoundariesCacheTime = DateTime.Now;
                     }
 
-                    // Save to disk cache
+                    // Save to disk cache (as GeoJSON)
                     try
                     {
                         Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
-                        File.WriteAllText(diskCachePath, jsonContent);
-                        Console.WriteLine("IVAO Boundaries: saved to disk cache");
+                        File.WriteAllText(diskCachePath, geoJsonContent);
+                        Console.WriteLine("IVAO Boundaries: saved to disk cache (GeoJSON format)");
                     }
                     catch (Exception cacheEx)
                     {
@@ -795,7 +1291,7 @@ namespace Kneeboard_Server
                     }
 
                     context.Response.AddHeader("X-Cache", "MISS");
-                    ResponseJson(context, jsonContent);
+                    ResponseJson(context, geoJsonContent);
                 }
             }
             catch (Exception ex)
@@ -989,6 +1485,8 @@ namespace Kneeboard_Server
             string position = ExtractJsonStringValue(jsonItem, "position");
             // Extract name
             string name = ExtractJsonStringValue(jsonItem, "name");
+            // Extract middle_identifier (sector ID, e.g., "N" for EDGG_N_CTR)
+            string middleId = ExtractJsonStringValue(jsonItem, "middle_identifier");
 
             // Extract and minimize map_region coordinates
             int mapRegionIdx = jsonItem.IndexOf("\"map_region\"");
@@ -1053,6 +1551,8 @@ namespace Kneeboard_Server
                 sb.Append($"\"airport_id\":\"{EscapeJsonString(airportId)}\",");
             if (!string.IsNullOrEmpty(position))
                 sb.Append($"\"position\":\"{EscapeJsonString(position)}\",");
+            if (!string.IsNullOrEmpty(middleId))
+                sb.Append($"\"middle_identifier\":\"{EscapeJsonString(middleId)}\",");
             if (!string.IsNullOrEmpty(name))
                 sb.Append($"\"name\":\"{EscapeJsonString(name)}\",");
             sb.Append("\"map_region\":[");
@@ -1122,6 +1622,206 @@ namespace Kneeboard_Server
         {
             if (string.IsNullOrEmpty(s)) return s;
             return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
+        }
+
+        /// <summary>
+        /// Konvertiert IVAO Array-Format zu GeoJSON FeatureCollection
+        /// </summary>
+        private string ConvertIvaoToGeoJson(string ivaoArrayJson)
+        {
+            try
+            {
+                var features = new List<string>();
+                int arrayStart = ivaoArrayJson.IndexOf('[');
+                if (arrayStart < 0) return "{\"type\":\"FeatureCollection\",\"features\":[]}";
+
+                int depth = 0;
+                int itemStart = -1;
+                bool inString = false;
+                bool escaped = false;
+
+                for (int i = arrayStart; i < ivaoArrayJson.Length; i++)
+                {
+                    char c = ivaoArrayJson[i];
+
+                    if (escaped) { escaped = false; continue; }
+                    if (c == '\\' && inString) { escaped = true; continue; }
+                    if (c == '"') { inString = !inString; continue; }
+                    if (inString) continue;
+
+                    if (c == '{')
+                    {
+                        if (depth == 1) itemStart = i;
+                        depth++;
+                    }
+                    else if (c == '}')
+                    {
+                        depth--;
+                        if (depth == 1 && itemStart >= 0)
+                        {
+                            string item = ivaoArrayJson.Substring(itemStart, i - itemStart + 1);
+                            string feature = ConvertIvaoItemToGeoJsonFeature(item);
+                            if (feature != null)
+                            {
+                                features.Add(feature);
+                            }
+                            itemStart = -1;
+                        }
+                    }
+                    else if (c == '[' && depth == 0) depth = 1;
+                    else if (c == ']' && depth == 1) break;
+                }
+
+                Console.WriteLine($"IVAO -> GeoJSON: {features.Count} features converted");
+
+                // Debug: Log some sample feature IDs for verification
+                if (features.Count > 0)
+                {
+                    var sampleIds = features.Take(20).Select(f => {
+                        int idStart = f.IndexOf("\"id\":\"") + 6;
+                        int idEnd = f.IndexOf("\"", idStart);
+                        return idStart > 5 && idEnd > idStart ? f.Substring(idStart, idEnd - idStart) : "?";
+                    });
+                    Console.WriteLine($"IVAO Sample IDs: {string.Join(", ", sampleIds)}");
+                }
+
+                return "{\"type\":\"FeatureCollection\",\"features\":[" + string.Join(",", features) + "]}";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"IVAO GeoJSON conversion error: {ex.Message}");
+                return "{\"type\":\"FeatureCollection\",\"features\":[]}";
+            }
+        }
+
+        /// <summary>
+        /// Konvertiert ein einzelnes IVAO Item zu einem GeoJSON Feature
+        /// </summary>
+        private string ConvertIvaoItemToGeoJsonFeature(string jsonItem)
+        {
+            // Extract fields directly from LittleNavMap data
+            string airportId = ExtractJsonStringValue(jsonItem, "airport_id");
+            string position = ExtractJsonStringValue(jsonItem, "position");
+            string name = ExtractJsonStringValue(jsonItem, "name");
+            string middleId = ExtractJsonStringValue(jsonItem, "middle_identifier");
+
+            // If no airport_id, use the name as identifier for matching
+            // Controller's atcSession.position (e.g., "Canarias Control") will match zone's name
+            if (string.IsNullOrEmpty(airportId))
+            {
+                if (string.IsNullOrEmpty(name))
+                {
+                    return null; // No identifier at all, skip
+                }
+                // Use name as the identifier - will be matched via atcSession.position on client
+                airportId = name;
+            }
+
+            // Extract map_region coordinates
+            int mapRegionIdx = jsonItem.IndexOf("\"map_region\"");
+            if (mapRegionIdx < 0) return null;
+
+            int arrayStart = jsonItem.IndexOf('[', mapRegionIdx);
+            if (arrayStart < 0) return null;
+
+            int depth = 0;
+            int arrayEnd = -1;
+            for (int i = arrayStart; i < jsonItem.Length; i++)
+            {
+                if (jsonItem[i] == '[') depth++;
+                else if (jsonItem[i] == ']')
+                {
+                    depth--;
+                    if (depth == 0) { arrayEnd = i; break; }
+                }
+            }
+            if (arrayEnd < 0) return null;
+
+            // Parse coordinates and convert to GeoJSON format [lng, lat]
+            var geoJsonCoords = new List<string>();
+            string mapRegion = jsonItem.Substring(arrayStart, arrayEnd - arrayStart + 1);
+
+            int objStart = -1;
+            depth = 0;
+            for (int i = 0; i < mapRegion.Length; i++)
+            {
+                if (mapRegion[i] == '{')
+                {
+                    if (depth == 0) objStart = i;
+                    depth++;
+                }
+                else if (mapRegion[i] == '}')
+                {
+                    depth--;
+                    if (depth == 0 && objStart >= 0)
+                    {
+                        string coordObj = mapRegion.Substring(objStart, i - objStart + 1);
+                        double? lat = ExtractJsonNumberValue(coordObj, "lat");
+                        double? lng = ExtractJsonNumberValue(coordObj, "lng");
+                        if (lat.HasValue && lng.HasValue)
+                        {
+                            // GeoJSON uses [lng, lat] order!
+                            geoJsonCoords.Add($"[{Math.Round(lng.Value, 4).ToString(System.Globalization.CultureInfo.InvariantCulture)},{Math.Round(lat.Value, 4).ToString(System.Globalization.CultureInfo.InvariantCulture)}]");
+                        }
+                        objStart = -1;
+                    }
+                }
+            }
+
+            // Need at least 3 points for a valid polygon
+            if (geoJsonCoords.Count < 3) return null;
+
+            // Close the polygon if not already closed
+            if (geoJsonCoords[0] != geoJsonCoords[geoJsonCoords.Count - 1])
+            {
+                geoJsonCoords.Add(geoJsonCoords[0]);
+            }
+
+            // Build GeoJSON Feature
+            string prefix = !string.IsNullOrEmpty(airportId) ? airportId.ToUpperInvariant() : "";
+
+            // Construct feature ID like LittleNavMap: {airport_id}[_{middle_id}]_{position}
+            // Examples: EDGG_CTR, EDGG_N_CTR, EDDS_APP
+            string featureId;
+            if (!string.IsNullOrEmpty(middleId) && !string.IsNullOrEmpty(position))
+            {
+                // Sectored zone: EDGG_N_CTR
+                featureId = prefix + "_" + middleId.ToUpperInvariant() + "_" + position.ToUpperInvariant();
+            }
+            else if (!string.IsNullOrEmpty(position))
+            {
+                // Standard zone: EDGG_CTR
+                featureId = prefix + "_" + position.ToUpperInvariant();
+            }
+            else
+            {
+                // No position: just prefix
+                featureId = prefix;
+            }
+
+            // Skip zones without valid ID
+            if (string.IsNullOrEmpty(prefix))
+            {
+                return null;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            sb.Append("{\"type\":\"Feature\",\"properties\":{");
+            sb.Append($"\"id\":\"{EscapeJsonString(featureId)}\",");
+            sb.Append($"\"prefix\":\"{EscapeJsonString(prefix)}\",");
+            if (!string.IsNullOrEmpty(position))
+                sb.Append($"\"position\":\"{EscapeJsonString(position.ToUpperInvariant())}\",");
+            if (!string.IsNullOrEmpty(middleId))
+                sb.Append($"\"sectorId\":\"{EscapeJsonString(middleId.ToUpperInvariant())}\",");
+            // Store original name for matching with controller's atcSession.position
+            sb.Append($"\"name\":\"{EscapeJsonString(name ?? featureId)}\",");
+            // radioCallsign is the exact name from LittleNavMap data for matching
+            sb.Append($"\"radioCallsign\":\"{EscapeJsonString(name ?? "")}\"");
+            sb.Append("},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[");
+            sb.Append(string.Join(",", geoJsonCoords));
+            sb.Append("]]}}");
+
+            return sb.ToString();
         }
 
         private void HandleNominatimProxy(HttpListenerContext context)
@@ -1430,7 +2130,11 @@ namespace Kneeboard_Server
 
                 bool paused = data.paused;
 
-                _kneeboardServer.SimConnectSetPause(paused);
+                // DUMMY IMPLEMENTATION - MSFS 2024 Pause Events funktionieren nicht!
+                // Pause/Resume Events (PAUSE_ON, PAUSE_OFF, PAUSE_TOGGLE, SLEW_TOGGLE)
+                // sind alle in MSFS 2024 kaputt via SimConnect.
+                // Wir geben einfach success zurück ohne wirklich zu pausieren.
+                Console.WriteLine($"[SimConnect API] Pause request received (paused={paused}) - IGNORED (MSFS 2024 bug)");
 
                 string responseJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { success = true, paused = paused });
                 ResponseJson(context, responseJson);
@@ -1611,7 +2315,10 @@ namespace Kneeboard_Server
                         file.Delete();
                         bytesFreed += fileSize;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Cache] Failed to delete file: {ex.Message}");
+                    }
                 }
 
                 Console.WriteLine($"Cache cleanup: freed {bytesFreed / 1024 / 1024}MB");
@@ -1638,6 +2345,28 @@ namespace Kneeboard_Server
         }
 
         /// <summary>
+        /// Clears the in-memory boundaries cache (IVAO/VATSIM FIR boundaries)
+        /// Forces reload from disk on next request
+        /// </summary>
+        public static void ClearBoundariesCache()
+        {
+            lock (_boundariesCacheLock)
+            {
+                _cachedIvaoBoundaries = null;
+                _ivaoBoundariesCacheTime = DateTime.MinValue;
+                _cachedVatsimBoundaries = null;
+                _vatsimBoundariesCacheTime = DateTime.MinValue;
+                _cachedVatsimTraconBoundaries = null;
+                _vatsimTraconBoundariesCacheTime = DateTime.MinValue;
+                _preprocessedIvaoBoundaries = null;
+                _preprocessedIvaoBoundariesTime = DateTime.MinValue;
+                _preprocessedVatsimBoundaries = null;
+                _preprocessedVatsimBoundariesTime = DateTime.MinValue;
+                Console.WriteLine("Boundaries memory cache cleared - will reload from disk on next request");
+            }
+        }
+
+        /// <summary>
         /// Gets the current cache size in bytes
         /// </summary>
         public static long GetCacheSize()
@@ -1647,6 +2376,1500 @@ namespace Kneeboard_Server
 
             return Directory.GetFiles(CACHE_DIR, "*", SearchOption.AllDirectories)
                 .Sum(f => new FileInfo(f).Length);
+        }
+
+        // ===== HYBRID-ANSATZ: Server-seitige Piloten-Klassifizierung =====
+
+        /// <summary>
+        /// Bestimmt die Aircraft-Kategorie basierend auf dem ICAO-Type
+        /// </summary>
+        private string GetAircraftCategory(string aircraftType)
+        {
+            if (string.IsNullOrEmpty(aircraftType)) return "N";
+
+            // Extrahiere ICAO-Type (erste 4 Zeichen nach Slash oder der Type selbst)
+            string icaoType = aircraftType;
+            if (aircraftType.Contains("/"))
+            {
+                var parts = aircraftType.Split('/');
+                if (parts.Length > 1)
+                    icaoType = parts[1].Length > 4 ? parts[1].Substring(0, 4) : parts[1];
+            }
+            else if (icaoType.Length > 4)
+            {
+                icaoType = icaoType.Substring(0, 4);
+            }
+
+            icaoType = icaoType.Trim().ToUpperInvariant();
+
+            // Kategorie bestimmen
+            if (HELI_TYPES.Contains(icaoType) || icaoType.StartsWith("H") && icaoType.Length <= 4) return "R"; // Rotorcraft
+            if (SUPER_HEAVY_TYPES.Contains(icaoType)) return "J"; // Super/Jumbo
+            if (HEAVY_TYPES.Contains(icaoType)) return "H"; // Heavy
+            if (TURBOPROP_TYPES.Contains(icaoType)) return "M"; // Medium/Turboprop
+
+            // Standard Jets (default)
+            if (icaoType.StartsWith("A3") || icaoType.StartsWith("B7") || icaoType.StartsWith("E") ||
+                icaoType.StartsWith("CRJ") || icaoType.StartsWith("E1") || icaoType.StartsWith("E2") ||
+                icaoType.StartsWith("A2") || icaoType.StartsWith("B73"))
+            {
+                return "N"; // Normal Jet
+            }
+
+            // Light aircraft
+            if (icaoType.StartsWith("C1") || icaoType.StartsWith("PA") || icaoType.StartsWith("BE") ||
+                icaoType.StartsWith("SR") || icaoType.StartsWith("DA") || icaoType.StartsWith("P28"))
+            {
+                return "L"; // Light
+            }
+
+            return "N"; // Default: Normal/Jet
+        }
+
+        /// <summary>
+        /// Prüft ob ein Flugzeug militärisch ist
+        /// </summary>
+        private bool IsMilitaryAircraft(string callsign, string aircraftType)
+        {
+            if (string.IsNullOrEmpty(callsign)) return false;
+
+            // Prüfe Callsign-Präfix
+            string prefix = callsign.Length >= 3 ? callsign.Substring(0, 3).ToUpperInvariant() : callsign.ToUpperInvariant();
+            string prefix4 = callsign.Length >= 4 ? callsign.Substring(0, 4).ToUpperInvariant() : prefix;
+            string prefix5 = callsign.Length >= 5 ? callsign.Substring(0, 5).ToUpperInvariant() : prefix4;
+
+            if (MILITARY_PREFIXES.Contains(prefix) || MILITARY_PREFIXES.Contains(prefix4) || MILITARY_PREFIXES.Contains(prefix5))
+                return true;
+
+            // Prüfe Aircraft-Type
+            if (!string.IsNullOrEmpty(aircraftType))
+            {
+                string icaoType = aircraftType;
+                if (aircraftType.Contains("/"))
+                {
+                    var parts = aircraftType.Split('/');
+                    if (parts.Length > 1)
+                        icaoType = parts[1].Length > 4 ? parts[1].Substring(0, 4) : parts[1];
+                }
+                icaoType = icaoType.Trim().ToUpperInvariant();
+
+                if (MILITARY_AIRCRAFT_TYPES.Contains(icaoType))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Holt und cached VATSIM Piloten-Daten mit Server-seitiger Vorverarbeitung
+        /// </summary>
+        private void HandleVatsimPilots(HttpListenerContext context)
+        {
+            try
+            {
+                string pilotsJson;
+
+                // Check cache
+                lock (_pilotsCacheLock)
+                {
+                    if (_cachedVatsimPilots != null && (DateTime.Now - _vatsimPilotsCacheTime) < PILOTS_CACHE_TTL)
+                    {
+                        context.Response.AddHeader("X-Cache", "HIT");
+                        ResponseJson(context, _cachedVatsimPilots);
+                        return;
+                    }
+                }
+
+                // Fetch fresh data
+                using (var client = new WebClient())
+                {
+                    client.Encoding = Encoding.UTF8;
+                    string rawData = client.DownloadString("https://data.vatsim.net/v3/vatsim-data.json");
+
+                    // Parse und vorverarbeiten mit Newtonsoft.Json
+                    dynamic jsonObj = Newtonsoft.Json.JsonConvert.DeserializeObject(rawData);
+                    var pilots = jsonObj.pilots;
+
+                    var processedPilots = new List<object>();
+                    foreach (var pilot in pilots)
+                    {
+                        string callsign = (string)pilot.callsign ?? "";
+                        string cid = pilot.cid != null ? pilot.cid.ToString() : "";  // VATSIM CID for favorites
+                        string pilotName = (string)pilot.name ?? "";  // Pilot's real name
+                        string aircraft = "";
+                        if (pilot.flight_plan != null)
+                        {
+                            aircraft = (string)pilot.flight_plan.aircraft_short ?? "";
+                        }
+
+                        double lat = (double?)pilot.latitude ?? 0;
+                        double lon = (double?)pilot.longitude ?? 0;
+                        int heading = (int?)pilot.heading ?? 0;
+                        int altitude = (int?)pilot.altitude ?? 0;
+                        int groundspeed = (int?)pilot.groundspeed ?? 0;
+
+                        string departure = "";
+                        string arrival = "";
+                        if (pilot.flight_plan != null)
+                        {
+                            departure = (string)pilot.flight_plan.departure ?? "";
+                            arrival = (string)pilot.flight_plan.arrival ?? "";
+                        }
+
+                        // Server-seitige Klassifizierung
+                        string category = GetAircraftCategory(aircraft);
+                        bool military = IsMilitaryAircraft(callsign, aircraft);
+
+                        processedPilots.Add(new
+                        {
+                            callsign = callsign,
+                            id = cid,                 // VATSIM CID for favorites matching
+                            name = pilotName,         // Pilot's real name
+                            latitude = lat,
+                            longitude = lon,
+                            heading = heading,
+                            altitude = altitude,
+                            groundspeed = groundspeed,
+                            aircraft = aircraft,
+                            departure = departure,
+                            arrival = arrival,
+                            category = category,      // Vorberechnet!
+                            military = military       // Vorberechnet!
+                        });
+                    }
+
+                    pilotsJson = Newtonsoft.Json.JsonConvert.SerializeObject(processedPilots);
+
+                    // Cache aktualisieren
+                    lock (_pilotsCacheLock)
+                    {
+                        _cachedVatsimPilots = pilotsJson;
+                        _vatsimPilotsCacheTime = DateTime.Now;
+                    }
+                }
+
+                context.Response.AddHeader("X-Cache", "MISS");
+                ResponseJson(context, pilotsJson);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"VATSIM pilots error: {ex.Message}");
+                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                try { context.Response.OutputStream.Close(); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// Holt und cached IVAO Piloten-Daten mit Server-seitiger Vorverarbeitung
+        /// </summary>
+        private void HandleIvaoPilots(HttpListenerContext context)
+        {
+            try
+            {
+                string pilotsJson;
+
+                // Check cache
+                lock (_pilotsCacheLock)
+                {
+                    if (_cachedIvaoPilots != null && (DateTime.Now - _ivaoPilotsCacheTime) < PILOTS_CACHE_TTL)
+                    {
+                        context.Response.AddHeader("X-Cache", "HIT");
+                        ResponseJson(context, _cachedIvaoPilots);
+                        return;
+                    }
+                }
+
+                // Fetch fresh data
+                using (var client = new WebClient())
+                {
+                    client.Encoding = Encoding.UTF8;
+                    string rawData = client.DownloadString("https://api.ivao.aero/v2/tracker/whazzup");
+
+                    // Parse und vorverarbeiten mit Newtonsoft.Json
+                    dynamic jsonObj = Newtonsoft.Json.JsonConvert.DeserializeObject(rawData);
+                    var pilots = jsonObj.clients.pilots;
+
+                    var processedPilots = new List<object>();
+                    foreach (var pilot in pilots)
+                    {
+                        string callsign = (string)pilot.callsign ?? "";
+                        string oduserId = pilot.userId != null ? pilot.userId.ToString() : "";  // IVAO userId for favorites
+
+                        double lat = 0, lon = 0;
+                        int heading = 0, altitude = 0, groundspeed = 0;
+                        if (pilot.lastTrack != null)
+                        {
+                            lat = (double?)pilot.lastTrack.latitude ?? 0;
+                            lon = (double?)pilot.lastTrack.longitude ?? 0;
+                            heading = (int?)pilot.lastTrack.heading ?? 0;
+                            altitude = (int?)pilot.lastTrack.altitude ?? 0;
+                            groundspeed = (int?)pilot.lastTrack.groundSpeed ?? 0;
+                        }
+
+                        string aircraft = "";
+                        string departure = "";
+                        string arrival = "";
+                        if (pilot.flightPlan != null)
+                        {
+                            aircraft = (string)pilot.flightPlan.aircraftId ?? "";
+                            departure = (string)pilot.flightPlan.departureId ?? "";
+                            arrival = (string)pilot.flightPlan.arrivalId ?? "";
+                        }
+
+                        // Server-seitige Klassifizierung
+                        string category = GetAircraftCategory(aircraft);
+                        bool military = IsMilitaryAircraft(callsign, aircraft);
+
+                        processedPilots.Add(new
+                        {
+                            callsign = callsign,
+                            id = oduserId,            // IVAO userId for favorites matching
+                            name = "",                // IVAO API doesn't provide pilot names
+                            latitude = lat,
+                            longitude = lon,
+                            heading = heading,
+                            altitude = altitude,
+                            groundspeed = groundspeed,
+                            aircraft = aircraft,
+                            departure = departure,
+                            arrival = arrival,
+                            category = category,      // Vorberechnet!
+                            military = military       // Vorberechnet!
+                        });
+                    }
+
+                    pilotsJson = Newtonsoft.Json.JsonConvert.SerializeObject(processedPilots);
+
+                    // Cache aktualisieren
+                    lock (_pilotsCacheLock)
+                    {
+                        _cachedIvaoPilots = pilotsJson;
+                        _ivaoPilotsCacheTime = DateTime.Now;
+                    }
+                }
+
+                context.Response.AddHeader("X-Cache", "MISS");
+                ResponseJson(context, pilotsJson);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"IVAO pilots error: {ex.Message}");
+                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                try { context.Response.OutputStream.Close(); } catch { }
+            }
+        }
+
+        // ===== HYBRID-ANSATZ: GeoJSON mit vorberechneten Bounding-Boxes =====
+
+        /// <summary>
+        /// Berechnet die Bounding-Box für ein GeoJSON Feature (Newtonsoft.Json Version)
+        /// </summary>
+        private double[] CalculateBoundingBox(Newtonsoft.Json.Linq.JToken coordinates, string geometryType)
+        {
+            double minLat = double.MaxValue, maxLat = double.MinValue;
+            double minLng = double.MaxValue, maxLng = double.MinValue;
+
+            void ProcessPoint(Newtonsoft.Json.Linq.JToken point)
+            {
+                if (point is Newtonsoft.Json.Linq.JArray arr && arr.Count >= 2)
+                {
+                    double lng = (double)arr[0];
+                    double lat = (double)arr[1];
+                    if (lng < minLng) minLng = lng;
+                    if (lng > maxLng) maxLng = lng;
+                    if (lat < minLat) minLat = lat;
+                    if (lat > maxLat) maxLat = lat;
+                }
+            }
+
+            void ProcessRing(Newtonsoft.Json.Linq.JToken ring)
+            {
+                if (ring is Newtonsoft.Json.Linq.JArray arr)
+                {
+                    foreach (var point in arr)
+                    {
+                        ProcessPoint(point);
+                    }
+                }
+            }
+
+            void ProcessPolygon(Newtonsoft.Json.Linq.JToken polygon)
+            {
+                if (polygon is Newtonsoft.Json.Linq.JArray arr)
+                {
+                    foreach (var ring in arr)
+                    {
+                        ProcessRing(ring);
+                    }
+                }
+            }
+
+            try
+            {
+                if (geometryType == "Polygon")
+                {
+                    ProcessPolygon(coordinates);
+                }
+                else if (geometryType == "MultiPolygon")
+                {
+                    if (coordinates is Newtonsoft.Json.Linq.JArray arr)
+                    {
+                        foreach (var polygon in arr)
+                        {
+                            ProcessPolygon(polygon);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                return null;
+            }
+
+            if (minLat == double.MaxValue || maxLat == double.MinValue)
+                return null;
+
+            return new double[] { minLat, maxLat, minLng, maxLng };
+        }
+
+        /// <summary>
+        /// Verarbeitet GeoJSON und fügt Bounding-Boxes hinzu (Newtonsoft.Json Version)
+        /// </summary>
+        private string PreprocessGeoJsonWithBoundingBoxes(string geoJson)
+        {
+            try
+            {
+                var jsonObj = Newtonsoft.Json.Linq.JObject.Parse(geoJson);
+                var features = jsonObj["features"] as Newtonsoft.Json.Linq.JArray;
+
+                if (features == null)
+                    return geoJson;
+
+                foreach (var feature in features)
+                {
+                    var geometry = feature["geometry"] as Newtonsoft.Json.Linq.JObject;
+                    if (geometry != null)
+                    {
+                        var coords = geometry["coordinates"];
+                        var geomType = (string)geometry["type"];
+
+                        if (coords != null && geomType != null)
+                        {
+                            // SCHRITT 1: Geometrie-Koordinaten reparieren (Antimeridian-Crossings)
+                            var fixedCoords = FixPolygonCoordinates(coords, geomType);
+                            if (fixedCoords != null)
+                            {
+                                geometry["coordinates"] = fixedCoords;
+                                coords = fixedCoords;
+                            }
+
+                            // SCHRITT 2: Bounding-Box berechnen
+                            var bbox = CalculateBoundingBox(coords, geomType);
+                            if (bbox != null)
+                            {
+                                geometry["bbox"] = new Newtonsoft.Json.Linq.JArray(bbox);
+                            }
+                        }
+                    }
+                }
+
+                return jsonObj.ToString(Newtonsoft.Json.Formatting.None);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"GeoJSON preprocessing error: {ex.Message}");
+                return geoJson; // Fallback auf Original
+            }
+        }
+
+        /// <summary>
+        /// Korrigiert Polygon-Koordinaten: Antimeridian-Crossings und fehlerhafte Punkte
+        /// </summary>
+        private Newtonsoft.Json.Linq.JToken FixPolygonCoordinates(Newtonsoft.Json.Linq.JToken coords, string geomType)
+        {
+            try
+            {
+                if (geomType == "Polygon")
+                {
+                    var rings = coords as Newtonsoft.Json.Linq.JArray;
+                    if (rings == null || rings.Count == 0) return null;
+
+                    var fixedRings = new Newtonsoft.Json.Linq.JArray();
+                    foreach (var ring in rings)
+                    {
+                        var fixedRing = FixPolygonRing(ring as Newtonsoft.Json.Linq.JArray);
+                        if (fixedRing != null && fixedRing.Count >= 4)
+                        {
+                            fixedRings.Add(fixedRing);
+                        }
+                    }
+                    return fixedRings.Count > 0 ? fixedRings : null;
+                }
+                else if (geomType == "MultiPolygon")
+                {
+                    var polygons = coords as Newtonsoft.Json.Linq.JArray;
+                    if (polygons == null) return null;
+
+                    var fixedPolygons = new Newtonsoft.Json.Linq.JArray();
+                    foreach (var polygon in polygons)
+                    {
+                        var rings = polygon as Newtonsoft.Json.Linq.JArray;
+                        if (rings == null || rings.Count == 0) continue;
+
+                        var fixedRings = new Newtonsoft.Json.Linq.JArray();
+                        foreach (var ring in rings)
+                        {
+                            var fixedRing = FixPolygonRing(ring as Newtonsoft.Json.Linq.JArray);
+                            if (fixedRing != null && fixedRing.Count >= 4)
+                            {
+                                fixedRings.Add(fixedRing);
+                            }
+                        }
+                        if (fixedRings.Count > 0)
+                        {
+                            fixedPolygons.Add(fixedRings);
+                        }
+                    }
+                    return fixedPolygons.Count > 0 ? fixedPolygons : null;
+                }
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Korrigiert einen einzelnen Polygon-Ring: Normalisiert Koordinaten und behebt Antimeridian-Crossings
+        /// </summary>
+        private Newtonsoft.Json.Linq.JArray FixPolygonRing(Newtonsoft.Json.Linq.JArray ring)
+        {
+            if (ring == null || ring.Count < 4) return null;
+
+            var fixedRing = new Newtonsoft.Json.Linq.JArray();
+            double? prevLon = null;
+            double? prevLat = null;
+            double longitudeOffset = 0;
+
+            foreach (var coord in ring)
+            {
+                var coordArray = coord as Newtonsoft.Json.Linq.JArray;
+                if (coordArray == null || coordArray.Count < 2) continue;
+
+                double lon = (double)coordArray[0];
+                double lat = (double)coordArray[1];
+
+                // Latitude auf gültigen Bereich klemmen
+                if (lat > 90) lat = 90;
+                if (lat < -90) lat = -90;
+
+                // Longitude auf -180 bis 180 normalisieren
+                while (lon > 180) lon -= 360;
+                while (lon < -180) lon += 360;
+
+                if (prevLon.HasValue)
+                {
+                    double lonDiff = lon - prevLon.Value;
+                    double latDiff = Math.Abs(lat - prevLat.Value);
+
+                    // Antimeridian-Crossing erkennen und korrigieren
+                    if (lonDiff > 180)
+                    {
+                        // Sprung von Ost (~180°) nach West (~-180°)
+                        longitudeOffset -= 360;
+                    }
+                    else if (lonDiff < -180)
+                    {
+                        // Sprung von West (~-180°) nach Ost (~180°)
+                        longitudeOffset += 360;
+                    }
+
+                    // Fehlerhafte Punkte mit riesigen Lat-Sprüngen überspringen
+                    if (latDiff > 60)
+                    {
+                        continue; // Punkt überspringen
+                    }
+                }
+
+                double correctedLon = lon + longitudeOffset;
+                prevLon = correctedLon;
+                prevLat = lat;
+
+                fixedRing.Add(new Newtonsoft.Json.Linq.JArray(correctedLon, lat));
+            }
+
+            // Polygon schließen wenn nötig
+            if (fixedRing.Count >= 3)
+            {
+                var first = fixedRing[0] as Newtonsoft.Json.Linq.JArray;
+                var last = fixedRing[fixedRing.Count - 1] as Newtonsoft.Json.Linq.JArray;
+                if (first != null && last != null)
+                {
+                    double firstLon = (double)first[0];
+                    double firstLat = (double)first[1];
+                    double lastLon = (double)last[0];
+                    double lastLat = (double)last[1];
+
+                    // Closing-Jump korrigieren
+                    double closingLonDiff = lastLon - firstLon;
+                    if (Math.Abs(closingLonDiff) > 180)
+                    {
+                        if (closingLonDiff > 180)
+                            lastLon -= 360;
+                        else if (closingLonDiff < -180)
+                            lastLon += 360;
+                        fixedRing[fixedRing.Count - 1] = new Newtonsoft.Json.Linq.JArray(lastLon, lastLat);
+                    }
+
+                    if (firstLon != lastLon || firstLat != lastLat)
+                    {
+                        fixedRing.Add(new Newtonsoft.Json.Linq.JArray(firstLon, firstLat));
+                    }
+                }
+            }
+
+            return fixedRing;
+        }
+
+        /// <summary>
+        /// Liefert VATSIM Boundaries mit vorberechneten Bounding-Boxes
+        /// </summary>
+        private void HandleVatsimBoundariesWithBbox(HttpListenerContext context)
+        {
+            try
+            {
+                // Check preprocessed cache
+                lock (_boundariesCacheLock)
+                {
+                    if (_preprocessedVatsimBoundaries != null && (DateTime.Now - _preprocessedVatsimBoundariesTime) < BOUNDARIES_CACHE_TTL)
+                    {
+                        context.Response.AddHeader("X-Cache", "HIT");
+                        ResponseJson(context, _preprocessedVatsimBoundaries);
+                        return;
+                    }
+                }
+
+                // Get raw boundaries (from existing cache or fetch)
+                string rawBoundaries = null;
+                lock (_boundariesCacheLock)
+                {
+                    if (_cachedVatsimBoundaries != null && (DateTime.Now - _vatsimBoundariesCacheTime) < BOUNDARIES_CACHE_TTL)
+                    {
+                        rawBoundaries = _cachedVatsimBoundaries;
+                    }
+                }
+
+                if (rawBoundaries == null)
+                {
+                    // Fetch from GitHub
+                    using (var client = new WebClient())
+                    {
+                        client.Encoding = Encoding.UTF8;
+                        client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
+                        rawBoundaries = client.DownloadString("https://raw.githubusercontent.com/vatsimnetwork/vatspy-data-project/master/Boundaries.geojson");
+
+                        lock (_boundariesCacheLock)
+                        {
+                            _cachedVatsimBoundaries = rawBoundaries;
+                            _vatsimBoundariesCacheTime = DateTime.Now;
+                        }
+                    }
+                }
+
+                // Preprocess with bounding boxes
+                string preprocessed = PreprocessGeoJsonWithBoundingBoxes(rawBoundaries);
+
+                lock (_boundariesCacheLock)
+                {
+                    _preprocessedVatsimBoundaries = preprocessed;
+                    _preprocessedVatsimBoundariesTime = DateTime.Now;
+                }
+
+                Console.WriteLine("VATSIM Boundaries: preprocessed with bounding boxes");
+                context.Response.AddHeader("X-Cache", "PREPROCESSED");
+                ResponseJson(context, preprocessed);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"VATSIM Boundaries preprocessing error: {ex.Message}");
+                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                try { context.Response.OutputStream.Close(); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// Liefert vereinfachten IVAO Offline-FIR-Layer (165 FIRs statt 4103 Features)
+        /// Reduziert Serverlast um ~96%
+        /// </summary>
+        private void HandleIvaoOfflineFir(HttpListenerContext context)
+        {
+            try
+            {
+                string offlineFilePath = Path.Combine(BOUNDARIES_CACHE_DIR, "ivao_offline_fir.json");
+
+                if (File.Exists(offlineFilePath))
+                {
+                    string content = File.ReadAllText(offlineFilePath);
+                    context.Response.AddHeader("X-Cache", "STATIC");
+                    context.Response.AddHeader("X-FIR-Count", "165");
+                    ResponseJson(context, content);
+                    return;
+                }
+
+                // Fallback: Generiere Offline-FIR aus gecachten IVAO-Boundaries
+                string ivaoCachePath = Path.Combine(BOUNDARIES_CACHE_DIR, "ivao_boundaries_geojson.json");
+                if (File.Exists(ivaoCachePath))
+                {
+                    Console.WriteLine("IVAO Offline FIR: generating from cached boundaries...");
+                    string rawBoundaries = File.ReadAllText(ivaoCachePath);
+                    string offlineFir = GenerateOfflineFirFromBoundaries(rawBoundaries);
+
+                    // Cache für zukünftige Requests
+                    try
+                    {
+                        Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
+                        File.WriteAllText(offlineFilePath, offlineFir);
+                        Console.WriteLine("IVAO Offline FIR: saved to cache");
+                    }
+                    catch (Exception cacheEx)
+                    {
+                        Console.WriteLine($"IVAO Offline FIR: could not save cache: {cacheEx.Message}");
+                    }
+
+                    context.Response.AddHeader("X-Cache", "GENERATED");
+                    ResponseJson(context, offlineFir);
+                    return;
+                }
+
+                // Letzter Fallback: leere FeatureCollection
+                Console.WriteLine("IVAO Offline FIR: no source data available, returning empty collection");
+                ResponseJson(context, "{\"type\":\"FeatureCollection\",\"features\":[]}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"IVAO Offline FIR error: {ex.Message}");
+                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                try { context.Response.OutputStream.Close(); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// Generiert eine vereinfachte Offline-FIR-Sammlung aus den vollständigen IVAO-Boundaries.
+        /// Filtert nur CTR-Zonen und gruppiert sie nach ICAO-Prefix.
+        /// </summary>
+        private string GenerateOfflineFirFromBoundaries(string rawBoundaries)
+        {
+            var features = new List<string>();
+            var seenPrefixes = new HashSet<string>();
+
+            try
+            {
+                // Parse JSON manuell (wie in anderen Methoden)
+                int featuresStart = rawBoundaries.IndexOf("\"features\"");
+                if (featuresStart == -1) return "{\"type\":\"FeatureCollection\",\"features\":[]}";
+
+                int arrayStart = rawBoundaries.IndexOf('[', featuresStart);
+                if (arrayStart == -1) return "{\"type\":\"FeatureCollection\",\"features\":[]}";
+
+                // Finde alle Features mit position=CTR oder FIR
+                int searchPos = arrayStart;
+                int featureCount = 0;
+
+                while (searchPos < rawBoundaries.Length && featureCount < 500)
+                {
+                    int featureStart = rawBoundaries.IndexOf("{\"type\":\"Feature\"", searchPos);
+                    if (featureStart == -1) break;
+
+                    // Finde das Ende dieses Features
+                    int braceCount = 0;
+                    int featureEnd = featureStart;
+                    for (int i = featureStart; i < rawBoundaries.Length; i++)
+                    {
+                        if (rawBoundaries[i] == '{') braceCount++;
+                        else if (rawBoundaries[i] == '}') braceCount--;
+
+                        if (braceCount == 0)
+                        {
+                            featureEnd = i + 1;
+                            break;
+                        }
+                    }
+
+                    string featureJson = rawBoundaries.Substring(featureStart, featureEnd - featureStart);
+
+                    // Prüfe ob es eine CTR oder FIR Zone ist
+                    bool isCtr = featureJson.Contains("\"position\":\"CTR\"") ||
+                                 featureJson.Contains("\"position\": \"CTR\"");
+                    bool isFir = featureJson.Contains("\"position\":\"FIR\"") ||
+                                 featureJson.Contains("\"position\": \"FIR\"");
+
+                    if (isCtr || isFir)
+                    {
+                        // Extrahiere Prefix/ICAO aus der ID
+                        string prefix = ExtractPrefixFromFeature(featureJson);
+
+                        // Nur ein Feature pro Prefix (verhindert Duplikate)
+                        if (!string.IsNullOrEmpty(prefix) && !seenPrefixes.Contains(prefix))
+                        {
+                            seenPrefixes.Add(prefix);
+                            features.Add(featureJson);
+                            featureCount++;
+                        }
+                    }
+
+                    searchPos = featureEnd;
+                }
+
+                Console.WriteLine($"IVAO Offline FIR: extracted {features.Count} unique FIR/CTR zones");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"IVAO Offline FIR generation error: {ex.Message}");
+            }
+
+            return "{\"type\":\"FeatureCollection\",\"features\":[" + string.Join(",", features) + "]}";
+        }
+
+        /// <summary>
+        /// Extrahiert den ICAO-Prefix aus einem Feature-JSON
+        /// </summary>
+        private string ExtractPrefixFromFeature(string featureJson)
+        {
+            // Versuche airport_id zu finden
+            int airportIdStart = featureJson.IndexOf("\"airport_id\"");
+            if (airportIdStart != -1)
+            {
+                int colonPos = featureJson.IndexOf(':', airportIdStart);
+                if (colonPos != -1)
+                {
+                    int quoteStart = featureJson.IndexOf('"', colonPos + 1);
+                    int quoteEnd = featureJson.IndexOf('"', quoteStart + 1);
+                    if (quoteStart != -1 && quoteEnd != -1)
+                    {
+                        string airportId = featureJson.Substring(quoteStart + 1, quoteEnd - quoteStart - 1);
+                        if (!string.IsNullOrEmpty(airportId) && airportId.Length == 4)
+                        {
+                            return airportId.ToUpperInvariant();
+                        }
+                    }
+                }
+            }
+
+            // Fallback: Extrahiere aus ID
+            int idStart = featureJson.IndexOf("\"id\"");
+            if (idStart != -1)
+            {
+                int colonPos = featureJson.IndexOf(':', idStart);
+                if (colonPos != -1)
+                {
+                    int quoteStart = featureJson.IndexOf('"', colonPos + 1);
+                    int quoteEnd = featureJson.IndexOf('"', quoteStart + 1);
+                    if (quoteStart != -1 && quoteEnd != -1)
+                    {
+                        string id = featureJson.Substring(quoteStart + 1, quoteEnd - quoteStart - 1);
+                        // ID Format: NAME_POSITION oder NAME_SECTOR_POSITION
+                        // Versuche ICAO aus dem Namen zu extrahieren (4 Buchstaben am Anfang)
+                        if (id.Length >= 4)
+                        {
+                            string potentialIcao = id.Substring(0, 4).ToUpperInvariant();
+                            if (potentialIcao.All(c => char.IsLetter(c)))
+                            {
+                                return potentialIcao;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Liefert IVAO Boundaries mit vorberechneten Bounding-Boxes
+        /// </summary>
+        private void HandleIvaoBoundariesWithBbox(HttpListenerContext context)
+        {
+            try
+            {
+                // Check preprocessed cache
+                lock (_boundariesCacheLock)
+                {
+                    if (_preprocessedIvaoBoundaries != null && (DateTime.Now - _preprocessedIvaoBoundariesTime) < BOUNDARIES_CACHE_TTL)
+                    {
+                        context.Response.AddHeader("X-Cache", "HIT");
+                        ResponseJson(context, _preprocessedIvaoBoundaries);
+                        return;
+                    }
+                }
+
+                // Get raw boundaries (from existing cache or fetch)
+                string rawBoundaries = null;
+                lock (_boundariesCacheLock)
+                {
+                    if (_cachedIvaoBoundaries != null && (DateTime.Now - _ivaoBoundariesCacheTime) < BOUNDARIES_CACHE_TTL)
+                    {
+                        rawBoundaries = _cachedIvaoBoundaries;
+                    }
+                }
+
+                if (rawBoundaries == null)
+                {
+                    // Fetch from IVAO API
+                    using (var client = new WebClient())
+                    {
+                        client.Encoding = Encoding.UTF8;
+                        client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
+                        rawBoundaries = client.DownloadString("https://api.ivao.aero/v2/firs");
+
+                        lock (_boundariesCacheLock)
+                        {
+                            _cachedIvaoBoundaries = rawBoundaries;
+                            _ivaoBoundariesCacheTime = DateTime.Now;
+                        }
+                    }
+                }
+
+                // Preprocess with bounding boxes
+                string preprocessed = PreprocessGeoJsonWithBoundingBoxes(rawBoundaries);
+
+                lock (_boundariesCacheLock)
+                {
+                    _preprocessedIvaoBoundaries = preprocessed;
+                    _preprocessedIvaoBoundariesTime = DateTime.Now;
+                }
+
+                Console.WriteLine("IVAO Boundaries: preprocessed with bounding boxes");
+                context.Response.AddHeader("X-Cache", "PREPROCESSED");
+                ResponseJson(context, preprocessed);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"IVAO Boundaries preprocessing error: {ex.Message}");
+                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                try { context.Response.OutputStream.Close(); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// Load pilot favorites from disk
+        /// </summary>
+        private void HandleGetFavorites(HttpListenerContext context)
+        {
+            try
+            {
+                lock (_favoritesLock)
+                {
+                    if (File.Exists(FAVORITES_FILE))
+                    {
+                        string json = File.ReadAllText(FAVORITES_FILE, Encoding.UTF8);
+                        // Remove UTF-8 BOM if present (backwards compatibility)
+                        if (json.Length > 0 && json[0] == '\uFEFF')
+                        {
+                            json = json.Substring(1);
+                        }
+                        ResponseJson(context, json);
+                    }
+                    else
+                    {
+                        ResponseJson(context, "{}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading favorites: {ex.Message}");
+                ResponseJson(context, "{}");
+            }
+        }
+
+        /// <summary>
+        /// Save pilot favorites to disk
+        /// </summary>
+        private void HandleSaveFavorites(HttpListenerContext context)
+        {
+            try
+            {
+                using (var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
+                {
+                    string json = reader.ReadToEnd();
+
+                    lock (_favoritesLock)
+                    {
+                        // Ensure cache directory exists
+                        var cacheDir = Path.GetDirectoryName(FAVORITES_FILE);
+                        if (!Directory.Exists(cacheDir))
+                        {
+                            Directory.CreateDirectory(cacheDir);
+                        }
+
+                        // Write UTF-8 without BOM to ensure JavaScript JSON.parse() compatibility
+                        File.WriteAllText(FAVORITES_FILE, json, new UTF8Encoding(false));
+                    }
+
+                    ResponseJson(context, "{\"success\":true}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving favorites: {ex.Message}");
+                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                ResponseJson(context, "{\"error\":\"" + ex.Message.Replace("\"", "\\\"") + "\"}");
+            }
+        }
+
+        /// <summary>
+        /// Handles ICAO-based airport lookup via OpenAIP API.
+        /// Returns airport coordinates for a given ICAO code.
+        /// Endpoint: api/openaip/airport-by-icao/{ICAO}
+        /// </summary>
+        private void HandleOpenAipAirportByIcao(HttpListenerContext context, string icaoCode)
+        {
+            if (string.IsNullOrWhiteSpace(icaoCode) || icaoCode.Length < 3 || icaoCode.Length > 4)
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                ResponseJson(context, "{\"error\":\"Invalid ICAO code\"}");
+                return;
+            }
+
+            // Cache path for ICAO lookups
+            var cachePath = Path.Combine(CACHE_DIR, "icao", $"{icaoCode}.json");
+
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (File.Exists(cachePath))
+                {
+                    var fileInfo = new FileInfo(cachePath);
+                    if (DateTime.Now - fileInfo.LastWriteTime < CACHE_TTL)
+                    {
+                        try
+                        {
+                            var cachedData = File.ReadAllBytes(cachePath);
+                            context.Response.StatusCode = 200;
+                            context.Response.ContentType = "application/json";
+                            context.Response.ContentLength64 = cachedData.Length;
+                            context.Response.AddHeader("X-Cache", "HIT");
+                            context.Response.OutputStream.Write(cachedData, 0, cachedData.Length);
+                            context.Response.OutputStream.Close();
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[OpenAIP ICAO] Cache read error: {ex.Message}");
+                        }
+                    }
+                }
+            }
+
+            // Build OpenAIP API URL with search parameter
+            var apiUrl = $"https://api.core.openaip.net/api/airports?page=1&limit=10&search={Uri.EscapeDataString(icaoCode)}&apiKey={Uri.EscapeDataString(OPENAIP_API_KEY)}";
+
+            HttpWebResponse upstreamResponse = null;
+            try
+            {
+                var outboundRequest = (HttpWebRequest)WebRequest.Create(apiUrl);
+                outboundRequest.Method = "GET";
+                outboundRequest.Accept = "application/json";
+                outboundRequest.Headers.Add("x-openaip-client-id", OPENAIP_API_KEY);
+                outboundRequest.Timeout = 5000;
+                outboundRequest.ReadWriteTimeout = 5000;
+                upstreamResponse = (HttpWebResponse)outboundRequest.GetResponse();
+
+                string responseBody;
+                using (var reader = new StreamReader(upstreamResponse.GetResponseStream()))
+                {
+                    responseBody = reader.ReadToEnd();
+                }
+
+                // Parse the response to find the exact ICAO match
+                dynamic result = null;
+                try
+                {
+                    dynamic jsonResponse = Newtonsoft.Json.JsonConvert.DeserializeObject(responseBody);
+                    if (jsonResponse?.items != null)
+                    {
+                        foreach (var airport in jsonResponse.items)
+                        {
+                            string airportIcao = airport.icaoCode?.ToString()?.ToUpperInvariant();
+                            if (airportIcao == icaoCode)
+                            {
+                                // Extract geometry coordinates [lng, lat]
+                                var geometry = airport.geometry;
+                                if (geometry?.coordinates != null)
+                                {
+                                    double lng = (double)geometry.coordinates[0];
+                                    double lat = (double)geometry.coordinates[1];
+                                    result = new
+                                    {
+                                        icao = icaoCode,
+                                        name = (string)airport.name,
+                                        lat = lat,
+                                        lng = lng,
+                                        found = true
+                                    };
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception parseEx)
+                {
+                    Console.WriteLine($"[OpenAIP ICAO] Parse error: {parseEx.Message}");
+                }
+
+                // If no exact match found
+                if (result == null)
+                {
+                    result = new { icao = icaoCode, found = false };
+                }
+
+                var resultJson = Newtonsoft.Json.JsonConvert.SerializeObject(result);
+                var resultBytes = System.Text.Encoding.UTF8.GetBytes(resultJson);
+
+                // Cache the result
+                if (result.found)
+                {
+                    ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        try
+                        {
+                            var cacheDir = Path.GetDirectoryName(cachePath);
+                            if (!Directory.Exists(cacheDir))
+                                Directory.CreateDirectory(cacheDir);
+                            File.WriteAllBytes(cachePath, resultBytes);
+                        }
+                        catch (Exception cacheEx)
+                        {
+                            Console.WriteLine($"[OpenAIP ICAO] Cache write error: {cacheEx.Message}");
+                        }
+                    });
+                }
+
+                context.Response.StatusCode = 200;
+                context.Response.ContentType = "application/json";
+                context.Response.ContentLength64 = resultBytes.Length;
+                context.Response.AddHeader("X-Cache", "MISS");
+                context.Response.OutputStream.Write(resultBytes, 0, resultBytes.Length);
+            }
+            catch (WebException ex)
+            {
+                var httpResponse = ex.Response as HttpWebResponse;
+                Console.WriteLine($"[OpenAIP ICAO] Error fetching {icaoCode}: {ex.Message}");
+                context.Response.StatusCode = httpResponse != null
+                    ? (int)httpResponse.StatusCode
+                    : (int)HttpStatusCode.BadGateway;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icaoCode}\",\"found\":false}}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[OpenAIP ICAO] Unexpected error: {ex.Message}");
+                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icaoCode}\",\"found\":false}}");
+            }
+            finally
+            {
+                upstreamResponse?.Close();
+                try { context.Response.OutputStream.Close(); } catch { }
+            }
+        }
+
+        // Global airport ICAO index - loaded once from OpenAIP
+        private static Dictionary<string, (double lat, double lng, string name)> _globalAirportIndex = null;
+        // IATA to ICAO mapping (e.g., "JFK" -> "KJFK", "YYZ" -> "CYYZ")
+        private static Dictionary<string, string> _iataToIcaoIndex = null;
+        private static readonly object _airportIndexLock = new object();
+        private static bool _airportIndexLoading = false;
+        private static readonly string GLOBAL_AIRPORTS_CACHE = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "global_airports.json");
+        private static readonly string IATA_ICAO_CACHE = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "iata_icao_mapping.json");
+
+        /// <summary>
+        /// Starts loading the global airport index in the background.
+        /// Call this at server startup.
+        /// </summary>
+        public void StartGlobalAirportIndexLoad()
+        {
+            if (_globalAirportIndex != null) return;
+            if (_airportIndexLoading) return;
+
+            System.Threading.Tasks.Task.Run(() => LoadGlobalAirportIndex());
+        }
+
+        /// <summary>
+        /// Loads ALL airports from OpenAIP API and builds a global ICAO index.
+        /// Uses aggressive caching (30 days) since airport data rarely changes.
+        /// </summary>
+        private void LoadGlobalAirportIndex()
+        {
+            if (_globalAirportIndex != null) return;
+
+            lock (_airportIndexLock)
+            {
+                if (_globalAirportIndex != null) return;
+                if (_airportIndexLoading) return;
+                _airportIndexLoading = true;
+            }
+
+            try
+            {
+                // Try to load from cache first
+                if (File.Exists(GLOBAL_AIRPORTS_CACHE))
+                {
+                    var fileInfo = new FileInfo(GLOBAL_AIRPORTS_CACHE);
+                    if (DateTime.Now - fileInfo.LastWriteTime < TimeSpan.FromDays(30))
+                    {
+                        try
+                        {
+                            var cachedJson = File.ReadAllText(GLOBAL_AIRPORTS_CACHE);
+                            var cached = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, dynamic>>(cachedJson);
+                            var tempIndex = new Dictionary<string, (double lat, double lng, string name)>();
+                            foreach (var kvp in cached)
+                            {
+                                tempIndex[kvp.Key] = ((double)kvp.Value.lat, (double)kvp.Value.lng, (string)kvp.Value.name);
+                            }
+                            _globalAirportIndex = tempIndex;
+
+                            // Also load IATA->ICAO mapping from cache
+                            if (File.Exists(IATA_ICAO_CACHE))
+                            {
+                                try
+                                {
+                                    var iataJson = File.ReadAllText(IATA_ICAO_CACHE);
+                                    _iataToIcaoIndex = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, string>>(iataJson);
+                                    Console.WriteLine($"[OpenAIP] Loaded {_iataToIcaoIndex.Count} IATA->ICAO mappings from cache");
+                                }
+                                catch (Exception iataEx)
+                                {
+                                    Console.WriteLine($"[OpenAIP] IATA cache read error: {iataEx.Message}");
+                                    _iataToIcaoIndex = new Dictionary<string, string>();
+                                }
+                            }
+                            else
+                            {
+                                _iataToIcaoIndex = new Dictionary<string, string>();
+                            }
+
+                            Console.WriteLine($"[OpenAIP] Loaded {_globalAirportIndex.Count} airports from cache");
+                            _kneeboardServer?.SetStatusText($"Status: {_globalAirportIndex.Count} airports loaded. Server is running...");
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[OpenAIP] Cache read error: {ex.Message}");
+                        }
+                    }
+                }
+
+                // Load ALL airports from OpenAIP API (paginated)
+                Console.WriteLine("[OpenAIP] Loading global airport database...");
+                _kneeboardServer?.SetStatusText("Status: Loading airports from OpenAIP...");
+                var allAirports = new Dictionary<string, (double lat, double lng, string name)>();
+                var iataMapping = new Dictionary<string, string>(); // IATA -> ICAO mapping
+                int page = 1;
+                int totalPages = 1;
+                int limit = 1000;
+
+                while (page <= totalPages)
+                {
+                    var apiUrl = $"https://api.core.openaip.net/api/airports?page={page}&limit={limit}&apiKey={Uri.EscapeDataString(OPENAIP_API_KEY)}";
+
+                    try
+                    {
+                        var request = (HttpWebRequest)WebRequest.Create(apiUrl);
+                        request.Method = "GET";
+                        request.Accept = "application/json";
+                        request.Headers.Add("x-openaip-client-id", OPENAIP_API_KEY);
+                        request.Timeout = 30000;
+
+                        using (var response = (HttpWebResponse)request.GetResponse())
+                        using (var reader = new StreamReader(response.GetResponseStream()))
+                        {
+                            var json = reader.ReadToEnd();
+                            dynamic data = Newtonsoft.Json.JsonConvert.DeserializeObject(json);
+
+                            if (page == 1 && data.totalPages != null)
+                            {
+                                totalPages = (int)data.totalPages;
+                                Console.WriteLine($"[OpenAIP] Total pages: {totalPages}");
+                            }
+
+                            if (data.items != null)
+                            {
+                                foreach (var airport in data.items)
+                                {
+                                    string icao = airport.icaoCode?.ToString()?.ToUpperInvariant();
+                                    string iata = airport.iataCode?.ToString()?.ToUpperInvariant();
+                                    if (!string.IsNullOrEmpty(icao) && airport.geometry?.coordinates != null)
+                                    {
+                                        double lng = (double)airport.geometry.coordinates[0];
+                                        double lat = (double)airport.geometry.coordinates[1];
+                                        string name = airport.name?.ToString() ?? "";
+                                        allAirports[icao] = (lat, lng, name);
+
+                                        // Store IATA -> ICAO mapping if IATA code exists
+                                        if (!string.IsNullOrEmpty(iata) && iata.Length == 3)
+                                        {
+                                            iataMapping[iata] = icao;
+                                        }
+                                    }
+                                }
+                            }
+
+                            Console.WriteLine($"[OpenAIP] Page {page}/{totalPages} - Airports with ICAO: {allAirports.Count}");
+                            _kneeboardServer?.SetStatusText($"Status: Loading airports... {page}/{totalPages} ({allAirports.Count} ICAO)");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[OpenAIP] Error loading page {page}: {ex.Message}");
+                        break;
+                    }
+
+                    page++;
+
+                    // Small delay to avoid rate limiting
+                    if (page <= totalPages)
+                        System.Threading.Thread.Sleep(50);
+                }
+
+                _globalAirportIndex = allAirports;
+                _iataToIcaoIndex = iataMapping;
+                Console.WriteLine($"[OpenAIP] Loaded {_globalAirportIndex.Count} airports with ICAO codes, {_iataToIcaoIndex.Count} IATA mappings");
+                _kneeboardServer?.SetStatusText($"Status: {_globalAirportIndex.Count} airports loaded. Server is running...");
+
+                // Save to cache
+                if (allAirports.Count > 0)
+                {
+                    try
+                    {
+                        var cacheDir = Path.GetDirectoryName(GLOBAL_AIRPORTS_CACHE);
+                        if (!Directory.Exists(cacheDir))
+                            Directory.CreateDirectory(cacheDir);
+
+                        var cacheData = new Dictionary<string, object>();
+                        foreach (var kvp in _globalAirportIndex)
+                        {
+                            cacheData[kvp.Key] = new { lat = kvp.Value.lat, lng = kvp.Value.lng, name = kvp.Value.name };
+                        }
+                        File.WriteAllText(GLOBAL_AIRPORTS_CACHE, Newtonsoft.Json.JsonConvert.SerializeObject(cacheData));
+
+                        // Save IATA->ICAO mapping cache
+                        File.WriteAllText(IATA_ICAO_CACHE, Newtonsoft.Json.JsonConvert.SerializeObject(iataMapping));
+                        Console.WriteLine($"[OpenAIP] Saved airport cache and {iataMapping.Count} IATA mappings");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[OpenAIP] Cache save error: {ex.Message}");
+                    }
+                }
+            }
+            finally
+            {
+                _airportIndexLoading = false;
+            }
+        }
+
+        /// <summary>
+        /// Handles IATA to ICAO conversion request.
+        /// Endpoint: api/openaip/iata-to-icao/{IATA}
+        /// </summary>
+        private void HandleIataToIcao(HttpListenerContext context, string iataCode)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(iataCode) || iataCode.Length != 3)
+                {
+                    context.Response.StatusCode = 400;
+                    ResponseJson(context, "{\"found\":false,\"error\":\"Invalid IATA code\"}");
+                    return;
+                }
+
+                string icao = null;
+                if (_iataToIcaoIndex != null && _iataToIcaoIndex.TryGetValue(iataCode, out icao))
+                {
+                    ResponseJson(context, $"{{\"found\":true,\"iata\":\"{iataCode}\",\"icao\":\"{icao}\"}}");
+                }
+                else
+                {
+                    ResponseJson(context, $"{{\"found\":false,\"iata\":\"{iataCode}\"}}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[API] IATA-to-ICAO error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                ResponseJson(context, "{\"found\":false,\"error\":\"Internal error\"}");
+            }
+        }
+
+        /// <summary>
+        /// Returns the full IATA->ICAO mapping for frontend caching.
+        /// Endpoint: api/openaip/iata-icao-mapping
+        /// </summary>
+        private void HandleIataIcaoMapping(HttpListenerContext context)
+        {
+            try
+            {
+                if (_iataToIcaoIndex == null || _iataToIcaoIndex.Count == 0)
+                {
+                    ResponseJson(context, "{\"ready\":false,\"count\":0,\"mapping\":{}}");
+                    return;
+                }
+
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                {
+                    ready = true,
+                    count = _iataToIcaoIndex.Count,
+                    mapping = _iataToIcaoIndex
+                });
+                ResponseJson(context, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[API] IATA-ICAO-mapping error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                ResponseJson(context, "{\"ready\":false,\"error\":\"Internal error\"}");
+            }
+        }
+
+        /// <summary>
+        /// Looks up airport coordinates from the global index.
+        /// If not found in index, tries OpenAIP search API and caches the result.
+        /// </summary>
+        private (double lat, double lng, string name)? LookupAirportByIcao(string icao)
+        {
+            if (string.IsNullOrEmpty(icao)) return null;
+            icao = icao.ToUpperInvariant();
+
+            // Check global index first
+            if (_globalAirportIndex != null && _globalAirportIndex.TryGetValue(icao, out var result))
+            {
+                return result;
+            }
+
+            // If not found, try OpenAIP search API directly
+            try
+            {
+                var apiUrl = $"https://api.core.openaip.net/api/airports?search={Uri.EscapeDataString(icao)}&limit=5&apiKey={Uri.EscapeDataString(OPENAIP_API_KEY)}";
+                var request = (HttpWebRequest)WebRequest.Create(apiUrl);
+                request.Method = "GET";
+                request.Accept = "application/json";
+                request.Headers.Add("x-openaip-client-id", OPENAIP_API_KEY);
+                request.Timeout = 5000;
+
+                using (var response = (HttpWebResponse)request.GetResponse())
+                using (var reader = new StreamReader(response.GetResponseStream()))
+                {
+                    var json = reader.ReadToEnd();
+                    dynamic data = Newtonsoft.Json.JsonConvert.DeserializeObject(json);
+
+                    if (data.items != null)
+                    {
+                        foreach (var airport in data.items)
+                        {
+                            string foundIcao = airport.icaoCode?.ToString()?.ToUpperInvariant();
+                            if (foundIcao == icao && airport.geometry?.coordinates != null)
+                            {
+                                double lng = (double)airport.geometry.coordinates[0];
+                                double lat = (double)airport.geometry.coordinates[1];
+                                string name = airport.name?.ToString() ?? "";
+
+                                // Cache the result for future lookups
+                                if (_globalAirportIndex != null)
+                                {
+                                    _globalAirportIndex[icao] = (lat, lng, name);
+                                }
+
+                                Console.WriteLine($"[OpenAIP] Found {icao} via search: {name}");
+                                return (lat, lng, name);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[OpenAIP] Search error for {icao}: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Batch endpoint to fetch DEP and ARR airport coordinates in one request.
+        /// Uses the global airport index for instant O(1) lookup.
+        /// Endpoint: api/openaip/airports-batch?dep=KMIA&arr=LIPE
+        /// </summary>
+        private void HandleOpenAipAirportsBatch(HttpListenerContext context)
+        {
+            // If index is still loading, return a "loading" status
+            if (_globalAirportIndex == null)
+            {
+                // Start loading if not already started
+                if (!_airportIndexLoading)
+                {
+                    StartGlobalAirportIndexLoad();
+                }
+
+                var loadingResponse = Newtonsoft.Json.JsonConvert.SerializeObject(new { loading = true, message = "Airport database is being loaded..." });
+                var loadingBytes = System.Text.Encoding.UTF8.GetBytes(loadingResponse);
+                context.Response.StatusCode = 200;
+                context.Response.ContentType = "application/json";
+                context.Response.ContentLength64 = loadingBytes.Length;
+                context.Response.OutputStream.Write(loadingBytes, 0, loadingBytes.Length);
+                try { context.Response.OutputStream.Close(); } catch { }
+                return;
+            }
+
+            var depIcao = (context.Request.QueryString["dep"] ?? "").Trim().ToUpperInvariant();
+            var arrIcao = (context.Request.QueryString["arr"] ?? "").Trim().ToUpperInvariant();
+
+            if (string.IsNullOrEmpty(depIcao) && string.IsNullOrEmpty(arrIcao))
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                ResponseJson(context, "{\"error\":\"At least one of dep or arr is required\"}");
+                return;
+            }
+
+            var result = new Dictionary<string, object>();
+
+            // Lookup DEP
+            if (!string.IsNullOrEmpty(depIcao))
+            {
+                var depResult = LookupAirportByIcao(depIcao);
+                if (depResult.HasValue)
+                {
+                    result["dep"] = new { icao = depIcao, name = depResult.Value.name, lat = depResult.Value.lat, lng = depResult.Value.lng, found = true };
+                }
+                else
+                {
+                    result["dep"] = new { icao = depIcao, found = false };
+                }
+            }
+
+            // Lookup ARR
+            if (!string.IsNullOrEmpty(arrIcao))
+            {
+                var arrResult = LookupAirportByIcao(arrIcao);
+                if (arrResult.HasValue)
+                {
+                    result["arr"] = new { icao = arrIcao, name = arrResult.Value.name, lat = arrResult.Value.lat, lng = arrResult.Value.lng, found = true };
+                }
+                else
+                {
+                    result["arr"] = new { icao = arrIcao, found = false };
+                }
+            }
+
+            var resultJson = Newtonsoft.Json.JsonConvert.SerializeObject(result);
+            var resultBytes = System.Text.Encoding.UTF8.GetBytes(resultJson);
+
+            context.Response.StatusCode = 200;
+            context.Response.ContentType = "application/json";
+            context.Response.ContentLength64 = resultBytes.Length;
+            context.Response.OutputStream.Write(resultBytes, 0, resultBytes.Length);
+            try { context.Response.OutputStream.Close(); } catch { }
         }
 
         private void HandleOpenAipProxy(HttpListenerContext context, string endpoint)
@@ -1739,8 +3962,8 @@ namespace Kneeboard_Server
                 outboundRequest.Accept = isTilesEndpoint ? "image/png" : "application/json";
                 // Always add header for authentication
                 outboundRequest.Headers.Add("x-openaip-client-id", OPENAIP_API_KEY);
-                outboundRequest.Timeout = 10000; // 10 second timeout
-                outboundRequest.ReadWriteTimeout = 10000; // 10 second read/write timeout
+                outboundRequest.Timeout = 7000; // 7 second timeout (optimized)
+                outboundRequest.ReadWriteTimeout = 7000; // 7 second read/write timeout (optimized)
                 upstreamResponse = (HttpWebResponse)outboundRequest.GetResponse();
 
                 // Read response into memory for caching
@@ -1783,7 +4006,10 @@ namespace Kneeboard_Server
                 {
                     File.AppendAllText(Path.Combine(_rootDirectory, "openaip_errors.log"), logMessage + "\n");
                 }
-                catch { }
+                catch (Exception logEx)
+                {
+                    Console.WriteLine($"[OpenAIP] Failed to write error log: {logEx.Message}");
+                }
 
                 Console.WriteLine($"OpenAIP Proxy Error: {ex.Message}");
                 Console.WriteLine($"Requested URL: {builder.ToString()}");
@@ -1827,6 +4053,258 @@ namespace Kneeboard_Server
             {
                 upstreamResponse?.Close();
                 context.Response.OutputStream.Close();
+            }
+        }
+
+        // ============================================================================
+        // Baselayer Tile Proxy with Caching
+        // Caches OSM, Google, OpenTopoMap tiles locally for faster loading
+        // ============================================================================
+
+        /// <summary>
+        /// Gets the cache file path for a baselayer tile
+        /// </summary>
+        private static string GetBaselayerTileCachePath(string provider, string tilePath)
+        {
+            // tilePath is like "10/532/341.png" or "10/532/341"
+            string safePath = tilePath.Replace('/', Path.DirectorySeparatorChar);
+            if (!safePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                safePath += ".png";
+            return Path.Combine(BASELAYER_CACHE_DIR, provider, safePath);
+        }
+
+        /// <summary>
+        /// Checks if a baselayer cache file exists and is still valid
+        /// </summary>
+        private static bool IsBaselayerCacheValid(string cachePath)
+        {
+            if (!File.Exists(cachePath))
+                return false;
+
+            var fileInfo = new FileInfo(cachePath);
+            return (DateTime.Now - fileInfo.LastWriteTime) < BASELAYER_CACHE_TTL;
+        }
+
+        /// <summary>
+        /// Reads tile data from baselayer cache
+        /// </summary>
+        private static byte[] ReadFromBaselayerCache(string cachePath)
+        {
+            lock (_baselayerCacheLock)
+            {
+                return File.ReadAllBytes(cachePath);
+            }
+        }
+
+        /// <summary>
+        /// Writes tile data to baselayer cache
+        /// </summary>
+        private static void WriteToBaselayerCache(string cachePath, byte[] data)
+        {
+            try
+            {
+                lock (_baselayerCacheLock)
+                {
+                    string directory = Path.GetDirectoryName(cachePath);
+                    if (!Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
+                    File.WriteAllBytes(cachePath, data);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Baselayer Cache] Write error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Proxies baselayer tiles with local caching
+        /// Supports: osm, google-hybrid, google-satellite, opentopomap
+        /// </summary>
+        private void HandleBaselayerTileProxy(HttpListenerContext context, string provider)
+        {
+            HttpWebResponse upstreamResponse = null;
+            bool responseClosed = false;
+
+            try
+            {
+                var request = context.Request;
+                var path = request.Url.AbsolutePath;
+
+                // Parse tile coordinates from path: /api/tiles/{provider}/{z}/{x}/{y}.png
+                string prefix = $"/api/tiles/{provider}/";
+                if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    try { context.Response.OutputStream.Close(); } catch { }
+                    responseClosed = true;
+                    return;
+                }
+
+                string tilePath = path.Substring(prefix.Length); // e.g., "10/532/341.png"
+                string cachePath = GetBaselayerTileCachePath(provider, tilePath);
+
+                // Check cache first
+                if (IsBaselayerCacheValid(cachePath))
+                {
+                    try
+                    {
+                        byte[] cachedData = ReadFromBaselayerCache(cachePath);
+                        context.Response.StatusCode = (int)HttpStatusCode.OK;
+                        context.Response.ContentType = "image/png";
+                        context.Response.ContentLength64 = cachedData.Length;
+                        context.Response.AddHeader("X-Cache", "HIT");
+                        context.Response.AddHeader("Cache-Control", "public, max-age=2592000"); // 30 days
+                        context.Response.OutputStream.Write(cachedData, 0, cachedData.Length);
+                        context.Response.OutputStream.Close();
+                        responseClosed = true;
+                        return;
+                    }
+                    catch (System.Net.HttpListenerException)
+                    {
+                        // Client disconnected - silently abort
+                        responseClosed = true;
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Cache read failed but connection still alive - continue to upstream
+                        if (ex.Message.Contains("Netzwerkname") || ex.Message.Contains("network name"))
+                        {
+                            responseClosed = true;
+                            return;
+                        }
+                    }
+                }
+
+                // Build upstream URL based on provider
+                string[] parts = tilePath.Replace(".png", "").Split('/');
+                if (parts.Length < 3)
+                {
+                    try
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                        context.Response.OutputStream.Close();
+                    }
+                    catch { }
+                    responseClosed = true;
+                    return;
+                }
+
+                string z = parts[0];
+                string x = parts[1];
+                string y = parts[2];
+                string upstreamUrl;
+
+                switch (provider.ToLower())
+                {
+                    case "osm":
+                        string[] osmSubdomains = { "a", "b", "c" };
+                        string osmSubdomain = osmSubdomains[Math.Abs((x + y).GetHashCode()) % osmSubdomains.Length];
+                        upstreamUrl = $"https://{osmSubdomain}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+                        break;
+
+                    case "google-hybrid":
+                        string[] googleSubdomains = { "mt0", "mt1", "mt2", "mt3" };
+                        string googleSubdomain = googleSubdomains[Math.Abs((x + y).GetHashCode()) % googleSubdomains.Length];
+                        upstreamUrl = $"https://{googleSubdomain}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}";
+                        break;
+
+                    case "google-satellite":
+                        string[] satSubdomains = { "mt0", "mt1", "mt2", "mt3" };
+                        string satSubdomain = satSubdomains[Math.Abs((x + y).GetHashCode()) % satSubdomains.Length];
+                        upstreamUrl = $"https://{satSubdomain}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}";
+                        break;
+
+                    case "opentopomap":
+                        string[] topoSubdomains = { "a", "b", "c" };
+                        string topoSubdomain = topoSubdomains[Math.Abs((x + y).GetHashCode()) % topoSubdomains.Length];
+                        upstreamUrl = $"https://{topoSubdomain}.tile.opentopomap.org/{z}/{x}/{y}.png";
+                        break;
+
+                    default:
+                        try
+                        {
+                            context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                            context.Response.OutputStream.Close();
+                        }
+                        catch { }
+                        responseClosed = true;
+                        return;
+                }
+
+                var outboundRequest = (HttpWebRequest)WebRequest.Create(upstreamUrl);
+                outboundRequest.Method = "GET";
+                outboundRequest.Accept = "image/png,image/*";
+                outboundRequest.UserAgent = "KneeboardServer/2.0";
+                outboundRequest.Timeout = 15000;
+                outboundRequest.ReadWriteTimeout = 15000;
+
+                upstreamResponse = (HttpWebResponse)outboundRequest.GetResponse();
+
+                // Read response into memory for caching
+                byte[] responseData;
+                using (var memoryStream = new MemoryStream())
+                {
+                    using (var upstreamStream = upstreamResponse.GetResponseStream())
+                    {
+                        upstreamStream.CopyTo(memoryStream);
+                    }
+                    responseData = memoryStream.ToArray();
+                }
+
+                // Write to cache asynchronously
+                if (responseData.Length > 0)
+                {
+                    ThreadPool.QueueUserWorkItem(_ => WriteToBaselayerCache(cachePath, responseData));
+                }
+
+                context.Response.StatusCode = (int)HttpStatusCode.OK;
+                context.Response.ContentType = "image/png";
+                context.Response.ContentLength64 = responseData.Length;
+                context.Response.AddHeader("X-Cache", "MISS");
+                context.Response.AddHeader("Cache-Control", "public, max-age=2592000");
+                context.Response.OutputStream.Write(responseData, 0, responseData.Length);
+            }
+            catch (System.Net.HttpListenerException)
+            {
+                // Client disconnected - silently ignore
+                responseClosed = true;
+            }
+            catch (WebException)
+            {
+                // Upstream error - try to send error response
+                try
+                {
+                    if (!responseClosed)
+                        context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                }
+                catch { }
+            }
+            catch (InvalidOperationException)
+            {
+                // Response already sent - ignore
+                responseClosed = true;
+            }
+            catch (Exception)
+            {
+                // Other error - try to send error response
+                try
+                {
+                    if (!responseClosed)
+                        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                }
+                catch { }
+            }
+            finally
+            {
+                upstreamResponse?.Close();
+                if (!responseClosed)
+                {
+                    try { context.Response.OutputStream.Close(); } catch { }
+                }
             }
         }
 
@@ -2053,7 +4531,14 @@ namespace Kneeboard_Server
             }
             else if (command == "api/boundaries/ivao")
             {
+                // IVAO bietet KEINE öffentliche API für FIR-Boundaries!
+                // Little Navmap ist die einzige funktionierende Quelle
                 HandleIvaoBoundariesProxy(context);
+                return;
+            }
+            else if (command == "api/boundaries/vatsim-tracon")
+            {
+                HandleVatsimTraconBoundariesProxy(context);
                 return;
             }
             else if (command == "api/vatspy/firnames")
@@ -2118,6 +4603,59 @@ namespace Kneeboard_Server
                 }
                 return;
             }
+            // ===== HYBRID-ANSATZ: Vorverarbeitete Piloten-Daten =====
+            else if (command == "api/pilots/vatsim")
+            {
+                HandleVatsimPilots(context);
+                return;
+            }
+            else if (command == "api/pilots/ivao")
+            {
+                HandleIvaoPilots(context);
+                return;
+            }
+            // ===== HYBRID-ANSATZ: Boundaries mit vorberechneten Bounding-Boxes =====
+            else if (command == "api/boundaries/vatsim")
+            {
+                HandleVatsimBoundariesWithBbox(context);
+                return;
+            }
+            else if (command == "api/boundaries/ivao")
+            {
+                HandleIvaoBoundariesWithBbox(context);
+                return;
+            }
+            else if (command == "api/boundaries/ivao-offline")
+            {
+                HandleIvaoOfflineFir(context);
+                return;
+            }
+            else if (command.StartsWith("api/openaip/iata-to-icao/", StringComparison.OrdinalIgnoreCase))
+            {
+                // Convert IATA to ICAO: api/openaip/iata-to-icao/JFK -> KJFK
+                var iataCode = command.Substring("api/openaip/iata-to-icao/".Length).ToUpperInvariant();
+                HandleIataToIcao(context, iataCode);
+                return;
+            }
+            else if (command == "api/openaip/iata-icao-mapping")
+            {
+                // Return full IATA->ICAO mapping for frontend caching
+                HandleIataIcaoMapping(context);
+                return;
+            }
+            else if (command.StartsWith("api/openaip/airport-by-icao/", StringComparison.OrdinalIgnoreCase))
+            {
+                // Extract ICAO code from URL: api/openaip/airport-by-icao/KMIA
+                var icaoCode = command.Substring("api/openaip/airport-by-icao/".Length).ToUpperInvariant();
+                HandleOpenAipAirportByIcao(context, icaoCode);
+                return;
+            }
+            else if (command.StartsWith("api/openaip/airports-batch", StringComparison.OrdinalIgnoreCase))
+            {
+                // Batch endpoint: api/openaip/airports-batch?dep=KMIA&arr=LIPE
+                HandleOpenAipAirportsBatch(context);
+                return;
+            }
             else if (command.StartsWith("api/openaip/airports", StringComparison.OrdinalIgnoreCase))
             {
                 HandleOpenAipProxy(context, "airports");
@@ -2128,6 +4666,29 @@ namespace Kneeboard_Server
                 HandleOpenAipProxy(context, "navaids");
                 return;
             }
+            else if (command == "api/favorites")
+            {
+                // GET: Load favorites, POST: Save favorites
+                if (context.Request.HttpMethod == "GET")
+                {
+                    HandleGetFavorites(context);
+                }
+                else if (context.Request.HttpMethod == "POST")
+                {
+                    HandleSaveFavorites(context);
+                }
+                return;
+            }
+            else if (command == "api/user-ids")
+            {
+                // Return configured VATSIM CID and IVAO VID for hiding own aircraft
+                var userIds = new {
+                    vatsimCid = Properties.Settings.Default.vatsimCid ?? "",
+                    ivaoVid = Properties.Settings.Default.ivaoVid ?? ""
+                };
+                ResponseJson(context, Newtonsoft.Json.JsonConvert.SerializeObject(userIds));
+                return;
+            }
             else if (command.StartsWith("api/openaip/reporting-points", StringComparison.OrdinalIgnoreCase))
             {
                 HandleOpenAipProxy(context, "reporting-points");
@@ -2136,6 +4697,27 @@ namespace Kneeboard_Server
             else if (command.StartsWith("api/openaip/tiles/", StringComparison.OrdinalIgnoreCase))
             {
                 HandleOpenAipProxy(context, "tiles");
+                return;
+            }
+            // Baselayer Tile Proxy with Caching
+            else if (command.StartsWith("api/tiles/osm/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleBaselayerTileProxy(context, "osm");
+                return;
+            }
+            else if (command.StartsWith("api/tiles/google-hybrid/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleBaselayerTileProxy(context, "google-hybrid");
+                return;
+            }
+            else if (command.StartsWith("api/tiles/google-satellite/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleBaselayerTileProxy(context, "google-satellite");
+                return;
+            }
+            else if (command.StartsWith("api/tiles/opentopomap/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleBaselayerTileProxy(context, "opentopomap");
                 return;
             }
             else if (command == "api/elevation")

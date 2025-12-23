@@ -39,6 +39,8 @@ namespace Kneeboard_Server
             this.simStart = new System.Windows.Forms.CheckBox();
             this.folderpathInput = new System.Windows.Forms.TextBox();
             this.SimbriefIdInput = new System.Windows.Forms.TextBox();
+            this.VatsimCidInput = new System.Windows.Forms.TextBox();
+            this.IvaoVidInput = new System.Windows.Forms.TextBox();
             this.clearCacheButton = new System.Windows.Forms.Button();
             this.maxCacheSizeInput = new System.Windows.Forms.TextBox();
             this.cacheSizeLabel = new System.Windows.Forms.Label();
@@ -90,7 +92,7 @@ namespace Kneeboard_Server
             | System.Windows.Forms.AnchorStyles.Right)));
             this.label2.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label2.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.label2.Location = new System.Drawing.Point(11, 315);
+            this.label2.Location = new System.Drawing.Point(11, 367);
             this.label2.Name = "label2";
             this.label2.RightToLeft = System.Windows.Forms.RightToLeft.No;
             this.label2.Size = new System.Drawing.Size(186, 23);
@@ -106,7 +108,7 @@ namespace Kneeboard_Server
             | System.Windows.Forms.AnchorStyles.Right)));
             this.linkLabel1.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.linkLabel1.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.linkLabel1.Location = new System.Drawing.Point(12, 342);
+            this.linkLabel1.Location = new System.Drawing.Point(12, 394);
             this.linkLabel1.Name = "linkLabel1";
             this.linkLabel1.Size = new System.Drawing.Size(185, 23);
             this.linkLabel1.TabIndex = 29;
@@ -171,11 +173,29 @@ namespace Kneeboard_Server
             this.SimbriefIdInput.Text = "Simbrief ID or Username";
             this.SimbriefIdInput.TextChanged += new System.EventHandler(this.SimbriefIdInput_TextChanged);
             //
+            // VatsimCidInput
+            //
+            this.VatsimCidInput.Location = new System.Drawing.Point(16, 245);
+            this.VatsimCidInput.Name = "VatsimCidInput";
+            this.VatsimCidInput.Size = new System.Drawing.Size(181, 20);
+            this.VatsimCidInput.TabIndex = 38;
+            this.VatsimCidInput.Text = "VATSIM CID";
+            this.VatsimCidInput.TextChanged += new System.EventHandler(this.VatsimCidInput_TextChanged);
+            //
+            // IvaoVidInput
+            //
+            this.IvaoVidInput.Location = new System.Drawing.Point(16, 271);
+            this.IvaoVidInput.Name = "IvaoVidInput";
+            this.IvaoVidInput.Size = new System.Drawing.Size(181, 20);
+            this.IvaoVidInput.TabIndex = 39;
+            this.IvaoVidInput.Text = "IVAO VID";
+            this.IvaoVidInput.TextChanged += new System.EventHandler(this.IvaoVidInput_TextChanged);
+            //
             // clearCacheButton
             //
             this.clearCacheButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.clearCacheButton.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.clearCacheButton.Location = new System.Drawing.Point(16, 280);
+            this.clearCacheButton.Location = new System.Drawing.Point(16, 332);
             this.clearCacheButton.Name = "clearCacheButton";
             this.clearCacheButton.Size = new System.Drawing.Size(181, 23);
             this.clearCacheButton.TabIndex = 35;
@@ -185,7 +205,7 @@ namespace Kneeboard_Server
             //
             // maxCacheSizeInput
             //
-            this.maxCacheSizeInput.Location = new System.Drawing.Point(130, 252);
+            this.maxCacheSizeInput.Location = new System.Drawing.Point(130, 304);
             this.maxCacheSizeInput.Name = "maxCacheSizeInput";
             this.maxCacheSizeInput.Size = new System.Drawing.Size(67, 20);
             this.maxCacheSizeInput.TabIndex = 36;
@@ -196,7 +216,7 @@ namespace Kneeboard_Server
             //
             this.cacheSizeLabel.AutoSize = true;
             this.cacheSizeLabel.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.cacheSizeLabel.Location = new System.Drawing.Point(13, 255);
+            this.cacheSizeLabel.Location = new System.Drawing.Point(13, 307);
             this.cacheSizeLabel.Name = "cacheSizeLabel";
             this.cacheSizeLabel.Size = new System.Drawing.Size(111, 13);
             this.cacheSizeLabel.TabIndex = 37;
@@ -207,7 +227,9 @@ namespace Kneeboard_Server
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Window;
-            this.ClientSize = new System.Drawing.Size(209, 370);
+            this.ClientSize = new System.Drawing.Size(209, 422);
+            this.Controls.Add(this.IvaoVidInput);
+            this.Controls.Add(this.VatsimCidInput);
             this.Controls.Add(this.cacheSizeLabel);
             this.Controls.Add(this.maxCacheSizeInput);
             this.Controls.Add(this.clearCacheButton);
@@ -243,6 +265,8 @@ namespace Kneeboard_Server
         private System.Windows.Forms.CheckBox simStart;
         private System.Windows.Forms.TextBox folderpathInput;
         private System.Windows.Forms.TextBox SimbriefIdInput;
+        private System.Windows.Forms.TextBox VatsimCidInput;
+        private System.Windows.Forms.TextBox IvaoVidInput;
         private System.Windows.Forms.Button clearCacheButton;
         private System.Windows.Forms.TextBox maxCacheSizeInput;
         private System.Windows.Forms.Label cacheSizeLabel;

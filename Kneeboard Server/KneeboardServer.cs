@@ -35,7 +35,7 @@ namespace Kneeboard_Server
         public static string folderpath = "";
         public static string communityFolderPath = "";
         public string port = "815";
-        public static int filesShowed = 0;
+        // REMOVED: public static int filesShowed = 0; (was unused)
         public static string flightplan;
         public static string simbriefOFPData;
         public static string cachedSimbriefTimeGenerated = null;
@@ -320,7 +320,7 @@ namespace Kneeboard_Server
         private static FlightplanSource lastFlightplanSource = FlightplanSource.None;
         bool serverRun = Properties.Settings.Default.serverRun;
         SimpleHTTPServer myServer;
-        bool imagesProzessing = false;
+        bool imagesProcessing = false;
         public List<KneeboardFolder> foldersList = new List<KneeboardFolder>();
         public List<KneeboardFile> filesList = new List<KneeboardFile>();
 
@@ -559,10 +559,24 @@ namespace Kneeboard_Server
             // Start background SimBrief sync to keep OFP data current
             StartBackgroundSimbriefSync();
 
-            // Initialize SimConnect
-            simConnectManager = new SimConnectManager(this.Handle);
-            simConnectManager.Start();
-            Console.WriteLine("[KneeboardServer] SimConnect manager started");
+            // Initialize SimConnect (optional - only works if MSFS is installed)
+            try
+            {
+                simConnectManager = new SimConnectManager(this.Handle);
+                simConnectManager.ConnectionStatusChanged += OnSimConnectStatusChanged;
+                simConnectManager.Start();
+                Console.WriteLine("[KneeboardServer] SimConnect manager started");
+            }
+            catch (FileNotFoundException)
+            {
+                Console.WriteLine("[KneeboardServer] SimConnect DLL not found - MSFS not installed, continuing without SimConnect");
+                simConnectManager = null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[KneeboardServer] SimConnect initialization failed: {ex.Message}");
+                simConnectManager = null;
+            }
 
             //delete hover color
             loadButton.FlatAppearance.MouseOverBackColor = System.Drawing.Color.Transparent;
@@ -585,6 +599,7 @@ namespace Kneeboard_Server
         //Update check
 
         bool updateAvailable = false;
+        bool simConnectConnected = false;
 
         private void AutoUpdaterOnCheckForUpdateEvent(UpdateInfoEventArgs args)
         {
@@ -616,7 +631,7 @@ namespace Kneeboard_Server
                 else
                 {
                     UpdateMessage.Visible = false;
-                    statusBox.Text = "Status: Server is running...";
+                    UpdateStatusBar();
                     statusBox.BackColor = SystemColors.MenuHighlight;
                     updateAvailable = false;
                 }
@@ -626,8 +641,59 @@ namespace Kneeboard_Server
                 // Fehler beim Update-Check (z.B. keine Internetverbindung)
                 Console.WriteLine($"Update check failed: {args.Error.Message}");
                 UpdateMessage.Visible = false;
-                statusBox.Text = "Status: Server is running...";
+                UpdateStatusBar();
                 updateAvailable = false;
+            }
+        }
+
+        /// <summary>
+        /// Public method to update the status box text from other classes (like SimpleHTTPServer)
+        /// </summary>
+        public void SetStatusText(string text)
+        {
+            if (statusBox.InvokeRequired)
+            {
+                statusBox.Invoke(new Action(() => statusBox.Text = text));
+            }
+            else
+            {
+                statusBox.Text = text;
+            }
+        }
+
+        /// <summary>
+        /// Event handler for SimConnect connection status changes
+        /// </summary>
+        private void OnSimConnectStatusChanged(bool connected)
+        {
+            simConnectConnected = connected;
+            UpdateStatusBar();
+        }
+
+        /// <summary>
+        /// Updates the status bar with current server and SimConnect status
+        /// </summary>
+        private void UpdateStatusBar()
+        {
+            string status;
+            if (serverRun)
+            {
+                status = simConnectConnected
+                    ? "Status: Server is running... | MSFS Connected"
+                    : "Status: Server is running...";
+            }
+            else
+            {
+                status = "Status: Server is not running...";
+            }
+
+            if (statusBox.InvokeRequired)
+            {
+                statusBox.Invoke(new Action(() => statusBox.Text = status));
+            }
+            else
+            {
+                statusBox.Text = status;
             }
         }
 
@@ -738,7 +804,18 @@ namespace Kneeboard_Server
             // Handle SimConnect messages first
             if (simConnectManager != null)
             {
-                simConnectManager.HandleWindowMessage(ref m);
+                try
+                {
+                    simConnectManager.HandleWindowMessage(ref m);
+                }
+                catch (FileNotFoundException)
+                {
+                    // SimConnect DLL not found - MSFS not installed, ignore silently
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[SimConnect] WndProc error: {ex.Message}");
+                }
             }
 
             switch (m.Msg)
@@ -780,8 +857,8 @@ namespace Kneeboard_Server
 
             if (Properties.Settings.Default.firstAutoStart == false)
             {
-                DialogResult autsartQuestion = MessageBox.Show("Do you want to start the Kneeboard Server automatically with the Microsoft Flight Simulator 2020/2024??", "Start with MSFS?", MessageBoxButtons.YesNoCancel);
-                if (autsartQuestion == DialogResult.Yes)
+                DialogResult autostartQuestion = MessageBox.Show("Do you want to start the Kneeboard Server automatically with the Microsoft Flight Simulator 2020/2024??", "Start with MSFS?", MessageBoxButtons.YesNoCancel);
+                if (autostartQuestion == DialogResult.Yes)
                 {
                     Properties.Settings.Default.simStart = true;
                     Properties.Settings.Default.firstAutoStart = true;
@@ -839,8 +916,8 @@ namespace Kneeboard_Server
             myServer = new SimpleHTTPServer(folderpath + @"\data", Convert.ToInt32(port), this);
             Console.WriteLine("Server is running on this port: " + myServer.Port.ToString());
             statusBox.BackColor = SystemColors.MenuHighlight;
-            statusBox.Text = "Status: Server is running...";
             serverRun = true;
+            UpdateStatusBar();
             UpdateFileList();
         }
 
@@ -936,18 +1013,7 @@ namespace Kneeboard_Server
             treeView1.ExpandAll();
         }
 
-        String ReplaceGermanUmlauts(String s)
-        {
-            String t = s;
-            t = t.Replace("ä", "ae");
-            t = t.Replace("ö", "oe");
-            t = t.Replace("ü", "ue");
-            t = t.Replace("Ä", "Ae");
-            t = t.Replace("Ö", "Oe");
-            t = t.Replace("Ü", "Ue");
-            t = t.Replace("ß", "ss");
-            return t;
-        }
+        // REMOVED: ReplaceGermanUmlauts() - was unused (GetCleanName exists for similar purpose)
 
         bool imagesCreated = false;
 
@@ -1147,7 +1213,7 @@ namespace Kneeboard_Server
         public async void CreateImages()
         {
             // Verhindere parallele Ausführung - prüfe ob bereits eine Instanz läuft
-            if (imagesProzessing)
+            if (imagesProcessing)
             {
                 Console.WriteLine("Image creation already in progress - skipping duplicate call");
                 return;
@@ -1206,7 +1272,7 @@ namespace Kneeboard_Server
                     {
                         if (!Directory.Exists(targetPath))
                         {
-                            imagesProzessing = true;
+                            imagesProcessing = true;
                             processedFiles++;
                             UpdateMessage.Text = $" Creating images ({processedFiles}/{totalFiles}): {Path.GetFileName(file.Path)}";
                             await Task.Run(() => createImage(file.Path, targetPath));
@@ -1223,7 +1289,7 @@ namespace Kneeboard_Server
                     {
                         if (!Directory.Exists(targetPath))
                         {
-                            imagesProzessing = true;
+                            imagesProcessing = true;
                             processedFiles++;
                             UpdateMessage.Text = $" Creating images ({processedFiles}/{totalFiles}): {Path.GetFileName(file.Path)}";
                             await Task.Run(() => CreateTextImage(file.Path, targetPath));
@@ -1255,7 +1321,7 @@ namespace Kneeboard_Server
                         {
                             if (!Directory.Exists(targetPath))
                             {
-                                imagesProzessing = true;
+                                imagesProcessing = true;
                                 processedFiles++;
                                 UpdateMessage.Text = $" Creating images ({processedFiles}/{totalFiles}): {Path.GetFileName(file.Path)}";
                                 await Task.Run(() => createImage(file.Path, targetPath));
@@ -1273,7 +1339,7 @@ namespace Kneeboard_Server
                         {
                             if (!Directory.Exists(targetPath))
                             {
-                                imagesProzessing = true;
+                                imagesProcessing = true;
                                 processedFiles++;
                                 UpdateMessage.Text = $" Creating images ({processedFiles}/{totalFiles}): {Path.GetFileName(file.Path)}";
                                 await Task.Run(() => CreateTextImage(file.Path, targetPath));
@@ -1289,7 +1355,15 @@ namespace Kneeboard_Server
                 {
                     UpdateMessage.Visible = false;
                 }
-                statusBox.Text = imagesCreated ? "Status: Images updated. Server is running..." : "Status: Server is running...";
+                if (imagesCreated)
+                {
+                    string baseStatus = simConnectConnected ? "Status: Images updated. Server is running... | MSFS Connected" : "Status: Images updated. Server is running...";
+                    statusBox.Text = baseStatus;
+                }
+                else
+                {
+                    UpdateStatusBar();
+                }
             }
             catch (Exception e)
             {
@@ -1297,7 +1371,7 @@ namespace Kneeboard_Server
             }
             finally
             {
-                imagesProzessing = false;
+                imagesProcessing = false;
             }
         }
 
@@ -1378,8 +1452,12 @@ namespace Kneeboard_Server
             // SimConnect cleanup
             if (simConnectManager != null)
             {
-                simConnectManager.Stop();
-                simConnectManager.Dispose();
+                try
+                {
+                    simConnectManager.Stop();
+                    simConnectManager.Dispose();
+                }
+                catch { /* Ignore cleanup errors */ }
                 simConnectManager = null;
             }
 
@@ -1400,11 +1478,6 @@ namespace Kneeboard_Server
         public void SimConnectTeleport(double lat, double lng, double? altitude = null, double? heading = null, double? speed = null)
         {
             simConnectManager?.Teleport(lat, lng, altitude, heading, speed);
-        }
-
-        public void SimConnectSetPause(bool paused)
-        {
-            simConnectManager?.SetPause(paused);
         }
 
         public void SimConnectSetRadioFrequency(string radio, uint frequencyHz)
@@ -1596,7 +1669,7 @@ namespace Kneeboard_Server
 
         private void SaveButton_Click(object sender, EventArgs e)
         {
-            if (imagesProzessing == false)
+            if (imagesProcessing == false)
             {
                 System.Windows.Forms.SaveFileDialog savefile = new System.Windows.Forms.SaveFileDialog
                 {
@@ -1620,7 +1693,7 @@ namespace Kneeboard_Server
 
         private void LoadButton_Click(object sender, EventArgs e)
         {
-            if (imagesProzessing == false)
+            if (imagesProcessing == false)
             {
                 if (Properties.Settings.Default.simbriefId != "")
                 {
@@ -2450,7 +2523,7 @@ namespace Kneeboard_Server
 
         private async void label1_Click_1(object sender, EventArgs e)
         {
-            if (imagesProzessing == false)
+            if (imagesProcessing == false)
             {
                 statusBox.Text = "Status: Delete images...";
                 System.IO.DirectoryInfo di = new DirectoryInfo(folderpath + "/data/images");

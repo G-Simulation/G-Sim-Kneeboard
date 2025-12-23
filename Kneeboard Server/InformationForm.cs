@@ -49,6 +49,16 @@ namespace Kneeboard_Server
                 SimbriefIdInput.Text = Properties.Settings.Default.simbriefId;
             }
 
+            if (Properties.Settings.Default.vatsimCid != "")
+            {
+                VatsimCidInput.Text = Properties.Settings.Default.vatsimCid;
+            }
+
+            if (Properties.Settings.Default.ivaoVid != "")
+            {
+                IvaoVidInput.Text = Properties.Settings.Default.ivaoVid;
+            }
+
             // Load max cache size setting (0 = unlimited)
             long maxCacheSize = Properties.Settings.Default.maxCacheSizeMB;
             maxCacheSizeInput.Text = maxCacheSize.ToString();
@@ -173,13 +183,26 @@ namespace Kneeboard_Server
             Kneeboard_Server.StartBackgroundSimbriefSync();
         }
 
+        private void VatsimCidInput_TextChanged(object sender, EventArgs e)
+        {
+            Properties.Settings.Default.vatsimCid = VatsimCidInput.Text;
+            Properties.Settings.Default.Save();
+        }
+
+        private void IvaoVidInput_TextChanged(object sender, EventArgs e)
+        {
+            Properties.Settings.Default.ivaoVid = IvaoVidInput.Text;
+            Properties.Settings.Default.Save();
+        }
+
         private void ClearCacheButton_Click(object sender, EventArgs e)
         {
             try
             {
                 SimpleHTTPServer.ClearOpenAipCache();
+                SimpleHTTPServer.ClearBoundariesCache();
                 UpdateCacheButtonText();
-                MessageBox.Show("OpenAIP Cache wurde geleert.", "Cache",
+                MessageBox.Show("Cache wurde geleert (OpenAIP + Boundaries).", "Cache",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)

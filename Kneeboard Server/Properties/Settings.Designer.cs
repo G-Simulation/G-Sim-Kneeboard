@@ -286,5 +286,29 @@ namespace Kneeboard_Server.Properties {
                 this["cachedSimbriefOFPData"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string vatsimCid {
+            get {
+                return ((string)(this["vatsimCid"]));
+            }
+            set {
+                this["vatsimCid"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ivaoVid {
+            get {
+                return ((string)(this["ivaoVid"]));
+            }
+            set {
+                this["ivaoVid"] = value;
+            }
+        }
     }
 }
