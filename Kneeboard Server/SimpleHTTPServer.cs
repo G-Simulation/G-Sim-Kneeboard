@@ -620,6 +620,63 @@ namespace Kneeboard_Server
             }
         }
 
+        private void HandleOfmProxy(HttpListenerContext context)
+        {
+            var request = context.Request;
+            var path = request.Url.AbsolutePath;
+
+            // Extract the tile path (z/x/y.png) from the URL
+            var idx = path.IndexOf("/api/ofm/tiles/", StringComparison.OrdinalIgnoreCase);
+            if (idx < 0)
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                context.Response.OutputStream.Close();
+                return;
+            }
+
+            var tilePart = path.Substring(idx + "/api/ofm/tiles/".Length);
+            var targetUrl = $"https://nwy-tiles-api.prod.newaydata.com/tiles/{tilePart}?path=latest/aero/latest";
+
+            try
+            {
+                var outboundRequest = (HttpWebRequest)WebRequest.Create(targetUrl);
+                outboundRequest.Method = "GET";
+                outboundRequest.Accept = "image/png";
+                outboundRequest.Timeout = 10000;
+                outboundRequest.ReadWriteTimeout = 10000;
+                // Add Referer header as some tile servers require it
+                outboundRequest.Referer = "https://www.openflightmaps.org/";
+
+                using (var upstreamResponse = (HttpWebResponse)outboundRequest.GetResponse())
+                {
+                    context.Response.StatusCode = (int)upstreamResponse.StatusCode;
+                    context.Response.ContentType = upstreamResponse.ContentType ?? "image/png";
+
+                    using (var upstreamStream = upstreamResponse.GetResponseStream())
+                    {
+                        upstreamStream.CopyTo(context.Response.OutputStream);
+                    }
+                }
+            }
+            catch (WebException ex)
+            {
+                var httpResponse = ex.Response as HttpWebResponse;
+                context.Response.StatusCode = httpResponse != null
+                    ? (int)httpResponse.StatusCode
+                    : (int)HttpStatusCode.BadGateway;
+
+                Console.WriteLine($"OFM Proxy Error: {ex.Message}");
+                Console.WriteLine($"Requested URL: {targetUrl}");
+
+                // Return empty PNG for failed tile requests
+                context.Response.ContentType = "image/png";
+            }
+            finally
+            {
+                context.Response.OutputStream.Close();
+            }
+        }
+
         private void HandleVatsimBoundariesProxy(HttpListenerContext context)
         {
             try
@@ -1487,6 +1544,8 @@ namespace Kneeboard_Server
             string name = ExtractJsonStringValue(jsonItem, "name");
             // Extract middle_identifier (sector ID, e.g., "N" for EDGG_N_CTR)
             string middleId = ExtractJsonStringValue(jsonItem, "middle_identifier");
+            // Extract center_id (for CTR zones like LIRR, LFFF)
+            string centerId = ExtractJsonStringValue(jsonItem, "center_id");
 
             // Extract and minimize map_region coordinates
             int mapRegionIdx = jsonItem.IndexOf("\"map_region\"");
@@ -1549,6 +1608,8 @@ namespace Kneeboard_Server
             sb.Append("{");
             if (!string.IsNullOrEmpty(airportId))
                 sb.Append($"\"airport_id\":\"{EscapeJsonString(airportId)}\",");
+            if (!string.IsNullOrEmpty(centerId))
+                sb.Append($"\"center_id\":\"{EscapeJsonString(centerId)}\",");
             if (!string.IsNullOrEmpty(position))
                 sb.Append($"\"position\":\"{EscapeJsonString(position)}\",");
             if (!string.IsNullOrEmpty(middleId))
@@ -1700,20 +1761,25 @@ namespace Kneeboard_Server
         private string ConvertIvaoItemToGeoJsonFeature(string jsonItem)
         {
             // Extract fields directly from LittleNavMap data
+            // APP zones have airport_id (e.g., "SUMU"), CTR zones have center_id (e.g., "LIRR")
             string airportId = ExtractJsonStringValue(jsonItem, "airport_id");
+            string centerId = ExtractJsonStringValue(jsonItem, "center_id");
             string position = ExtractJsonStringValue(jsonItem, "position");
             string name = ExtractJsonStringValue(jsonItem, "name");
             string middleId = ExtractJsonStringValue(jsonItem, "middle_identifier");
 
-            // If no airport_id, use the name as identifier for matching
-            // Controller's atcSession.position (e.g., "Canarias Control") will match zone's name
+            // ICAO code for fallback matching: airport_id for APP zones, center_id for CTR/FSS zones
+            string icao = !string.IsNullOrEmpty(airportId) ? airportId : centerId;
+
+            // For zone ID and prefix: use airport_id if available, otherwise use NAME (not center_id!)
+            // This ensures zones like "ROMA RADAR_EW_CTR" keep their name-based ID, but have icao="LIRR" for matching
             if (string.IsNullOrEmpty(airportId))
             {
                 if (string.IsNullOrEmpty(name))
                 {
                     return null; // No identifier at all, skip
                 }
-                // Use name as the identifier - will be matched via atcSession.position on client
+                // Use name as the identifier - zone ID will be like "ROMA RADAR_EW_CTR"
                 airportId = name;
             }
 
@@ -1813,6 +1879,9 @@ namespace Kneeboard_Server
                 sb.Append($"\"position\":\"{EscapeJsonString(position.ToUpperInvariant())}\",");
             if (!string.IsNullOrEmpty(middleId))
                 sb.Append($"\"sectorId\":\"{EscapeJsonString(middleId.ToUpperInvariant())}\",");
+            // ICAO code for fallback matching (airport_id for APP, center_id for CTR)
+            if (!string.IsNullOrEmpty(icao))
+                sb.Append($"\"icao\":\"{EscapeJsonString(icao.ToUpperInvariant())}\",");
             // Store original name for matching with controller's atcSession.position
             sb.Append($"\"name\":\"{EscapeJsonString(name ?? featureId)}\",");
             // radioCallsign is the exact name from LittleNavMap data for matching
@@ -2179,6 +2248,137 @@ namespace Kneeboard_Server
         }
 
         // ============================================================================
+        // Procedure API Methods (disabled - navdata integration removed)
+        // ============================================================================
+
+        private void HandleGetSIDListRequest(HttpListenerContext context, string command)
+        {
+            context.Response.StatusCode = 501;
+            ResponseJson(context, "{\"error\":\"Navdata API not available. Use /api/procedures/simbrief instead.\"}");
+        }
+
+        private void HandleGetSTARListRequest(HttpListenerContext context, string command)
+        {
+            context.Response.StatusCode = 501;
+            ResponseJson(context, "{\"error\":\"Navdata API not available. Use /api/procedures/simbrief instead.\"}");
+        }
+
+        private void HandleGetApproachListRequest(HttpListenerContext context, string command)
+        {
+            context.Response.StatusCode = 501;
+            ResponseJson(context, "{\"error\":\"Navdata API not available. Use /api/procedures/simbrief instead.\"}");
+        }
+
+        private void HandleGetApproachRequest(HttpListenerContext context, string command)
+        {
+            context.Response.StatusCode = 501;
+            ResponseJson(context, "{\"error\":\"Navdata API not available.\"}");
+        }
+
+        private void HandleGetProcedureRequest(HttpListenerContext context, string command)
+        {
+            context.Response.StatusCode = 501;
+            ResponseJson(context, "{\"error\":\"Navdata API not available. Use /api/procedures/simbrief instead.\"}");
+        }
+
+        private void HandleProcedureStatusRequest(HttpListenerContext context)
+        {
+            context.Response.StatusCode = 501;
+            ResponseJson(context, "{\"error\":\"Navdata API not available.\"}");
+        }
+
+        private void HandleNavdataFolderInfoRequest(HttpListenerContext context)
+        {
+            context.Response.StatusCode = 501;
+            ResponseJson(context, "{\"error\":\"Navdata API not available.\"}");
+        }
+
+        private void HandleProcedureDebugRequest(HttpListenerContext context, string command)
+        {
+            context.Response.StatusCode = 501;
+            ResponseJson(context, "{\"error\":\"Navdata API not available.\"}");
+        }
+
+        private void HandleAllProceduresDebugRequest(HttpListenerContext context)
+        {
+            context.Response.StatusCode = 501;
+            ResponseJson(context, "{\"error\":\"Navdata API not available.\"}");
+        }
+
+        /// <summary>
+        /// Gets combined SID and STAR waypoints from SimBrief navlog
+        /// URL: /api/procedures/simbrief
+        /// </summary>
+        private void HandleSimbriefProceduresRequest(HttpListenerContext context)
+        {
+            try
+            {
+                var procedures = Kneeboard_Server.GetSimbriefProcedures();
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(procedures, Newtonsoft.Json.Formatting.Indented);
+                ResponseJson(context, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Procedure API] SimBrief procedures error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Gets SID waypoints from SimBrief navlog
+        /// URL: /api/procedures/simbrief/sid
+        /// </summary>
+        private void HandleSimbriefSidRequest(HttpListenerContext context)
+        {
+            try
+            {
+                var sidData = Kneeboard_Server.GetSidWaypointsFromSimbrief();
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(sidData, Newtonsoft.Json.Formatting.Indented);
+                ResponseJson(context, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Procedure API] SimBrief SID error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Gets STAR waypoints from SimBrief navlog
+        /// URL: /api/procedures/simbrief/star
+        /// </summary>
+        private void HandleSimbriefStarRequest(HttpListenerContext context)
+        {
+            try
+            {
+                var starData = Kneeboard_Server.GetStarWaypointsFromSimbrief();
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(starData, Newtonsoft.Json.Formatting.Indented);
+                ResponseJson(context, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Procedure API] SimBrief STAR error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        // ============================================================================
+        // ILS API Methods (disabled - navdata integration removed)
+        // ============================================================================
+
+        /// <summary>
+        /// Handles ILS API requests - currently disabled
+        /// </summary>
+        private void HandleIlsRequest(HttpListenerContext context, string command)
+        {
+            context.Response.StatusCode = 501;
+            ResponseJson(context, "{\"error\":\"ILS API is not available. Navdata integration has been removed.\"}");
+        }
+
+        // ============================================================================
         // OpenAIP Cache Methods
         // ============================================================================
 
@@ -2461,6 +2661,18 @@ namespace Kneeboard_Server
         }
 
         /// <summary>
+        /// Prüft ob ein Flug ein Santa/Weihnachtsflug ist
+        /// IVAO: Callsign enthält "SANTA"
+        /// VATSIM: Callsign enthält "SANTA" oder "XMAS"
+        /// </summary>
+        private bool IsSantaFlight(string callsign)
+        {
+            if (string.IsNullOrEmpty(callsign)) return false;
+            string upper = callsign.ToUpperInvariant();
+            return upper.Contains("SANTA") || upper.Contains("XMAS") || upper.Contains("HOHO") || upper.Contains("SLEIGH");
+        }
+
+        /// <summary>
         /// Holt und cached VATSIM Piloten-Daten mit Server-seitiger Vorverarbeitung
         /// </summary>
         private void HandleVatsimPilots(HttpListenerContext context)
@@ -2519,6 +2731,14 @@ namespace Kneeboard_Server
                         // Server-seitige Klassifizierung
                         string category = GetAircraftCategory(aircraft);
                         bool military = IsMilitaryAircraft(callsign, aircraft);
+                        bool santa = IsSantaFlight(callsign);
+
+                        // Spezial: SANTA+KFR bekommt Santa-Gesicht (Kategorie K)
+                        string upperCs = callsign?.ToUpperInvariant() ?? "";
+                        if (upperCs.Contains("SANTA") && upperCs.Contains("KFR"))
+                        {
+                            category = "K";  // Santa-Gesicht Icon
+                        }
 
                         processedPilots.Add(new
                         {
@@ -2533,8 +2753,9 @@ namespace Kneeboard_Server
                             aircraft = aircraft,
                             departure = departure,
                             arrival = arrival,
-                            category = category,      // Vorberechnet!
-                            military = military       // Vorberechnet!
+                            category = category,      // Vorberechnet! (K für SANT+KFR)
+                            military = military,      // Vorberechnet!
+                            santa = santa             // Weihnachtsflug!
                         });
                     }
 
@@ -2619,6 +2840,14 @@ namespace Kneeboard_Server
                         // Server-seitige Klassifizierung
                         string category = GetAircraftCategory(aircraft);
                         bool military = IsMilitaryAircraft(callsign, aircraft);
+                        bool santa = IsSantaFlight(callsign);
+
+                        // Spezial: SANTA+KFR bekommt Santa-Gesicht (Kategorie K)
+                        string upperCs = callsign?.ToUpperInvariant() ?? "";
+                        if (upperCs.Contains("SANTA") && upperCs.Contains("KFR"))
+                        {
+                            category = "K";  // Santa-Gesicht Icon
+                        }
 
                         processedPilots.Add(new
                         {
@@ -2633,8 +2862,9 @@ namespace Kneeboard_Server
                             aircraft = aircraft,
                             departure = departure,
                             arrival = arrival,
-                            category = category,      // Vorberechnet!
-                            military = military       // Vorberechnet!
+                            category = category,      // Vorberechnet! (K für SANTA+KFR)
+                            military = military,      // Vorberechnet!
+                            santa = santa             // Weihnachtsflug!
                         });
                     }
 
@@ -2996,6 +3226,193 @@ namespace Kneeboard_Server
                 context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                 try { context.Response.OutputStream.Close(); } catch { }
             }
+        }
+
+        /// <summary>
+        /// Liefert vereinfachten VATSIM Offline-FIR-Layer
+        /// Generiert aus VATSIM Boundaries.geojson, gefiltert auf FIR-Grenzen
+        /// </summary>
+        private void HandleVatsimOfflineFir(HttpListenerContext context)
+        {
+            try
+            {
+                string offlineFilePath = Path.Combine(BOUNDARIES_CACHE_DIR, "vatsim_offline_fir.json");
+
+                if (File.Exists(offlineFilePath))
+                {
+                    string content = File.ReadAllText(offlineFilePath);
+                    context.Response.AddHeader("X-Cache", "STATIC");
+                    ResponseJson(context, content);
+                    return;
+                }
+
+                // Fallback: Generiere Offline-FIR aus gecachten VATSIM-Boundaries
+                string vatsimCachePath = Path.Combine(BOUNDARIES_CACHE_DIR, "vatsim_boundaries.json");
+                string vatsimDataPath = Path.Combine(BOUNDARIES_DATA_DIR, "vatsim_boundaries.json");
+
+                string rawBoundaries = null;
+                if (File.Exists(vatsimCachePath))
+                {
+                    rawBoundaries = File.ReadAllText(vatsimCachePath);
+                }
+                else if (File.Exists(vatsimDataPath))
+                {
+                    rawBoundaries = File.ReadAllText(vatsimDataPath);
+                }
+
+                if (!string.IsNullOrEmpty(rawBoundaries))
+                {
+                    Console.WriteLine("VATSIM Offline FIR: generating from cached boundaries...");
+                    string offlineFir = GenerateVatsimOfflineFirFromBoundaries(rawBoundaries);
+
+                    // Cache für zukünftige Requests
+                    try
+                    {
+                        Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
+                        File.WriteAllText(offlineFilePath, offlineFir);
+                        Console.WriteLine("VATSIM Offline FIR: saved to cache");
+                    }
+                    catch (Exception cacheEx)
+                    {
+                        Console.WriteLine($"VATSIM Offline FIR: could not save cache: {cacheEx.Message}");
+                    }
+
+                    context.Response.AddHeader("X-Cache", "GENERATED");
+                    ResponseJson(context, offlineFir);
+                    return;
+                }
+
+                // Letzter Fallback: leere FeatureCollection
+                Console.WriteLine("VATSIM Offline FIR: no source data available, returning empty collection");
+                ResponseJson(context, "{\"type\":\"FeatureCollection\",\"features\":[]}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"VATSIM Offline FIR error: {ex.Message}");
+                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                try { context.Response.OutputStream.Close(); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// Generiert eine vereinfachte Offline-FIR-Sammlung aus den vollständigen VATSIM-Boundaries.
+        /// Filtert nur FIR-Polygone und extrahiert ein Feature pro ICAO-Prefix.
+        /// </summary>
+        private string GenerateVatsimOfflineFirFromBoundaries(string rawBoundaries)
+        {
+            var features = new List<string>();
+            var seenPrefixes = new HashSet<string>();
+
+            try
+            {
+                // Parse JSON manuell (wie in anderen Methoden)
+                int featuresStart = rawBoundaries.IndexOf("\"features\"");
+                if (featuresStart == -1) return "{\"type\":\"FeatureCollection\",\"features\":[]}";
+
+                int arrayStart = rawBoundaries.IndexOf('[', featuresStart);
+                if (arrayStart == -1) return "{\"type\":\"FeatureCollection\",\"features\":[]}";
+
+                // Finde alle Features
+                int searchPos = arrayStart;
+                int featureCount = 0;
+
+                while (searchPos < rawBoundaries.Length && featureCount < 500)
+                {
+                    int featureStart = rawBoundaries.IndexOf("{\"type\":\"Feature\"", searchPos);
+                    if (featureStart == -1) break;
+
+                    // Finde das Ende dieses Features
+                    int braceCount = 0;
+                    int featureEnd = featureStart;
+                    for (int i = featureStart; i < rawBoundaries.Length; i++)
+                    {
+                        if (rawBoundaries[i] == '{') braceCount++;
+                        else if (rawBoundaries[i] == '}') braceCount--;
+
+                        if (braceCount == 0)
+                        {
+                            featureEnd = i + 1;
+                            break;
+                        }
+                    }
+
+                    string featureJson = rawBoundaries.Substring(featureStart, featureEnd - featureStart);
+
+                    // VATSIM Boundaries haben "id" als ICAO-Prefix (z.B. "EDGG", "KZLA")
+                    // Jedes Feature ist eine FIR-Grenze
+                    string prefix = ExtractVatsimPrefixFromFeature(featureJson);
+
+                    // Nur ein Feature pro Prefix (verhindert Duplikate)
+                    if (!string.IsNullOrEmpty(prefix) && !seenPrefixes.Contains(prefix))
+                    {
+                        seenPrefixes.Add(prefix);
+
+                        // Füge zusätzliche Properties für Kompatibilität hinzu
+                        // Das Feature muss "prefix" und "position" haben für das Frontend
+                        string enhancedFeature = featureJson;
+
+                        // Wenn "prefix" nicht existiert, füge es hinzu
+                        if (!featureJson.Contains("\"prefix\""))
+                        {
+                            int propertiesEnd = featureJson.LastIndexOf("}");
+                            int geometryStart = featureJson.IndexOf("\"geometry\"");
+                            if (geometryStart > 0)
+                            {
+                                int propertiesBlockEnd = featureJson.LastIndexOf("}", geometryStart - 1);
+                                if (propertiesBlockEnd > 0)
+                                {
+                                    enhancedFeature = featureJson.Substring(0, propertiesBlockEnd) +
+                                                     $",\"prefix\":\"{prefix}\",\"position\":\"CTR\"" +
+                                                     featureJson.Substring(propertiesBlockEnd);
+                                }
+                            }
+                        }
+
+                        features.Add(enhancedFeature);
+                        featureCount++;
+                    }
+
+                    searchPos = featureEnd;
+                }
+
+                Console.WriteLine($"VATSIM Offline FIR: extracted {features.Count} unique FIR zones");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"VATSIM Offline FIR generation error: {ex.Message}");
+            }
+
+            return "{\"type\":\"FeatureCollection\",\"features\":[" + string.Join(",", features) + "]}";
+        }
+
+        /// <summary>
+        /// Extrahiert den ICAO-Prefix aus einem VATSIM-Feature-JSON
+        /// VATSIM hat das Format: { "properties": { "id": "EDGG", ... }, ... }
+        /// </summary>
+        private string ExtractVatsimPrefixFromFeature(string featureJson)
+        {
+            // VATSIM Boundaries haben direkt "id" als ICAO-Code
+            int idStart = featureJson.IndexOf("\"id\"");
+            if (idStart != -1)
+            {
+                int colonPos = featureJson.IndexOf(':', idStart);
+                if (colonPos != -1)
+                {
+                    int quoteStart = featureJson.IndexOf('"', colonPos + 1);
+                    int quoteEnd = featureJson.IndexOf('"', quoteStart + 1);
+                    if (quoteStart != -1 && quoteEnd != -1)
+                    {
+                        string id = featureJson.Substring(quoteStart + 1, quoteEnd - quoteStart - 1);
+                        // VATSIM IDs sind ICAO-Codes (4 Buchstaben)
+                        if (!string.IsNullOrEmpty(id) && id.Length >= 3 && id.Length <= 5)
+                        {
+                            return id.ToUpperInvariant();
+                        }
+                    }
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -4471,9 +4888,12 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.valuesTimestamp = 0;
                 Properties.Settings.Default.Save();
 
+                // OFP aus Dokumentenliste entfernen (PDF bleibt, SimBrief cache bleibt)
+                Kneeboard_Server.RemoveOFPFromDocumentListOnly();
+
                 // Check if server still has a flightplan from SimBrief
                 bool hasServerFlightplan = !string.IsNullOrEmpty(Kneeboard_Server.flightplan);
-                Console.WriteLine("[NavlogSync] Local navlog cleared, SimBrief cache preserved: " + hasServerFlightplan);
+                Console.WriteLine("[NavlogSync] Local navlog cleared, OFP hidden, SimBrief cache preserved: " + hasServerFlightplan);
 
                 ResponseJson(context, $"{{\"cleared\":true,\"hasServerFlightplan\":{hasServerFlightplan.ToString().ToLower()}}}");
             }
@@ -4630,6 +5050,11 @@ namespace Kneeboard_Server
                 HandleIvaoOfflineFir(context);
                 return;
             }
+            else if (command == "api/boundaries/vatsim-offline")
+            {
+                HandleVatsimOfflineFir(context);
+                return;
+            }
             else if (command.StartsWith("api/openaip/iata-to-icao/", StringComparison.OrdinalIgnoreCase))
             {
                 // Convert IATA to ICAO: api/openaip/iata-to-icao/JFK -> KJFK
@@ -4730,6 +5155,11 @@ namespace Kneeboard_Server
                 HandleDfsProxy(context);
                 return;
             }
+            else if (command.StartsWith("api/ofm/tiles/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleOfmProxy(context);
+                return;
+            }
             else if (command.StartsWith("api/nominatim/search", StringComparison.OrdinalIgnoreCase))
             {
                 HandleNominatimProxy(context);
@@ -4763,6 +5193,73 @@ namespace Kneeboard_Server
             else if (command == "api/simconnect/radio/frequency")
             {
                 HandleSimConnectRadioFrequencyRequest(context);
+                return;
+            }
+            // Procedure API Endpoints (SID/STAR data from Little Navmap)
+            else if (command.StartsWith("api/procedures/sids/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleGetSIDListRequest(context, command);
+                return;
+            }
+            else if (command.StartsWith("api/procedures/stars/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleGetSTARListRequest(context, command);
+                return;
+            }
+            else if (command.StartsWith("api/procedures/approaches/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleGetApproachListRequest(context, command);
+                return;
+            }
+            else if (command.StartsWith("api/procedures/approach/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleGetApproachRequest(context, command);
+                return;
+            }
+            else if (command.StartsWith("api/procedures/procedure/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleGetProcedureRequest(context, command);
+                return;
+            }
+            else if (command == "api/procedures/status")
+            {
+                HandleProcedureStatusRequest(context);
+                return;
+            }
+            else if (command.StartsWith("api/procedures/debug/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleProcedureDebugRequest(context, command);
+                return;
+            }
+            else if (command == "api/procedures/allprocedures")
+            {
+                HandleAllProceduresDebugRequest(context);
+                return;
+            }
+            else if (command == "api/procedures/folderinfo")
+            {
+                HandleNavdataFolderInfoRequest(context);
+                return;
+            }
+            else if (command == "api/procedures/simbrief")
+            {
+                HandleSimbriefProceduresRequest(context);
+                return;
+            }
+            else if (command == "api/procedures/simbrief/sid")
+            {
+                HandleSimbriefSidRequest(context);
+                return;
+            }
+            else if (command == "api/procedures/simbrief/star")
+            {
+                HandleSimbriefStarRequest(context);
+                return;
+            }
+            // ILS API Endpoints
+            else if (command.StartsWith("api/ils/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleIlsRequest(context, command);
                 return;
             }
             else if (command == "getDocumentsList")

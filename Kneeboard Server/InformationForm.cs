@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using System.Reflection;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 
@@ -8,7 +9,6 @@ namespace Kneeboard_Server
 {
     public partial class InformationForm : Form
     {
-
         public InformationForm()
         {
             InitializeComponent();
@@ -234,5 +234,6 @@ namespace Kneeboard_Server
                 clearCacheButton.Text = "Clear OpenAIP Cache";
             }
         }
+
     }
 }

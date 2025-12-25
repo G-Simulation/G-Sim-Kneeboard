@@ -12,9 +12,54 @@ Der Kneeboard Server ist eine Windows-Anwendung, die einen lokalen HTTP-Server a
 - **Flughafen-Datenbank** mit weltweiten Flughäfen
 - **Waypoint-Verwaltung** für Navigation
 - **Simbrief-Integration** für Flugplanung
-- **Echtzeit-Kommunikation** mit MSFS
+- **SID/STAR Procedure-Daten** für detaillierte Flugpfad-Darstellung
+- **Echtzeit-Kommunikation** mit MSFS via SimConnect
 - **Karten-Visualisierung** für das Kneeboard
 - **Singleton-Anwendung** (nur eine Instanz gleichzeitig)
+
+## SID/STAR Navdata Integration
+
+Der Kneeboard Server kann detaillierte SID/STAR-Waypoints in der Karte darstellen. Die Waypoints werden farblich unterschieden:
+
+- **Grün**: Departure/SID-Waypoints
+- **Blau**: Enroute-Waypoints
+- **Gelb**: Arrival/STAR-Waypoints
+
+### Navdata-Datenbank erstellen
+
+Die Navdata werden direkt aus dem MSFS-Installationsordner gelesen. **Wenn du Navigraph in MSFS installiert hast, werden automatisch die aktuellen AIRAC-Daten verwendet!**
+
+**Einrichtung:**
+
+1. Öffne den Kneeboard Server
+2. Klicke auf das **Info-Symbol (i)** oben rechts
+3. Der **MSFS Packages-Ordner** wird automatisch erkannt
+   - Falls nicht: Klicke auf das Textfeld und wähle den Ordner manuell
+   - Der Ordner enthält typischerweise `Official` und `Community` Unterordner
+4. Klicke auf **"Navdata Datenbank erstellen"**
+5. Warte bis die Datenbank erstellt wurde
+
+**AIRAC-Updates:**
+
+Wenn du Navigraph aktualisierst, zeigt der Kneeboard Server automatisch eine Meldung, dass ein AIRAC-Update verfügbar ist. Klicke dann erneut auf "Navdata Datenbank erstellen" um die neuen Daten zu laden.
+
+**Datenquellen (Priorität):**
+
+1. **Navigraph** (wenn in MSFS Community-Ordner installiert) - Aktuelle AIRAC-Daten
+2. **Standard MSFS Navdata** - Basis-Navdata des Simulators
+
+### SimBrief Fallback
+
+Ohne erstellte Navdata-Datenbank werden die vereinfachten Waypoints aus dem SimBrief-Flugplan verwendet. Diese werden anhand der `stage`-Information (CLB/CRZ/DSC) farblich markiert.
+
+### API Endpoints
+
+| Endpoint | Beschreibung |
+|----------|--------------|
+| `GET /api/procedures/status` | Status der Navdata-Verbindung |
+| `GET /api/procedures/sids/{icao}` | Liste aller SIDs eines Flughafens |
+| `GET /api/procedures/stars/{icao}` | Liste aller STARs eines Flughafens |
+| `GET /api/procedures/procedure/{icao}/{name}?type=sid\|star` | Details einer Procedure |
 
 ## Systemanforderungen
 

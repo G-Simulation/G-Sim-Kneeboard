@@ -970,6 +970,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_SIMCONNECT_NATIVE_DLL_01"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_UNDEFINED"
         "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
         "MsmSig" = "8:_UNDEFINED"
@@ -2370,7 +2376,7 @@
             "SharedLegacy" = "11:FALSE"
             "PackageAs" = "3:1"
             "Register" = "3:1"
-            "Exclude" = "11:FALSE"
+            "Exclude" = "11:TRUE"
             "IsDependency" = "11:TRUE"
             "IsolateTo" = "8:"
             }
@@ -4059,6 +4065,26 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_SIMCONNECT_NATIVE_DLL_01"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\SimConnect.dll"
+            "TargetName" = "8:SimConnect.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
         }
         "FileType"
         {
@@ -4237,7 +4263,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:Kneeboard Server"
         "ProductCode" = "8:{FFA8814E-B4FD-4AFB-895B-1BC7C30B6729}"
-        "PackageCode" = "8:{356D2DB9-99D4-4532-BCC2-1BAE0FDF7954}"
+        "PackageCode" = "8:{F088C8A5-FB44-4527-BAF9-630A22AD8CC3}"
         "UpgradeCode" = "8:{B5157DB2-9BE0-4BA2-A22E-33C25A4FFCA3}"
         "AspNetVersion" = "8:2.0.50727.0"
         "RestartWWWService" = "11:FALSE"

@@ -50,6 +50,382 @@ namespace Kneeboard_Server
         private SimConnectManager simConnectManager;
 
         /// <summary>
+        /// Gets the SimConnect manager instance for procedure queries
+        /// </summary>
+        public SimConnectManager SimConnect => simConnectManager;
+
+        /// <summary>
+        /// Converts a PLN waypoint to an object with proper type markers
+        /// </summary>
+        private static object ConvertWaypointToObject(SimBaseDocumentFlightPlanFlightPlanATCWaypoint wp, bool isSid, bool isStar)
+        {
+            // Parse WorldPosition (format: "N48° 18' 15.64",E14° 17' 48.13",+000000.00")
+            double lat = 0, lng = 0;
+            if (!string.IsNullOrEmpty(wp.WorldPosition))
+            {
+                var coords = ParseWorldPosition(wp.WorldPosition);
+                lat = coords.Item1;
+                lng = coords.Item2;
+            }
+
+            string waypointType = wp.ATCWaypointType ?? "User";
+            if (isSid) waypointType = "DEP " + waypointType;
+            else if (isStar) waypointType = "ARR " + waypointType;
+
+            return new
+            {
+                name = wp.id ?? "",
+                lat = lat,
+                lng = lng,
+                altitude = (int)(wp.Alt1FPSpecified ? wp.Alt1FP : 0),
+                waypointType = waypointType,
+                atcWaypointType = wp.ATCWaypointType,
+                departureProcedure = wp.DepartureFP ?? "",
+                arrivalProcedure = wp.ArrivalFP ?? "",
+                airway = wp.ATCAirway ?? "",
+                runwayNumber = wp.RunwayNumberFPSpecified ? wp.RunwayNumberFP.ToString() : "",
+                runwayDesignator = wp.RunwayDesignatorFP ?? ""
+            };
+        }
+
+        /// <summary>
+        /// Parses MSFS WorldPosition format to lat/lng
+        /// </summary>
+        private static Tuple<double, double> ParseWorldPosition(string worldPos)
+        {
+            try
+            {
+                // Format: "N48° 18' 15.64",E14° 17' 48.13",+000000.00"
+                var parts = worldPos.Split(',');
+                if (parts.Length < 2) return Tuple.Create(0.0, 0.0);
+
+                double lat = ParseCoordinate(parts[0].Trim('"'));
+                double lng = ParseCoordinate(parts[1].Trim('"'));
+                return Tuple.Create(lat, lng);
+            }
+            catch
+            {
+                return Tuple.Create(0.0, 0.0);
+            }
+        }
+
+        /// <summary>
+        /// Parses a single coordinate in DMS format
+        /// </summary>
+        private static double ParseCoordinate(string coord)
+        {
+            // Format: N48° 18' 15.64" or E14° 17' 48.13"
+            bool isNegative = coord.StartsWith("S") || coord.StartsWith("W");
+            coord = coord.TrimStart('N', 'S', 'E', 'W');
+
+            // Remove degree, minute, second symbols
+            coord = coord.Replace("°", " ").Replace("'", " ").Replace("\"", " ");
+            var parts = coord.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+            if (parts.Length < 3) return 0;
+
+            double degrees = double.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
+            double minutes = double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+            double seconds = double.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture);
+
+            double result = degrees + (minutes / 60.0) + (seconds / 3600.0);
+            return isNegative ? -result : result;
+        }
+
+        /// <summary>
+        /// Extracts SID waypoints from SimBrief navlog
+        /// SID waypoints have Stage="CLB" and Is_sid_star="1"
+        /// </summary>
+        public static object GetSidWaypointsFromSimbrief()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(simbriefOFPData))
+                {
+                    return new { error = "No SimBrief data loaded", waypoints = new List<object>() };
+                }
+
+                var ofp = JsonConvert.DeserializeObject<Simbrief.OFP>(simbriefOFPData);
+                if (ofp?.Navlog?.Fix == null)
+                {
+                    return new { error = "No navlog in SimBrief data", waypoints = new List<object>() };
+                }
+
+                // Extract SID name from route (first element before space, e.g. "OBOKA1F/25C ...")
+                string sidName = "";
+                if (!string.IsNullOrEmpty(ofp.General?.Route))
+                {
+                    var routeParts = ofp.General.Route.Split(' ');
+                    if (routeParts.Length > 0)
+                    {
+                        sidName = routeParts[0].Split('/')[0];
+                    }
+                }
+
+                string departureIcao = ofp.Origin?.Icao_code;
+                var waypoints = new List<object>();
+
+                // Extract from SimBrief
+                bool foundFirstSidWaypoint = false;
+                foreach (var fix in ofp.Navlog.Fix)
+                {
+                    if (fix.Stage == "CLB")
+                    {
+                        if (fix.Type == "apt" && fix.Ident == ofp.Origin?.Icao_code)
+                            continue;
+
+                        if (fix.Is_sid_star == "1")
+                            foundFirstSidWaypoint = true;
+
+                        if (fix.Is_sid_star == "1" || foundFirstSidWaypoint)
+                        {
+                            double.TryParse(fix.Pos_lat, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lat);
+                            double.TryParse(fix.Pos_long, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lon);
+                            double.TryParse(fix.Altitude_feet ?? "0", System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double alt);
+
+                            waypoints.Add(new
+                            {
+                                ident = fix.Ident,
+                                name = fix.Name,
+                                type = "DEP " + (fix.Type ?? "wpt"),
+                                lat = lat,
+                                lon = lon,
+                                alt = alt,
+                                isSidStar = fix.Is_sid_star == "1"
+                            });
+                        }
+                    }
+                }
+
+                return new
+                {
+                    source = "SimBrief",
+                    departure = departureIcao,
+                    runway = ofp.Origin?.Plan_rwy,
+                    sidName = sidName,
+                    waypointCount = waypoints.Count,
+                    waypoints = waypoints
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SimBrief] Error extracting SID waypoints: {ex.Message}");
+                return new { error = ex.Message, waypoints = new List<object>() };
+            }
+        }
+
+        /// <summary>
+        /// Extracts STAR waypoints from SimBrief navlog
+        /// STAR waypoints have Stage="DSC" and Is_sid_star="1"
+        /// </summary>
+        public static object GetStarWaypointsFromSimbrief()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(simbriefOFPData))
+                {
+                    return new { error = "No SimBrief data loaded", waypoints = new List<object>() };
+                }
+
+                var ofp = JsonConvert.DeserializeObject<Simbrief.OFP>(simbriefOFPData);
+                if (ofp?.Navlog?.Fix == null)
+                {
+                    return new { error = "No navlog in SimBrief data", waypoints = new List<object>() };
+                }
+
+                // Extract STAR name from route (last element, e.g. "... SOMAX1A")
+                string starName = "";
+                if (!string.IsNullOrEmpty(ofp.General?.Route))
+                {
+                    var routeParts = ofp.General.Route.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (routeParts.Length > 0)
+                    {
+                        starName = routeParts[routeParts.Length - 1];
+                    }
+                }
+
+                string arrivalIcao = ofp.Destination?.Icao_code;
+                var waypoints = new List<object>();
+
+                // Extract from SimBrief
+                bool foundFirstStarWaypoint = false;
+                foreach (var fix in ofp.Navlog.Fix)
+                {
+                    if (fix.Stage == "DSC")
+                    {
+                        if (fix.Is_sid_star == "1")
+                            foundFirstStarWaypoint = true;
+
+                        if (foundFirstStarWaypoint || fix.Is_sid_star == "1")
+                        {
+                            double.TryParse(fix.Pos_lat, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lat);
+                            double.TryParse(fix.Pos_long, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lon);
+                            double.TryParse(fix.Altitude_feet ?? "0", System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double alt);
+
+                            waypoints.Add(new
+                            {
+                                ident = fix.Ident,
+                                name = fix.Name,
+                                type = "ARR " + (fix.Type ?? "wpt"),
+                                lat = lat,
+                                lon = lon,
+                                alt = alt,
+                                isSidStar = fix.Is_sid_star == "1"
+                            });
+                        }
+                    }
+                }
+
+                return new
+                {
+                    source = "SimBrief",
+                    arrival = arrivalIcao,
+                    runway = ofp.Destination?.Plan_rwy,
+                    starName = starName,
+                    waypointCount = waypoints.Count,
+                    waypoints = waypoints
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SimBrief] Error extracting STAR waypoints: {ex.Message}");
+                return new { error = ex.Message, waypoints = new List<object>() };
+            }
+        }
+
+        /// <summary>
+        /// Gets combined SID and STAR data from SimBrief
+        /// </summary>
+        public static object GetSimbriefProcedures()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(simbriefOFPData))
+                {
+                    return new { error = "No SimBrief data loaded" };
+                }
+
+                var ofp = JsonConvert.DeserializeObject<Simbrief.OFP>(simbriefOFPData);
+                if (ofp?.Navlog?.Fix == null)
+                {
+                    return new { error = "No navlog in SimBrief data" };
+                }
+
+                // Parse route for SID/STAR names
+                string sidName = "", starName = "";
+                if (!string.IsNullOrEmpty(ofp.General?.Route))
+                {
+                    var routeParts = ofp.General.Route.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (routeParts.Length > 0)
+                    {
+                        sidName = routeParts[0].Split('/')[0];
+                        starName = routeParts[routeParts.Length - 1];
+                    }
+                }
+
+                string departureIcao = ofp.Origin?.Icao_code;
+                string arrivalIcao = ofp.Destination?.Icao_code;
+
+                var sidWaypoints = new List<object>();
+                var starWaypoints = new List<object>();
+
+                // Extract SID/STAR waypoints from SimBrief navlog
+                bool foundFirstSidWaypoint = false;
+                bool foundFirstStarWaypoint = false;
+
+                foreach (var fix in ofp.Navlog.Fix)
+                {
+                    double.TryParse(fix.Pos_lat, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lat);
+                    double.TryParse(fix.Pos_long, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lon);
+                    double.TryParse(fix.Altitude_feet ?? "0", System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double alt);
+
+                    // SID: All CLB waypoints from first Is_sid_star onwards
+                    if (fix.Stage == "CLB")
+                    {
+                        if (fix.Type == "apt" && fix.Ident == ofp.Origin?.Icao_code)
+                            continue;
+
+                        if (fix.Is_sid_star == "1")
+                            foundFirstSidWaypoint = true;
+
+                        if (foundFirstSidWaypoint || fix.Is_sid_star == "1")
+                        {
+                            sidWaypoints.Add(new
+                            {
+                                ident = fix.Ident,
+                                name = fix.Name,
+                                type = "DEP " + (fix.Type ?? "wpt"),
+                                lat = lat,
+                                lon = lon,
+                                alt = alt,
+                                isSidStar = fix.Is_sid_star == "1"
+                            });
+                        }
+                    }
+                    // STAR: All DSC waypoints from first Is_sid_star onwards
+                    else if (fix.Stage == "DSC")
+                    {
+                        if (fix.Is_sid_star == "1")
+                            foundFirstStarWaypoint = true;
+
+                        if (foundFirstStarWaypoint || fix.Is_sid_star == "1")
+                        {
+                            starWaypoints.Add(new
+                            {
+                                ident = fix.Ident,
+                                name = fix.Name,
+                                type = "ARR " + (fix.Type ?? "wpt"),
+                                lat = lat,
+                                lon = lon,
+                                alt = alt,
+                                isSidStar = fix.Is_sid_star == "1"
+                            });
+                        }
+                    }
+                }
+
+                return new
+                {
+                    source = "SimBrief",
+                    airac = ofp.Params?.Airac,
+                    departure = new
+                    {
+                        icao = departureIcao,
+                        runway = ofp.Origin?.Plan_rwy,
+                        name = ofp.Origin?.Name,
+                        lat = double.TryParse(ofp.Origin?.Pos_lat, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double depLat) ? depLat : 0,
+                        lon = double.TryParse(ofp.Origin?.Pos_long, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double depLon) ? depLon : 0
+                    },
+                    arrival = new
+                    {
+                        icao = arrivalIcao,
+                        runway = ofp.Destination?.Plan_rwy,
+                        name = ofp.Destination?.Name,
+                        lat = double.TryParse(ofp.Destination?.Pos_lat, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double arrLat) ? arrLat : 0,
+                        lon = double.TryParse(ofp.Destination?.Pos_long, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double arrLon) ? arrLon : 0
+                    },
+                    sid = new
+                    {
+                        name = sidName,
+                        waypointCount = sidWaypoints.Count,
+                        waypoints = sidWaypoints
+                    },
+                    star = new
+                    {
+                        name = starName,
+                        waypointCount = starWaypoints.Count,
+                        waypoints = starWaypoints
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SimBrief] Error getting procedures: {ex.Message}");
+                return new { error = ex.Message };
+            }
+        }
+
+        /// <summary>
         /// Loads persisted flightplan data from Settings on startup
         /// </summary>
         public static void LoadPersistedFlightplanData()
@@ -130,6 +506,45 @@ namespace Kneeboard_Server
             catch (Exception ex)
             {
                 Console.WriteLine($"[Persistence] Error clearing data: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Removes OFP from document list without clearing SimBrief cache
+        /// Called when user deletes flightplan from map (soft clear)
+        /// </summary>
+        public static void RemoveOFPFromDocumentListOnly()
+        {
+            try
+            {
+                if (instance != null)
+                {
+                    if (instance.InvokeRequired)
+                    {
+                        instance.BeginInvoke(new Action(() =>
+                        {
+                            if (instance.RemoveSimbriefOFPFromDocumentList())
+                            {
+                                instance.UpdateFileList();
+                                instance.SaveDocumentState();
+                                Console.WriteLine("[SimBrief] OFP removed from document list (soft clear)");
+                            }
+                        }));
+                    }
+                    else
+                    {
+                        if (instance.RemoveSimbriefOFPFromDocumentList())
+                        {
+                            instance.UpdateFileList();
+                            instance.SaveDocumentState();
+                            Console.WriteLine("[SimBrief] OFP removed from document list (soft clear)");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SimBrief] Error removing OFP from list: {ex.Message}");
             }
         }
 
@@ -2363,13 +2778,16 @@ namespace Kneeboard_Server
                     {
                         XmlSerializer serializer = new XmlSerializer(typeof(SimBaseDocument));
                         SimBaseDocument waypoints = (SimBaseDocument)serializer.Deserialize(reader);
+
                         // Kombiniertes Objekt mit PLN und OFP-Daten senden
                         Console.WriteLine("[OFP Debug syncFlightplan] Creating combined data - simbriefOFPData is " + (simbriefOFPData != null ? "NOT null, length: " + simbriefOFPData.Length : "NULL"));
-                        var combinedData = new
+
+                        object combinedData = new
                         {
                             pln = waypoints,
                             ofp = simbriefOFPData != null ? Newtonsoft.Json.JsonConvert.DeserializeObject(simbriefOFPData) : null
                         };
+
                         flightplan = Newtonsoft.Json.JsonConvert.SerializeObject(combinedData);
                         lastFlightplanSource = FlightplanSource.SimBrief;
 

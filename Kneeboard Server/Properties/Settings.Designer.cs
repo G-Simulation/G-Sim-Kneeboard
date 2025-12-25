@@ -310,5 +310,17 @@ namespace Kneeboard_Server.Properties {
                 this["ivaoVid"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string msfsPackagesPath {
+            get {
+                return ((string)(this["msfsPackagesPath"]));
+            }
+            set {
+                this["msfsPackagesPath"] = value;
+            }
+        }
     }
 }

@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.FlightSimulator.SimConnect;
 
@@ -144,6 +146,7 @@ namespace Kneeboard_Server
                     simConnect.OnRecvQuit += OnRecvQuit;
                     simConnect.OnRecvException += OnRecvException;
                     simConnect.OnRecvSimobjectData += OnRecvSimobjectData;
+                    // Note: OnRecvFacilityData not used - Little Navmap DB is primary source
 
                     Console.WriteLine("[SimConnect] Connecting to MSFS...");
                 }

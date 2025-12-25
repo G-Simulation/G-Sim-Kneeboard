@@ -92,7 +92,7 @@ namespace Kneeboard_Server
             | System.Windows.Forms.AnchorStyles.Right)));
             this.label2.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label2.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.label2.Location = new System.Drawing.Point(11, 367);
+            this.label2.Location = new System.Drawing.Point(11, 435);
             this.label2.Name = "label2";
             this.label2.RightToLeft = System.Windows.Forms.RightToLeft.No;
             this.label2.Size = new System.Drawing.Size(186, 23);
@@ -108,7 +108,7 @@ namespace Kneeboard_Server
             | System.Windows.Forms.AnchorStyles.Right)));
             this.linkLabel1.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.linkLabel1.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.linkLabel1.Location = new System.Drawing.Point(12, 394);
+            this.linkLabel1.Location = new System.Drawing.Point(12, 462);
             this.linkLabel1.Name = "linkLabel1";
             this.linkLabel1.Size = new System.Drawing.Size(185, 23);
             this.linkLabel1.TabIndex = 29;
@@ -227,7 +227,7 @@ namespace Kneeboard_Server
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Window;
-            this.ClientSize = new System.Drawing.Size(209, 422);
+            this.ClientSize = new System.Drawing.Size(209, 400);
             this.Controls.Add(this.IvaoVidInput);
             this.Controls.Add(this.VatsimCidInput);
             this.Controls.Add(this.cacheSizeLabel);
