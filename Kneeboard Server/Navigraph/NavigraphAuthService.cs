@@ -1,368 +1,589 @@
 using System;
 using System.Collections.Generic;
-using System.Configuration;
+using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Kneeboard_Server.Properties;
 
 namespace Kneeboard_Server.Navigraph
 {
     /// <summary>
-    /// Handles OAuth 2.0 Device Authorization Flow for Navigraph API
+    /// Navigraph Authentication Service using OAuth Device Authorization Flow with PKCE
     /// </summary>
-    public class NavigraphAuthService : IDisposable
+    public class NavigraphAuthService
     {
-        #region Constants
+        // OAuth Endpoints
+        private const string AUTH_BASE = "https://identity.api.navigraph.com";
+        private const string DEVICE_AUTH_ENDPOINT = AUTH_BASE + "/connect/deviceauthorization";
+        private const string TOKEN_ENDPOINT = AUTH_BASE + "/connect/token";
+        private const string SUBSCRIPTIONS_ENDPOINT = "https://subscriptions.api.navigraph.com/v1/subscriptions";
+        private const string USERINFO_ENDPOINT = AUTH_BASE + "/connect/userinfo";
 
-        private const string DEVICE_AUTH_ENDPOINT = "https://identity.api.navigraph.com/connect/deviceauthorization";
-        private const string TOKEN_ENDPOINT = "https://identity.api.navigraph.com/connect/token";
-        private const string USERINFO_ENDPOINT = "https://identity.api.navigraph.com/connect/userinfo";
-        private const string SCOPES = "openid offline_access fmsdata";
+        // OAuth Client Configuration
+        // These should be replaced with actual Navigraph developer credentials
+        private const string DEFAULT_CLIENT_ID = "kneeboard-server";
+        private const string SCOPE = "openid offline_access fmsdata";
 
-        #endregion
-
-        #region Fields
-
-        private readonly HttpClient _httpClient;
-        private string _accessToken;
-        private string _refreshToken;
-        private DateTime _tokenExpiry;
+        // PKCE
         private string _codeVerifier;
-        private CancellationTokenSource _pollCancellation;
-        private bool _disposed;
+        private string _codeChallenge;
 
-        // Client credentials - should be loaded from config
-        private string _clientId;
-        private string _clientSecret;
+        // HttpClient
+        private readonly HttpClient _httpClient;
 
-        #endregion
+        // Events
+        public event EventHandler<string> OnLog;
+        public event EventHandler<NavigraphStatus> OnStatusChanged;
 
-        #region Properties
-
-        /// <summary>
-        /// Whether the user is currently authenticated
-        /// </summary>
-        public bool IsAuthenticated => !string.IsNullOrEmpty(_accessToken) && DateTime.UtcNow < _tokenExpiry;
-
-        /// <summary>
-        /// Current access token (null if not authenticated)
-        /// </summary>
-        public string AccessToken => IsAuthenticated ? _accessToken : null;
-
-        /// <summary>
-        /// Username of authenticated user
-        /// </summary>
+        // Properties
+        public string AccessToken { get; private set; }
+        public string RefreshToken { get; private set; }
+        public DateTime TokenExpiry { get; private set; }
         public string Username { get; private set; }
+        public bool HasFmsDataSubscription { get; private set; }
 
-        /// <summary>
-        /// Whether client credentials are configured
-        /// </summary>
-        public bool IsConfigured => !string.IsNullOrEmpty(_clientId);
+        public bool IsAuthenticated => !string.IsNullOrEmpty(AccessToken) && TokenExpiry > DateTime.UtcNow;
 
-        #endregion
-
-        #region Events
-
-        /// <summary>
-        /// Raised when device code is received (show to user)
-        /// </summary>
-        public event Action<DeviceCodeResponse> OnDeviceCodeReceived;
-
-        /// <summary>
-        /// Raised when authentication completes (success or failure)
-        /// </summary>
-        public event Action<bool, string> OnAuthenticationComplete;
-
-        /// <summary>
-        /// Raised when authentication status changes
-        /// </summary>
-        public event Action<bool> OnAuthStatusChanged;
-
-        #endregion
-
-        #region Constructor
+        public string ClientId => !string.IsNullOrEmpty(Settings.Default.NavigraphClientId)
+            ? Settings.Default.NavigraphClientId
+            : DEFAULT_CLIENT_ID;
 
         public NavigraphAuthService()
         {
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "KneeboardServer/2.0");
-            LoadClientCredentials();
-            LoadTokens();
+
+            // Load saved tokens
+            LoadTokensFromSettings();
         }
 
-        #endregion
-
-        #region Public Methods
-
         /// <summary>
-        /// Configure client credentials
+        /// Load tokens from application settings
         /// </summary>
-        public void Configure(string clientId, string clientSecret)
+        private void LoadTokensFromSettings()
         {
-            _clientId = clientId;
-            _clientSecret = clientSecret;
-            SaveClientCredentials();
+            try
+            {
+                AccessToken = Settings.Default.NavigraphAccessToken;
+                RefreshToken = Settings.Default.NavigraphRefreshToken;
+                Username = Settings.Default.NavigraphUsername;
+
+                if (!string.IsNullOrEmpty(Settings.Default.NavigraphTokenExpiry))
+                {
+                    if (DateTime.TryParse(Settings.Default.NavigraphTokenExpiry, out DateTime expiry))
+                    {
+                        TokenExpiry = expiry;
+                    }
+                }
+
+                // Check if token is valid and get subscription status
+                if (IsAuthenticated)
+                {
+                    Log($"Navigraph: Gespeicherte Anmeldung gefunden für {Username}");
+                    _ = Task.Run(async () => await CheckSubscriptionAsync());
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Navigraph: Fehler beim Laden der Token: {ex.Message}");
+            }
         }
 
         /// <summary>
-        /// Start the device authorization flow
+        /// Save tokens to application settings
+        /// </summary>
+        private void SaveTokensToSettings()
+        {
+            try
+            {
+                Settings.Default.NavigraphAccessToken = AccessToken ?? "";
+                Settings.Default.NavigraphRefreshToken = RefreshToken ?? "";
+                Settings.Default.NavigraphUsername = Username ?? "";
+                Settings.Default.NavigraphTokenExpiry = TokenExpiry.ToString("O");
+                Settings.Default.Save();
+            }
+            catch (Exception ex)
+            {
+                Log($"Navigraph: Fehler beim Speichern der Token: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Generate PKCE Code Verifier (43-128 characters)
+        /// </summary>
+        private void GeneratePkceValues()
+        {
+            // Generate 32 random bytes for code verifier
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                byte[] bytes = new byte[32];
+                rng.GetBytes(bytes);
+                _codeVerifier = Base64UrlEncode(bytes);
+            }
+
+            // Generate code challenge using SHA256
+            using (var sha256 = SHA256.Create())
+            {
+                byte[] challengeBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(_codeVerifier));
+                _codeChallenge = Base64UrlEncode(challengeBytes);
+            }
+
+            Log($"Navigraph: PKCE Werte generiert");
+        }
+
+        /// <summary>
+        /// Base64 URL Encode (RFC 7636)
+        /// </summary>
+        private static string Base64UrlEncode(byte[] bytes)
+        {
+            return Convert.ToBase64String(bytes)
+                .TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+        }
+
+        /// <summary>
+        /// Start the Device Authorization Flow
+        /// Returns device code response with user_code and verification_uri
         /// </summary>
         public async Task<DeviceCodeResponse> StartDeviceAuthFlowAsync()
         {
-            if (!IsConfigured)
-            {
-                throw new InvalidOperationException("Navigraph Client ID not configured. Please set up your Navigraph developer credentials.");
-            }
-
-            // Generate PKCE code verifier and challenge
-            _codeVerifier = GenerateCodeVerifier();
-            string codeChallenge = GenerateCodeChallenge(_codeVerifier);
-
-            var content = new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("client_id", _clientId),
-                new KeyValuePair<string, string>("client_secret", _clientSecret ?? ""),
-                new KeyValuePair<string, string>("scope", SCOPES),
-                new KeyValuePair<string, string>("code_challenge", codeChallenge),
-                new KeyValuePair<string, string>("code_challenge_method", "S256")
-            });
-
             try
             {
+                Log("Navigraph: Starte Device Authorization Flow...");
+
+                // Generate new PKCE values
+                GeneratePkceValues();
+
+                // Build request
+                var content = new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    { "client_id", ClientId },
+                    { "scope", SCOPE },
+                    { "code_challenge", _codeChallenge },
+                    { "code_challenge_method", "S256" }
+                });
+
                 var response = await _httpClient.PostAsync(DEVICE_AUTH_ENDPOINT, content);
-                var responseContent = await response.Content.ReadAsStringAsync();
+                var responseBody = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"[Navigraph] Device auth failed: {responseContent}");
-                    throw new Exception($"Device authorization failed: {response.StatusCode}");
+                    Log($"Navigraph: Device Auth Fehler: {response.StatusCode} - {responseBody}");
+                    return null;
                 }
 
-                var json = JObject.Parse(responseContent);
-                var deviceCode = new DeviceCodeResponse
+                var json = JObject.Parse(responseBody);
+
+                var result = new DeviceCodeResponse
                 {
                     DeviceCode = json["device_code"]?.ToString(),
                     UserCode = json["user_code"]?.ToString(),
                     VerificationUri = json["verification_uri"]?.ToString(),
                     VerificationUriComplete = json["verification_uri_complete"]?.ToString(),
-                    ExpiresIn = json["expires_in"]?.Value<int>() ?? 600,
-                    Interval = json["interval"]?.Value<int>() ?? 5
+                    ExpiresIn = json["expires_in"]?.ToObject<int>() ?? 600,
+                    Interval = json["interval"]?.ToObject<int>() ?? 5
                 };
 
-                Console.WriteLine($"[Navigraph] Device code received. User code: {deviceCode.UserCode}");
-                OnDeviceCodeReceived?.Invoke(deviceCode);
+                Log($"Navigraph: Benutzercode: {result.UserCode}");
+                Log($"Navigraph: Öffne {result.VerificationUri} und gib den Code ein");
 
-                return deviceCode;
+                return result;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph] Device auth error: {ex.Message}");
-                throw;
+                Log($"Navigraph: Device Auth Fehler: {ex.Message}");
+                return null;
             }
         }
 
         /// <summary>
-        /// Poll for token after user completes authorization
+        /// Poll for token after user has authorized the device
         /// </summary>
-        public async Task<bool> PollForTokenAsync(string deviceCode, int interval)
+        public async Task<bool> PollForTokenAsync(string deviceCode, int interval, CancellationToken cancellationToken = default)
         {
-            _pollCancellation = new CancellationTokenSource();
-            int currentInterval = interval;
-            int maxAttempts = 120; // ~10 minutes with 5s interval
-            int attempts = 0;
-
-            while (!_pollCancellation.Token.IsCancellationRequested && attempts < maxAttempts)
+            try
             {
-                await Task.Delay(currentInterval * 1000, _pollCancellation.Token);
-                attempts++;
+                Log("Navigraph: Warte auf Benutzerautorisierung...");
 
-                var content = new FormUrlEncodedContent(new[]
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    new KeyValuePair<string, string>("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-                    new KeyValuePair<string, string>("device_code", deviceCode),
-                    new KeyValuePair<string, string>("client_id", _clientId),
-                    new KeyValuePair<string, string>("client_secret", _clientSecret ?? ""),
-                    new KeyValuePair<string, string>("code_verifier", _codeVerifier)
-                });
+                    await Task.Delay(interval * 1000, cancellationToken);
 
-                try
-                {
-                    var response = await _httpClient.PostAsync(TOKEN_ENDPOINT, content);
-                    var responseContent = await response.Content.ReadAsStringAsync();
-                    var json = JObject.Parse(responseContent);
+                    var content = new FormUrlEncodedContent(new Dictionary<string, string>
+                    {
+                        { "client_id", ClientId },
+                        { "grant_type", "urn:ietf:params:oauth:grant-type:device_code" },
+                        { "device_code", deviceCode },
+                        { "code_verifier", _codeVerifier }
+                    });
+
+                    var response = await _httpClient.PostAsync(TOKEN_ENDPOINT, content, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync();
 
                     if (response.IsSuccessStatusCode)
                     {
-                        // Success!
-                        _accessToken = json["access_token"]?.ToString();
-                        _refreshToken = json["refresh_token"]?.ToString();
-                        int expiresIn = json["expires_in"]?.Value<int>() ?? 3600;
-                        _tokenExpiry = DateTime.UtcNow.AddSeconds(expiresIn - 60); // 1 minute buffer
+                        // Success - parse token
+                        var json = JObject.Parse(responseBody);
 
-                        SaveTokens();
-                        await FetchUsernameAsync();
+                        AccessToken = json["access_token"]?.ToString();
+                        RefreshToken = json["refresh_token"]?.ToString();
 
-                        Console.WriteLine($"[Navigraph] Authentication successful! User: {Username}");
-                        OnAuthenticationComplete?.Invoke(true, null);
-                        OnAuthStatusChanged?.Invoke(true);
+                        int expiresIn = json["expires_in"]?.ToObject<int>() ?? 3600;
+                        TokenExpiry = DateTime.UtcNow.AddSeconds(expiresIn);
+
+                        // Extract username from token
+                        ExtractUsernameFromToken();
+
+                        // Save tokens
+                        SaveTokensToSettings();
+
+                        Log($"Navigraph: Erfolgreich angemeldet als {Username}");
+
+                        // Check subscription
+                        await CheckSubscriptionAsync();
+
+                        // Notify status change
+                        OnStatusChanged?.Invoke(this, GetStatus());
+
                         return true;
                     }
-                    else
+
+                    // Parse error
+                    var errorJson = JObject.Parse(responseBody);
+                    var error = errorJson["error"]?.ToString();
+
+                    switch (error)
                     {
-                        string error = json["error"]?.ToString();
+                        case "authorization_pending":
+                            // User hasn't authorized yet, continue polling
+                            continue;
 
-                        switch (error)
-                        {
-                            case "authorization_pending":
-                                // User hasn't completed authorization yet, continue polling
-                                continue;
+                        case "slow_down":
+                            // We're polling too fast, increase interval
+                            interval += 5;
+                            continue;
 
-                            case "slow_down":
-                                // Increase interval
-                                currentInterval += 5;
-                                continue;
+                        case "expired_token":
+                            Log("Navigraph: Autorisierung abgelaufen");
+                            return false;
 
-                            case "access_denied":
-                                Console.WriteLine("[Navigraph] User denied authorization");
-                                OnAuthenticationComplete?.Invoke(false, "Authorization denied by user");
-                                return false;
+                        case "access_denied":
+                            Log("Navigraph: Zugriff verweigert");
+                            return false;
 
-                            case "expired_token":
-                                Console.WriteLine("[Navigraph] Device code expired");
-                                OnAuthenticationComplete?.Invoke(false, "Authorization code expired. Please try again.");
-                                return false;
-
-                            default:
-                                Console.WriteLine($"[Navigraph] Token error: {error}");
-                                OnAuthenticationComplete?.Invoke(false, error);
-                                return false;
-                        }
+                        default:
+                            Log($"Navigraph: Token Fehler: {error}");
+                            return false;
                     }
                 }
-                catch (TaskCanceledException)
-                {
-                    Console.WriteLine("[Navigraph] Polling cancelled");
-                    return false;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[Navigraph] Polling error: {ex.Message}");
-                    // Continue polling on network errors
-                }
-            }
 
-            OnAuthenticationComplete?.Invoke(false, "Timeout waiting for authorization");
-            return false;
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Log("Navigraph: Autorisierung abgebrochen");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log($"Navigraph: Token Polling Fehler: {ex.Message}");
+                return false;
+            }
         }
 
         /// <summary>
-        /// Cancel ongoing polling
+        /// Extract username from JWT access token
         /// </summary>
-        public void CancelPolling()
+        private void ExtractUsernameFromToken()
         {
-            _pollCancellation?.Cancel();
+            try
+            {
+                if (string.IsNullOrEmpty(AccessToken))
+                    return;
+
+                var claims = ParseJwtClaims(AccessToken);
+                if (claims == null)
+                {
+                    Username = "Unknown";
+                    return;
+                }
+
+                // Try different claim types for username
+                Username = GetClaimValue(claims, "preferred_username")
+                    ?? GetClaimValue(claims, "name")
+                    ?? GetClaimValue(claims, "sub")
+                    ?? "Unknown";
+            }
+            catch (Exception ex)
+            {
+                Log($"Navigraph: Fehler beim Lesen des Tokens: {ex.Message}");
+                Username = "Unknown";
+            }
+        }
+
+        /// <summary>
+        /// Parse JWT token claims (manual parsing without external dependencies)
+        /// </summary>
+        private JObject ParseJwtClaims(string token)
+        {
+            try
+            {
+                // JWT format: header.payload.signature
+                var parts = token.Split('.');
+                if (parts.Length != 3)
+                    return null;
+
+                // Decode payload (second part)
+                var payload = parts[1];
+
+                // Add padding if needed
+                switch (payload.Length % 4)
+                {
+                    case 2: payload += "=="; break;
+                    case 3: payload += "="; break;
+                }
+
+                // Replace URL-safe characters
+                payload = payload.Replace('-', '+').Replace('_', '/');
+
+                var bytes = Convert.FromBase64String(payload);
+                var json = Encoding.UTF8.GetString(bytes);
+
+                return JObject.Parse(json);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Get claim value from JWT claims
+        /// </summary>
+        private string GetClaimValue(JObject claims, string claimType)
+        {
+            if (claims == null)
+                return null;
+
+            return claims[claimType]?.ToString();
+        }
+
+        /// <summary>
+        /// Check if user has fmsdata subscription
+        /// </summary>
+        public async Task<bool> CheckSubscriptionAsync()
+        {
+            try
+            {
+                if (!IsAuthenticated)
+                {
+                    // Try to refresh token first
+                    if (!string.IsNullOrEmpty(RefreshToken))
+                    {
+                        await RefreshTokenAsync();
+                    }
+
+                    if (!IsAuthenticated)
+                    {
+                        HasFmsDataSubscription = false;
+                        return false;
+                    }
+                }
+
+                Log("Navigraph: Prüfe Subscription...");
+
+                // First check token claims for subscription info
+                if (CheckTokenForFmsDataScope())
+                {
+                    Log("Navigraph: FMS Data Subscription via Token-Claims gefunden");
+                    HasFmsDataSubscription = true;
+                    return true;
+                }
+
+                // Otherwise query subscriptions API
+                var request = new HttpRequestMessage(HttpMethod.Get, SUBSCRIPTIONS_ENDPOINT);
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
+
+                var response = await _httpClient.SendAsync(request);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseBody = await response.Content.ReadAsStringAsync();
+                    var json = JObject.Parse(responseBody);
+
+                    // Check for fmsdata subscription
+                    var subs = json["subscriptions"] as JArray;
+                    if (subs != null)
+                    {
+                        foreach (var sub in subs)
+                        {
+                            var type = sub["type"]?.ToString();
+                            if (type == "fmsdata" || type == "ultimate")
+                            {
+                                HasFmsDataSubscription = true;
+                                Log($"Navigraph: FMS Data Subscription gefunden ({type})");
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                HasFmsDataSubscription = false;
+                Log("Navigraph: Keine FMS Data Subscription gefunden - verwende Bundled Database");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log($"Navigraph: Subscription Check Fehler: {ex.Message}");
+                HasFmsDataSubscription = false;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Check if fmsdata scope is in the access token
+        /// </summary>
+        private bool CheckTokenForFmsDataScope()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(AccessToken))
+                    return false;
+
+                var claims = ParseJwtClaims(AccessToken);
+                if (claims == null)
+                    return false;
+
+                // Check scope claim
+                var scope = GetClaimValue(claims, "scope");
+                if (!string.IsNullOrEmpty(scope) && scope.Contains("fmsdata"))
+                {
+                    return true;
+                }
+
+                // Check for subscription claim
+                var subs = GetClaimValue(claims, "subscriptions");
+                if (!string.IsNullOrEmpty(subs) && subs.Contains("fmsdata"))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
         /// Refresh the access token using refresh token
         /// </summary>
-        public async Task<bool> RefreshAccessTokenAsync()
+        public async Task<bool> RefreshTokenAsync()
         {
-            if (string.IsNullOrEmpty(_refreshToken))
-            {
-                Console.WriteLine("[Navigraph] No refresh token available");
-                return false;
-            }
-
-            var content = new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("grant_type", "refresh_token"),
-                new KeyValuePair<string, string>("client_id", _clientId),
-                new KeyValuePair<string, string>("client_secret", _clientSecret ?? ""),
-                new KeyValuePair<string, string>("refresh_token", _refreshToken)
-            });
-
             try
             {
-                var response = await _httpClient.PostAsync(TOKEN_ENDPOINT, content);
-                var responseContent = await response.Content.ReadAsStringAsync();
-
-                if (response.IsSuccessStatusCode)
+                if (string.IsNullOrEmpty(RefreshToken))
                 {
-                    var json = JObject.Parse(responseContent);
-                    _accessToken = json["access_token"]?.ToString();
-
-                    // Navigraph may return a new refresh token
-                    string newRefreshToken = json["refresh_token"]?.ToString();
-                    if (!string.IsNullOrEmpty(newRefreshToken))
-                    {
-                        _refreshToken = newRefreshToken;
-                    }
-
-                    int expiresIn = json["expires_in"]?.Value<int>() ?? 3600;
-                    _tokenExpiry = DateTime.UtcNow.AddSeconds(expiresIn - 60);
-
-                    SaveTokens();
-                    Console.WriteLine("[Navigraph] Token refreshed successfully");
-                    return true;
+                    Log("Navigraph: Kein Refresh Token vorhanden");
+                    return false;
                 }
-                else
+
+                Log("Navigraph: Erneuere Token...");
+
+                var content = new FormUrlEncodedContent(new Dictionary<string, string>
                 {
-                    Console.WriteLine($"[Navigraph] Token refresh failed: {responseContent}");
+                    { "client_id", ClientId },
+                    { "grant_type", "refresh_token" },
+                    { "refresh_token", RefreshToken }
+                });
+
+                var response = await _httpClient.PostAsync(TOKEN_ENDPOINT, content);
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Log($"Navigraph: Token Refresh fehlgeschlagen: {response.StatusCode}");
                     // Clear invalid tokens
                     Logout();
                     return false;
                 }
+
+                var json = JObject.Parse(responseBody);
+
+                AccessToken = json["access_token"]?.ToString();
+                var newRefreshToken = json["refresh_token"]?.ToString();
+                if (!string.IsNullOrEmpty(newRefreshToken))
+                {
+                    RefreshToken = newRefreshToken;
+                }
+
+                int expiresIn = json["expires_in"]?.ToObject<int>() ?? 3600;
+                TokenExpiry = DateTime.UtcNow.AddSeconds(expiresIn);
+
+                // Extract username
+                ExtractUsernameFromToken();
+
+                // Save tokens
+                SaveTokensToSettings();
+
+                Log($"Navigraph: Token erfolgreich erneuert");
+                return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph] Token refresh error: {ex.Message}");
+                Log($"Navigraph: Token Refresh Fehler: {ex.Message}");
                 return false;
             }
         }
 
         /// <summary>
-        /// Ensure we have a valid access token (refresh if needed)
+        /// Ensure we have a valid token, refreshing if necessary
         /// </summary>
         public async Task<bool> EnsureValidTokenAsync()
         {
-            if (string.IsNullOrEmpty(_accessToken))
+            if (IsAuthenticated)
             {
-                return false;
+                // Check if token expires in less than 5 minutes
+                if (TokenExpiry > DateTime.UtcNow.AddMinutes(5))
+                {
+                    return true;
+                }
             }
 
-            // If token expires in less than 5 minutes, refresh
-            if (DateTime.UtcNow.AddMinutes(5) >= _tokenExpiry)
-            {
-                return await RefreshAccessTokenAsync();
-            }
-
-            return true;
+            // Try to refresh
+            return await RefreshTokenAsync();
         }
 
         /// <summary>
-        /// Log out and clear tokens
+        /// Logout and clear all tokens
         /// </summary>
         public void Logout()
         {
-            _accessToken = null;
-            _refreshToken = null;
-            _tokenExpiry = DateTime.MinValue;
+            Log("Navigraph: Abmelden...");
+
+            AccessToken = null;
+            RefreshToken = null;
+            TokenExpiry = DateTime.MinValue;
             Username = null;
+            HasFmsDataSubscription = false;
 
-            // Clear from settings
-            Properties.Settings.Default.NavigraphAccessToken = "";
-            Properties.Settings.Default.NavigraphRefreshToken = "";
-            Properties.Settings.Default.NavigraphTokenExpiry = "";
-            Properties.Settings.Default.NavigraphUsername = "";
-            Properties.Settings.Default.Save();
+            // Clear settings
+            Settings.Default.NavigraphAccessToken = "";
+            Settings.Default.NavigraphRefreshToken = "";
+            Settings.Default.NavigraphUsername = "";
+            Settings.Default.NavigraphTokenExpiry = "";
+            Settings.Default.Save();
 
-            Console.WriteLine("[Navigraph] Logged out");
-            OnAuthStatusChanged?.Invoke(false);
+            // Notify status change
+            OnStatusChanged?.Invoke(this, GetStatus());
+
+            Log("Navigraph: Erfolgreich abgemeldet");
         }
 
         /// <summary>
@@ -372,201 +593,19 @@ namespace Kneeboard_Server.Navigraph
         {
             return new NavigraphStatus
             {
-                Authenticated = IsAuthenticated,
-                HasSubscription = IsAuthenticated, // If authenticated, has at least basic subscription
-                Username = Username
+                IsAuthenticated = IsAuthenticated,
+                Username = Username,
+                HasFmsDataSubscription = HasFmsDataSubscription
             };
         }
 
-        #endregion
-
-        #region Private Methods
-
-        private async Task FetchUsernameAsync()
-        {
-            if (string.IsNullOrEmpty(_accessToken)) return;
-
-            try
-            {
-                var request = new HttpRequestMessage(HttpMethod.Get, USERINFO_ENDPOINT);
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
-
-                var response = await _httpClient.SendAsync(request);
-                if (response.IsSuccessStatusCode)
-                {
-                    var content = await response.Content.ReadAsStringAsync();
-                    var json = JObject.Parse(content);
-                    Username = json["preferred_username"]?.ToString() ?? json["name"]?.ToString();
-
-                    Properties.Settings.Default.NavigraphUsername = Username;
-                    Properties.Settings.Default.Save();
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Navigraph] Failed to fetch username: {ex.Message}");
-            }
-        }
-
-        private void SaveTokens()
-        {
-            try
-            {
-                Properties.Settings.Default.NavigraphAccessToken = _accessToken ?? "";
-                Properties.Settings.Default.NavigraphRefreshToken = _refreshToken ?? "";
-                Properties.Settings.Default.NavigraphTokenExpiry = _tokenExpiry.ToString("o");
-                Properties.Settings.Default.Save();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Navigraph] Failed to save tokens: {ex.Message}");
-            }
-        }
-
-        private void LoadTokens()
-        {
-            try
-            {
-                _accessToken = Properties.Settings.Default.NavigraphAccessToken;
-                _refreshToken = Properties.Settings.Default.NavigraphRefreshToken;
-                Username = Properties.Settings.Default.NavigraphUsername;
-
-                string expiryStr = Properties.Settings.Default.NavigraphTokenExpiry;
-                if (!string.IsNullOrEmpty(expiryStr) && DateTime.TryParse(expiryStr, out DateTime expiry))
-                {
-                    _tokenExpiry = expiry;
-                }
-
-                if (IsAuthenticated)
-                {
-                    Console.WriteLine($"[Navigraph] Loaded saved session for: {Username}");
-                }
-                else if (!string.IsNullOrEmpty(_refreshToken))
-                {
-                    // Token expired but we have refresh token - try to refresh
-                    Console.WriteLine("[Navigraph] Access token expired, attempting auto-refresh...");
-                    _ = Task.Run(async () =>
-                    {
-                        bool success = await RefreshAccessTokenAsync();
-                        if (success)
-                        {
-                            Console.WriteLine($"[Navigraph] Auto-refresh successful for: {Username}");
-                            OnAuthStatusChanged?.Invoke(true);
-                        }
-                        else
-                        {
-                            Console.WriteLine("[Navigraph] Auto-refresh failed, user needs to re-login");
-                        }
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Navigraph] Failed to load tokens: {ex.Message}");
-            }
-        }
-
-        private void SaveClientCredentials()
-        {
-            try
-            {
-                Properties.Settings.Default.NavigraphClientId = _clientId ?? "";
-                Properties.Settings.Default.NavigraphClientSecret = _clientSecret ?? "";
-                Properties.Settings.Default.Save();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Navigraph] Failed to save credentials: {ex.Message}");
-            }
-        }
-
-        private void LoadClientCredentials()
-        {
-            try
-            {
-                // First, try to load from secrets.config (app-embedded credentials)
-                var secretsConfig = ConfigurationManager.OpenMappedExeConfiguration(
-                    new ExeConfigurationFileMap { ExeConfigFilename = "secrets.config" },
-                    ConfigurationUserLevel.None);
-
-                if (secretsConfig.AppSettings.Settings["NavigraphClientId"] != null)
-                {
-                    _clientId = secretsConfig.AppSettings.Settings["NavigraphClientId"].Value;
-                    _clientSecret = secretsConfig.AppSettings.Settings["NavigraphClientSecret"]?.Value ?? "";
-                    Console.WriteLine("[Navigraph] Loaded client credentials from secrets.config");
-                    return;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Navigraph] Could not load secrets.config: {ex.Message}");
-            }
-
-            try
-            {
-                // Fallback to user settings (for development/testing)
-                _clientId = Properties.Settings.Default.NavigraphClientId;
-                _clientSecret = Properties.Settings.Default.NavigraphClientSecret;
-            }
-            catch
-            {
-                // Settings may not exist yet
-                _clientId = "";
-                _clientSecret = "";
-            }
-        }
-
         /// <summary>
-        /// Generate a 43-character code verifier for PKCE
+        /// Log message
         /// </summary>
-        private string GenerateCodeVerifier()
+        private void Log(string message)
         {
-            using (var rng = new RNGCryptoServiceProvider())
-            {
-                byte[] bytes = new byte[32];
-                rng.GetBytes(bytes);
-                return Base64UrlEncode(bytes);
-            }
+            Console.WriteLine(message);
+            OnLog?.Invoke(this, message);
         }
-
-        /// <summary>
-        /// Generate SHA256 code challenge from verifier
-        /// </summary>
-        private string GenerateCodeChallenge(string verifier)
-        {
-            using (var sha256 = SHA256.Create())
-            {
-                byte[] hash = sha256.ComputeHash(Encoding.ASCII.GetBytes(verifier));
-                return Base64UrlEncode(hash);
-            }
-        }
-
-        /// <summary>
-        /// URL-safe Base64 encoding
-        /// </summary>
-        private string Base64UrlEncode(byte[] data)
-        {
-            return Convert.ToBase64String(data)
-                .TrimEnd('=')
-                .Replace('+', '-')
-                .Replace('/', '_');
-        }
-
-        #endregion
-
-        #region IDisposable
-
-        public void Dispose()
-        {
-            if (!_disposed)
-            {
-                _pollCancellation?.Cancel();
-                _pollCancellation?.Dispose();
-                _httpClient?.Dispose();
-                _disposed = true;
-            }
-        }
-
-        #endregion
     }
 }

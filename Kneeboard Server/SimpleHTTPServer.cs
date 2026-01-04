@@ -2994,6 +2994,366 @@ namespace Kneeboard_Server
             }
         }
 
+        /// <summary>
+        /// Get runway data for flight path drawing
+        /// URL: /api/navigraph/runway/{icao}/{runway}
+        /// </summary>
+        private void HandleRunwayRequest(HttpListenerContext context, string command)
+        {
+            try
+            {
+                // Parse: api/navigraph/runway/EDDM/25C
+                string path = command.Replace("api/navigraph/runway/", "").Trim('/');
+                string[] parts = path.Split('/');
+
+                if (parts.Length < 2)
+                {
+                    context.Response.StatusCode = 400;
+                    ResponseJson(context, "{\"error\":\"Format: /api/navigraph/runway/{icao}/{runway}\"}");
+                    return;
+                }
+
+                string icao = parts[0].ToUpperInvariant();
+                string runwayId = parts[1].ToUpperInvariant();
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    context.Response.StatusCode = 503;
+                    ResponseJson(context, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var runway = _navigraphData.GetRunway(icao, runwayId);
+                if (runway == null)
+                {
+                    context.Response.StatusCode = 404;
+                    ResponseJson(context, $"{{\"error\":\"Runway {runwayId} not found at {icao}\"}}");
+                    return;
+                }
+
+                var response = new
+                {
+                    airport = icao,
+                    runway = runway.Identifier,
+                    thresholdLat = runway.ThresholdLat,
+                    thresholdLon = runway.ThresholdLon,
+                    endLat = runway.EndLat,
+                    endLon = runway.EndLon,
+                    heading = runway.Heading,
+                    length = runway.Length,
+                    width = runway.Width,
+                    elevation = runway.ThresholdElevation,
+                    airacCycle = _navigraphData.CurrentAiracCycle
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                ResponseJson(context, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] Runway error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Get all runways for an airport
+        /// URL: /api/navigraph/runways/{icao}
+        /// </summary>
+        private void HandleRunwaysRequest(HttpListenerContext context, string command)
+        {
+            try
+            {
+                string icao = command.Replace("api/navigraph/runways/", "").Trim('/').ToUpperInvariant();
+
+                if (string.IsNullOrEmpty(icao))
+                {
+                    context.Response.StatusCode = 400;
+                    ResponseJson(context, "{\"error\":\"ICAO code required\"}");
+                    return;
+                }
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    context.Response.StatusCode = 503;
+                    ResponseJson(context, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var runways = _navigraphData.GetRunways(icao);
+                var response = new
+                {
+                    airport = icao,
+                    runways = runways.Select(r => new
+                    {
+                        identifier = r.Identifier,
+                        thresholdLat = r.ThresholdLat,
+                        thresholdLon = r.ThresholdLon,
+                        endLat = r.EndLat,
+                        endLon = r.EndLon,
+                        heading = r.Heading,
+                        length = r.Length,
+                        width = r.Width,
+                        elevation = r.ThresholdElevation
+                    }),
+                    airacCycle = _navigraphData.CurrentAiracCycle
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                ResponseJson(context, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] Runways error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Get airport information
+        /// URL: /api/navigraph/airport/{icao}
+        /// </summary>
+        private void HandleAirportRequest(HttpListenerContext context, string command)
+        {
+            try
+            {
+                string icao = command.Replace("api/navigraph/airport/", "").Trim('/').ToUpperInvariant();
+
+                if (string.IsNullOrEmpty(icao))
+                {
+                    context.Response.StatusCode = 400;
+                    ResponseJson(context, "{\"error\":\"ICAO code required\"}");
+                    return;
+                }
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    context.Response.StatusCode = 503;
+                    ResponseJson(context, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var airport = _navigraphData.GetAirport(icao);
+                if (airport == null)
+                {
+                    context.Response.StatusCode = 404;
+                    ResponseJson(context, $"{{\"error\":\"Airport {icao} not found\"}}");
+                    return;
+                }
+
+                var ils = _navigraphData.GetILSData(icao);
+                var sids = _navigraphData.GetSIDs(icao);
+                var stars = _navigraphData.GetSTARs(icao);
+                var approaches = _navigraphData.GetApproaches(icao);
+
+                var response = new
+                {
+                    icao = airport.Icao,
+                    iata = airport.Iata,
+                    name = airport.Name,
+                    latitude = airport.Latitude,
+                    longitude = airport.Longitude,
+                    elevation = airport.Elevation,
+                    transitionAltitude = airport.TransitionAltitude,
+                    transitionLevel = airport.TransitionLevel,
+                    runways = airport.Runways?.Select(r => new
+                    {
+                        identifier = r.Identifier,
+                        thresholdLat = r.ThresholdLat,
+                        thresholdLon = r.ThresholdLon,
+                        endLat = r.EndLat,
+                        endLon = r.EndLon,
+                        heading = r.Heading,
+                        length = r.Length,
+                        width = r.Width
+                    }),
+                    frequencies = airport.Frequencies?.Select(f => new
+                    {
+                        type = f.Type,
+                        frequency = f.Frequency,
+                        name = f.Name
+                    }),
+                    ils = ils?.Select(i => new
+                    {
+                        identifier = i.Identifier,
+                        runway = i.RunwayIdentifier,
+                        frequency = i.Frequency,
+                        bearing = i.LocalizerBearing,
+                        glideSlope = i.GlideSlopeAngle,
+                        category = i.Category
+                    }),
+                    procedureCount = new
+                    {
+                        sids = sids?.Count ?? 0,
+                        stars = stars?.Count ?? 0,
+                        approaches = approaches?.Count ?? 0
+                    },
+                    airacCycle = _navigraphData.CurrentAiracCycle
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                ResponseJson(context, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] Airport error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Get waypoint information
+        /// URL: /api/navigraph/waypoint/{ident}
+        /// </summary>
+        private void HandleWaypointRequest(HttpListenerContext context, string command)
+        {
+            try
+            {
+                string ident = command.Replace("api/navigraph/waypoint/", "").Trim('/').ToUpperInvariant();
+
+                if (string.IsNullOrEmpty(ident))
+                {
+                    context.Response.StatusCode = 400;
+                    ResponseJson(context, "{\"error\":\"Waypoint identifier required\"}");
+                    return;
+                }
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    context.Response.StatusCode = 503;
+                    ResponseJson(context, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var waypoint = _navigraphData.GetWaypoint(ident);
+                if (waypoint == null)
+                {
+                    context.Response.StatusCode = 404;
+                    ResponseJson(context, $"{{\"error\":\"Waypoint {ident} not found\"}}");
+                    return;
+                }
+
+                var response = new
+                {
+                    identifier = waypoint.Identifier,
+                    name = waypoint.Name,
+                    region = waypoint.Region,
+                    latitude = waypoint.Latitude,
+                    longitude = waypoint.Longitude,
+                    type = waypoint.Type,
+                    airacCycle = _navigraphData.CurrentAiracCycle
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                ResponseJson(context, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] Waypoint error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Get navaid information
+        /// URL: /api/navigraph/navaid/{ident}
+        /// </summary>
+        private void HandleNavaidRequest(HttpListenerContext context, string command)
+        {
+            try
+            {
+                string ident = command.Replace("api/navigraph/navaid/", "").Trim('/').ToUpperInvariant();
+
+                if (string.IsNullOrEmpty(ident))
+                {
+                    context.Response.StatusCode = 400;
+                    ResponseJson(context, "{\"error\":\"Navaid identifier required\"}");
+                    return;
+                }
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    context.Response.StatusCode = 503;
+                    ResponseJson(context, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var navaid = _navigraphData.GetNavaid(ident);
+                if (navaid == null)
+                {
+                    context.Response.StatusCode = 404;
+                    ResponseJson(context, $"{{\"error\":\"Navaid {ident} not found\"}}");
+                    return;
+                }
+
+                var response = new
+                {
+                    identifier = navaid.Identifier,
+                    name = navaid.Name,
+                    type = navaid.Type,
+                    frequency = navaid.Frequency,
+                    latitude = navaid.Latitude,
+                    longitude = navaid.Longitude,
+                    region = navaid.Region,
+                    elevation = navaid.Elevation,
+                    airacCycle = _navigraphData.CurrentAiracCycle
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                ResponseJson(context, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] Navaid error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Handle client log forwarding
+        /// URL: POST /api/log
+        /// Body: { "level": "INFO", "module": "Map", "message": "Log message" }
+        /// </summary>
+        private void HandleClientLogRequest(HttpListenerContext context)
+        {
+            try
+            {
+                using (var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
+                {
+                    string body = reader.ReadToEnd();
+                    if (string.IsNullOrEmpty(body))
+                    {
+                        context.Response.StatusCode = 400;
+                        ResponseJson(context, "{\"error\":\"Empty request body\"}");
+                        return;
+                    }
+
+                    var logEntry = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(body);
+                    string level = logEntry?.level?.ToString() ?? "INFO";
+                    string module = logEntry?.module?.ToString() ?? "Client";
+                    string message = logEntry?.message?.ToString() ?? "";
+
+                    if (!string.IsNullOrEmpty(message))
+                    {
+                        Logging.KneeboardLogger.ClientLog(level, module, message);
+                    }
+
+                    ResponseJson(context, "{\"success\":true}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Log API] Error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
         // ============================================================================
         // OpenAIP Cache Methods
         // ============================================================================
@@ -5922,6 +6282,36 @@ namespace Kneeboard_Server
             else if (command == "api/navigraph/status")
             {
                 HandleNavigraphStatusRequest(context);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/runway/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleRunwayRequest(context, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/runways/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleRunwaysRequest(context, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/airport/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleAirportRequest(context, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/waypoint/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleWaypointRequest(context, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/navaid/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleNavaidRequest(context, command);
+                return;
+            }
+            else if (command == "api/log" && context.Request.HttpMethod == "POST")
+            {
+                HandleClientLogRequest(context);
                 return;
             }
             else if (command == "getDocumentsList")

@@ -1,58 +1,44 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Net.Http;
-using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+using Kneeboard_Server.Properties;
 
 namespace Kneeboard_Server.Navigraph
 {
     /// <summary>
-    /// Service for downloading and managing Navigraph navdata packages
+    /// Navigraph Data Service for managing navdata packages and database access
     /// </summary>
-    public class NavigraphDataService : IDisposable
+    public class NavigraphDataService
     {
-        #region Constants
+        // API Endpoints
+        private const string NAVDATA_API = "https://api.navigraph.com/v1/navdata";
+        private const string PACKAGES_ENDPOINT = NAVDATA_API + "/packages";
 
-        private const string PACKAGES_ENDPOINT = "https://api.navigraph.com/v1/navdata/packages";
+        // Paths
+        private static readonly string NAVIGRAPH_FOLDER = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Navigraph");
+        private static readonly string BUNDLED_DB = "ng_jeppesen_fwdfd_2403.s3db";
+        private static readonly string DOWNLOADED_DB = "ng_jeppesen_current.s3db";
 
-        #endregion
-
-        #region Fields
-
+        // Services
         private readonly NavigraphAuthService _authService;
-        private readonly NavigraphDbCache _dbCache;
         private readonly HttpClient _httpClient;
-        private readonly string _cacheDirectory;
-        private bool _disposed;
+        private NavigraphDbService _dbService;
 
-        #endregion
+        // Events
+        public event EventHandler<string> OnLog;
+        public event EventHandler<int> OnDownloadProgress;
+        public event EventHandler<NavigraphStatus> OnStatusChanged;
 
-        #region Properties
-
-        /// <summary>
-        /// Whether navdata is available for queries
-        /// </summary>
-        public bool IsDataAvailable => _dbCache?.IsOpen ?? false;
-
-        /// <summary>
-        /// Current AIRAC cycle (e.g., "2501")
-        /// </summary>
-        public string CurrentAiracCycle { get; private set; }
-
-        /// <summary>
-        /// Last update timestamp
-        /// </summary>
-        public DateTime? LastUpdate { get; private set; }
-
-        /// <summary>
-        /// Path to the current database file
-        /// </summary>
+        // Properties
         public string DatabasePath { get; private set; }
-
-        #endregion
-
-        #region Constructor
+        public string CurrentAiracCycle { get; private set; }
+        public bool IsDataAvailable => _dbService != null && _dbService.IsConnected;
+        public bool IsUsingBundledDatabase { get; private set; }
+        public NavigraphDbService DbService => _dbService;
 
         public NavigraphDataService(NavigraphAuthService authService)
         {
@@ -60,410 +46,536 @@ namespace Kneeboard_Server.Navigraph
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "KneeboardServer/2.0");
 
-            // Cache directory in app folder
-            _cacheDirectory = Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory,
-                "cache",
-                "navigraph"
-            );
-
-            Directory.CreateDirectory(_cacheDirectory);
-
-            _dbCache = new NavigraphDbCache();
-
-            // Try to open existing database
-            LoadExistingDatabase();
+            // Ensure Navigraph folder exists
+            if (!Directory.Exists(NAVIGRAPH_FOLDER))
+            {
+                Directory.CreateDirectory(NAVIGRAPH_FOLDER);
+            }
         }
 
-        #endregion
-
-        #region Public Methods
-
         /// <summary>
-        /// Check for updates and download new package if available
+        /// Initialize the data service - loads bundled database as default
         /// </summary>
-        public async Task<bool> CheckAndDownloadUpdatesAsync()
+        public async Task InitializeAsync()
         {
-            if (!_authService.IsAuthenticated)
+            Log("Navigraph: Initialisiere Navdata Service...");
+
+            // Step 1: Always load bundled database first (available for all users)
+            LoadBundledDatabase();
+
+            // Step 2: If user is authenticated with subscription, try to get latest data
+            if (_authService.IsAuthenticated && _authService.HasFmsDataSubscription)
             {
-                Console.WriteLine("[Navigraph] Not authenticated, cannot check for updates");
-                return false;
+                Log("Navigraph: Benutzer hat FMS Data Subscription - prüfe auf Updates...");
+                await CheckAndDownloadUpdatesAsync();
+            }
+            else if (_authService.IsAuthenticated)
+            {
+                Log("Navigraph: Benutzer angemeldet aber keine FMS Data Subscription - verwende Bundled Database");
+            }
+            else
+            {
+                Log("Navigraph: Nicht angemeldet - verwende Bundled Database");
             }
 
+            NotifyStatusChanged();
+        }
+
+        /// <summary>
+        /// Load the bundled database (fallback for all users)
+        /// </summary>
+        public void LoadBundledDatabase()
+        {
             try
             {
-                // Ensure token is valid
-                if (!await _authService.EnsureValidTokenAsync())
+                var bundledPath = Path.Combine(NAVIGRAPH_FOLDER, BUNDLED_DB);
+
+                if (!File.Exists(bundledPath))
                 {
-                    Console.WriteLine("[Navigraph] Failed to refresh token");
-                    return false;
+                    Log($"Navigraph: FEHLER - Bundled Database nicht gefunden: {bundledPath}");
+                    return;
                 }
 
-                // Fetch available packages
-                var package = await GetCurrentPackageAsync();
-                if (package == null)
-                {
-                    Console.WriteLine("[Navigraph] No package available");
-                    return false;
-                }
+                DatabasePath = bundledPath;
+                IsUsingBundledDatabase = true;
 
-                string packageCycle = package["cycle"]?.ToString();
-                string packageRevision = package["revision"]?.ToString();
+                // Extract AIRAC cycle from filename (ng_jeppesen_fwdfd_2403.s3db -> 2403)
+                var match = System.Text.RegularExpressions.Regex.Match(BUNDLED_DB, @"_(\d{4})\.s3db$");
+                CurrentAiracCycle = match.Success ? match.Groups[1].Value : "Unknown";
 
-                Console.WriteLine($"[Navigraph] Available package: AIRAC {packageCycle} Rev {packageRevision}");
+                // Initialize or reinitialize database service
+                _dbService?.Dispose();
+                _dbService = new NavigraphDbService(bundledPath);
 
-                // Check if we need to update
-                string localMetaPath = Path.Combine(_cacheDirectory, "metadata.json");
-                if (File.Exists(localMetaPath))
-                {
-                    string localMeta = File.ReadAllText(localMetaPath);
-                    var localJson = JObject.Parse(localMeta);
-
-                    if (localJson["cycle"]?.ToString() == packageCycle &&
-                        localJson["revision"]?.ToString() == packageRevision)
-                    {
-                        Console.WriteLine("[Navigraph] Already up to date");
-
-                        // Make sure database is open
-                        if (!IsDataAvailable)
-                        {
-                            OpenDatabase(localJson["database_path"]?.ToString());
-                        }
-
-                        return true;
-                    }
-                }
-
-                // Download the package
-                var files = package["files"] as JArray;
-                if (files == null || files.Count == 0)
-                {
-                    Console.WriteLine("[Navigraph] No files in package");
-                    return false;
-                }
-
-                // Find the DFD SQLite database file
-                JObject dbFile = null;
-                foreach (JObject file in files)
-                {
-                    string key = file["key"]?.ToString() ?? "";
-                    if (key.EndsWith(".s3db") || key.EndsWith(".sqlite") || key.EndsWith(".db"))
-                    {
-                        dbFile = file;
-                        break;
-                    }
-                }
-
-                if (dbFile == null)
-                {
-                    // Take first file if no explicit DB found
-                    dbFile = files[0] as JObject;
-                }
-
-                string signedUrl = dbFile["signed_url"]?.ToString();
-                string expectedHash = dbFile["hash"]?.ToString();
-                string fileName = dbFile["key"]?.ToString() ?? $"dfd_{packageCycle}.db";
-
-                if (string.IsNullOrEmpty(signedUrl))
-                {
-                    Console.WriteLine("[Navigraph] No download URL in package");
-                    return false;
-                }
-
-                Console.WriteLine($"[Navigraph] Downloading: {fileName}");
-
-                // Download the file
-                string localDbPath = Path.Combine(_cacheDirectory, fileName);
-                bool downloadSuccess = await DownloadFileAsync(signedUrl, localDbPath, expectedHash);
-
-                if (!downloadSuccess)
-                {
-                    Console.WriteLine("[Navigraph] Download failed");
-                    return false;
-                }
-
-                // Save metadata
-                var metadata = new JObject
-                {
-                    ["cycle"] = packageCycle,
-                    ["revision"] = packageRevision,
-                    ["database_path"] = localDbPath,
-                    ["downloaded_at"] = DateTime.UtcNow.ToString("o")
-                };
-                File.WriteAllText(localMetaPath, metadata.ToString());
-
-                // Open the new database
-                OpenDatabase(localDbPath);
-                CurrentAiracCycle = packageCycle;
-                LastUpdate = DateTime.UtcNow;
-
-                Console.WriteLine($"[Navigraph] Database updated: AIRAC {packageCycle}");
-                return true;
+                Log($"Navigraph: Bundled Database geladen (AIRAC {CurrentAiracCycle})");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph] Update check failed: {ex.Message}");
+                Log($"Navigraph: Fehler beim Laden der Bundled Database: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Check for updates and download if user has subscription
+        /// </summary>
+        public async Task CheckAndDownloadUpdatesAsync()
+        {
+            try
+            {
+                if (!_authService.HasFmsDataSubscription)
+                {
+                    Log("Navigraph: Keine FMS Data Subscription - Update übersprungen");
+                    return;
+                }
+
+                // Ensure valid token
+                if (!await _authService.EnsureValidTokenAsync())
+                {
+                    Log("Navigraph: Token ungültig - Update übersprungen");
+                    return;
+                }
+
+                // Get latest package info
+                var package = await GetLatestPackageInfoAsync();
+                if (package == null)
+                {
+                    Log("Navigraph: Konnte Package-Info nicht abrufen");
+                    return;
+                }
+
+                Log($"Navigraph: Verfügbarer AIRAC Cycle: {package.Cycle}");
+
+                // Check if we already have this cycle
+                var downloadedPath = Path.Combine(NAVIGRAPH_FOLDER, DOWNLOADED_DB);
+                var savedCycle = Settings.Default.values; // Use existing setting for cycle info
+
+                if (File.Exists(downloadedPath) && savedCycle == package.Cycle)
+                {
+                    Log($"Navigraph: Aktuelle Database bereits vorhanden (AIRAC {package.Cycle})");
+                    LoadDownloadedDatabase(downloadedPath, package.Cycle);
+                    return;
+                }
+
+                // Download new database
+                Log($"Navigraph: Lade AIRAC {package.Cycle} herunter...");
+                await DownloadPackageAsync(package, downloadedPath);
+
+                // Save cycle info
+                Settings.Default.values = package.Cycle;
+                Settings.Default.Save();
+
+                // Load the new database
+                LoadDownloadedDatabase(downloadedPath, package.Cycle);
+            }
+            catch (Exception ex)
+            {
+                Log($"Navigraph: Update-Fehler: {ex.Message}");
+                // Keep using bundled database on error
+            }
+        }
+
+        /// <summary>
+        /// Get latest navdata package info from Navigraph API
+        /// </summary>
+        public async Task<NavdataPackage> GetLatestPackageInfoAsync()
+        {
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, PACKAGES_ENDPOINT);
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer", _authService.AccessToken);
+
+                var response = await _httpClient.SendAsync(request);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Log($"Navigraph: Package API Fehler: {response.StatusCode}");
+                    return null;
+                }
+
+                var responseBody = await response.Content.ReadAsStringAsync();
+                var json = JObject.Parse(responseBody);
+
+                // Find DFD package (we need the SQLite format)
+                var packages = json["packages"] as JArray;
+                if (packages != null)
+                {
+                    foreach (var pkg in packages)
+                    {
+                        var format = pkg["format"]?.ToString();
+                        if (format == "dfd" || format == "sqlite" || format == "fwdfd")
+                        {
+                            return new NavdataPackage
+                            {
+                                PackageId = pkg["id"]?.ToString(),
+                                Cycle = pkg["cycle"]?.ToString(),
+                                Revision = pkg["revision"]?.ToString() ?? "",
+                                Format = format,
+                                DownloadUrl = pkg["url"]?.ToString(),
+                                FileSize = pkg["size"]?.ToObject<long>() ?? 0
+                            };
+                        }
+                    }
+                }
+
+                // Alternative: Try single package response format
+                var cycle = json["cycle"]?.ToString();
+                if (!string.IsNullOrEmpty(cycle))
+                {
+                    return new NavdataPackage
+                    {
+                        Cycle = cycle,
+                        DownloadUrl = json["url"]?.ToString()
+                    };
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Log($"Navigraph: Package Info Fehler: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Download navdata package from Navigraph
+        /// </summary>
+        private async Task DownloadPackageAsync(NavdataPackage package, string targetPath)
+        {
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, package.DownloadUrl);
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer", _authService.AccessToken);
+
+                var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Log($"Navigraph: Download Fehler: {response.StatusCode}");
+                    return;
+                }
+
+                var totalBytes = response.Content.Headers.ContentLength ?? 0;
+                var tempPath = targetPath + ".tmp";
+
+                using (var contentStream = await response.Content.ReadAsStreamAsync())
+                using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    var buffer = new byte[81920];
+                    long downloadedBytes = 0;
+                    int bytesRead;
+
+                    while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    {
+                        await fileStream.WriteAsync(buffer, 0, bytesRead);
+                        downloadedBytes += bytesRead;
+
+                        if (totalBytes > 0)
+                        {
+                            var progress = (int)((downloadedBytes * 100) / totalBytes);
+                            OnDownloadProgress?.Invoke(this, progress);
+                        }
+                    }
+                }
+
+                // Check if it's a ZIP file and extract
+                if (IsZipFile(tempPath))
+                {
+                    Log("Navigraph: Extrahiere ZIP Archiv...");
+                    ExtractDatabase(tempPath, targetPath);
+                    File.Delete(tempPath);
+                }
+                else
+                {
+                    // It's already a SQLite file
+                    if (File.Exists(targetPath))
+                        File.Delete(targetPath);
+                    File.Move(tempPath, targetPath);
+                }
+
+                Log($"Navigraph: Download abgeschlossen - {new FileInfo(targetPath).Length / 1024 / 1024} MB");
+            }
+            catch (Exception ex)
+            {
+                Log($"Navigraph: Download Fehler: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Check if file is a ZIP archive
+        /// </summary>
+        private bool IsZipFile(string path)
+        {
+            try
+            {
+                using (var stream = File.OpenRead(path))
+                {
+                    var header = new byte[4];
+                    stream.Read(header, 0, 4);
+                    // ZIP magic number: 0x504B0304
+                    return header[0] == 0x50 && header[1] == 0x4B && header[2] == 0x03 && header[3] == 0x04;
+                }
+            }
+            catch
+            {
                 return false;
             }
         }
 
         /// <summary>
-        /// Get list of SIDs for an airport
+        /// Extract SQLite database from ZIP archive
         /// </summary>
-        public System.Collections.Generic.List<ProcedureSummary> GetSIDs(string airportIcao)
+        private void ExtractDatabase(string zipPath, string targetPath)
         {
-            if (!IsDataAvailable)
+            using (var archive = ZipFile.OpenRead(zipPath))
             {
-                return new System.Collections.Generic.List<ProcedureSummary>();
+                foreach (var entry in archive.Entries)
+                {
+                    if (entry.Name.EndsWith(".s3db", StringComparison.OrdinalIgnoreCase) ||
+                        entry.Name.EndsWith(".sqlite", StringComparison.OrdinalIgnoreCase) ||
+                        entry.Name.EndsWith(".db", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (File.Exists(targetPath))
+                            File.Delete(targetPath);
+
+                        entry.ExtractToFile(targetPath);
+                        Log($"Navigraph: Extrahiert: {entry.Name}");
+                        return;
+                    }
+                }
             }
-            return _dbCache.GetSIDsForAirport(airportIcao);
+
+            throw new Exception("Keine Datenbank in ZIP gefunden");
         }
 
         /// <summary>
-        /// Get list of STARs for an airport
+        /// Load the downloaded (current) database
         /// </summary>
-        public System.Collections.Generic.List<ProcedureSummary> GetSTARs(string airportIcao)
+        private void LoadDownloadedDatabase(string path, string cycle)
         {
-            if (!IsDataAvailable)
+            try
             {
-                return new System.Collections.Generic.List<ProcedureSummary>();
+                if (!File.Exists(path))
+                {
+                    Log($"Navigraph: Downloaded Database nicht gefunden: {path}");
+                    return;
+                }
+
+                DatabasePath = path;
+                CurrentAiracCycle = cycle;
+                IsUsingBundledDatabase = false;
+
+                // Reinitialize database service
+                _dbService?.Dispose();
+                _dbService = new NavigraphDbService(path);
+
+                Log($"Navigraph: Aktuelle Database geladen (AIRAC {cycle})");
+                NotifyStatusChanged();
             }
-            return _dbCache.GetSTARsForAirport(airportIcao);
+            catch (Exception ex)
+            {
+                Log($"Navigraph: Fehler beim Laden der Downloaded Database: {ex.Message}");
+                // Fallback to bundled
+                LoadBundledDatabase();
+            }
         }
 
         /// <summary>
-        /// Get list of approaches for an airport
+        /// Force reload of database (e.g., after user logs in)
         /// </summary>
-        public System.Collections.Generic.List<ApproachSummary> GetApproaches(string airportIcao)
+        public async Task ReloadAsync()
         {
-            if (!IsDataAvailable)
-            {
-                return new System.Collections.Generic.List<ApproachSummary>();
-            }
-            return _dbCache.GetApproachesForAirport(airportIcao);
+            await InitializeAsync();
         }
 
         /// <summary>
-        /// Get detailed procedure with waypoints
+        /// Get current status
         /// </summary>
-        public ProcedureDetail GetProcedureDetail(string airportIcao, string procedureId, string transition = null, ProcedureType type = ProcedureType.SID)
+        public NavigraphStatus GetStatus()
         {
-            if (!IsDataAvailable)
+            return new NavigraphStatus
             {
-                return null;
+                IsAuthenticated = _authService.IsAuthenticated,
+                Username = _authService.Username,
+                HasFmsDataSubscription = _authService.HasFmsDataSubscription,
+                CurrentAiracCycle = CurrentAiracCycle,
+                IsUsingBundledDatabase = IsUsingBundledDatabase,
+                DatabasePath = DatabasePath
+            };
+        }
+
+        #region Database Query Wrappers
+
+        /// <summary>
+        /// Get airport information
+        /// </summary>
+        public AirportInfo GetAirport(string icao)
+        {
+            return _dbService?.GetAirport(icao);
+        }
+
+        /// <summary>
+        /// Get runways for an airport
+        /// </summary>
+        public List<RunwayInfo> GetRunways(string icao)
+        {
+            return _dbService?.GetRunways(icao) ?? new List<RunwayInfo>();
+        }
+
+        /// <summary>
+        /// Get a specific runway
+        /// </summary>
+        public RunwayInfo GetRunway(string icao, string runwayId)
+        {
+            return _dbService?.GetRunway(icao, runwayId);
+        }
+
+        /// <summary>
+        /// Get ILS data for an airport
+        /// </summary>
+        public List<ILSData> GetILSData(string icao)
+        {
+            return _dbService?.GetILS(icao) ?? new List<ILSData>();
+        }
+
+        /// <summary>
+        /// Get SID procedures for an airport
+        /// </summary>
+        public List<ProcedureSummary> GetSIDs(string icao)
+        {
+            return _dbService?.GetSIDs(icao) ?? new List<ProcedureSummary>();
+        }
+
+        /// <summary>
+        /// Get STAR procedures for an airport
+        /// </summary>
+        public List<ProcedureSummary> GetSTARs(string icao)
+        {
+            return _dbService?.GetSTARs(icao) ?? new List<ProcedureSummary>();
+        }
+
+        /// <summary>
+        /// Get approach procedures for an airport
+        /// </summary>
+        public List<ApproachSummary> GetApproaches(string icao)
+        {
+            return _dbService?.GetApproaches(icao) ?? new List<ApproachSummary>();
+        }
+
+        /// <summary>
+        /// Get procedure detail (legs)
+        /// </summary>
+        public ProcedureDetail GetProcedureDetail(string icao, string procedureName, string transition, string type)
+        {
+            if (_dbService == null) return null;
+
+            ProcedureType procType;
+            switch (type?.ToUpperInvariant())
+            {
+                case "SID":
+                    procType = ProcedureType.SID;
+                    break;
+                case "STAR":
+                    procType = ProcedureType.STAR;
+                    break;
+                case "APPROACH":
+                case "IAP":
+                    procType = ProcedureType.Approach;
+                    break;
+                default:
+                    procType = ProcedureType.SID;
+                    break;
             }
 
-            var waypoints = _dbCache.GetProcedureWaypoints(airportIcao, procedureId, transition, type);
+            var legs = _dbService.GetProcedureLegs(icao, procedureName, procType);
 
             var detail = new ProcedureDetail
             {
-                Summary = new ProcedureSummary
-                {
-                    Identifier = procedureId,
-                    Airport = airportIcao,
-                    Type = type
-                },
+                Identifier = procedureName,
+                Airport = icao,
                 Transition = transition,
-                Waypoints = waypoints,
-                DataSource = "Navigraph",
-                AiracCycle = CurrentAiracCycle
+                Type = procType,
+                AiracCycle = CurrentAiracCycle,
+                Waypoints = legs.ConvertAll(leg => new ProcedureWaypoint
+                {
+                    Identifier = leg.WaypointIdentifier,
+                    Latitude = leg.Latitude,
+                    Longitude = leg.Longitude,
+                    PathTerminator = leg.PathTerminator,
+                    AltitudeConstraint = leg.AltitudeConstraint,
+                    Altitude1 = leg.Altitude1,
+                    Altitude2 = leg.Altitude2,
+                    SpeedLimit = leg.SpeedLimit,
+                    Course = leg.Course,
+                    Distance = leg.Distance,
+                    Overfly = leg.Overfly,
+                    SequenceNumber = leg.SequenceNumber
+                })
             };
 
             return detail;
         }
 
         /// <summary>
-        /// Get ILS data for an airport
+        /// Get procedure detail (with ProcedureType enum)
         /// </summary>
-        public System.Collections.Generic.List<ILSData> GetILSData(string airportIcao)
+        public ProcedureDetail GetProcedureDetail(string icao, string procedureName, string transition, ProcedureType procType)
         {
-            if (!IsDataAvailable)
-            {
-                return new System.Collections.Generic.List<ILSData>();
-            }
-            return _dbCache.GetILSForAirport(airportIcao);
+            return GetProcedureDetail(icao, procedureName, transition, procType.ToString());
         }
 
         /// <summary>
-        /// Get runway data for an airport
+        /// Get waypoint information
         /// </summary>
-        public System.Collections.Generic.List<RunwayData> GetRunways(string airportIcao)
+        public WaypointInfo GetWaypoint(string ident, string region = null)
         {
-            if (!IsDataAvailable)
-            {
-                return new System.Collections.Generic.List<RunwayData>();
-            }
-            return _dbCache.GetRunwaysForAirport(airportIcao);
+            return _dbService?.GetWaypoint(ident, region);
         }
 
         /// <summary>
-        /// Get status information
+        /// Get navaid information
         /// </summary>
-        public NavigraphStatus GetStatus()
+        public NavaidInfo GetNavaid(string ident)
         {
-            var authStatus = _authService.GetStatus();
-            authStatus.AiracCycle = CurrentAiracCycle;
-            authStatus.LastUpdate = LastUpdate;
-            authStatus.DatabasePath = DatabasePath;
-            return authStatus;
+            return _dbService?.GetNavaid(ident);
+        }
+
+        /// <summary>
+        /// Get navaids near a position
+        /// </summary>
+        public List<NavaidInfo> GetNavaidsNear(double lat, double lon, double radiusNm)
+        {
+            return _dbService?.GetNavaidsNear(lat, lon, radiusNm) ?? new List<NavaidInfo>();
+        }
+
+        /// <summary>
+        /// Get airway information
+        /// </summary>
+        public AirwayInfo GetAirway(string ident)
+        {
+            return _dbService?.GetAirway(ident);
         }
 
         #endregion
 
-        #region Private Methods
-
-        private async Task<JObject> GetCurrentPackageAsync()
+        /// <summary>
+        /// Notify status change
+        /// </summary>
+        private void NotifyStatusChanged()
         {
-            try
-            {
-                var request = new HttpRequestMessage(HttpMethod.Get, $"{PACKAGES_ENDPOINT}?format=DFD&package_status=current");
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _authService.AccessToken);
-
-                var response = await _httpClient.SendAsync(request);
-                var content = await response.Content.ReadAsStringAsync();
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    Console.WriteLine($"[Navigraph] Packages request failed: {response.StatusCode} - {content}");
-                    return null;
-                }
-
-                var packages = JArray.Parse(content);
-                if (packages.Count > 0)
-                {
-                    return packages[0] as JObject;
-                }
-
-                return null;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Navigraph] Failed to fetch packages: {ex.Message}");
-                return null;
-            }
+            OnStatusChanged?.Invoke(this, GetStatus());
         }
 
-        private async Task<bool> DownloadFileAsync(string url, string localPath, string expectedHash)
+        /// <summary>
+        /// Log message
+        /// </summary>
+        private void Log(string message)
         {
-            try
-            {
-                using (var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
-                {
-                    response.EnsureSuccessStatusCode();
-
-                    // Download to temp file first
-                    string tempPath = localPath + ".tmp";
-                    using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                    using (var httpStream = await response.Content.ReadAsStreamAsync())
-                    {
-                        await httpStream.CopyToAsync(fileStream);
-                    }
-
-                    // Verify hash if provided
-                    if (!string.IsNullOrEmpty(expectedHash))
-                    {
-                        string actualHash = ComputeFileHash(tempPath);
-                        if (!string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))
-                        {
-                            Console.WriteLine($"[Navigraph] Hash mismatch! Expected: {expectedHash}, Got: {actualHash}");
-                            File.Delete(tempPath);
-                            return false;
-                        }
-                    }
-
-                    // Close existing database if same path
-                    if (DatabasePath == localPath)
-                    {
-                        _dbCache.Close();
-                    }
-
-                    // Move temp to final location
-                    if (File.Exists(localPath))
-                    {
-                        File.Delete(localPath);
-                    }
-                    File.Move(tempPath, localPath);
-
-                    Console.WriteLine($"[Navigraph] Downloaded successfully: {Path.GetFileName(localPath)}");
-                    return true;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Navigraph] Download error: {ex.Message}");
-                return false;
-            }
+            Console.WriteLine(message);
+            OnLog?.Invoke(this, message);
         }
-
-        private string ComputeFileHash(string filePath)
-        {
-            using (var sha256 = SHA256.Create())
-            using (var stream = File.OpenRead(filePath))
-            {
-                byte[] hash = sha256.ComputeHash(stream);
-                return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
-            }
-        }
-
-        private void LoadExistingDatabase()
-        {
-            try
-            {
-                string metaPath = Path.Combine(_cacheDirectory, "metadata.json");
-                if (File.Exists(metaPath))
-                {
-                    string content = File.ReadAllText(metaPath);
-                    var json = JObject.Parse(content);
-
-                    string dbPath = json["database_path"]?.ToString();
-                    if (!string.IsNullOrEmpty(dbPath) && File.Exists(dbPath))
-                    {
-                        OpenDatabase(dbPath);
-                        CurrentAiracCycle = json["cycle"]?.ToString();
-
-                        string downloadedAt = json["downloaded_at"]?.ToString();
-                        if (!string.IsNullOrEmpty(downloadedAt) && DateTime.TryParse(downloadedAt, out DateTime dt))
-                        {
-                            LastUpdate = dt;
-                        }
-
-                        Console.WriteLine($"[Navigraph] Loaded existing database: AIRAC {CurrentAiracCycle}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Navigraph] Failed to load existing database: {ex.Message}");
-            }
-        }
-
-        private void OpenDatabase(string path)
-        {
-            try
-            {
-                _dbCache.Open(path);
-                DatabasePath = path;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Navigraph] Failed to open database: {ex.Message}");
-            }
-        }
-
-        #endregion
-
-        #region IDisposable
-
-        public void Dispose()
-        {
-            if (!_disposed)
-            {
-                _dbCache?.Dispose();
-                _httpClient?.Dispose();
-                _disposed = true;
-            }
-        }
-
-        #endregion
     }
 }

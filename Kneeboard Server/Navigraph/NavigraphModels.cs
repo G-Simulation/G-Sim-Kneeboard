@@ -3,10 +3,8 @@ using System.Collections.Generic;
 
 namespace Kneeboard_Server.Navigraph
 {
-    #region Authentication Models
-
     /// <summary>
-    /// Response from Navigraph Device Authorization endpoint
+    /// Device Authorization Response from Navigraph OAuth
     /// </summary>
     public class DeviceCodeResponse
     {
@@ -19,7 +17,7 @@ namespace Kneeboard_Server.Navigraph
     }
 
     /// <summary>
-    /// Token response from Navigraph
+    /// Token Response from Navigraph OAuth
     /// </summary>
     public class TokenResponse
     {
@@ -28,63 +26,243 @@ namespace Kneeboard_Server.Navigraph
         public string TokenType { get; set; }
         public int ExpiresIn { get; set; }
         public string Scope { get; set; }
-        public string IdToken { get; set; }
     }
 
     /// <summary>
-    /// Error response from OAuth endpoints
+    /// Navigraph Subscription Info
     /// </summary>
-    public class OAuthError
+    public class SubscriptionInfo
     {
-        public string Error { get; set; }
-        public string ErrorDescription { get; set; }
-    }
-
-    #endregion
-
-    #region Navdata Package Models
-
-    /// <summary>
-    /// Response from /v1/navdata/packages endpoint
-    /// </summary>
-    public class NavdataPackagesResponse
-    {
-        public List<NavdataPackage> Packages { get; set; }
+        public bool HasFmsData { get; set; }
+        public bool HasCharts { get; set; }
+        public string SubscriptionType { get; set; }
+        public DateTime? ExpiryDate { get; set; }
     }
 
     /// <summary>
-    /// A navdata package from Navigraph
+    /// Navdata Package Info from Navigraph API
     /// </summary>
     public class NavdataPackage
     {
         public string PackageId { get; set; }
         public string Cycle { get; set; }
         public string Revision { get; set; }
-        public string Description { get; set; }
         public string Format { get; set; }
-        public string PackageStatus { get; set; }  // "outdated", "current", "future"
-        public string FormatType { get; set; }
-        public List<PackageFile> Files { get; set; }
-        public List<string> Addons { get; set; }
+        public DateTime EffectiveDate { get; set; }
+        public DateTime ExpirationDate { get; set; }
+        public string DownloadUrl { get; set; }
+        public long FileSize { get; set; }
     }
 
     /// <summary>
-    /// A file within a navdata package
+    /// Airport Information from DFD v2
     /// </summary>
-    public class PackageFile
+    public class AirportInfo
     {
-        public string FileId { get; set; }
-        public string Key { get; set; }  // filename
-        public string Hash { get; set; }  // SHA256
-        public string SignedUrl { get; set; }  // CloudFront download URL
+        public string Icao { get; set; }
+        public string Iata { get; set; }
+        public string Name { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public int Elevation { get; set; }
+        public int TransitionAltitude { get; set; }
+        public int TransitionLevel { get; set; }
+        public string SpeedLimit { get; set; }
+        public int SpeedLimitAltitude { get; set; }
+        public string IfrCapability { get; set; }
+        public string LongestRunway { get; set; }
+        public List<RunwayInfo> Runways { get; set; }
+        public List<FrequencyInfo> Frequencies { get; set; }
     }
 
-    #endregion
+    /// <summary>
+    /// Runway Information from DFD v2
+    /// </summary>
+    public class RunwayInfo
+    {
+        public string Identifier { get; set; }          // "25C"
+        public double ThresholdLat { get; set; }        // Threshold Latitude
+        public double ThresholdLon { get; set; }        // Threshold Longitude
+        public double Heading { get; set; }             // Magnetic Bearing
+        public int Length { get; set; }                 // Length in feet
+        public int Width { get; set; }                  // Width in feet
+        public string Surface { get; set; }             // Surface type
+        public int ThresholdElevation { get; set; }     // Elevation in feet
+        public double GlidePathAngle { get; set; }      // ILS glidepath angle
+        public int ThresholdDisplacement { get; set; } // Displaced threshold in feet
 
-    #region Procedure Models
+        // Calculated end coordinates
+        public double EndLat { get; set; }
+        public double EndLon { get; set; }
+
+        /// <summary>
+        /// Calculate the runway end coordinates from threshold and heading
+        /// </summary>
+        public void CalculateEndCoordinates()
+        {
+            // Convert length from feet to nautical miles
+            double lengthNm = Length / 6076.12;
+
+            // Calculate end point
+            var endPoint = CalculateDestination(ThresholdLat, ThresholdLon, Heading, lengthNm);
+            EndLat = endPoint.Item1;
+            EndLon = endPoint.Item2;
+        }
+
+        private static (double, double) CalculateDestination(double lat, double lon, double bearing, double distanceNm)
+        {
+            const double EarthRadiusNm = 3440.065; // Earth radius in nautical miles
+
+            double latRad = lat * Math.PI / 180;
+            double lonRad = lon * Math.PI / 180;
+            double bearingRad = bearing * Math.PI / 180;
+            double distRatio = distanceNm / EarthRadiusNm;
+
+            double newLatRad = Math.Asin(
+                Math.Sin(latRad) * Math.Cos(distRatio) +
+                Math.Cos(latRad) * Math.Sin(distRatio) * Math.Cos(bearingRad)
+            );
+
+            double newLonRad = lonRad + Math.Atan2(
+                Math.Sin(bearingRad) * Math.Sin(distRatio) * Math.Cos(latRad),
+                Math.Cos(distRatio) - Math.Sin(latRad) * Math.Sin(newLatRad)
+            );
+
+            return (newLatRad * 180 / Math.PI, newLonRad * 180 / Math.PI);
+        }
+    }
 
     /// <summary>
-    /// Procedure type enumeration
+    /// ILS/LOC/GS Data from DFD v2
+    /// </summary>
+    public class ILSData
+    {
+        public string Identifier { get; set; }
+        public string RunwayIdentifier { get; set; }
+        public double Frequency { get; set; }
+        public double LocalizerBearing { get; set; }
+        public double GlideSlopeAngle { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public string Category { get; set; }
+    }
+
+    /// <summary>
+    /// Frequency Information (Tower, Ground, ATIS, etc.)
+    /// </summary>
+    public class FrequencyInfo
+    {
+        public string Type { get; set; }
+        public string Name { get; set; }
+        public double Frequency { get; set; }
+    }
+
+    /// <summary>
+    /// Waypoint Information from DFD v2
+    /// </summary>
+    public class WaypointInfo
+    {
+        public string Identifier { get; set; }
+        public string Name { get; set; }
+        public string Region { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public string Type { get; set; }
+    }
+
+    /// <summary>
+    /// Navaid (VOR, NDB, DME) Information
+    /// </summary>
+    public class NavaidInfo
+    {
+        public string Identifier { get; set; }
+        public string Name { get; set; }
+        public string Type { get; set; }
+        public double Frequency { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public string Region { get; set; }
+        public int Elevation { get; set; }
+        public double MagneticVariation { get; set; }
+    }
+
+    /// <summary>
+    /// Procedure Summary (SID/STAR)
+    /// </summary>
+    public class ProcedureSummary
+    {
+        public string Identifier { get; set; }
+        public string Name { get; set; }
+        public string Runway { get; set; }
+        public string TransitionIdentifier { get; set; }
+        public ProcedureType Type { get; set; }
+    }
+
+    /// <summary>
+    /// Approach Summary
+    /// </summary>
+    public class ApproachSummary
+    {
+        public string Identifier { get; set; }
+        public string Type { get; set; }          // ILS, RNAV, VOR, etc.
+        public string Runway { get; set; }
+        public string Suffix { get; set; }        // Y, Z, etc.
+        public List<string> Transitions { get; set; }
+    }
+
+    /// <summary>
+    /// Procedure Leg from DFD v2
+    /// </summary>
+    public class ProcedureLeg
+    {
+        public int SequenceNumber { get; set; }
+        public string WaypointIdentifier { get; set; }
+        public string Identifier { get => WaypointIdentifier; set => WaypointIdentifier = value; } // Alias
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public string PathTerminator { get; set; }  // TF, DF, CF, RF, etc.
+        public string PathTermination { get => PathTerminator; set => PathTerminator = value; } // Alias
+        public double? TurnDirection { get; set; }
+        public string AltitudeConstraint { get; set; }  // AT, ABOVE, BELOW
+        public string AltitudeDescription { get => AltitudeConstraint; set => AltitudeConstraint = value; } // Alias
+        public int? Altitude1 { get; set; }
+        public int? Altitude2 { get; set; }
+        public int? SpeedLimit { get; set; }
+        public string SpeedConstraint { get; set; }
+        public double? Course { get; set; }
+        public double? MagneticCourse { get => Course; set => Course = value; } // Alias
+        public double? Distance { get; set; }
+        public double? RouteDistance { get => Distance; set => Distance = value; } // Alias
+        public bool Overfly { get; set; }
+        public bool IsFlyOver { get => Overfly; set => Overfly = value; } // Alias
+    }
+
+    /// <summary>
+    /// Airway Information
+    /// </summary>
+    public class AirwayInfo
+    {
+        public string Identifier { get; set; }
+        public string Type { get; set; }          // HIGH, LOW, BOTH
+        public List<AirwayLeg> Legs { get; set; }
+    }
+
+    /// <summary>
+    /// Airway Leg
+    /// </summary>
+    public class AirwayLeg
+    {
+        public int SequenceNumber { get; set; }
+        public string WaypointIdentifier { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public int? MinimumAltitude { get; set; }
+        public int? MaximumAltitude { get; set; }
+        public string Direction { get; set; }
+    }
+
+    /// <summary>
+    /// Procedure Type Enum
     /// </summary>
     public enum ProcedureType
     {
@@ -94,300 +272,89 @@ namespace Kneeboard_Server.Navigraph
     }
 
     /// <summary>
-    /// Approach type enumeration
-    /// </summary>
-    public enum ApproachType
-    {
-        ILS,
-        LOC,
-        RNAV,
-        RNP,
-        VOR,
-        VORDME,
-        NDB,
-        GPS,
-        LDA,
-        SDF,
-        VISUAL,
-        Unknown
-    }
-
-    /// <summary>
-    /// Summary of a procedure (for list endpoints)
-    /// </summary>
-    public class ProcedureSummary
-    {
-        public string Identifier { get; set; }
-        public string Airport { get; set; }
-        public ProcedureType Type { get; set; }
-        public List<string> Runways { get; set; } = new List<string>();
-        public List<string> Transitions { get; set; } = new List<string>();
-    }
-
-    /// <summary>
-    /// Approach-specific summary with approach type
-    /// </summary>
-    public class ApproachSummary : ProcedureSummary
-    {
-        public ApproachType ApproachType { get; set; }
-        public string Runway { get; set; }
-        public double? MinimumAltitude { get; set; }
-    }
-
-    /// <summary>
-    /// A waypoint within a procedure with all constraint details
-    /// </summary>
-    public class ProcedureWaypoint
-    {
-        public int Sequence { get; set; }
-        public string Identifier { get; set; }
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
-
-        /// <summary>
-        /// ARINC 424 path termination code (TF, CF, DF, RF, etc.)
-        /// </summary>
-        public string PathTermination { get; set; }
-
-        /// <summary>
-        /// Turn direction: L (Left), R (Right), or null
-        /// </summary>
-        public string TurnDirection { get; set; }
-
-        /// <summary>
-        /// True if this is a fly-over waypoint (vs fly-by)
-        /// </summary>
-        public bool IsFlyOver { get; set; }
-
-        /// <summary>
-        /// Required Navigation Performance value
-        /// </summary>
-        public double? Rnp { get; set; }
-
-        // Altitude Constraints
-        /// <summary>
-        /// Altitude description: @ (at), + (at or above), - (at or below), B (between)
-        /// </summary>
-        public string AltitudeDescription { get; set; }
-        public int? Altitude1 { get; set; }
-        public int? Altitude2 { get; set; }
-
-        // Speed Constraints
-        /// <summary>
-        /// Speed limit description: @ (at), + (at or above), - (at or below)
-        /// </summary>
-        public string SpeedLimitDescription { get; set; }
-        public int? SpeedLimit { get; set; }
-
-        // Course/Distance
-        public double? MagneticCourse { get; set; }
-        public double? RouteDistance { get; set; }
-
-        // RF (Radius to Fix) leg data
-        public double? ArcRadius { get; set; }
-        public string CenterWaypoint { get; set; }
-        public double? CenterLatitude { get; set; }
-        public double? CenterLongitude { get; set; }
-
-        // Vertical guidance
-        public double? VerticalAngle { get; set; }
-
-        // Recommended navaid
-        public string RecommendedNavaid { get; set; }
-        public double? RecommendedNavaidLatitude { get; set; }
-        public double? RecommendedNavaidLongitude { get; set; }
-    }
-
-    /// <summary>
-    /// Full procedure detail with all waypoints
-    /// </summary>
-    public class ProcedureDetail
-    {
-        public ProcedureSummary Summary { get; set; }
-        public string Transition { get; set; }
-        public List<ProcedureWaypoint> Waypoints { get; set; } = new List<ProcedureWaypoint>();
-        public string DataSource { get; set; }  // "Navigraph" or "SimBrief"
-        public string AiracCycle { get; set; }
-    }
-
-    #endregion
-
-    #region ILS/Navigation Aid Models
-
-    /// <summary>
-    /// ILS/Localizer data for an approach
-    /// </summary>
-    public class ILSData
-    {
-        public string Airport { get; set; }
-        public string Runway { get; set; }
-        public string Identifier { get; set; }
-        public double Frequency { get; set; }
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
-        public double LocalizerBearing { get; set; }
-        public double? GlideSlopeAngle { get; set; }
-        public double? ThresholdCrossingHeight { get; set; }
-        public string Category { get; set; }  // "CAT I", "CAT II", "CAT III"
-        public double? Elevation { get; set; }
-    }
-
-    /// <summary>
-    /// VHF Navaid data
-    /// </summary>
-    public class VHFNavaid
-    {
-        public string Identifier { get; set; }
-        public string Name { get; set; }
-        public string Type { get; set; }  // VOR, VORDME, DME, TACAN, VORTAC
-        public double Frequency { get; set; }
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
-        public double? Elevation { get; set; }
-        public double? MagneticVariation { get; set; }
-    }
-
-    /// <summary>
-    /// Runway data
-    /// </summary>
-    public class RunwayData
-    {
-        public string Airport { get; set; }
-        public string RunwayIdentifier { get; set; }
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
-        public double Heading { get; set; }
-        public int Length { get; set; }  // in feet
-        public int Width { get; set; }   // in feet
-        public double? Elevation { get; set; }
-        public double? GlideSlopeAngle { get; set; }
-        public double? ThresholdCrossingHeight { get; set; }
-        public string ILSIdentifier { get; set; }
-        public double? ILSFrequency { get; set; }
-    }
-
-    #endregion
-
-    #region API Response Models
-
-    /// <summary>
-    /// Standard response wrapper for procedure list endpoints
-    /// </summary>
-    public class ProcedureListResponse
-    {
-        public string Source { get; set; }
-        public string AiracCycle { get; set; }
-        public string Airport { get; set; }
-        public List<ProcedureSummary> Procedures { get; set; }
-    }
-
-    /// <summary>
-    /// Response for SID list endpoint
-    /// </summary>
-    public class SIDListResponse
-    {
-        public string Source { get; set; }
-        public string AiracCycle { get; set; }
-        public string Airport { get; set; }
-        public List<ProcedureSummary> Sids { get; set; }
-    }
-
-    /// <summary>
-    /// Response for STAR list endpoint
-    /// </summary>
-    public class STARListResponse
-    {
-        public string Source { get; set; }
-        public string AiracCycle { get; set; }
-        public string Airport { get; set; }
-        public List<ProcedureSummary> Stars { get; set; }
-    }
-
-    /// <summary>
-    /// Response for approach list endpoint
-    /// </summary>
-    public class ApproachListResponse
-    {
-        public string Source { get; set; }
-        public string AiracCycle { get; set; }
-        public string Airport { get; set; }
-        public List<ApproachSummary> Approaches { get; set; }
-    }
-
-    /// <summary>
-    /// Navigraph authentication/subscription status
+    /// Navigraph Authentication Status
     /// </summary>
     public class NavigraphStatus
     {
-        public bool Authenticated { get; set; }
-        public bool HasSubscription { get; set; }
-        public string AiracCycle { get; set; }
-        public DateTime? LastUpdate { get; set; }
-        public string DatabasePath { get; set; }
+        public bool IsAuthenticated { get; set; }
+        public bool Authenticated { get => IsAuthenticated; set => IsAuthenticated = value; } // Alias for backward compatibility
         public string Username { get; set; }
+        public bool HasFmsDataSubscription { get; set; }
+        public string CurrentAiracCycle { get; set; }
+        public DateTime? DatabaseDate { get; set; }
+        public bool IsUsingBundledDatabase { get; set; }
+        public string DatabasePath { get; set; }
     }
 
     /// <summary>
-    /// Device code info for login UI
+    /// Procedure Detail with waypoints (for SID/STAR/Approach)
     /// </summary>
-    public class NavigraphLoginInfo
+    public class ProcedureDetail
     {
-        public string UserCode { get; set; }
-        public string VerificationUrl { get; set; }
-        public int ExpiresIn { get; set; }
+        public string Identifier { get; set; }
+        public string Airport { get; set; }
+        public string Runway { get; set; }
+        public string Transition { get; set; }
+        public ProcedureType Type { get; set; }
+        public string AiracCycle { get; set; }
+        public List<ProcedureWaypoint> Waypoints { get; set; } = new List<ProcedureWaypoint>();
     }
-
-    #endregion
-
-    #region Path Termination Helper
 
     /// <summary>
-    /// Helper class for ARINC 424 path termination codes
+    /// Waypoint in a procedure
     /// </summary>
-    public static class PathTerminationHelper
+    public class ProcedureWaypoint
     {
-        public static string GetDescription(string code)
-        {
-            switch (code?.ToUpper())
-            {
-                case "IF": return "Initial Fix";
-                case "TF": return "Track to Fix";
-                case "CF": return "Course to Fix";
-                case "DF": return "Direct to Fix";
-                case "FA": return "Fix to Altitude";
-                case "FC": return "Track from Fix to Distance";
-                case "FD": return "Track from Fix to DME Distance";
-                case "FM": return "From Fix to Manual Termination";
-                case "CA": return "Course to Altitude";
-                case "CD": return "Course to DME Distance";
-                case "CI": return "Course to Intercept";
-                case "CR": return "Course to Radial Termination";
-                case "VA": return "Heading to Altitude";
-                case "VD": return "Heading to DME Distance";
-                case "VI": return "Heading to Intercept";
-                case "VM": return "Heading to Manual Termination";
-                case "VR": return "Heading to Radial Termination";
-                case "AF": return "Arc to Fix";
-                case "RF": return "Radius to Fix";
-                case "PI": return "Procedure Turn";
-                case "HA": return "Racetrack to Altitude";
-                case "HF": return "Racetrack to Fix";
-                case "HM": return "Racetrack to Manual Termination";
-                default: return code ?? "Unknown";
-            }
-        }
-
-        public static bool IsArcLeg(string code)
-        {
-            return code?.ToUpper() == "RF" || code?.ToUpper() == "AF";
-        }
-
-        public static bool IsHoldingPattern(string code)
-        {
-            var upper = code?.ToUpper();
-            return upper == "HA" || upper == "HF" || upper == "HM";
-        }
+        public string Identifier { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public string PathTerminator { get; set; }
+        public string PathTermination { get => PathTerminator; set => PathTerminator = value; } // Alias
+        public string AltitudeConstraint { get; set; }
+        public string AltitudeDescription { get => AltitudeConstraint; set => AltitudeConstraint = value; } // Alias
+        public int? Altitude1 { get; set; }
+        public int? Altitude2 { get; set; }
+        public int? SpeedLimit { get; set; }
+        public double? Course { get; set; }
+        public double? MagneticCourse { get => Course; set => Course = value; } // Alias
+        public double? Distance { get; set; }
+        public double? RouteDistance { get => Distance; set => Distance = value; } // Alias
+        public double? TurnDirection { get; set; }
+        public bool Overfly { get; set; }
+        public bool IsFlyOver { get => Overfly; set => Overfly = value; } // Alias
+        public int SequenceNumber { get; set; }
     }
 
-    #endregion
+    /// <summary>
+    /// SID List Response
+    /// </summary>
+    public class SIDListResponse
+    {
+        public string Airport { get; set; }
+        public List<ProcedureSummary> Sids { get; set; }
+        public string AiracCycle { get; set; }
+        public string Source { get; set; }
+    }
+
+    /// <summary>
+    /// STAR List Response
+    /// </summary>
+    public class STARListResponse
+    {
+        public string Airport { get; set; }
+        public List<ProcedureSummary> Stars { get; set; }
+        public string AiracCycle { get; set; }
+        public string Source { get; set; }
+    }
+
+    /// <summary>
+    /// Approach List Response
+    /// </summary>
+    public class ApproachListResponse
+    {
+        public string Airport { get; set; }
+        public List<ApproachSummary> Approaches { get; set; }
+        public string AiracCycle { get; set; }
+        public string Source { get; set; }
+    }
 }

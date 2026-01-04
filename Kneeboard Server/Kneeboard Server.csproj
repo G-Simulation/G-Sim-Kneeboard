@@ -120,15 +120,10 @@
     <Compile Include="Navigraph\NavigraphModels.cs" />
     <Compile Include="Navigraph\NavigraphAuthService.cs" />
     <Compile Include="Navigraph\NavigraphDataService.cs" />
+    <Compile Include="Navigraph\NavigraphDbService.cs" />
     <Compile Include="Navigraph\NavigraphDbCache.cs" />
-    <Compile Include="Navigraph\BGL\BglRecordTypes.cs" />
-    <Compile Include="Navigraph\BGL\BglConverter.cs" />
-    <Compile Include="Navigraph\BGL\BglLeg.cs" />
-    <Compile Include="Navigraph\BGL\BglSidStar.cs" />
-    <Compile Include="Navigraph\BGL\BglParser.cs" />
-    <Compile Include="Navigraph\BGL\MsfsNavdataService.cs" />
-    <Compile Include="Navigraph\BGL\SimConnectFacilityService.cs" />
-    <Compile Include="Navigraph\BGL\NavdataDatabase.cs" />
+    <Compile Include="Navigraph\BGL\BglStubs.cs" />
+    <Compile Include="Logging\KneeboardLogger.cs" />
     <Compile Include="EnterFilename.cs">
       <SubType>Form</SubType>
     </Compile>
