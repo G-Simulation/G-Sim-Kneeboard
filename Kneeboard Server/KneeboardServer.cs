@@ -22,6 +22,7 @@ using System.Xml.Linq;
 using System.Xml.Serialization;
 using static Kneeboard_Server.Simbrief;
 using static Kneeboard_Server.Waypoints;
+using Kneeboard_Server.Logging;
 
 using Path = System.IO.Path;
 
@@ -45,13 +46,6 @@ namespace Kneeboard_Server
         private static readonly object simbriefSyncLock = new object();
         private static bool isBackgroundSyncRunning = false;
         private const int SIMBRIEF_CHECK_INTERVAL_MS = 180000; // 3 minutes
-
-        // Navdata progress timer for live elapsed time
-        private System.Diagnostics.Stopwatch _navdataStopwatch;
-        private System.Windows.Forms.Timer _navdataTimer;
-        private string _navdataCurrentMessage = "";
-        private int _navdataCurrent = 0;
-        private int _navdataTotal = 0;
 
         // SimConnect Manager
         private SimConnectManager simConnectManager;
@@ -593,47 +587,7 @@ namespace Kneeboard_Server
             }
         }
 
-        /// <summary>
-        /// Import MSFS Navdata in background
-        /// </summary>
-        private async void ImportNavdataAsync(List<Navigraph.BGL.MsfsVersion> versions)
-        {
-            try
-            {
-                int totalAirports = 0;
 
-                foreach (var version in versions)
-                {
-                    Console.WriteLine($"[Navdata] Indexing {version}...");
-
-                    await System.Threading.Tasks.Task.Run(() =>
-                    {
-                        using (var service = new Navigraph.BGL.MsfsNavdataService(version))
-                        {
-                            if (service.IsAvailable)
-                            {
-                                service.IndexNavdata();
-                                totalAirports += service.IndexedAirportCount;
-                            }
-                        }
-                    });
-                }
-
-                Properties.Settings.Default.navdataIndexed = true;
-                Properties.Settings.Default.navdataAirportCount = totalAirports;
-                Properties.Settings.Default.Save();
-
-                Console.WriteLine($"[Navdata] Indexed {totalAirports} airports");
-                MessageBox.Show($"Navdata erfolgreich indexiert!\n\n{totalAirports:N0} Airports gefunden.",
-                    "MSFS Navdata", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Navdata] Error: {ex.Message}");
-                MessageBox.Show($"Fehler beim Indexieren: {ex.Message}", "Fehler",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
 
         /// <summary>
         /// Background callback that checks and loads SimBrief data
@@ -1133,44 +1087,7 @@ namespace Kneeboard_Server
             simConnectConnected = connected;
             UpdateStatusBar();
 
-            // Initialize SimConnect Facility Service for MSFS 2024 SID/STAR waypoint import
-            if (connected && _simConnectFacility == null)
-            {
-                try
-                {
-                    if (Navigraph.BGL.SimConnectFacilityService.IsFacilityApiAvailable)
-                    {
-                        _simConnectFacility = new Navigraph.BGL.SimConnectFacilityService(this.Handle);
-                        if (_simConnectFacility.Connect())
-                        {
-                            Console.WriteLine("[KneeboardServer] SimConnect Facility Service connected - waypoint import ready");
 
-                            // Initialize NavdataDatabase - like atools
-                            InitializeNavdataDatabase();
-                        }
-                        else
-                        {
-                            Console.WriteLine("[KneeboardServer] SimConnect Facility Service connection failed");
-                            _simConnectFacility = null;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[KneeboardServer] SimConnect Facility Service init error: {ex.Message}");
-                    _simConnectFacility = null;
-                }
-            }
-            else if (!connected && _simConnectFacility != null)
-            {
-                try
-                {
-                    _simConnectFacility.Disconnect();
-                    _simConnectFacility = null;
-                    Console.WriteLine("[KneeboardServer] SimConnect Facility Service disconnected");
-                }
-                catch { }
-            }
         }
 
         /// <summary>
@@ -1354,6 +1271,11 @@ namespace Kneeboard_Server
         private void KneeboardServer_Load(object sender, EventArgs e)
         {
             folderpath = AppDomain.CurrentDomain.BaseDirectory;
+            
+            KneeboardLogger.Initialize(consoleOutput: true, fileOutput: true, minLevel: KneeboardLogger.Level.DEBUG);
+            KneeboardLogger.Server("Kneeboard Server starting...");
+            KneeboardLogger.CleanupOldLogs(keepDays: 7);
+            
             //MessageBox.Show(folderpath);
             LoadDocumentState();
             EnsureDefaultManualsExist();
@@ -1398,32 +1320,7 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.Save();
             }
 
-            // First-start dialog for MSFS Navdata
-            if (Properties.Settings.Default.firstNavdataAsk == false)
-            {
-                var versions = Navigraph.BGL.MsfsNavdataService.DetectInstalledVersions();
 
-                if (versions.Count > 0)
-                {
-                    string versionStr = string.Join(" und ", versions);
-                    DialogResult navdataQuestion = MessageBox.Show(
-                        $"{versionStr} wurde erkannt.\n\n" +
-                        "Möchten Sie die MSFS-Navigationsdaten jetzt importieren?\n\n" +
-                        "Dies ermöglicht detaillierte SID/STAR-Prozeduren im Flugplan.\n" +
-                        "(Kann später in den Einstellungen geändert werden)",
-                        "MSFS Navdata Import",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Question);
-
-                    if (navdataQuestion == DialogResult.Yes)
-                    {
-                        ImportNavdataAsync(versions);
-                    }
-                }
-
-                Properties.Settings.Default.firstNavdataAsk = true;
-                Properties.Settings.Default.Save();
-            }
 
             if (Properties.Settings.Default.simStart == true)
             {
@@ -1442,10 +1339,6 @@ namespace Kneeboard_Server
                 }
                 notifyIcon.ShowBalloonTip(1000);
             }
-
-            // Initialize NavdataDatabase at startup (open existing DB for API access)
-            // Import only happens when SimConnect connects and DB is empty
-            InitializeNavdataDatabaseAtStartup();
 
             myServer = new SimpleHTTPServer(folderpath + @"\data", Convert.ToInt32(port), this);
             Console.WriteLine("Server is running on this port: " + myServer.Port.ToString());
@@ -3063,123 +2956,9 @@ namespace Kneeboard_Server
 
             try
             {
-                // 1. ZUERST: NavdataDatabase prüfen (enthält bereits geladene Daten!)
-                if (_navdataDatabase != null && _navdataDatabase.ProcedureCount > 0)
-                {
-                    Console.WriteLine($"[SID/STAR] Checking NavdataDatabase for {type} {procedureName} at {icao}...");
-                    var procedureType = type == "SID" ? Navigraph.ProcedureType.SID : Navigraph.ProcedureType.STAR;
-                    var legs = _navdataDatabase.GetProcedureLegs(icao, procedureName, procedureType);
 
-                    if (legs != null && legs.Count > 0)
-                    {
-                        // Check if we have coordinates - if not, fall through to SimConnect
-                        bool hasCoordinates = legs.Any(l => l.Latitude != 0 || l.Longitude != 0);
 
-                        if (hasCoordinates)
-                        {
-                            foreach (var wp in legs)
-                            {
-                                // Skip waypoints without coordinates
-                                if (wp.Latitude == 0 && wp.Longitude == 0 && string.IsNullOrEmpty(wp.Identifier))
-                                    continue;
 
-                                waypoints.Add(new
-                                {
-                                    name = wp.Identifier,
-                                    lat = wp.Latitude,
-                                    lon = wp.Longitude,
-                                    alt = wp.Altitude1,
-                                    speed = wp.SpeedLimit,
-                                    pathTermination = wp.PathTermination,
-                                    course = wp.MagneticCourse,
-                                    distance = wp.RouteDistance,
-                                    turnDirection = wp.TurnDirection,
-                                    flyOver = wp.IsFlyOver,
-                                    altDesc = wp.AltitudeDescription,
-                                    source = "NavdataDB"
-                                });
-                            }
-                            Console.WriteLine($"[SID/STAR] NavdataDatabase returned {waypoints.Count} waypoints");
-                            return waypoints;
-                        }
-                        else
-                        {
-                            Console.WriteLine($"[SID/STAR] NavdataDatabase has legs but no coordinates - falling through to SimConnect");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine($"[SID/STAR] NavdataDatabase: No legs found for {type} {procedureName}");
-                    }
-                }
-
-                // 2. Fallback: SimConnect live (nur wenn DB leer oder Prozedur nicht gefunden)
-                if (waypoints.Count == 0 && Navigraph.BGL.SimConnectFacilityService.IsFacilityApiAvailable && _simConnectFacility != null)
-                {
-                    Console.WriteLine($"[SID/STAR] Trying SimConnect live for {type} {procedureName}...");
-                    var procedureType = type == "SID" ? Navigraph.ProcedureType.SID : Navigraph.ProcedureType.STAR;
-                    var detail = await _simConnectFacility.GetProcedureDetailAsync(icao, procedureName, null, procedureType);
-                    if (detail != null && detail.Waypoints.Count > 0)
-                    {
-                        foreach (var wp in detail.Waypoints)
-                        {
-                            waypoints.Add(new
-                            {
-                                name = wp.Identifier,
-                                lat = wp.Latitude,
-                                lon = wp.Longitude,
-                                alt = wp.Altitude1,
-                                speed = wp.SpeedLimit,
-                                pathTermination = wp.PathTermination,
-                                course = wp.MagneticCourse,
-                                distance = wp.RouteDistance,
-                                turnDirection = wp.TurnDirection,
-                                flyOver = wp.IsFlyOver,
-                                altDesc = wp.AltitudeDescription,
-                                source = "SimConnect"
-                            });
-                        }
-                        Console.WriteLine($"[SID/STAR] SimConnect returned {waypoints.Count} waypoints");
-                        return waypoints;
-                    }
-                }
-
-                // 3. Fallback: MSFS BGL files (Navigraph BGL in Community folder)
-                if (waypoints.Count == 0)
-                {
-                    Console.WriteLine($"[SID/STAR] Trying BGL fallback...");
-                    var msfsVersions = Navigraph.BGL.MsfsNavdataService.DetectInstalledVersions();
-                    foreach (var version in msfsVersions)
-                    {
-                        using (var service = new Navigraph.BGL.MsfsNavdataService(version))
-                        {
-                            if (service.IsAvailable)
-                            {
-                                Console.WriteLine($"[SID/STAR] Trying {version} BGL for {type} {procedureName}...");
-                                var procedureType = type == "SID" ? Navigraph.ProcedureType.SID : Navigraph.ProcedureType.STAR;
-                                var detail = service.GetProcedureDetail(icao, procedureName, null, procedureType);
-                                if (detail != null && detail.Waypoints.Count > 0)
-                                {
-                                    foreach (var wp in detail.Waypoints)
-                                    {
-                                        waypoints.Add(new
-                                        {
-                                            name = wp.Identifier,
-                                            lat = wp.Latitude,
-                                            lon = wp.Longitude,
-                                            alt = wp.Altitude1,
-                                            speed = wp.SpeedLimit,
-                                            pathTermination = wp.PathTermination,
-                                            source = $"{version} BGL"
-                                        });
-                                    }
-                                    Console.WriteLine($"[SID/STAR] {version} BGL returned {waypoints.Count} waypoints");
-                                    return waypoints;
-                                }
-                            }
-                        }
-                    }
-                }
             }
             catch (Exception ex)
             {
@@ -3189,287 +2968,11 @@ namespace Kneeboard_Server
             return waypoints;
         }
 
-        // Static SimConnect Facility Service instance - like atools maintains a loader instance
-        private static Navigraph.BGL.SimConnectFacilityService _simConnectFacility;
 
-        // Static NavdataDatabase instance - like atools little_navmap_msfs24.sqlite
-        private static Navigraph.BGL.NavdataDatabase _navdataDatabase;
 
-        /// <summary>
-        /// Initialize NavdataDatabase at app startup - just open existing DB for API access
-        /// This runs BEFORE SimConnect connects, so the API can use cached data
-        /// </summary>
-        private void InitializeNavdataDatabaseAtStartup()
-        {
-            try
-            {
-                string dataFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data");
-                string dbPath = Path.Combine(dataFolder, "msfs_navdata.sqlite");
 
-                // Only initialize if database file exists (was previously imported)
-                if (System.IO.File.Exists(dbPath))
-                {
-                    _navdataDatabase = new Navigraph.BGL.NavdataDatabase(dataFolder);
-                    _navdataDatabase.Initialize();
-                    Console.WriteLine($"[NavdataDB] Startup: Loaded existing database - {_navdataDatabase.AirportCount} airports, {_navdataDatabase.ProcedureCount} procedures");
-                }
-                else
-                {
-                    Console.WriteLine("[NavdataDB] Startup: No database file found - will import when SimConnect connects");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[NavdataDB] Startup error: {ex.Message}");
-            }
-        }
 
-        /// <summary>
-        /// Initialize the NavdataDatabase - like atools initializes its SQLite database
-        /// If database is empty, load all airports from SimConnect
-        /// </summary>
-        private async void InitializeNavdataDatabase()
-        {
-            try
-            {
-                string dataFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data");
-                if (!Directory.Exists(dataFolder))
-                    Directory.CreateDirectory(dataFolder);
 
-                // If already initialized at startup, don't recreate
-                if (_navdataDatabase == null)
-                {
-                    _navdataDatabase = new Navigraph.BGL.NavdataDatabase(dataFolder);
-                    _navdataDatabase.Initialize();
-                }
-
-                Console.WriteLine($"[NavdataDB] Database initialized: {_navdataDatabase.AirportCount} airports, {_navdataDatabase.ProcedureCount} procedures");
-
-                // If database is empty, load all airports from SimConnect - like atools first run
-                if (_navdataDatabase.AirportCount == 0 && _simConnectFacility != null && _simConnectFacility.IsConnected)
-                {
-                    // Check for debug mode: --debug-import loads only 3 airports for faster testing
-                    bool debugImport = Environment.GetCommandLineArgs().Any(arg =>
-                        arg.Equals("--debug-import", StringComparison.OrdinalIgnoreCase));
-
-                    if (debugImport)
-                        Console.WriteLine("[NavdataDB] DEBUG MODE - loading only 3 test airports (EDDM, EDDF, KJFK)...");
-                    else
-                        Console.WriteLine("[NavdataDB] Database empty - loading all airports from simulator (this may take a while)...");
-
-                    // Show progress bar
-                    ShowNavdataProgress(true, debugImport ? "Debug: Loading 3 airports..." : "Loading navdata...");
-
-                    // Run loading with progress updates
-                    var progress = new Progress<(string message, int current, int total)>(p =>
-                    {
-                        UpdateNavdataProgress(p.message, p.current, p.total);
-                    });
-
-                    await Task.Run(async () =>
-                    {
-                        if (debugImport)
-                            await _simConnectFacility.LoadDebugAirportsAsync(_navdataDatabase, progress);
-                        else
-                            await _simConnectFacility.LoadAllAirportsAsync(_navdataDatabase, progress);
-                    });
-
-                    // Refresh counts after loading
-                    _navdataDatabase.RefreshCounts();
-
-                    // Hide progress bar
-                    ShowNavdataProgress(false, "");
-                    Console.WriteLine($"[NavdataDB] Loading complete: {_navdataDatabase.AirportCount} airports, {_navdataDatabase.ProcedureCount} procedures");
-                }
-            }
-            catch (Exception ex)
-            {
-                ShowNavdataProgress(false, "");
-                Console.WriteLine($"[NavdataDB] Error initializing database: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Show or hide the navdata progress bar
-        /// </summary>
-        private void ShowNavdataProgress(bool show, string message)
-        {
-            if (InvokeRequired)
-            {
-                Invoke(new Action(() => ShowNavdataProgress(show, message)));
-                return;
-            }
-
-            navdataProgressBar.Visible = show;
-            navdataProgressLabel.Visible = show;
-            statusBox.Visible = !show;
-
-            if (show)
-            {
-                navdataProgressBar.Value = 0;
-                navdataProgressBar.Style = ProgressBarStyle.Marquee;
-                navdataProgressLabel.Text = message;
-                navdataProgressLabel.BringToFront();  // Label über ProgressBar
-
-                // Start stopwatch and timer for live elapsed time
-                _navdataStopwatch = System.Diagnostics.Stopwatch.StartNew();
-                _navdataCurrentMessage = message;
-                _navdataCurrent = 0;
-                _navdataTotal = 0;
-
-                if (_navdataTimer == null)
-                {
-                    _navdataTimer = new System.Windows.Forms.Timer();
-                    _navdataTimer.Interval = 1000; // Update every second
-                    _navdataTimer.Tick += NavdataTimer_Tick;
-                }
-                _navdataTimer.Start();
-            }
-            else
-            {
-                // Stop timer
-                _navdataTimer?.Stop();
-                _navdataStopwatch?.Stop();
-            }
-        }
-
-        /// <summary>
-        /// Timer tick to update elapsed time display
-        /// </summary>
-        private void NavdataTimer_Tick(object sender, EventArgs e)
-        {
-            if (_navdataStopwatch == null || !navdataProgressLabel.Visible)
-                return;
-
-            // Format elapsed time
-            var elapsed = _navdataStopwatch.Elapsed;
-            string timeStr = elapsed.TotalHours >= 1
-                ? $"{(int)elapsed.TotalHours}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2}"
-                : $"{elapsed.Minutes:D2}:{elapsed.Seconds:D2}";
-
-            // Build display text with live time
-            string displayText = _navdataCurrentMessage;
-            if (!string.IsNullOrEmpty(displayText))
-            {
-                displayText = $"{_navdataCurrentMessage} | {timeStr}";
-            }
-
-            navdataProgressLabel.Text = displayText;
-        }
-
-        /// <summary>
-        /// Update the navdata progress bar
-        /// </summary>
-        private void UpdateNavdataProgress(string message, int current, int total)
-        {
-            if (InvokeRequired)
-            {
-                Invoke(new Action(() => UpdateNavdataProgress(message, current, total)));
-                return;
-            }
-
-            if (total > 0)
-            {
-                navdataProgressBar.Style = ProgressBarStyle.Continuous;
-                navdataProgressBar.Maximum = total;
-                navdataProgressBar.Value = Math.Min(current, total);
-            }
-
-            // Store message for timer to display with live time
-            _navdataCurrentMessage = message;
-            _navdataCurrent = current;
-            _navdataTotal = total;
-
-            // Immediately update label with current time
-            if (_navdataStopwatch != null)
-            {
-                var elapsed = _navdataStopwatch.Elapsed;
-                string timeStr = elapsed.TotalHours >= 1
-                    ? $"{(int)elapsed.TotalHours}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2}"
-                    : $"{elapsed.Minutes:D2}:{elapsed.Seconds:D2}";
-                navdataProgressLabel.Text = $"{message} | {timeStr}";
-            }
-            else
-            {
-                navdataProgressLabel.Text = message;
-            }
-
-            Console.WriteLine($"[NavdataDB] {message}");
-        }
-
-        /// <summary>
-        /// Get NavdataDatabase for SID/STAR queries
-        /// </summary>
-        public static Navigraph.BGL.NavdataDatabase NavdataDB => _navdataDatabase;
-
-        /// <summary>
-        /// Dispose NavdataDatabase connection (for database deletion)
-        /// </summary>
-        public static void DisposeNavdataDatabase()
-        {
-            if (_navdataDatabase != null)
-            {
-                _navdataDatabase.Dispose();
-                _navdataDatabase = null;
-                Console.WriteLine("[NavdataDB] Database connection closed");
-            }
-        }
-
-        /// <summary>
-        /// Reload NavdataDatabase - deletes existing DB and reloads from SimConnect
-        /// </summary>
-        public static async Task ReloadNavdataDatabaseAsync(IProgress<(string message, int current, int total)> progress = null)
-        {
-            Console.WriteLine("[NavdataDB] ReloadNavdataDatabaseAsync called!");
-            Console.WriteLine($"[NavdataDB] _simConnectFacility is null: {_simConnectFacility == null}");
-            if (_simConnectFacility != null)
-                Console.WriteLine($"[NavdataDB] _simConnectFacility.IsConnected: {_simConnectFacility.IsConnected}");
-
-            try
-            {
-                // Close existing connection
-                DisposeNavdataDatabase();
-
-                // Delete existing database file
-                string dataFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data");
-                string dbPath = Path.Combine(dataFolder, "msfs_navdata.sqlite");
-                if (System.IO.File.Exists(dbPath))
-                {
-                    System.IO.File.Delete(dbPath);
-                    Console.WriteLine($"[NavdataDB] Deleted existing database: {dbPath}");
-                }
-
-                // Check if SimConnect is available
-                if (_simConnectFacility == null || !_simConnectFacility.IsConnected)
-                {
-                    Console.WriteLine("[NavdataDB] Cannot reload - SimConnect not connected");
-                    progress?.Report(("SimConnect nicht verbunden!", 0, 1));
-                    return;
-                }
-
-                // Create new database
-                if (!Directory.Exists(dataFolder))
-                    Directory.CreateDirectory(dataFolder);
-
-                _navdataDatabase = new Navigraph.BGL.NavdataDatabase(dataFolder);
-                _navdataDatabase.Initialize();
-
-                Console.WriteLine("[NavdataDB] Reloading all airports from simulator...");
-
-                // Load all airports
-                await _simConnectFacility.LoadAllAirportsAsync(_navdataDatabase, progress);
-
-                // Refresh counts
-                _navdataDatabase.RefreshCounts();
-
-                Console.WriteLine($"[NavdataDB] Reload complete: {_navdataDatabase.AirportCount} airports, {_navdataDatabase.ProcedureCount} procedures");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[NavdataDB] Error reloading database: {ex.Message}");
-                throw;
-            }
-        }
 
         private void label1_Click(object sender, EventArgs e)
         {

@@ -122,7 +122,6 @@
     <Compile Include="Navigraph\NavigraphDataService.cs" />
     <Compile Include="Navigraph\NavigraphDbService.cs" />
     <Compile Include="Navigraph\NavigraphDbCache.cs" />
-    <Compile Include="Navigraph\BGL\BglStubs.cs" />
     <Compile Include="Logging\KneeboardLogger.cs" />
     <Compile Include="EnterFilename.cs">
       <SubType>Form</SubType>
@@ -186,6 +185,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\ICON_TOOLBAR_KNEEBOARD1.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Copy Navigraph database to output directory -->
+    <Content Include="Navigraph\ng_jeppesen_fwdfd_2403.s3db">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\add-file1.png" />
@@ -315,7 +320,6 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>
-    </PostBuildEvent>
+    <PostBuildEvent>if not exist "$(OutDir)Navigraph" (mkdir "$(OutDir)Navigraph") &amp;&amp; copy /Y "$(ProjectDir)Navigraph\ng_jeppesen_fwdfd_2403.s3db" "$(OutDir)Navigraph\ng_jeppesen_fwdfd_2403.s3db"</PostBuildEvent>
   </PropertyGroup>
 </Project>

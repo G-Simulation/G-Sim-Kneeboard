@@ -66,14 +66,14 @@ namespace Kneeboard_Server.Navigraph
                             airport_ref_latitude,
                             airport_ref_longitude,
                             airport_name,
-                            iata_designator,
+                            ata_iata_code,
                             elevation,
                             transition_altitude,
                             transition_level,
                             speed_limit,
                             speed_limit_altitude,
                             ifr_capability
-                        FROM tbl_airports
+                        FROM tbl_pa_airports
                         WHERE airport_identifier = @icao
                         LIMIT 1";
 
@@ -93,7 +93,7 @@ namespace Kneeboard_Server.Navigraph
                                 Elevation = reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
                                 TransitionAltitude = reader.IsDBNull(6) ? 0 : reader.GetInt32(6),
                                 TransitionLevel = reader.IsDBNull(7) ? 0 : reader.GetInt32(7),
-                                SpeedLimit = reader.IsDBNull(8) ? "" : reader.GetString(8),
+                                SpeedLimit = reader.IsDBNull(8) ? "" : reader.GetValue(8).ToString(),
                                 SpeedLimitAltitude = reader.IsDBNull(9) ? 0 : reader.GetInt32(9),
                                 IfrCapability = reader.IsDBNull(10) ? "" : reader.GetString(10)
                             };
@@ -139,8 +139,8 @@ namespace Kneeboard_Server.Navigraph
                             runway_gradient,
                             displaced_threshold_distance,
                             llz_identifier
-                        FROM tbl_runways
-                        WHERE airport_identifier = @icao
+                        FROM tbl_pg_runways
+                        WHERE UPPER(TRIM(airport_identifier)) = @icao
                         ORDER BY runway_identifier";
 
                     cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
@@ -151,11 +151,11 @@ namespace Kneeboard_Server.Navigraph
                         {
                             var runway = new RunwayInfo
                             {
-                                Identifier = reader.GetString(0),
+                                Identifier = reader.IsDBNull(0) ? "" : reader.GetString(0).Trim(),
                                 ThresholdLat = reader.IsDBNull(1) ? 0 : reader.GetDouble(1),
                                 ThresholdLon = reader.IsDBNull(2) ? 0 : reader.GetDouble(2),
                                 Heading = reader.IsDBNull(3) ? 0 : reader.GetDouble(3),
-                                Length = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+                                Length = reader.IsDBNull(4) ? 0 : (int)reader.GetDouble(4),
                                 Width = reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
                                 ThresholdElevation = reader.IsDBNull(6) ? 0 : reader.GetInt32(6),
                                 ThresholdDisplacement = reader.IsDBNull(8) ? 0 : reader.GetInt32(8)
@@ -182,43 +182,80 @@ namespace Kneeboard_Server.Navigraph
         /// </summary>
         public RunwayInfo GetRunway(string icao, string runwayId)
         {
-            if (!IsConnected) return null;
+            if (!IsConnected)
+            {
+                Console.WriteLine($"[Runway Debug] Not connected to database");
+                return null;
+            }
 
             try
             {
-                // Normalize runway identifier (e.g., "25C" -> "RW25C" or just "25C")
-                var normalizedId = runwayId.ToUpperInvariant();
+                var normalizedId = (runwayId ?? "").Trim().ToUpperInvariant();
                 if (!normalizedId.StartsWith("RW"))
                 {
                     normalizedId = "RW" + normalizedId;
                 }
 
+                Console.WriteLine($"[Runway Debug] GetRunway({icao}, {runwayId}) - normalized: {normalizedId}");
+
                 var runways = GetRunways(icao);
-
-                // Try to find exact match first
+                Console.WriteLine($"[Runway Debug] Found {runways.Count} runways at {icao}");
                 foreach (var rwy in runways)
                 {
-                    if (rwy.Identifier.Equals(normalizedId, StringComparison.OrdinalIgnoreCase) ||
-                        rwy.Identifier.Equals(runwayId, StringComparison.OrdinalIgnoreCase))
+                    Console.WriteLine($"[Runway Debug]   - Runway: {rwy.Identifier}");
+                }
+
+                var trimmedRunwayId = (runwayId ?? "").Trim();
+
+                foreach (var rwy in runways)
+                {
+                    var identifier = (rwy.Identifier ?? "").Trim();
+                    if (identifier.Equals(normalizedId, StringComparison.OrdinalIgnoreCase))
                     {
+                        Console.WriteLine($"[Runway Debug] Found exact match: {identifier}");
+                        return rwy;
+                    }
+                    if (identifier.Equals(trimmedRunwayId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.WriteLine($"[Runway Debug] Found match (original format): {identifier}");
                         return rwy;
                     }
                 }
 
-                // Try partial match (without RW prefix)
-                var idWithoutRW = runwayId.Replace("RW", "").ToUpperInvariant();
+                var idWithoutRW = normalizedId.Replace("RW", "").Trim();
+                Console.WriteLine($"[Runway Debug] Trying partial match without RW: {idWithoutRW}");
                 foreach (var rwy in runways)
                 {
-                    var rwyIdWithoutRW = rwy.Identifier.Replace("RW", "").ToUpperInvariant();
-                    if (rwyIdWithoutRW == idWithoutRW)
+                    var identifier = (rwy.Identifier ?? "").Trim();
+                    var rwyIdWithoutRW = identifier.ToUpperInvariant().Replace("RW", "").Trim();
+                    if (rwyIdWithoutRW.Equals(idWithoutRW, StringComparison.OrdinalIgnoreCase))
                     {
+                        Console.WriteLine($"[Runway Debug] Found partial match: {identifier}");
                         return rwy;
                     }
                 }
+
+                foreach (var rwy in runways)
+                {
+                    var identifier = (rwy.Identifier ?? "").Trim();
+                    if (!string.IsNullOrEmpty(idWithoutRW) && identifier.ToUpperInvariant().Contains(idWithoutRW))
+                    {
+                        Console.WriteLine($"[Runway Debug] Found contains match: {identifier}");
+                        return rwy;
+                    }
+                }
+
+                if (runways.Count > 0)
+                {
+                    Console.WriteLine($"[Runway Debug] No exact match, returning first runway: {runways[0].Identifier}");
+                    return runways[0];
+                }
+
+                Console.WriteLine($"[Runway Debug] No runway found for {icao} {runwayId}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Runway Query Fehler: {ex.Message}");
+                Console.WriteLine($"[Runway Debug] Runway Query Error: {ex.Message}");
             }
 
             return null;
@@ -246,7 +283,7 @@ namespace Kneeboard_Server.Navigraph
                             llz_latitude,
                             llz_longitude,
                             ils_mls_gls_category
-                        FROM tbl_localizers_glideslopes
+                        FROM tbl_pi_localizers_glideslopes
                         WHERE airport_identifier = @icao";
 
                     cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
@@ -295,7 +332,7 @@ namespace Kneeboard_Server.Navigraph
                             communication_type,
                             communication_frequency,
                             service_indicator
-                        FROM tbl_airport_communication
+                        FROM tbl_pv_airport_communication
                         WHERE airport_identifier = @icao
                         ORDER BY communication_type";
 
@@ -332,7 +369,7 @@ namespace Kneeboard_Server.Navigraph
         /// </summary>
         public List<ProcedureSummary> GetSIDs(string icao)
         {
-            return GetProcedures(icao, "tbl_sids", ProcedureType.SID);
+            return GetProcedures(icao, "tbl_pd_sids", ProcedureType.SID);
         }
 
         /// <summary>
@@ -340,7 +377,7 @@ namespace Kneeboard_Server.Navigraph
         /// </summary>
         public List<ProcedureSummary> GetSTARs(string icao)
         {
-            return GetProcedures(icao, "tbl_stars", ProcedureType.STAR);
+            return GetProcedures(icao, "tbl_pe_stars", ProcedureType.STAR);
         }
 
         /// <summary>
@@ -406,7 +443,7 @@ namespace Kneeboard_Server.Navigraph
                             procedure_identifier,
                             runway_identifier,
                             transition_identifier
-                        FROM tbl_iaps
+                        FROM tbl_pf_iaps
                         WHERE airport_identifier = @icao
                         ORDER BY procedure_identifier";
 
@@ -475,13 +512,13 @@ namespace Kneeboard_Server.Navigraph
             switch (type)
             {
                 case ProcedureType.SID:
-                    tableName = "tbl_sids";
+                    tableName = "tbl_pd_sids";
                     break;
                 case ProcedureType.STAR:
-                    tableName = "tbl_stars";
+                    tableName = "tbl_pe_stars";
                     break;
                 case ProcedureType.Approach:
-                    tableName = "tbl_iaps";
+                    tableName = "tbl_pf_iaps";
                     break;
                 default:
                     return legs;
@@ -493,7 +530,7 @@ namespace Kneeboard_Server.Navigraph
                 {
                     cmd.CommandText = $@"
                         SELECT
-                            sequence_number,
+                            seqno,
                             waypoint_identifier,
                             waypoint_latitude,
                             waypoint_longitude,
@@ -505,12 +542,12 @@ namespace Kneeboard_Server.Navigraph
                             speed_limit,
                             speed_limit_description,
                             course,
-                            distance,
+                            route_distance_holding_distance_time,
                             waypoint_description_code
                         FROM {tableName}
                         WHERE airport_identifier = @icao
                           AND procedure_identifier = @proc
-                        ORDER BY sequence_number";
+                        ORDER BY seqno";
 
                     cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
                     cmd.Parameters.AddWithValue("@proc", procedureId);
@@ -572,7 +609,7 @@ namespace Kneeboard_Server.Navigraph
                         cmd.CommandText = @"
                             SELECT waypoint_identifier, waypoint_name, icao_code,
                                    waypoint_latitude, waypoint_longitude, waypoint_type
-                            FROM tbl_enroute_waypoints
+                            FROM tbl_ea_enroute_waypoints
                             WHERE waypoint_identifier = @ident AND icao_code = @region
                             LIMIT 1";
                         cmd.Parameters.AddWithValue("@region", region.ToUpperInvariant());
@@ -582,7 +619,7 @@ namespace Kneeboard_Server.Navigraph
                         cmd.CommandText = @"
                             SELECT waypoint_identifier, waypoint_name, icao_code,
                                    waypoint_latitude, waypoint_longitude, waypoint_type
-                            FROM tbl_enroute_waypoints
+                            FROM tbl_ea_enroute_waypoints
                             WHERE waypoint_identifier = @ident
                             LIMIT 1";
                     }
@@ -612,7 +649,7 @@ namespace Kneeboard_Server.Navigraph
                     cmd.CommandText = @"
                         SELECT waypoint_identifier, waypoint_name, icao_code,
                                waypoint_latitude, waypoint_longitude, waypoint_type
-                        FROM tbl_terminal_waypoints
+                        FROM tbl_pc_terminal_waypoints
                         WHERE waypoint_identifier = @ident
                         LIMIT 1";
 
@@ -661,12 +698,12 @@ namespace Kneeboard_Server.Navigraph
                 {
                     cmd.CommandText = @"
                         SELECT
-                            vor_identifier, vor_name, navaid_class,
-                            vor_frequency, vor_latitude, vor_longitude,
+                            navaid_identifier, navaid_name, navaid_class,
+                            navaid_frequency, navaid_latitude, navaid_longitude,
                             icao_code, dme_elevation, station_declination
-                        FROM tbl_vhfnavaids
-                        WHERE vor_latitude BETWEEN @minLat AND @maxLat
-                          AND vor_longitude BETWEEN @minLon AND @maxLon";
+                        FROM tbl_d_vhfnavaids
+                        WHERE navaid_latitude BETWEEN @minLat AND @maxLat
+                          AND navaid_longitude BETWEEN @minLon AND @maxLon";
 
                     cmd.Parameters.AddWithValue("@minLat", lat - latDelta);
                     cmd.Parameters.AddWithValue("@maxLat", lat + latDelta);
@@ -698,12 +735,12 @@ namespace Kneeboard_Server.Navigraph
                 {
                     cmd.CommandText = @"
                         SELECT
-                            ndb_identifier, ndb_name, ndb_class,
-                            ndb_frequency, ndb_latitude, ndb_longitude,
+                            navaid_identifier, navaid_name, navaid_class,
+                            navaid_frequency, navaid_latitude, navaid_longitude,
                             icao_code
-                        FROM tbl_enroute_ndbs
-                        WHERE ndb_latitude BETWEEN @minLat AND @maxLat
-                          AND ndb_longitude BETWEEN @minLon AND @maxLon";
+                        FROM tbl_db_enroute_ndbnavaids
+                        WHERE navaid_latitude BETWEEN @minLat AND @maxLat
+                          AND navaid_longitude BETWEEN @minLon AND @maxLon";
 
                     cmd.Parameters.AddWithValue("@minLat", lat - latDelta);
                     cmd.Parameters.AddWithValue("@maxLat", lat + latDelta);
@@ -750,11 +787,11 @@ namespace Kneeboard_Server.Navigraph
                 {
                     cmd.CommandText = @"
                         SELECT
-                            vor_identifier, vor_name, navaid_class,
-                            vor_frequency, vor_latitude, vor_longitude,
+                            navaid_identifier, navaid_name, navaid_class,
+                            navaid_frequency, navaid_latitude, navaid_longitude,
                             icao_code, dme_elevation
-                        FROM tbl_vhfnavaids
-                        WHERE vor_identifier = @ident
+                        FROM tbl_d_vhfnavaids
+                        WHERE navaid_identifier = @ident
                         LIMIT 1";
 
                     cmd.Parameters.AddWithValue("@ident", ident.ToUpperInvariant());
@@ -783,11 +820,11 @@ namespace Kneeboard_Server.Navigraph
                 {
                     cmd.CommandText = @"
                         SELECT
-                            ndb_identifier, ndb_name, ndb_class,
-                            ndb_frequency, ndb_latitude, ndb_longitude,
+                            navaid_identifier, navaid_name, navaid_class,
+                            navaid_frequency, navaid_latitude, navaid_longitude,
                             icao_code
-                        FROM tbl_enroute_ndbs
-                        WHERE ndb_identifier = @ident
+                        FROM tbl_db_enroute_ndbnavaids
+                        WHERE navaid_identifier = @ident
                         LIMIT 1";
 
                     cmd.Parameters.AddWithValue("@ident", ident.ToUpperInvariant());
@@ -837,17 +874,17 @@ namespace Kneeboard_Server.Navigraph
                 {
                     cmd.CommandText = @"
                         SELECT
-                            sequence_number,
+                            seqno,
                             waypoint_identifier,
                             waypoint_latitude,
                             waypoint_longitude,
-                            minimum_altitude,
+                            minimum_altitude1,
                             maximum_altitude,
                             direction_restriction,
                             route_type
-                        FROM tbl_enroute_airways
+                        FROM tbl_er_enroute_airways
                         WHERE route_identifier = @ident
-                        ORDER BY sequence_number";
+                        ORDER BY seqno";
 
                     cmd.Parameters.AddWithValue("@ident", ident.ToUpperInvariant());
 

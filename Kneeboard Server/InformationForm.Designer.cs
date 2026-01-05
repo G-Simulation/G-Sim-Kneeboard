@@ -44,22 +44,16 @@ namespace Kneeboard_Server
             this.clearCacheButton = new System.Windows.Forms.Button();
             this.maxCacheSizeInput = new System.Windows.Forms.TextBox();
             this.cacheSizeLabel = new System.Windows.Forms.Label();
-            this.msfsNavdataLabel = new System.Windows.Forms.Label();
-            this.msfsNavdataStatusLabel = new System.Windows.Forms.Label();
-            this.importNavdataButton = new System.Windows.Forms.Button();
-            this.deleteNavdataButton = new System.Windows.Forms.Button();
             this.navigraphLabel = new System.Windows.Forms.Label();
             this.navigraphStatusLabel = new System.Windows.Forms.Label();
             this.navigraphLoginButton = new System.Windows.Forms.Button();
             this.startupGroupBox = new System.Windows.Forms.GroupBox();
             this.idsGroupBox = new System.Windows.Forms.GroupBox();
             this.cacheGroupBox = new System.Windows.Forms.GroupBox();
-            this.navdataGroupBox = new System.Windows.Forms.GroupBox();
             this.navigraphGroupBox = new System.Windows.Forms.GroupBox();
             this.startupGroupBox.SuspendLayout();
             this.idsGroupBox.SuspendLayout();
             this.cacheGroupBox.SuspendLayout();
-            this.navdataGroupBox.SuspendLayout();
             this.navigraphGroupBox.SuspendLayout();
             this.SuspendLayout();
             //
@@ -246,64 +240,6 @@ namespace Kneeboard_Server
             this.clearCacheButton.UseVisualStyleBackColor = true;
             this.clearCacheButton.Click += new System.EventHandler(this.ClearCacheButton_Click);
             //
-            // navdataGroupBox
-            //
-            this.navdataGroupBox.Controls.Add(this.msfsNavdataLabel);
-            this.navdataGroupBox.Controls.Add(this.msfsNavdataStatusLabel);
-            this.navdataGroupBox.Controls.Add(this.importNavdataButton);
-            this.navdataGroupBox.Controls.Add(this.deleteNavdataButton);
-            this.navdataGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.navdataGroupBox.Location = new System.Drawing.Point(12, 352);
-            this.navdataGroupBox.Name = "navdataGroupBox";
-            this.navdataGroupBox.Size = new System.Drawing.Size(230, 70);
-            this.navdataGroupBox.TabIndex = 53;
-            this.navdataGroupBox.TabStop = false;
-            this.navdataGroupBox.Text = "MSFS Navdata (SID/STAR)";
-            //
-            // msfsNavdataLabel
-            //
-            this.msfsNavdataLabel.AutoSize = true;
-            this.msfsNavdataLabel.ForeColor = System.Drawing.SystemColors.ControlText;
-            this.msfsNavdataLabel.Location = new System.Drawing.Point(7, 18);
-            this.msfsNavdataLabel.Name = "msfsNavdataLabel";
-            this.msfsNavdataLabel.Size = new System.Drawing.Size(40, 13);
-            this.msfsNavdataLabel.TabIndex = 0;
-            this.msfsNavdataLabel.Text = "Status:";
-            //
-            // msfsNavdataStatusLabel
-            //
-            this.msfsNavdataStatusLabel.AutoSize = true;
-            this.msfsNavdataStatusLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold);
-            this.msfsNavdataStatusLabel.ForeColor = System.Drawing.Color.Gray;
-            this.msfsNavdataStatusLabel.Location = new System.Drawing.Point(50, 18);
-            this.msfsNavdataStatusLabel.Name = "msfsNavdataStatusLabel";
-            this.msfsNavdataStatusLabel.Size = new System.Drawing.Size(73, 13);
-            this.msfsNavdataStatusLabel.TabIndex = 1;
-            this.msfsNavdataStatusLabel.Text = "Not indexed";
-            //
-            // importNavdataButton
-            //
-            this.importNavdataButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.importNavdataButton.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.importNavdataButton.Location = new System.Drawing.Point(10, 38);
-            this.importNavdataButton.Name = "importNavdataButton";
-            this.importNavdataButton.Size = new System.Drawing.Size(105, 25);
-            this.importNavdataButton.TabIndex = 2;
-            this.importNavdataButton.Text = "Import Navdata";
-            this.importNavdataButton.UseVisualStyleBackColor = true;
-            this.importNavdataButton.Click += new System.EventHandler(this.ImportNavdataButton_Click);
-            //
-            // deleteNavdataButton
-            //
-            this.deleteNavdataButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.deleteNavdataButton.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.deleteNavdataButton.Location = new System.Drawing.Point(120, 38);
-            this.deleteNavdataButton.Name = "deleteNavdataButton";
-            this.deleteNavdataButton.Size = new System.Drawing.Size(100, 25);
-            this.deleteNavdataButton.TabIndex = 3;
-            this.deleteNavdataButton.Text = "Reload";
-            this.deleteNavdataButton.UseVisualStyleBackColor = true;
-            this.deleteNavdataButton.Click += new System.EventHandler(this.DeleteNavdataButton_Click);
             //
             // navigraphGroupBox
             //
@@ -382,7 +318,6 @@ namespace Kneeboard_Server
             this.BackColor = System.Drawing.SystemColors.Window;
             this.ClientSize = new System.Drawing.Size(254, 540);
             this.Controls.Add(this.navigraphGroupBox);
-            this.Controls.Add(this.navdataGroupBox);
             this.Controls.Add(this.cacheGroupBox);
             this.Controls.Add(this.idsGroupBox);
             this.Controls.Add(this.startupGroupBox);
@@ -402,8 +337,6 @@ namespace Kneeboard_Server
             this.idsGroupBox.PerformLayout();
             this.cacheGroupBox.ResumeLayout(false);
             this.cacheGroupBox.PerformLayout();
-            this.navdataGroupBox.ResumeLayout(false);
-            this.navdataGroupBox.PerformLayout();
             this.navigraphGroupBox.ResumeLayout(false);
             this.navigraphGroupBox.PerformLayout();
             this.ResumeLayout(false);
@@ -430,14 +363,9 @@ namespace Kneeboard_Server
         private System.Windows.Forms.Label navigraphLabel;
         private System.Windows.Forms.Label navigraphStatusLabel;
         private System.Windows.Forms.Button navigraphLoginButton;
-        private System.Windows.Forms.Label msfsNavdataLabel;
-        private System.Windows.Forms.Label msfsNavdataStatusLabel;
-        private System.Windows.Forms.Button importNavdataButton;
-        private System.Windows.Forms.Button deleteNavdataButton;
         private System.Windows.Forms.GroupBox startupGroupBox;
         private System.Windows.Forms.GroupBox idsGroupBox;
         private System.Windows.Forms.GroupBox cacheGroupBox;
-        private System.Windows.Forms.GroupBox navdataGroupBox;
         private System.Windows.Forms.GroupBox navigraphGroupBox;
     }
 }

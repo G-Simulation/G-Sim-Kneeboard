@@ -4,7 +4,6 @@ using System.Reflection;
 using System.Security.Principal;
 using System.Threading;
 using System.Windows.Forms;
-using Kneeboard_Server.Navigraph.BGL;
 
 namespace Kneeboard_Server
 {
@@ -17,13 +16,6 @@ namespace Kneeboard_Server
         [STAThread]
         static void Main(string[] args)
         {
-            // Test mode for BGL parsing
-            if (args.Length >= 2 && args[0] == "--test-bgl")
-            {
-                RunBglTest(args[1]);
-                return;
-            }
-
             // Check database contents
             if (args.Length >= 1 && args[0] == "--check-db")
             {
@@ -31,12 +23,6 @@ namespace Kneeboard_Server
                 return;
             }
 
-            // Test FixId matching
-            if (args.Length >= 1 && args[0] == "--test-fixid")
-            {
-                TestFixIdMatching();
-                return;
-            }
             bool debug = false;
             if (debug == false)
             {
@@ -94,186 +80,6 @@ namespace Kneeboard_Server
         }
             };
             proc.Start();
-        }
-
-        /// <summary>
-        /// Run BGL parser test for an airport
-        /// Tests both MSFS 2020 and MSFS 2024 versions
-        /// </summary>
-        private static void RunBglTest(string airportIcao)
-        {
-            string outputPath = System.IO.Path.Combine(
-                System.IO.Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
-                $"bgl_test_{airportIcao}.txt");
-
-            using (var writer = new System.IO.StreamWriter(outputPath))
-            {
-                var originalOut = Console.Out;
-                Console.SetOut(writer);
-
-                try
-                {
-                    Console.WriteLine("=== BGL Parser Test ===");
-                    Console.WriteLine($"Testing airport: {airportIcao}");
-                    Console.WriteLine($"Time: {DateTime.Now}");
-                    Console.WriteLine();
-
-                    // Test all installed MSFS versions
-                    var versions = MsfsNavdataService.DetectInstalledVersions();
-                    Console.WriteLine($"Installed versions: {string.Join(", ", versions)}");
-                    Console.WriteLine();
-
-                    foreach (var version in versions)
-                    {
-                        Console.WriteLine($"\n========== Testing {version} ==========\n");
-                        try
-                        {
-                            using (var service = new MsfsNavdataService(version))
-                            {
-                                if (service.IsAvailable)
-                                {
-                                    if (service.RequiresSimConnect)
-                                    {
-                                        Console.WriteLine($"[{version}] Requires SimConnect - testing Facility API...");
-
-                                        // Test SimConnect Facility API for MSFS 2024
-                                        TestSimConnectFacilityApi(airportIcao);
-                                    }
-                                    else
-                                    {
-                                        service.TestAirport(airportIcao);
-                                    }
-                                }
-                                else
-                                {
-                                    Console.WriteLine($"[{version}] No navdata available at: {service.NavdataPath}");
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[{version}] Error: {ex.Message}");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error: {ex.Message}");
-                    Console.WriteLine(ex.StackTrace);
-                }
-
-                Console.SetOut(originalOut);
-            }
-
-            // Don't show message box in headless mode, just exit
-            System.IO.File.WriteAllText(outputPath + ".done", "Complete");
-        }
-
-        /// <summary>
-        /// Test SimConnect Facility API for MSFS 2024 SID/STAR procedures
-        /// </summary>
-        private static void TestSimConnectFacilityApi(string airportIcao)
-        {
-            Console.WriteLine("[SimConnect] Checking Facility API availability...");
-
-            // Check if Facility API is available in SDK
-            if (!SimConnectFacilityService.IsFacilityApiAvailable)
-            {
-                Console.WriteLine("[SimConnect] Facility API NOT available in current SDK");
-                Console.WriteLine("[SimConnect] To use MSFS 2024 SID/STAR:");
-                Console.WriteLine("[SimConnect]   1. Download MSFS 2024 SDK from https://docs.flightsimulator.com/");
-                Console.WriteLine("[SimConnect]   2. Copy Microsoft.FlightSimulator.SimConnect.dll to project folder");
-                Console.WriteLine("[SimConnect]   3. Rebuild the project");
-                return;
-            }
-
-            Console.WriteLine("[SimConnect] Facility API is available!");
-            Console.WriteLine("[SimConnect] Creating test window for message handling...");
-
-            try
-            {
-                // Create a hidden window for SimConnect message handling
-                using (var testForm = new System.Windows.Forms.Form())
-                {
-                    testForm.Text = "SimConnect Test";
-                    testForm.ShowInTaskbar = false;
-                    testForm.WindowState = System.Windows.Forms.FormWindowState.Minimized;
-
-                    // Need to show briefly to get handle
-                    testForm.Show();
-                    testForm.Hide();
-
-                    Console.WriteLine($"[SimConnect] Window handle: {testForm.Handle}");
-
-                    using (var facilityService = new SimConnectFacilityService(testForm.Handle))
-                    {
-                        Console.WriteLine("[SimConnect] Attempting to connect to MSFS 2024...");
-
-                        if (facilityService.Connect())
-                        {
-                            Console.WriteLine("[SimConnect] Connected! Waiting for connection to establish...");
-
-                            // Wait for connection to be fully established
-                            for (int i = 0; i < 30 && !facilityService.IsConnected; i++)
-                            {
-                                System.Windows.Forms.Application.DoEvents();
-                                Thread.Sleep(100);
-                            }
-
-                            if (facilityService.IsConnected)
-                            {
-                                Console.WriteLine("[SimConnect] Connection established!");
-                                Console.WriteLine($"[SimConnect] Requesting SID/STAR for {airportIcao}...");
-
-                                // Request procedures
-                                var sidsTask = facilityService.GetSIDsAsync(airportIcao);
-                                var starsTask = facilityService.GetSTARsAsync(airportIcao);
-
-                                // Process messages while waiting
-                                var startTime = DateTime.Now;
-                                while ((DateTime.Now - startTime).TotalSeconds < 15)
-                                {
-                                    System.Windows.Forms.Application.DoEvents();
-                                    Thread.Sleep(50);
-
-                                    if (sidsTask.IsCompleted && starsTask.IsCompleted)
-                                        break;
-                                }
-
-                                // Get results
-                                var sids = sidsTask.IsCompleted ? sidsTask.Result : new System.Collections.Generic.List<Navigraph.ProcedureSummary>();
-                                var stars = starsTask.IsCompleted ? starsTask.Result : new System.Collections.Generic.List<Navigraph.ProcedureSummary>();
-
-                                Console.WriteLine($"\n[SimConnect] Results for {airportIcao}:");
-                                Console.WriteLine($"SIDs ({sids.Count}):");
-                                foreach (var sid in sids)
-                                {
-                                    Console.WriteLine($"  - {sid.Identifier}");
-                                }
-
-                                Console.WriteLine($"STARs ({stars.Count}):");
-                                foreach (var star in stars)
-                                {
-                                    Console.WriteLine($"  - {star.Identifier}");
-                                }
-                            }
-                            else
-                            {
-                                Console.WriteLine("[SimConnect] Connection not established within timeout");
-                            }
-                        }
-                        else
-                        {
-                            Console.WriteLine("[SimConnect] Failed to connect - is MSFS 2024 running?");
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[SimConnect] Error: {ex.Message}");
-                Console.WriteLine($"[SimConnect] Stack: {ex.StackTrace}");
-            }
         }
 
         /// <summary>
@@ -507,58 +313,6 @@ namespace Kneeboard_Server
             }
         }
 
-        static void TestFixIdMatching()
-        {
-            Console.WriteLine("=== TESTING FIXID MATCHING ===\n");
 
-            // Test case: VOR from leg (Type=86='V') vs VOR from ProcessVor (Type=1)
-            var cache = new System.Collections.Generic.Dictionary<SimConnectFacilityService.FixId, SimConnectFacilityService.NavaidCoord>();
-
-            // Simulate what ProcessVor does: adds with Type=1
-            var vorFromProcessVor = new SimConnectFacilityService.FixId("MUN", "ED", 1);
-            cache[vorFromProcessVor] = new SimConnectFacilityService.NavaidCoord
-            {
-                Latitude = 48.353,
-                Longitude = 11.786,
-                Icao = "MUN",
-                Region = "ED",
-                Type = 1
-            };
-            Console.WriteLine($"Added to cache: FixId(MUN, ED, Type=1)");
-            Console.WriteLine($"  Hash: {vorFromProcessVor.GetHashCode()}");
-
-            // Simulate what happens during write: lookup with Type=86='V'
-            var vorFromLeg = new SimConnectFacilityService.FixId("MUN", "ED", 86);  // 86 = 'V'
-            Console.WriteLine($"\nLooking up: FixId(MUN, ED, Type=86='V')");
-            Console.WriteLine($"  Hash: {vorFromLeg.GetHashCode()}");
-
-            bool found = cache.TryGetValue(vorFromLeg, out var coord);
-            Console.WriteLine($"\nResult: {(found ? "FOUND!" : "NOT FOUND")}");
-
-            if (found)
-            {
-                Console.WriteLine($"  Lat={coord.Latitude}, Lon={coord.Longitude}");
-            }
-
-            // Also test Equals directly
-            Console.WriteLine($"\nDirect Equals test:");
-            Console.WriteLine($"  vorFromProcessVor.Equals(vorFromLeg) = {vorFromProcessVor.Equals(vorFromLeg)}");
-            Console.WriteLine($"  vorFromLeg.Equals(vorFromProcessVor) = {vorFromLeg.Equals(vorFromProcessVor)}");
-
-            // Test with 'V' char literal
-            var vorWithCharV = new SimConnectFacilityService.FixId("MUN", "ED", 'V');
-            Console.WriteLine($"\nTesting with char 'V' (={(int)'V'}):");
-            Console.WriteLine($"  FixId(MUN, ED, Type='V') hash: {vorWithCharV.GetHashCode()}");
-            Console.WriteLine($"  Equals with Type=1: {vorWithCharV.Equals(vorFromProcessVor)}");
-            Console.WriteLine($"  Equals with Type=86: {vorWithCharV.Equals(vorFromLeg)}");
-
-            // Test all VOR type values
-            Console.WriteLine($"\n=== VOR Type Values ===");
-            Console.WriteLine($"  'V' as int: {(int)'V'}");
-            Console.WriteLine($"  86 == 'V': {86 == 'V'}");
-            Console.WriteLine($"  1 (SimConnect enum for VOR)");
-
-            Console.WriteLine("\n=== TEST COMPLETE ===");
-        }
     }
 }

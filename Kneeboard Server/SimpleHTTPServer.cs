@@ -159,7 +159,11 @@ namespace Kneeboard_Server
                     _navigraphAuth = new NavigraphAuthService();
                     _navigraphData = new NavigraphDataService(_navigraphAuth);
 
-                    // If already authenticated, check for updates
+                    // Load bundled database immediately (synchronous)
+                    Console.WriteLine("[Navigraph] Loading bundled database...");
+                    _navigraphData.LoadBundledDatabase();
+
+                    // If already authenticated, check for updates asynchronously
                     if (_navigraphAuth.IsAuthenticated)
                     {
                         Console.WriteLine("[Navigraph] User already authenticated, checking for navdata updates...");
@@ -501,74 +505,9 @@ namespace Kneeboard_Server
                     source = "none"
                 };
 
-                // Try MSFS 2024 NavdataDatabase first (SimConnect data)
-                var navdataDb = Kneeboard_Server.NavdataDB;
-                Console.WriteLine($"[Procedure API] NavdataDB: {(navdataDb != null ? "available" : "null")}, ProcedureCount: {navdataDb?.ProcedureCount ?? 0}");
-                if (navdataDb != null && navdataDb.ProcedureCount > 0)
-                {
-                    try
-                    {
-                        var sids = navdataDb.GetSIDs(airport);
-                        var stars = navdataDb.GetSTARs(airport);
-                        Console.WriteLine($"[Procedure API] MSFS2024 query for {airport}: {sids?.Count ?? 0} SIDs, {stars?.Count ?? 0} STARs");
 
-                        if ((sids != null && sids.Count > 0) || (stars != null && stars.Count > 0))
-                        {
-                            result = new
-                            {
-                                airport = airport,
-                                sids = sids ?? new List<Navigraph.ProcedureSummary>(),
-                                stars = stars ?? new List<Navigraph.ProcedureSummary>(),
-                                source = "MSFS2024"
-                            };
-                            Console.WriteLine($"[Procedure API] Returning MSFS2024 data for {airport}");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[Procedure API] MSFS 2024 error: {ex.Message}");
-                    }
-                }
 
-                // Try MSFS 2020 navdata (BGL parsing) if no results yet
-                if (result.source == "none" && Properties.Settings.Default.navdataIndexed)
-                {
-                    var versions = Navigraph.BGL.MsfsNavdataService.DetectInstalledVersions();
-                    foreach (var version in versions)
-                    {
-                        if (version == Navigraph.BGL.MsfsVersion.MSFS2020)
-                        {
-                            try
-                            {
-                                using (var service = new Navigraph.BGL.MsfsNavdataService(version))
-                                {
-                                    if (service.IsAvailable)
-                                    {
-                                        service.IndexNavdata();
-                                        var sids = service.GetSIDs(airport);
-                                        var stars = service.GetSTARs(airport);
 
-                                        if (sids.Count > 0 || stars.Count > 0)
-                                        {
-                                            result = new
-                                            {
-                                                airport = airport,
-                                                sids = sids,
-                                                stars = stars,
-                                                source = "MSFS2020"
-                                            };
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"[Procedure API] MSFS 2020 error: {ex.Message}");
-                            }
-                        }
-                    }
-                }
 
                 // Try Navigraph if available
                 if (result.source == "none")
@@ -617,49 +556,7 @@ namespace Kneeboard_Server
         {
             bool isSid = type == "SID";
 
-            // 1. Try MSFS 2024 NavdataDatabase (SimConnect data)
-            // TODO: Implement GetProcedureDetail in NavdataDatabase for full waypoint details
-            var navdataDb = Kneeboard_Server.NavdataDB;
-            if (navdataDb != null && navdataDb.ProcedureCount > 0)
-            {
-                // NavdataDatabase currently only supports GetSIDs/GetSTARs list
-                // Full procedure detail (waypoints) not yet implemented
-                Console.WriteLine($"[Procedure API] NavdataDatabase has data but GetProcedureDetail not implemented yet");
-            }
-
-            // 2. Try MSFS 2020 navdata (BGL parsing)
-            if (Properties.Settings.Default.navdataIndexed)
-            {
-                var versions = Navigraph.BGL.MsfsNavdataService.DetectInstalledVersions();
-                foreach (var version in versions)
-                {
-                    if (version == Navigraph.BGL.MsfsVersion.MSFS2020)
-                    {
-                        try
-                        {
-                            using (var service = new Navigraph.BGL.MsfsNavdataService(version))
-                            {
-                                if (service.IsAvailable)
-                                {
-                                    service.IndexNavdata();
-                                    var procType = isSid ? Navigraph.ProcedureType.SID : Navigraph.ProcedureType.STAR;
-                                    var detail = service.GetProcedureDetail(airport, procedureName, transition, procType);
-                                    if (detail != null && detail.Waypoints.Count > 0)
-                                    {
-                                        return detail;
-                                    }
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[Procedure API] MSFS 2020 detail error: {ex.Message}");
-                        }
-                    }
-                }
-            }
-
-            // 2. Try Navigraph
+            // Try Navigraph
             var navigraphData = GetNavigraphData();
             if (navigraphData != null && navigraphData.IsDataAvailable)
             {
@@ -3315,6 +3212,86 @@ namespace Kneeboard_Server
         }
 
         /// <summary>
+        /// Get debug configuration
+        /// URL: GET /api/debug/config
+        /// Returns: JSON with all debug flags and their status
+        /// </summary>
+        private void HandleGetDebugConfig(HttpListenerContext context)
+        {
+            try
+            {
+                var config = new
+                {
+                    DISABLE_ALL_LOGS = false,
+                    MAP = true,
+                    WIND = false,
+                    CZ = false,
+                    FREQ = false,
+                    RUNWAY = true,
+                    SIMCONNECT = true,
+                    WAYPOINTS = true,
+                    TELEPORT = false,
+                    API = true,
+                    WEATHER = false,
+                    NAVLOG = false,
+                    SIMBRIEF = true,
+                    AIRPORTS = false
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(config, Newtonsoft.Json.Formatting.Indented);
+                ResponseJson(context, json);
+                Logging.KneeboardLogger.Debug("API", "Debug config retrieved");
+            }
+            catch (Exception ex)
+            {
+                context.Response.StatusCode = 500;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                Logging.KneeboardLogger.Error("API", $"Error getting debug config: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Set debug configuration
+        /// URL: POST /api/debug/config
+        /// Body: { "RUNWAY": true, "MAP": false, ... }
+        /// Returns: Updated config
+        /// </summary>
+        private void HandleSetDebugConfig(HttpListenerContext context)
+        {
+            try
+            {
+                using (var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
+                {
+                    string body = reader.ReadToEnd();
+                    if (string.IsNullOrEmpty(body))
+                    {
+                        context.Response.StatusCode = 400;
+                        ResponseJson(context, "{\"error\":\"Empty request body\"}");
+                        return;
+                    }
+
+                    var updates = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(body);
+                    var response = new
+                    {
+                        status = "Debug config updated",
+                        updates = updates
+                    };
+
+                    string responseJson = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                    ResponseJson(context, responseJson);
+                    
+                    Logging.KneeboardLogger.Info("API", $"Debug config updated: {body}");
+                }
+            }
+            catch (Exception ex)
+            {
+                context.Response.StatusCode = 500;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                Logging.KneeboardLogger.Error("API", $"Error setting debug config: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Handle client log forwarding
         /// URL: POST /api/log
         /// Body: { "level": "INFO", "module": "Map", "message": "Log message" }
@@ -4868,6 +4845,171 @@ namespace Kneeboard_Server
             }
         }
 
+        /// <summary>
+        /// Fetches runway data from OpenAIP API
+        /// Endpoint: api/openaip/runway/{icao}/{runwayId}
+        /// Example: api/openaip/runway/KPDX/10L
+        /// </summary>
+        private void HandleOpenAipRunway(HttpListenerContext context, string icao, string runwayId)
+        {
+            if (string.IsNullOrWhiteSpace(icao) || icao.Length < 3 || icao.Length > 4)
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                ResponseJson(context, "{\"error\":\"Invalid ICAO code\"}");
+                return;
+            }
+
+            // Cache path for runway lookups
+            var cachePath = Path.Combine(CACHE_DIR, "runways", $"{icao}_{runwayId}.json");
+
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (File.Exists(cachePath))
+                {
+                    var fileInfo = new FileInfo(cachePath);
+                    if (DateTime.Now - fileInfo.LastWriteTime < CACHE_TTL)
+                    {
+                        try
+                        {
+                            var cachedData = File.ReadAllBytes(cachePath);
+                            context.Response.StatusCode = 200;
+                            context.Response.ContentType = "application/json";
+                            context.Response.ContentLength64 = cachedData.Length;
+                            context.Response.AddHeader("X-Cache", "HIT");
+                            context.Response.OutputStream.Write(cachedData, 0, cachedData.Length);
+                            context.Response.OutputStream.Close();
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[OpenAIP Runway] Cache read error: {ex.Message}");
+                        }
+                    }
+                }
+            }
+
+            HttpWebResponse upstreamResponse = null;
+            try
+            {
+                // Query openAIP for all runways at this airport
+                var apiUrl = $"https://api.core.openaip.net/api/runways?icao={Uri.EscapeDataString(icao)}&limit=50&apiKey={Uri.EscapeDataString(OPENAIP_API_KEY)}";
+
+                var outboundRequest = (HttpWebRequest)WebRequest.Create(apiUrl);
+                outboundRequest.Method = "GET";
+                outboundRequest.Accept = "application/json";
+                outboundRequest.Headers.Add("x-openaip-client-id", OPENAIP_API_KEY);
+                outboundRequest.Timeout = 5000;
+                outboundRequest.ReadWriteTimeout = 5000;
+                upstreamResponse = (HttpWebResponse)outboundRequest.GetResponse();
+
+                string responseBody;
+                using (var reader = new StreamReader(upstreamResponse.GetResponseStream()))
+                {
+                    responseBody = reader.ReadToEnd();
+                }
+
+                dynamic jsonResponse = Newtonsoft.Json.JsonConvert.DeserializeObject(responseBody);
+                
+                // Find matching runway by identifier
+                dynamic matchedRunway = null;
+                if (jsonResponse?.items != null)
+                {
+                    foreach (var runway in jsonResponse.items)
+                    {
+                        string rwyId = runway.identifier?.ToString()?.ToUpperInvariant();
+                        if (rwyId == runwayId)
+                        {
+                            matchedRunway = runway;
+                            break;
+                        }
+                    }
+                }
+
+                if (matchedRunway == null)
+                {
+                    Console.WriteLine($"[OpenAIP Runway] Runway {runwayId} not found at {icao}");
+                    context.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                    ResponseJson(context, $"{{\"error\":\"Runway {runwayId} not found at {icao}\"}}");
+                    return;
+                }
+
+                // Extract threshold coordinates
+                double thresholdLat = 0;
+                double thresholdLon = 0;
+                
+                if (matchedRunway.thresholdCoordinates != null)
+                {
+                    thresholdLat = (double)matchedRunway.thresholdCoordinates.latitude;
+                    thresholdLon = (double)matchedRunway.thresholdCoordinates.longitude;
+                }
+                else if (matchedRunway.geometry?.coordinates != null)
+                {
+                    // Fallback to geometry coordinates [lng, lat]
+                    thresholdLon = (double)matchedRunway.geometry.coordinates[0];
+                    thresholdLat = (double)matchedRunway.geometry.coordinates[1];
+                }
+
+                var result = new
+                {
+                    airport = icao,
+                    runway = matchedRunway.identifier?.ToString(),
+                    thresholdLat = thresholdLat,
+                    thresholdLon = thresholdLon,
+                    heading = matchedRunway.magneticBearing ?? matchedRunway.trueBearing,
+                    length = matchedRunway.tora ?? matchedRunway.toda,
+                    width = matchedRunway.width,
+                    elevation = matchedRunway.thresholdElevation,
+                    source = "openAIP"
+                };
+
+                string resultJson = Newtonsoft.Json.JsonConvert.SerializeObject(result, Newtonsoft.Json.Formatting.Indented);
+                byte[] resultBytes = Encoding.UTF8.GetBytes(resultJson);
+
+                // Cache the result asynchronously
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    try
+                    {
+                        var cacheDir = Path.GetDirectoryName(cachePath);
+                        if (!Directory.Exists(cacheDir))
+                            Directory.CreateDirectory(cacheDir);
+                        File.WriteAllBytes(cachePath, resultBytes);
+                    }
+                    catch (Exception cacheEx)
+                    {
+                        Console.WriteLine($"[OpenAIP Runway] Cache write error: {cacheEx.Message}");
+                    }
+                });
+
+                context.Response.StatusCode = 200;
+                context.Response.ContentType = "application/json";
+                context.Response.ContentLength64 = resultBytes.Length;
+                context.Response.AddHeader("X-Cache", "MISS");
+                context.Response.OutputStream.Write(resultBytes, 0, resultBytes.Length);
+            }
+            catch (WebException ex)
+            {
+                var httpResponse = ex.Response as HttpWebResponse;
+                Console.WriteLine($"[OpenAIP Runway] Error fetching {icao}/{runwayId}: {ex.Message}");
+                context.Response.StatusCode = httpResponse != null
+                    ? (int)httpResponse.StatusCode
+                    : (int)HttpStatusCode.BadGateway;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icao}\",\"runway\":\"{runwayId}\",\"found\":false}}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[OpenAIP Runway] Unexpected error: {ex.Message}");
+                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                ResponseJson(context, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icao}\",\"runway\":\"{runwayId}\",\"found\":false}}");
+            }
+            finally
+            {
+                upstreamResponse?.Close();
+                try { context.Response.OutputStream.Close(); } catch { }
+            }
+        }
+
         // Global airport ICAO index - loaded once from OpenAIP
         private static Dictionary<string, (double lat, double lng, string name)> _globalAirportIndex = null;
         // IATA to ICAO mapping (e.g., "JFK" -> "KJFK", "YYZ" -> "CYYZ")
@@ -6091,6 +6233,24 @@ namespace Kneeboard_Server
                 HandleOpenAipAirportByIcao(context, icaoCode);
                 return;
             }
+            else if (command.StartsWith("api/openaip/runway/", StringComparison.OrdinalIgnoreCase))
+            {
+                // Extract ICAO and runway: api/openaip/runway/KPDX/10L
+                var path = command.Substring("api/openaip/runway/".Length).TrimEnd('/');
+                var parts = path.Split('/');
+                if (parts.Length >= 2)
+                {
+                    var icaoCode = parts[0].ToUpperInvariant();
+                    var runwayId = string.Join("/", parts.Skip(1)).ToUpperInvariant();
+                    HandleOpenAipRunway(context, icaoCode, runwayId);
+                }
+                else
+                {
+                    context.Response.StatusCode = 400;
+                    ResponseJson(context, "{\"error\":\"Format: /api/openaip/runway/{icao}/{runway}\"}");
+                }
+                return;
+            }
             else if (command.StartsWith("api/openaip/airports-batch", StringComparison.OrdinalIgnoreCase))
             {
                 // Batch endpoint: api/openaip/airports-batch?dep=KMIA&arr=LIPE
@@ -6307,6 +6467,16 @@ namespace Kneeboard_Server
             else if (command.StartsWith("api/navigraph/navaid/", StringComparison.OrdinalIgnoreCase))
             {
                 HandleNavaidRequest(context, command);
+                return;
+            }
+            else if (command == "api/debug/config" && context.Request.HttpMethod == "GET")
+            {
+                HandleGetDebugConfig(context);
+                return;
+            }
+            else if (command == "api/debug/config" && context.Request.HttpMethod == "POST")
+            {
+                HandleSetDebugConfig(context);
                 return;
             }
             else if (command == "api/log" && context.Request.HttpMethod == "POST")
