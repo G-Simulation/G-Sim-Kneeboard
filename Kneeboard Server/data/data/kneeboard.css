@@ -1,0 +1,487 @@
+/** If you add or delete an block, change the --numberOfStyles to the number of [data-style] blocks**/
+:root {
+  --light: #2874b2;
+  --dark: #205d8e;
+  --fontLight: #ffffff;
+  --fontDark:  #205d8e;
+  --numberOfStyles: 12; /*Represents the number of [data-style] blocks**/
+  --kb-base-font: clamp(10px, 2.8vmin, 16px);
+  --kb-heading-font: clamp(12px, 3.2vmin, 20px);
+  --kb-small-font: clamp(10px, 2.2vmin, 14px);
+ }
+
+/*Blue*/
+[data-style = "1"] {
+  --light: #2874b2;
+  --dark: #205d8e;
+  --fontLight: #ffffff;
+  --fontDark:  #205d8e;
+}
+
+/*Dark Blue*/
+[data-style = "2"] {
+  --light:#5A7D9F;
+  --dark: #3A5874;
+  --fontLight: #ffffff;
+  --fontDark:  #3A5874;
+}
+
+/*Pastel Blue*/
+[data-style = "3"] {
+  --light:#709FC1;
+  --dark:#48759E;
+  --fontLight: #ffffff;
+  --fontDark: #48759E;
+}
+
+/*Metallic Electric Blue*/
+[data-style="4"] {
+  --light:#9CC3D5FF;
+  --dark: #48759E;
+  --fontLight: #000000;
+  --fontDark:  #48759E;
+}
+
+/*Kneeboard Blue*/
+[data-style="5"] {
+  --light:#357987; 
+  --dark:#035869; 
+  --fontLight: #ffffff; 
+  --fontDark: #000000;
+  --defaultStyle: 0;
+}
+
+/*Ocean Blue*/
+[data-style="6"] {
+  --light:#226974;
+  --dark: #2b4b49;
+  --fontLight: #ffffff;
+  --fontDark:  #2b4b49;
+}
+
+/*Green*/
+[data-style="7"] {
+  --light:#00e236;
+  --dark: #00b52b;
+  --fontLight: #000000;
+  --fontDark:  #00b52b;
+}
+
+/*Dark Green*/
+[data-style="8"] {
+  --light:#21943d;
+  --dark: #0e822a;
+  --fontLight: #ffffff;
+  --fontDark:  #0e822a;
+}
+
+/*Dark Red*/
+[data-style="9"] {
+  --light:#b42e40;
+  --dark: #9e172a;
+  --fontLight: #ffffff;
+  --fontDark:  #9e172a;
+}
+
+/*Pastel Red*/
+[data-style="10"] {
+  --light:#CE5C5E;
+  --dark:#AC4C53;
+  --fontLight: #ffffff;
+  --fontDark: #AC4C53;
+}
+
+/*Pastel Yellow*/
+[data-style="11"] {
+  --light:#EAD76E;
+  --dark: #E2AA60;
+  --fontLight: #000000;
+  --fontDark:  #E2AA60;
+}
+
+/*Dark Grey*/
+[data-style="12"] {
+  --light:#333d40;
+  --dark: #212729;
+  --fontLight: #ffffff;
+  --fontDark:  #212729;
+}
+
+@font-face {
+  font-family: "Roboto-Light";
+  src: url("./Fonts/Roboto-Light.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+*{
+  font-family: "Roboto-Light" !important;
+}
+
+html{
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  color: var(--fontDark);
+  transition: background .2s ease, color .2s ease;
+  font-family: system-ui, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#appViewport {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+
+body::-webkit-scrollbar,
+#content::-webkit-scrollbar,
+#mapContainer::-webkit-scrollbar,
+#map::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #f1f1f1; 
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: var(--dark); 
+  border: 2px solid rgba(0, 0, 0, 0.2);
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: var(--light);
+  border: 2px solid rgba(0, 0, 0, 0.2);
+}
+
+
+/* Allow scrolling while the Navlog tab is active */
+body.navlog-active .content{
+    overflow: auto;
+    scrollbar-width: none;
+}
+
+.tabbar {
+  display: flex;
+  align-items: center;
+  background-color: white;
+  transition: 0.3s ease;
+  flex: 0 0 auto;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
+.tablink {
+  height: 9vh;
+  width: calc(100% / 5);
+  flex: 1;
+  border: none;
+  padding: 10px 5px;
+  background-color: var(--dark);
+  color: var(--fontLight);
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 3vmin;
+  transition: all 0.3s ease;
+  margin-bottom: 0px;
+  box-shadow: 2px 2px 4px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Remove the outer drop shadow so the tab row blends with the container edges */
+.tablink:first-child {
+  box-shadow: 4px 0 8px 0 rgba(0, 0, 0, 0.2);
+}
+
+.tablink:last-child {
+  box-shadow: 0px 0px 8px 0px rgba(0, 0, 0, 0.2);
+}
+
+.tablink:hover {
+  background-color: var(--light);
+  color: var(--fontDark);
+}
+
+.tablink.active-tab {
+  background-color: #ffffff;
+  color: var(--fontDark);
+  /*box-shadow: 0px 0px 8px 0px rgba(0, 0, 0, 0.2);*/
+  box-shadow: 0px 0px 2px -2px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.tablink.active-tab:first-child {
+  background-color: #ffffff;
+  color: var(--fontDark);
+  /*box-shadow: 0px 0px 8px 0px rgba(0, 0, 0, 0.2);*/
+  box-shadow: 0px 0px 2px -2px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.tablink.active-tab:last-child {
+  background-color: #ffffff;
+  color: var(--fontDark);
+  /*box-shadow: 0px 0px 8px 0px rgba(0, 0, 0, 0.2);*/
+  box-shadow: 0px 0px 2px -2px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.content{
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  background-color: white;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
+.tab-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-panel[data-tab-key="map"] {
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-panel[data-tab-key="map"] #mapContainer {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+::-webkit-scrollbar {      /* Chrome, Edge */
+  width: 0;
+  height: 0;
+}
+
+.tabcontent {
+  background-color: #ffffff;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  border: none;
+  margin: 5px;
+}
+
+#Documents.tabcontent,
+#mapContainer.tabcontent,
+#Notepad.tabcontent {
+  overflow: hidden;
+}
+
+#Documents.tabcontent {
+  overflow: hidden;
+  padding-bottom: 5px;
+}
+
+.active-tabcontent {
+    display: flex; /* Der aktive Tab wird angezeigt */
+}
+
+#keybo{
+  display: inline-block;
+  position: relative;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin-bottom: 30px;
+}
+
+#keyContainer{
+  position: relative;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* Keybord Navlog*/
+
+/* === Keyboard Sichtbarkeit & Layout Fix === */
+#keyb {
+    visibility: hidden;
+    z-index: 2000;
+    position: absolute;
+    bottom: 0px;
+    width: 100%;
+    display: inline-block;
+}
+
+div#keyContainer {
+    width: 100%;
+}
+
+.keyboard {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: auto;
+    padding: 0.5vw 0;
+    background: var(--dark);
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+    user-select: none;
+    display: inline-flex;
+    z-index: 2000;
+}
+
+.keyboard__keys {
+    text-align: center;
+    width: 100%;
+}
+
+.keyboard__key {
+    height: 4vmin;
+    width: 6vmin;
+    max-width: 90vmin;
+    min-height: 10PX;
+    min-width: 10px;
+    margin: 0.3vmin;
+    border-radius: 0.4vmin;
+    border: none;
+    background: var(--light);
+    color: var(--fontLight);
+    font-size: clamp(12px, 2.5vmin, 20px);
+    outline: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: top;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+}
+
+.keyboard__key:active {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.keyboard__key--wide {
+    width: 12vmin;
+}
+
+.keyboard__key--spezial {
+    width: 30vmin;
+    max-width: 15vmin;
+}
+
+.keyboard__key--extra-wide {
+    width: 36vmin;
+    max-width: 50vmin;
+}
+
+.keyboard__key--activatable::after {
+    content: '';
+    top: 20%;
+    right: 8%;
+    position: absolute;
+    width: 0.8vmin;
+    height: 0.8vmin;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 50%;
+    margin: -0.3vmin;
+}
+
+.keyboard--hidden {
+    bottom: -100%;
+}
+
+.keyboard__key--active::after {
+    background: #08ff00;
+    margin: -0.3vmin;
+}
+
+.keyboard__key--dark {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.keybord__key--clear{
+  background: rgba(255, 0, 0, 0.363);
+}
+
+/* Keybord Formulas*/
+.keyboard1 {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  padding: 0.5vmin 0;
+  background: var(--dark);
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+  user-select: none;
+	display: inline-flex;
+}
+
+.keyboard__keys1 {
+  text-align: center;
+}
+
+.keyboard__key1 {
+  height: 4vmin;
+  width: 6vmin;
+  max-width: 90vmin;
+  margin: 0.3vmin;
+  border-radius: 0.4vmin;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--fontLight);
+  font-size: clamp(12px, 4vmin, 20px);
+  outline: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: top;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+
+.keyboard__key--wide1 {
+  width: 12vmin;
+}
+
+.keyboard__key--spezial1 {
+  width: 30vmin;
+  max-width: 15vmin;
+}
+.keyboard__key--extra-wide1 {
+  width: 36vmin;
+  max-width: 50vmin;
+}
+
+.keyboard--hidden1 {
+  bottom: -100%;
+}
+
+.keyboard__key--dark1 {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.keybord__key--clear1{
+  background: rgba(255, 0, 0, 0.363);
+}

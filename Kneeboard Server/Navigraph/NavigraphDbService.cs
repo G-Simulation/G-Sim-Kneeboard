@@ -262,6 +262,80 @@ namespace Kneeboard_Server.Navigraph
         }
 
         /// <summary>
+        /// Calculate opposite runway ID (e.g., 10L -> 28R, 28R -> 10L)
+        /// </summary>
+        private string GetOppositeRunwayId(string runwayId)
+        {
+            // Remove RW prefix if present
+            var id = runwayId.Replace("RW", "").Trim();
+
+            // Extract number and designator (L/R/C)
+            var numberStr = "";
+            var designator = "";
+            foreach (var c in id)
+            {
+                if (char.IsDigit(c))
+                    numberStr += c;
+                else
+                    designator += c;
+            }
+
+            if (!int.TryParse(numberStr, out int number))
+                return null;
+
+            // Calculate opposite number (add or subtract 18)
+            int oppositeNumber = number <= 18 ? number + 18 : number - 18;
+
+            // Flip L<->R, keep C
+            string oppositeDesignator;
+            if (designator == "L")
+                oppositeDesignator = "R";
+            else if (designator == "R")
+                oppositeDesignator = "L";
+            else
+                oppositeDesignator = designator;
+
+            return $"RW{oppositeNumber:D2}{oppositeDesignator}";
+        }
+
+        /// <summary>
+        /// Get runway with end coordinates from opposite runway's threshold
+        /// </summary>
+        public RunwayInfo GetRunwayWithOppositeEnd(string icao, string runwayId)
+        {
+            var runway = GetRunway(icao, runwayId);
+            if (runway == null) return null;
+
+            // Get opposite runway ID
+            var oppositeId = GetOppositeRunwayId(runway.Identifier);
+            Console.WriteLine($"[Runway Debug] Opposite runway of {runway.Identifier} is {oppositeId}");
+
+            if (oppositeId != null)
+            {
+                var oppositeRunway = GetRunway(icao, oppositeId);
+                if (oppositeRunway != null)
+                {
+                    // Use opposite runway's threshold as our end
+                    runway.EndLat = oppositeRunway.ThresholdLat;
+                    runway.EndLon = oppositeRunway.ThresholdLon;
+                    Console.WriteLine($"[Runway Debug] Using opposite threshold as end: ({runway.EndLat:F6}, {runway.EndLon:F6})");
+                }
+                else
+                {
+                    Console.WriteLine($"[Runway Debug] Opposite runway not found, falling back to calculation");
+                    runway.CalculateEndCoordinates();
+                }
+            }
+            else
+            {
+                Console.WriteLine($"[Runway Debug] Could not determine opposite runway, falling back to calculation");
+                runway.CalculateEndCoordinates();
+            }
+
+            return runway;
+        }
+
+        /// <summary>
         /// Get ILS/LOC data for an airport
         /// </summary>
         public List<ILSData> GetILS(string icao)

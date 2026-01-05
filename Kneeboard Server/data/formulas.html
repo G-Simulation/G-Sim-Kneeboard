@@ -1,0 +1,427 @@
+<div id="Formulas" class="tabcontent">
+	<table style="color: black; border-style: solid; border-width: 1px; border-color: #000000;">
+		<th style="background-color: var(--dark); color: var(--fontLight); text-align: center; border-style: none;"
+			colspan="8">Initiating descent</th>
+		</tr>
+	</table>
+	<div style="padding: 1vw; width: 98%; text-align: center;">
+		<table style="color: black; border-style: none; ">
+			<tr>
+				<td style="vertical-align:middle; text-align:left; width: 15%; color: var(--fontDark); ">Distance</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="width: 50%; padding: 0; margin: 0; color: var(--fontDark); text-align: center; ">
+					<table style="color: black; border-style: none; display: inline-table; width: 100%; table-layout: fixed; ">
+						<tbody style="border-style: none;">
+							<tr style="border-style: none;">
+								<td style="padding: 0; margin: 0; width: 70%; ">
+									<table style="color: black; border-style: none; display: inline-table; width: 100%; ">
+										<tbody style="border-style: none;">
+											<tr style="border-style: none;">
+												<td style="border-bottom:solid; border-width: 1px; border-color:var(--fontDark); padding:0.2vmin 0.5vmin; text-align:center; ">
+													<textarea oninput="saveValues(); calculate();"
+														style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-bottom: 0.25em; overflow:hidden;"
+														class="use-keyboard-input"
+														id="IDDOTFH">Height difference (ft)</textarea>
+												</td>
+											</tr>
+											<tr>
+												<td style="text-align:center; color: var(--fontDark); ">1000</td>
+											</tr>
+										</tbody>
+									</table>
+								</td>
+								<td style="vertical-align:middle; text-align:center; width: 15%; ">·</td>
+								<td style="vertical-align:middle; text-align:center; width: 15%; ">3</td>
+							</tr>
+						</tbody>
+					</table>
+				</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="vertical-align:middle; text-align:right; width: 15%; color: var(--fontDark); ">
+					<textarea oninput="saveValues(); calculate();"
+						style="text-align: right; margin-left: 0; width: 6em; height: 1.5em; padding-top: 0.13em; overflow:hidden; display: inline-block;"
+						readonly id="ID"></textarea>&nbsp;nm
+				</td>
+			</tr>
+		</table>
+	</div>
+
+	<table style="color: black; border-style: solid; border-width: 1px; border-color: #000000;">
+		<th style="background-color: var(--dark); color: var(--fontLight); text-align: center; border-style: none;"
+			colspan="8">Standard rate full circle</th>
+		</tr>
+	</table>
+	<div style="padding: 1vw; width: 98%; text-align: center;">
+		<table style="color: black; border-style: none; ">
+			<tr>
+				<td style="vertical-align:middle; text-align:left; width: 15%; color: var(--fontDark); ">Bank angle</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="width: 50%; padding: 0; margin: 0; color: var(--fontDark); text-align: center; ">
+					<table style="color: black; border-style: none; display: inline-table; width: 100%; table-layout: fixed; ">
+						<tbody style="border-style: none;">
+							<tr style="border-style: none;">
+								<td style="padding: 0; margin: 0; width: 70%; ">
+									<table style="color: black; border-style: none; display: inline-table; width: 100%; ">
+										<tbody style="border-style: none;">
+											<tr style="border-style: none;">
+												<td style="border-bottom:solid; border-width: 1px; border-color:var(--fontDark); padding:0.2vmin 0.5vmin; text-align:center; ">
+													<textarea oninput="saveValues(); calculate();"
+														style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-bottom: 0.25em; overflow:hidden;"
+														class="formulasTextarea use-keyboard-input"
+														id="SROTTSS">True self speed (kts)</textarea>
+												</td>
+											</tr>
+											<tr>
+												<td style="text-align:center; color: var(--fontDark); ">10</td>
+											</tr>
+										</tbody>
+									</table>
+								</td>
+								<td style="vertical-align:middle; text-align:center; width: 15%; ">+</td>
+								<td style="vertical-align:middle; text-align:center; width: 15%; ">7</td>
+							</tr>
+						</tbody>
+					</table>
+				</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="vertical-align:middle; text-align:right; width: 15%; color: var(--fontDark); ">
+					<textarea oninput="saveValues(); calculate();"
+						style="text-align: right; margin-left: 0; width: 6em; height: 1.5em; padding-top: 0.13em; overflow:hidden; display: inline-block;"
+						readonly id="SROT"></textarea>&nbsp;°
+				</td>
+			</tr>
+		</table>
+	</div>
+
+	<table style="color: black; border-style: solid; border-width: 1px; border-color: #000000;">
+		<th style="background-color: var(--dark); color: var(--fontLight); text-align: center; border-style: none;"
+			colspan="6">Reject curve</th>
+		</tr>
+	</table>
+	<div style="padding: 1vw; width: 98%; text-align: center;">
+		<table style="color: black; border-style: none; ">
+			<tr>
+				<td style="vertical-align:middle; text-align:left; width: 15%; color: var(--fontDark); ">Distance</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="width: 50%; padding: 0; margin: 0; color: var(--fontDark); text-align: center; ">
+					<table style="color: black; border-style: none; display: inline-table; width: 100%; ">
+						<tbody style="border-style: none;">
+							<tr style="border-style: none;">
+								<td style="border-bottom:solid; border-width: 1px; border-color:var(--fontDark); padding:0.2vmin 0.5vmin; text-align:center; ">
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-bottom: 0.25em; overflow:hidden;"
+										class="formulasTextarea use-keyboard-input" id="RCBA">Bank angle (°)</textarea>
+								</td>
+							</tr>
+							<tr>
+								<td style="text-align:center; color: var(--fontDark); ">2</td>
+							</tr>
+						</tbody>
+					</table>
+				</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="vertical-align:middle; text-align:right; width: 15%; color: var(--fontDark); ">
+					<textarea oninput="saveValues(); calculate();"
+						style="text-align: right; margin-left: 0; width: 6em; height: 1.5em; padding-top: 0.13em; overflow:hidden; display: inline-block;"
+						readonly id="RC"></textarea>&nbsp;°
+				</td>
+			</tr>
+		</table>
+	</div>
+
+	<table style="color: black; border-style: solid; border-width: 1px; border-color: #000000;">
+		<th style="background-color: var(--dark); color: var(--fontLight); text-align: center; border-style: none;"
+			colspan="6">Convert mb / in.hg</th>
+		</tr>
+	</table>
+	<div style="padding: 1vw; width: 98%; text-align: center;">
+		<table style="color: black; border-style: none; ">
+			<tr>
+				<td style="vertical-align:middle; text-align:left; width: 15%; color: var(--fontDark); ">in.hg</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="width: 50%; padding: 0; margin: 0; color: var(--fontDark); text-align: center; ">
+					<table style="color: black; border-style: none; display: inline-table; width: 100%; ">
+						<tbody style="border-style: none;">
+							<tr style="border-style: none;">
+								<td style="border-bottom:solid; border-width: 1px; border-color:var(--fontDark); padding:0.2vmin 0.5vmin; text-align:center; ">
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-bottom: 0.25em; overflow:hidden;"
+										class="formulasTextarea use-keyboard-input" id="CMBINMB">Millibar (mb)</textarea>
+								</td>
+							</tr>
+							<tr>
+								<td style="text-align:center; color: var(--fontDark); ">33.856</td>
+							</tr>
+						</tbody>
+					</table>
+				</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="vertical-align:middle; text-align:right; width: 15%; color: var(--fontDark); ">
+					<textarea oninput="saveValues(); calculate();"
+						style="text-align: right; margin-left: 0; width: 6em; height: 1.5em; padding-top: 0.13em; overflow:hidden; display: inline-block;"
+						class="formulasTextarea use-keyboard-input" id="CMBINHG"></textarea>&nbsp;in.hg
+				</td>
+			</tr>
+		</table>
+	</div>
+
+	<table style="color: black; border-style: solid; border-width: 1px; border-color: #000000;">
+		<th style="background-color: var(--dark); color: var(--fontLight); text-align: center; border-style: none;"
+			colspan="10">Rate of Descent</th>
+		</tr>
+	</table>
+	<div style="padding: 1vw; width: 98%; text-align: center;">
+		<table style="color: black; border-style: none; ">
+			<tr>
+				<td style="vertical-align:middle; text-align:left; width: 15%; color: var(--fontDark); ">VS</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="width: 50%; padding: 0; margin: 0; color: var(--fontDark); text-align: center; ">
+					<table style="color: black; border-style: none; display: inline-table; width: 100%; table-layout: fixed; ">
+						<tbody style="border-style: none;">
+							<tr style="border-style: none;">
+								<td style="vertical-align:middle; text-align:center; width: 30%; ">
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-top: 0.25em; overflow:hidden;"
+										class="formulasTextarea use-keyboard-input"
+										id="SRCGS">GS (kts)</textarea>
+								</td>
+								<td style="vertical-align:middle; text-align:center; width: 10%; ">·</td>
+								<td style="vertical-align:middle; text-align:center; width: 30%; ">
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-top: 0.25em; overflow:hidden;"
+										class="formulasTextarea use-keyboard-input"
+										id="CTIDEG">DEG (Grad)</textarea>
+								</td>
+								<td style="vertical-align:middle; text-align:center; width: 10%; ">·</td>
+								<td style="vertical-align:middle; text-align:center; width: 20%; ">1.77</td>
+							</tr>
+						</tbody>
+					</table>
+				</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="vertical-align:middle; text-align:right; width: 15%; color: var(--fontDark); ">
+					<textarea oninput="saveValues(); "
+						style="text-align: right; margin-left: 0; width: 6em; height: 1.5em; padding-top: 0.13em; overflow:hidden; display: inline-block;"
+						id="ROD"></textarea>&nbsp;ft/min
+				</td>
+			</tr>
+		</table>
+	</div>
+
+	<table style="color: black; border-style: solid; border-width: 1px; border-color: #000000;">
+		<th style="background-color: var(--dark); color: var(--fontLight); text-align: center; border-style: none;"
+			colspan="11">Convert TAS / IAS (VFR)</th>
+		</tr>
+	</table>
+	<div style="padding: 1vw; width: 98%; text-align: center;">
+		<table style="color: black; border-style: none; ">
+			<tr>
+				<td style="vertical-align:middle; text-align:left; width: 15%; color: var(--fontDark); ">TAS</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="width: 50%; padding: 0; margin: 0; color: var(--fontDark); text-align: center; ">
+					<table style="color: black; border-style: none; display: inline-table; width: 100%; table-layout: fixed; ">
+						<tbody style="border-style: none;">
+							<tr style="border-style: none;">
+								<td style="vertical-align:middle; text-align:center; width: 18%; ">
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-top: 0.25em; overflow:hidden;"
+										class="formulasTextarea use-keyboard-input"
+										id="CTIIAS">IAS (kts)</textarea>
+								</td>
+								<td style="vertical-align:middle; text-align:center; width: 8%; ">+</td>
+								<td style="vertical-align:middle; text-align:center; width: 18%; ">
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-top: 0.25em; overflow:hidden;"
+										class="formulasTextarea use-keyboard-input"
+										id="CTIIAS2">IAS (kts)</textarea>
+								</td>
+								<td style="vertical-align:middle; text-align:center; width: 8%; ">·</td>
+								<td style="vertical-align:middle; text-align:center; width: 12%; ">0.02</td>
+								<td style="vertical-align:middle; text-align:center; width: 8%; ">·</td>
+								<td style="padding: 0; margin: 0; width: 28%; ">
+									<table style="color: black; border-style: none; display: inline-table; width: 100%; ">
+										<tbody style="border-style: none;">
+											<tr style="border-style: none;">
+												<td style="border-bottom:solid; border-width: 1px; border-color:var(--fontDark); padding:0.2vmin 0.5vmin; text-align:center; ">
+													<textarea oninput="saveValues(); calculate();"
+														style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-bottom: 0.25em; overflow:hidden;"
+														class="formulasTextarea use-keyboard-input"
+														id="CTIHIF">Height (ft)</textarea>
+												</td>
+											</tr>
+											<tr>
+												<td style="text-align:center; color: var(--fontDark); ">1000</td>
+											</tr>
+										</tbody>
+									</table>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="vertical-align:middle; text-align:right; width: 15%; color: var(--fontDark); ">
+					<textarea oninput="saveValues(); calculate();"
+						style="text-align: right; margin-left: 0; width: 6em; height: 1.5em; padding-top: 0.13em; overflow:hidden; display: inline-block;"
+						class="formulasTextarea use-keyboard-input" id="CTI"></textarea>&nbsp;kts
+				</td>
+			</tr>
+		</table>
+	</div>
+
+	<table style="color: black; border-style: solid; border-width: 1px; border-color: #000000;">
+		<th style="background-color: var(--dark); color: var(--fontLight); text-align: center; border-style: none;"
+			colspan="10">Head-wind component</th>
+		</tr>
+	</table>
+	<div style="padding: 1vw; width: 98%; text-align: center;">
+		<table style="color: black; border-style: none; ">
+			<tr>
+				<td style="vertical-align:middle; text-align:left; width: 15%; color: var(--fontDark); ">Head / Tail</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="width: 50%; padding: 0; margin: 0; color: var(--fontDark); text-align: center; ">
+					<table style="color: black; border-style: none; display: inline-table; width: 100%; table-layout: fixed; ">
+						<tbody style="border-style: none;">
+							<tr style="border-style: none;">
+								<td style="vertical-align:middle; text-align:left; width: 40%; ">
+									<span style="margin-right: 0.5vmin;">cos</span>
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: calc(100% - 4vmin); height: 1.5em; padding-top: 0.25em; overflow:hidden; display: inline-block;"
+										class="formulasTextarea use-keyboard-input"
+										id="HWCWD">( Wind dir. (°)</textarea>
+								</td>
+								<td style="vertical-align:middle; text-align:center; width: 8%; ">-</td>
+								<td style="vertical-align:middle; text-align:center; width: 32%; ">
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-top: 0.25em; overflow:hidden;"
+										class="formulasTextarea use-keyboard-input"
+										id="HWCC">Course (°) )</textarea>
+								</td>
+								<td style="vertical-align:middle; text-align:center; width: 8%; ">·</td>
+								<td style="vertical-align:middle; text-align:center; width: 12%; ">
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-top: 0.25em; overflow:hidden;"
+										class="formulasTextarea use-keyboard-input"
+										id="HWCWS">Wind speed (kts)</textarea>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="vertical-align:middle; text-align:right; width: 15%; color: var(--fontDark); ">
+					<textarea oninput="saveValues(); calculate();"
+						style="text-align: right; margin-left: 0; width: 6em; height: 1.5em; padding-top: 0.13em; overflow:hidden; display: inline-block;"
+						readonly id="HWC"></textarea>&nbsp;kts
+				</td>
+			</tr>
+			<tr>
+				<td colspan="5" style="text-align:center; color: var(--fontDark); font-size: 1.5vmin; ">(+ = Head / - = Tail)</td>
+			</tr>
+		</table>
+	</div>
+
+	<table style="color: black; border-style: solid; border-width: 1px; border-color: #000000;">
+		<th style="background-color: var(--dark); color: var(--fontLight); text-align: center; border-style: none;"
+			colspan="10">Cross-wind component</th>
+		</tr>
+	</table>
+	<div style="padding: 1vw; width: 98%; text-align: center;">
+		<table style="color: black; border-style: none; ">
+			<tr>
+				<td style="vertical-align:middle; text-align:left; width: 15%; color: var(--fontDark); ">Left / Right</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="width: 50%; padding: 0; margin: 0; color: var(--fontDark); text-align: center; ">
+					<table style="color: black; border-style: none; display: inline-table; width: 100%; table-layout: fixed; ">
+						<tbody style="border-style: none;">
+							<tr style="border-style: none;">
+								<td style="vertical-align:middle; text-align:left; width: 40%; ">
+									<span style="margin-right: 0.5vmin;">sin</span>
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: calc(100% - 4vmin); height: 1.5em; padding-top: 0.25em; overflow:hidden; display: inline-block;"
+										class="formulasTextarea use-keyboard-input"
+										id="SWCWD">( Wind dir. (°)</textarea>
+								</td>
+								<td style="vertical-align:middle; text-align:center; width: 8%; ">-</td>
+								<td style="vertical-align:middle; text-align:center; width: 32%; ">
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-top: 0.25em; overflow:hidden;"
+										class="formulasTextarea use-keyboard-input"
+										id="SWCC">Course (°) )</textarea>
+								</td>
+								<td style="vertical-align:middle; text-align:center; width: 8%; ">·</td>
+								<td style="vertical-align:middle; text-align:center; width: 12%; ">
+									<textarea oninput="saveValues(); calculate();"
+										style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-top: 0.25em; overflow:hidden;"
+										class="formulasTextarea use-keyboard-input"
+										id="SWCWS">Wind speed (kts)</textarea>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="vertical-align:middle; text-align:right; width: 15%; color: var(--fontDark); ">
+					<textarea oninput="saveValues(); calculate();"
+						style="text-align: right; margin-left: 0; width: 6em; height: 1.5em; padding-top: 0.13em; overflow:hidden; display: inline-block;"
+						readonly id="SWC"></textarea>&nbsp;kts
+				</td>
+			</tr>
+			<tr>
+				<td colspan="5" style="text-align:center; color: var(--fontDark); font-size: 1.5vmin; ">(+ = Left / - = Right)</td>
+			</tr>
+		</table>
+	</div>
+
+	<table style="color: black; border-style: solid; border-width: 1px; border-color: #000000;">
+		<th style="background-color: var(--dark); color: var(--fontLight); text-align: center; border-style: none;"
+			colspan="8">Wind correction angle</th>
+		</tr>
+	</table>
+	<div style="padding: 1vw; height: 50px; width:100%; text-align: center;">
+		<table style="color: black; border-style: none; ">
+			<tr>
+				<td style="vertical-align:middle; text-align:left; width: 15%; color: var(--fontDark); ">WCA</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="width: 50%; padding: 0; margin: 0; color: var(--fontDark); text-align: center; ">
+					<table style="color: black; border-style: none; display: inline-table; width: 100%; table-layout: fixed; ">
+						<tbody style="border-style: none;">
+							<tr style="border-style: none;">
+								<td style="padding: 0; margin: 0; width: 70%; ">
+									<table style="color: black; border-style: none; display: inline-table; width: 100%; ">
+										<tbody style="border-style: none;">
+											<tr style="border-style: none;">
+												<td style="border-bottom:solid; border-width: 1px; border-color:var(--fontDark); padding:0.2vmin 0.5vmin; text-align:center; ">
+													<textarea oninput="saveValues(); calculate();"
+														style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; padding-bottom: 0.25em; overflow:hidden;"
+														class="formulasTextarea use-keyboard-input"
+														id="WCACC">Crosswind component (kts)</textarea>
+												</td>
+											</tr>
+											<tr>
+												<td style="text-align:center; color: var(--fontDark); ">
+													<textarea oninput="saveValues();"
+														style="text-align: center; margin-left: 0; width: 100%; height: 1.5em; overflow:hidden;"
+														class="formulasTextarea use-keyboard-input" id="WCATSS">True self speed (kts)</textarea>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+								</td>
+								<td style="vertical-align:middle; text-align:center; width: 15%; ">·</td>
+								<td style="vertical-align:middle; text-align:center; width: 15%; ">60</td>
+							</tr>
+						</tbody>
+					</table>
+				</td>
+				<td style="vertical-align:middle; text-align:center; width: 10%; color: var(--fontDark); ">=</td>
+				<td style="vertical-align:middle; text-align:right; width: 15%; color: var(--fontDark); ">
+					<textarea oninput="saveValues(); calculate();"
+						style="text-align: right; margin-left: 0; width: 6em; height: 1.5em; padding-top: 0.13em; overflow:hidden; display: inline-block;"
+						readonly id="WCA"></textarea>&nbsp;°
+				</td>
+			</tr>
+		</table>
+	</div>
+
+</div>

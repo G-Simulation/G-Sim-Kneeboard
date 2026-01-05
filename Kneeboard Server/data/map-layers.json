@@ -1,0 +1,276 @@
+{
+  "mapSettings": {
+    "defaultZoom": 9,
+    "smoothSensitivity": 4.0
+  },
+  "defaultBaseLayer": "Streets",
+  "defaultOverlays": {
+    "OpenAip": "On",
+    "Aircraft": "On",
+    "Flightpath": "Off",
+    "Sectionals": "Off",
+    "Wind": "OpenWeatherMap",
+    "Weather": "On",
+    "Elevation Profile": "Off",
+    "ControlZones": "On",
+    "Online Pilots": "Off"
+  },
+  "aircraftScale": 1.0,
+  "windSettings": {
+    "gridSize": 5,
+    "maxSpeedForColor": 50,
+    "arrowSize": 24
+  },
+  "owmApiKey": "9de243494c0b295cca9337e1e96b00e2",
+  "scaleControl": {
+    "metric": true,
+    "imperial": false,
+    "nautic": true
+  },
+  "controlZoneSettings": {
+    "opacity": 0.3,
+    "colors": {
+      "CTR": "#1e3a5f",
+      "APP": "#0ea5e9",
+      "TWR": "#dc2626",
+      "GND": "#ca8a04",
+      "DEL": "#7c3aed",
+      "FSS": "#1e3a5f",
+      "MIL": "#16a34a",
+      "DEFAULT": "#64748b"
+    }
+  },
+  "baseLayers": [
+    {
+      "name": "Streets",
+      "type": "tileLayer",
+      "url": "{{OPENAIP_PROXY}}/api/tiles/osm/{z}/{x}/{y}.png",
+      "options": {
+        "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors",
+        "maxZoom": 19,
+        "minZoom": 0,
+        "crossOrigin": "anonymous",
+        "keepBuffer": 6,
+        "updateWhenIdle": false,
+        "updateWhenZooming": true,
+        "updateInterval": 100,
+        "maxNativeZoom": 19,
+        "errorTileUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+      }
+    },
+    {
+      "name": "Hybrid",
+      "type": "tileLayer",
+      "url": "{{OPENAIP_PROXY}}/api/tiles/google-hybrid/{z}/{x}/{y}.png",
+      "options": {
+        "attribution": "<a href='http://maps.google.com/'>Google</a> Maps Satellite",
+        "maxZoom": 21,
+        "minZoom": 0,
+        "crossOrigin": "anonymous",
+        "keepBuffer": 6,
+        "updateWhenIdle": false,
+        "updateWhenZooming": true,
+        "updateInterval": 100,
+        "maxNativeZoom": 21
+      }
+    },
+    {
+      "name": "Satellite",
+      "type": "tileLayer",
+      "url": "{{OPENAIP_PROXY}}/api/tiles/google-satellite/{z}/{x}/{y}.png",
+      "options": {
+        "attribution": "<a href='http://maps.google.com/'>Google</a> Maps Satellite",
+        "maxZoom": 21,
+        "minZoom": 0,
+        "crossOrigin": "anonymous",
+        "keepBuffer": 6,
+        "updateWhenIdle": false,
+        "updateWhenZooming": true,
+        "updateInterval": 100,
+        "maxNativeZoom": 21
+      }
+    },
+    {
+      "name": "Terrain",
+      "type": "tileLayer",
+      "url": "{{OPENAIP_PROXY}}/api/tiles/opentopomap/{z}/{x}/{y}.png",
+      "options": {
+        "attribution": "Map data: &copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors, <a href=\"http://viewfinderpanoramas.org\">SRTM</a> | Map style: &copy; <a href=\"https://opentopomap.org\">OpenTopoMap</a> (<a href=\"https://creativecommons.org/licenses/by-sa/3.0/\">CC-BY-SA</a>)",
+        "maxZoom": 17,
+        "minZoom": 0,
+        "keepBuffer": 6,
+        "updateWhenIdle": false,
+        "updateWhenZooming": true,
+        "updateInterval": 100,
+        "maxNativeZoom": 17
+      }
+    }
+  ],
+  "overlayGroups": [
+    {
+      "groupName": "OpenAip",
+      "layers": [
+        {
+          "name": "On",
+          "type": "tileLayer",
+          "url": "{{OPENAIP_PROXY}}/api/openaip/tiles/{z}/{x}/{y}.png",
+          "options": {
+            "attribution": "<a href=\"https://www.openaip.net/\">openAIP Data</a> (<a href=\"https://creativecommons.org/licenses/by-sa/3.0/\">CC-BY-NC-SA</a>)",
+            "minZoom": 7,
+            "maxZoom": 18,
+            "crossOrigin": "anonymous",
+            "keepBuffer": 4,
+            "updateWhenIdle": true,
+            "updateWhenZooming": false,
+            "maxNativeZoom": 18
+          }
+        },
+        {
+          "name": "Off",
+          "type": "tileLayer",
+          "url": "http://",
+          "options": {}
+        }
+      ]
+    },
+    {
+      "groupName": "Aircraft",
+      "layers": [
+        {
+          "name": "On",
+          "type": "tileLayer",
+          "url": "http://",
+          "options": {}
+        },
+        {
+          "name": "Off",
+          "type": "tileLayer",
+          "url": "http://",
+          "options": {}
+        }
+      ]
+    },
+    {
+      "groupName": "Flightpath",
+      "layers": [
+        {
+          "name": "On",
+          "type": "tileLayer",
+          "url": "http://",
+          "options": {}
+        },
+        {
+          "name": "Off",
+          "type": "tileLayer",
+          "url": "http://",
+          "options": {}
+        },
+        {
+          "name": "Reset",
+          "type": "tileLayer",
+          "url": "http://",
+          "options": {}
+        }
+      ]
+    },
+    {
+      "groupName": "Wind",
+      "layers": [
+        {
+          "name": "OpenWeatherMap",
+          "type": "tileLayer",
+          "url": "https://tile.openweathermap.org/map/wind_new/{z}/{x}/{y}.png?appid=9de243494c0b295cca9337e1e96b00e2",
+          "options": {
+            "opacity": 0.6,
+            "attribution": "&copy; OpenWeatherMap",
+            "minZoom": 3,
+            "maxZoom": 12,
+            "maxNativeZoom": 12
+          },
+          "default": true
+        },
+        {
+          "name": "Off",
+          "type": "tileLayer",
+          "url": "http://",
+          "options": {}
+        }
+      ]
+    },
+    {
+      "groupName": "Weather",
+      "layers": [
+        {
+          "name": "Clouds",
+          "type": "owmLayer",
+          "owmType": "clouds",
+          "options": {
+            "opacity": 0.5,
+            "showLegend": true,
+            "legendPosition": "bottomright",
+            "minZoom": 1,
+            "maxZoom": 12
+          }
+        },
+        {
+          "name": "Precipitation",
+          "type": "owmLayer",
+          "owmType": "precipitation",
+          "options": {
+            "opacity": 0.6,
+            "showLegend": true,
+            "legendPosition": "bottomright",
+            "minZoom": 1,
+            "maxZoom": 12
+          }
+        },
+        {
+          "name": "Temperature",
+          "type": "owmLayer",
+          "owmType": "temperature",
+          "options": {
+            "opacity": 0.6,
+            "showLegend": true,
+            "legendPosition": "bottomright",
+            "minZoom": 1,
+            "maxZoom": 12
+          }
+        },
+        {
+          "name": "Pressure",
+          "type": "owmLayer",
+          "owmType": "pressure",
+          "options": {
+            "opacity": 0.6,
+            "showLegend": true,
+            "legendPosition": "bottomright",
+            "minZoom": 1,
+            "maxZoom": 12
+          }
+        },
+        {
+          "name": "Off",
+          "type": "tileLayer",
+          "url": "http://",
+          "options": {}
+        }
+      ]
+    },
+    {
+      "groupName": "Control Zones",
+      "layers": [
+        {
+          "name": "On",
+          "type": "controlZones",
+          "options": {}
+        },
+        {
+          "name": "Off",
+          "type": "tileLayer",
+          "url": "http://",
+          "options": {}
+        }
+      ]
+    }
+  ]
+}

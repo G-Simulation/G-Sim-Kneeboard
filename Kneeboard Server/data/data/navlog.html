@@ -1,0 +1,881 @@
+<div id="navlog" class="tabcontent">
+	<table class="routeTable table-no-border">
+		<tbody class="tbody-no-border">
+			<tr>
+				<td class="bg-dark w-15" colspan="3">Aircraft&nbsp;reg.:</td>
+				<td colspan="3"><textarea id="Aircraft_reg" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm-left"></textarea>
+				</td>
+				<td class="bg-dark w-15" colspan="2">Date:</td>
+				<td colspan="3"><textarea id="Date" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm-left"></textarea>
+				</td>
+				<td class="bg-dark w-15" colspan="3">Pilot&nbsp;in&nbsp;com.:</td>
+				<td colspan="4"><textarea id="Pilot_in_com" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm-left"></textarea>
+				</td>
+			</tr>
+			<tr>
+				<td class="bg-dark" colspan="3">Block-out:</td>
+				<td colspan="3"><textarea id="Block_out" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm-left"></textarea>
+				</td>
+				<td class="bg-dark" colspan="2">Block-in:</td>
+				<td colspan="3"><textarea id="Block_in" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm-left"></textarea>
+				</td>
+				<td class="bg-dark" colspan="3">Log-time:</td>
+				<td colspan="4"><textarea id="Log-time" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm-left"></textarea>
+				</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<table class="routeTable table-mt">
+		<tbody>
+			<tr>
+				<td class="bg-dark w-12">Type&nbsp;of&nbsp;flight</td>
+				<td colspan="15" class="bg-dark td-border-none-left">Notes</td>
+			</tr>
+			<tr>
+				<td class="bg-light td-no-padding">
+					<button onclick="btnVFRClicked();" class="flightType flightType-active" id="vfr">VFR</button>
+				</td>
+				<td colspan="15" rowspan="3"><textarea id="Notes" oninput="saveValues();"
+						class="use-keyboard-input textarea-notes"></textarea></td>
+			</tr>
+			<tr>
+				<td colspan="1" class="bg-light td-no-padding">
+					<button onclick="btnIFRClicked();" class="flightType" id="ifr">IFR</button>
+				</td>
+			</tr>
+			<tr>
+				<td class="bg-light td-no-padding">
+					<button onclick="btnZYClicked();" class="flightType" id="zy">Z/Y</button>
+				</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<table class="routeTable table-mt table-no-border">
+		<tbody class="tbody-no-border">
+			<tr class="table-no-border">
+				<td class="td-no-border w-half">
+					<table class="table-no-border">
+						<th ondblclick="hideAdvisatories()" class="section-header" colspan="9">
+							Airport&nbsp;&&nbsp;ATIS&nbsp;Advisories</th>
+						<tbody id="advisatories">
+							<tr>
+								<td class="bg-dark" colspan="2">Departure</td>
+								<td class="bg-dark" colspan="5">Information</td>
+								<td class="bg-dark" colspan="2">Arrival</td>
+							</tr>
+							<tr>
+								<td colspan="2"><textarea id="Departure-ATIS" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="5">ATIS&nbsp;code</td>
+								<td colspan="2"><textarea id="Arrival-ATIS" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>							
+							<tr>
+								<td colspan="2"><textarea id="Departure-Transponder" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="5">Transponder</td>
+								<td colspan="2"><textarea id="Arrival-Transponder" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td colspan="2"><textarea id="Departure-Ceil" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="5">Ceiling&nbsp;&&nbsp;Visibility</td>
+								<td colspan="2"><textarea id="Arrival-Ceil" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+							</tr>
+							<tr>
+								<td colspan="2"><textarea id="Departure-Wind" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="5">Wind</td>
+								<td colspan="2"><textarea id="Arrival-Wind" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td colspan="2"><textarea id="Departure-Alt" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="5">Altimeter</td>
+								<td colspan="2"><textarea id="Arrival-Alt" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td colspan="2"><textarea id="Departure-Sid" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="5">Sid/Star</td>
+								<td colspan="2"><textarea id="Arrival-Star" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td colspan="2"><textarea id="Departure-RWY" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="5">Runway</td>
+								<td colspan="2"><textarea id="Arrival-RWY" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td colspan="2"><textarea id="Departure-TC" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="7">Time&nbsp;check</td>
+							</tr>
+						</tbody>
+					</table>
+				</td>
+				<td class="td-no-border w-half-pl">
+					<table class="table-no-border">
+						<th ondblclick="hideAdvisatories()" class="section-header" colspan="8">
+							Airport&nbsp;Frequency</th>
+						<tbody id="frequencys">
+							<tr>
+								<td class="bg-dark" colspan="4">Departure</td>
+								<td class="bg-dark" colspan="4">Arrival</td>
+							</tr>
+							<tr>
+
+								<td colspan="4"><textarea id="Departure-Name" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td colspan="4"><textarea id="Arrival-Name" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td class="bg-light" colspan="2">ATIS</td>
+								<td colspan="2"><textarea id="Departure-ATIS" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="2">ATIS</td>
+								<td colspan="2"><textarea id="Arrival-ATIS" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td class="bg-light" colspan="2">Delivery</td>
+								<td colspan="2"><textarea id="Departure-Delivery" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="2">FSS</td>
+								<td colspan="2"><textarea id="Arrival-FSS" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td class="bg-light" colspan="2">Ground</td>
+								<td colspan="2"><textarea id="Departure-Ground" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="2">Radar</td>
+								<td colspan="2"><textarea id="Arrival-Radar" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td class="bg-light" colspan="2">Tower</td>
+								<td colspan="2"><textarea id="Departure-Tower" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="2">Approach</td>
+								<td colspan="2"><textarea id="Arrival-Approach" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td class="bg-light" colspan="2">Departure</td>
+								<td colspan="2"><textarea id="Departure-Departure" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="2">Tower</td>
+								<td colspan="2"><textarea id="Arrival-Tower" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td class="bg-light" colspan="2">Radar</td>
+								<td colspan="2"><textarea id="Departure-Radar" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="2">Ground</td>
+								<td colspan="2"><textarea id="Arrival-Ground" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+							<tr>
+								<td class="bg-light" colspan="2">Field Elev.</td>
+								<td colspan="2"><textarea id="Departure-Elev" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+								<td class="bg-light" colspan="2">Field Elev.</td>
+								<td colspan="2"><textarea id="Arrival-Elev" oninput="saveValues();"
+										class="use-keyboard-input textarea-sm"></textarea>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<table class="routeTable table-mt">
+		<th id="clearanceHeader" ondblclick="hideClearance()" class="section-header" colspan="16">Clearance</th>
+		<tbody id="clearance">
+			<tr>
+				<td colspan="2" class="bg-light td-no-padding">
+					<b>C</b>learance
+				</td>
+				<td colspan="14" rowspan="1"><textarea id="Clearance-C" oninput="saveValues();"
+						class="use-keyboard-input textarea-clearance"></textarea>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="2" rowspan="1" class="bg-light td-no-padding">
+					<b>R</b>outing
+				</td>
+				<td colspan="14" rowspan="1" rowspan="1"><textarea id="Clearance-R" oninput="saveValues();"
+						class="use-keyboard-input textarea-clearance" ></textarea>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="2" class="bg-light td-no-padding">
+					<b>A</b>ltitude
+				</td>
+				<td colspan="14" rowspan="1"><textarea id="Clearance-A" oninput="saveValues();"
+						class="use-keyboard-input textarea-clearance"></textarea>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="2" class="bg-light td-no-padding">
+					<b>F</b>requenzy
+				</td>
+				<td colspan="14" rowspan="1"><textarea id="Clearance-F" oninput="saveValues();"
+						class="use-keyboard-input textarea-clearance"></textarea>
+				</td>
+			</tr>
+						<tr>
+				<td colspan="2" class="bg-light td-no-padding">
+					<b>T</b>ransponder
+				</td>
+				<td colspan="14" rowspan="1"><textarea id="Clearance-T" oninput="saveValues();"
+						class="use-keyboard-input textarea-clearance"></textarea>
+				</td>
+			</tr>
+
+		</tbody>
+	</table>
+
+<!-- VFR-->
+
+	<table class="routeTable table-mt" id="waypointsVFR">
+		<colgroup>
+			<col><col><col style="width: 20px;"><col><col><col><col><col><col><col><col><col><col><col><col><col><col>
+		</colgroup>
+		<th id="waypointsVFRHeader" ondblclick="hideWaypointsVFR()" class="section-header" colspan="17">Waypoints&nbsp;VFR</th>
+		<tbody id="waypointsVFRWaypoints">
+			<tr>
+				<td class="bg-light min-w-4em" rowspan="3">Check point</td>
+				<td class="bg-dark" rowspan="1">Navaid</td>
+				<td class="bg-dark" style="width: 20px;" rowspan="4">&nbsp;</td>
+				<td class="bg-light min-w-2-5em" rowspan="4">CRS</td>
+				<td class="bg-light min-w-3-5em" rowspan="4">ALT</td>
+				<td class="bg-dark" rowspan="2" colspan="2">Wind</td>
+				<td class="bg-light" rowspan="1">CAS</td>
+				<td class="bg-light" rowspan="2">TC</td>
+				<td class="bg-light" rowspan="2">TH</td>
+				<td class="bg-light" rowspan="2">MH</td>
+				<td class="bg-light min-w-2-5em" rowspan="4">CH</td>
+				<td class="bg-dark" rowspan="1">Dist.</td>
+				<td class="bg-dark" rowspan="2">&nbsp;&nbsp;&nbsp;GS&nbsp;&nbsp;&nbsp;&nbsp;</td>
+				<td class="bg-dark" rowspan="1" colspan="2">Time&nbsp;off</td>
+				<td class="bg-dark" rowspan="1">GPH</td>
+			</tr>
+
+			<tr>
+				<td class="bg-light">Ident.</td>
+				<td><textarea id="Waypoints-VFR-CAS" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td class="bg-light">Leg</td>
+				<td colspan="2"><textarea id="Waypoints-VFR-Time-off" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-GPH" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+
+			<tr>
+				<td class="bg-light">Freq.</td>
+				<td class="bg-light">Dir.</td>
+				<td class="bg-light">Vel.</td>
+				<td class="bg-light" rowspan="2">TAS</td>
+				<td class="bg-light" rowspan="2">&minus;L/+R<br>WCA</td>
+				<td class="bg-light" rowspan="2">&minus;E/+W<br>Var.</td>
+				<td class="bg-light" rowspan="2">Dev.</td>
+				<td class="bg-light">Rem.</td>
+				<td class="bg-light">Est.</td>
+				<td class="bg-light">ETE</td>
+				<td class="bg-light">ETA</td>
+				<td class="bg-light">Burn.</td>
+			</tr>
+
+			<tr>
+				<td rowspan="2"><textarea id="Waypoints-VFR-CP-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-md-ifr"></textarea></td>
+				<td><textarea id="Waypoints-VFR-Ident-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-ident"></textarea></td>
+				<td class="bg-light" colspan="2">Temp.</td>
+				<td><textarea id="Waypoints-VFR-Dist" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td class="bg-light">Act.</td>
+				<td class="bg-light">ATE</td>
+				<td class="bg-light">ATA</td>
+				<td class="bg-light">Rem.</td>
+			</tr>
+
+			<!--VFR Zeilenanfang-->
+			<tr data-waypoint-template="true">
+				<td><textarea id="Waypoints-VFR-Freq-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-ident"></textarea></td>
+				<td rowspan="2" class="rect"></td>
+				<td rowspan="2"><textarea id="Waypoints-VFR-CRS-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="2"><textarea id="Waypoints-VFR-ALT-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-Dir-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-Vel-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="2"><textarea id="Waypoints-VFR-TAS-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-TC-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-TH-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-MH-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="2"><textarea id="Waypoints-VFR-CH-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-Leg-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-GS-Est>-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-ETE-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-ETA-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-Burn-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+
+
+			<tr data-waypoint-template="true">
+				<td rowspan="2"><textarea id="Waypoints-VFR-CP-2" oninput="saveValues();"
+						class="use-keyboard-input waypoint-checkpoint textarea-md"></textarea></td>
+				<td><textarea id="Waypoints-VFR-Ident-2" oninput="saveValues();"
+						class="use-keyboard-input textarea-ident"></textarea></td>
+				<td colspan="2"><textarea id="Waypoints-VFR-Temp-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-WCA-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-Var-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-Dev-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-Dist-Rem-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-Act-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-ATE-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-ATA-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-VFR-Fuel-Rem-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+			<!--VFR Zeilenende--->
+
+
+			<tr data-waypoint-total="vfr">
+				<td><textarea id="Waypoints-VFR-Freq-Total" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td colspan="10" class="bg-light td-text-right">Totals:&nbsp;</td>
+				<td><textarea id="Waypoints-VFR-Total-Dist" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td class="bg-light w-20px">&nbsp;</td>
+				<td><textarea id="Waypoints-VFR-Total-Time" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td class="bg-light">&nbsp;</td>
+				<td><textarea id="Waypoints-VFR-Total-GPH" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+		</tbody>
+	</table>
+
+<!-- IFR -->
+
+	<table class="routeTable table-mt" id="waypointsIFR">
+		<colgroup>
+			<col><col><col style="width: 20px;"><col><col><col><col><col><col><col><col><col><col>
+		</colgroup>
+		<th ondblclick="hideWaypointsIFR()" class="section-header" colspan="13">Waypoints&nbsp;IFR</th>
+		<tbody id="waypointsIFRWaypoints">
+			<tr>
+				<td class="bg-light min-w-4em" rowspan="3">Check point</td>
+				<td class="bg-dark" rowspan="1">Navaid</td>
+				<td class="bg-dark" style="width: 20px;" rowspan="4">&nbsp;</td>
+				<td class="bg-light min-w-2-5em" rowspan="4">CRS</td>
+				<td class="bg-light min-w-3-5em" rowspan="4">ALT</td>
+				<td class="bg-dark" rowspan="2" colspan="2">Wind</td>
+				<td class="bg-light" rowspan="2">MH</td>
+				<td class="bg-dark" rowspan="1">Dist.</td>
+				<td class="bg-dark" rowspan="2">&nbsp;&nbsp;&nbsp;GS&nbsp;&nbsp;&nbsp;&nbsp;</td>
+				<td class="bg-dark" rowspan="1" colspan="2">Time&nbsp;off</td>
+				<td class="bg-dark" rowspan="1">GPH</td>
+			</tr>
+			<tr>
+				<td class="bg-light">Ident.</td>
+				<td class="bg-light">Leg</td>
+				<td colspan="2"><textarea id="Waypoints-IFR-Time-off" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-GPH" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+			<tr>
+				<td class="bg-light">Freq.</td>
+				<td class="bg-light">Dir.</td>
+				<td class="bg-light">Vel.</td>
+				<td class="bg-light" rowspan="2">Dev.</td>
+				<td class="bg-light">Rem.</td>
+				<td class="bg-light">Est.</td>
+				<td class="bg-light">ETE</td>
+				<td class="bg-light">ETA</td>
+				<td class="bg-light">Burn.</td>
+			</tr>
+			<tr>
+				<td rowspan="2"><textarea id="Waypoints-IFR-CP-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-md-ifr"></textarea></td>
+				<td><textarea id="Waypoints-IFR-Ident-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-ident"></textarea></td>
+				<td class="bg-light" colspan="2">Temp.</td>
+				<td><textarea id="Waypoints-IFR-Dist" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td class="bg-light">Act.</td>
+				<td class="bg-light">ATE</td>
+				<td class="bg-light">ATA</td>
+				<td class="bg-light">Rem.</td>
+			</tr>
+
+
+			<!-- IFR Zeilenanfang -->
+
+			<tr data-waypoint-template="true" class="waypoint-template-row">
+				<td><textarea id="Waypoints-IFR-Freq-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-ident"></textarea></td>
+				<td rowspan="2" class="rect"></td>
+				<td rowspan="2"><textarea id="Waypoints-IFR-CRS-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="2"><textarea id="Waypoints-IFR-ALT-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-Dir-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-Vel-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-MH-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-Leg-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-Est-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-ETE-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-ETA-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-Burn-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+
+			<tr data-waypoint-template="true">
+				<td rowspan="2"><textarea id="Waypoints-IFR-CP-2" oninput="saveValues();"
+						class="use-keyboard-input waypoint-checkpoint textarea-md-ifr"></textarea></td>
+				<td><textarea id="Waypoints-IFR-Ident-2" oninput="saveValues();"
+						class="use-keyboard-input textarea-ident"></textarea></td>
+				<td colspan="2"><textarea id="Waypoints-IFR-Temp-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-Dev-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-Dist-Rem-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-Act-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-ATE-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-ATA-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-IFR-Fuel-Rem-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+
+			<!-- IFR Zeilenende -->
+
+			<tr data-waypoint-total="ifr">
+
+				<td colspan="9" class="bg-light td-text-right">Totals:&nbsp;</td>
+				<td><textarea id="Waypoints-IFR-Total-Time-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td class="bg-light"></td>
+				<td><textarea id="Waypoints-IFR-Total-GPH-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+		</tbody>
+	</table>
+
+<!-- Z/Y -->
+
+	<table class="routeTable table-mt" id="waypointsZY">
+		<colgroup>
+			<col><col><col style="width: 20px;"><col><col><col><col><col><col><col><col><col><col><col><col><col><col>
+		</colgroup>
+		<th id="waypointsZYHeader" ondblclick="hideWaypointsZY()" class="section-header" colspan="17">Waypoints&nbsp;ZY</th>
+		<tbody id="waypointsZYWaypoints">
+			<tr>
+				<td class="bg-light min-w-4em" rowspan="3">Check point</td>
+				<td class="bg-dark" rowspan="1">Navaid</td>
+				<td class="bg-dark" style="width: 20px;" rowspan="4">&nbsp;</td>
+				<td class="bg-light min-w-2-5em" rowspan="4">CRS</td>
+				<td class="bg-light min-w-3-5em" rowspan="4">ALT</td>
+				<td class="bg-dark" rowspan="2" colspan="2">Wind</td>
+				<td class="bg-light" rowspan="1">CAS</td>
+				<td class="bg-light" rowspan="2">TC</td>
+				<td class="bg-light" rowspan="2">TH</td>
+				<td class="bg-light" rowspan="2">MH</td>
+				<td class="bg-light min-w-2-5em" rowspan="4">CH</td>
+				<td class="bg-dark" rowspan="1">Dist.</td>
+				<td class="bg-dark" rowspan="2">&nbsp;&nbsp;&nbsp;GS&nbsp;&nbsp;&nbsp;&nbsp;</td>
+				<td class="bg-dark" rowspan="1" colspan="2">Time&nbsp;off</td>
+				<td class="bg-dark" rowspan="1">GPH</td>
+			</tr>
+
+			<tr>
+				<td class="bg-light">Ident.</td>
+				<td><textarea id="Waypoints-ZY-CAS" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td class="bg-light">Leg</td>
+				<td colspan="2"><textarea id="Waypoints-ZY-Time-off" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-GPH" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+
+			<tr>
+				<td class="bg-light">Freq/Awy.</td>
+				<td class="bg-light">Dir.</td>
+				<td class="bg-light">Vel.</td>
+				<td class="bg-light" rowspan="2">TAS</td>
+				<td class="bg-light" rowspan="2">&minus;L/+R<br>WCA</td>
+				<td class="bg-light" rowspan="2">&minus;E/+W<br>Var.</td>
+				<td class="bg-light" rowspan="2">Dev.</td>
+				<td class="bg-light">Rem.</td>
+				<td class="bg-light">Est.</td>
+				<td class="bg-light">ETE</td>
+				<td class="bg-light">ETA</td>
+				<td class="bg-light">Burn.</td>
+			</tr>
+
+			<tr>
+				<td rowspan="2"><textarea id="Waypoints-ZY-CP-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-md"></textarea></td>
+				<td><textarea id="Waypoints-ZY-Ident-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-ident"></textarea></td>
+				<td class="bg-light" colspan="2">Temp.</td>
+				<td><textarea id="Waypoints-ZY-Dist" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td class="bg-light">Act.</td>
+				<td class="bg-light">ATE</td>
+				<td class="bg-light">ATA</td>
+				<td class="bg-light">Rem.</td>
+			</tr>
+
+			<!--ZY Zeilenanfang-->
+			<tr data-waypoint-template="true">
+				<td><textarea id="Waypoints-ZY-Freq-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-ident"></textarea></td>
+				<td rowspan="2" class="rect"></td>
+				<td rowspan="2"><textarea id="Waypoints-ZY-CRS-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="2"><textarea id="Waypoints-ZY-ALT-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-Dir-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-Vel-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="2"><textarea id="Waypoints-ZY-TAS-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-TC-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-TH-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-MH-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="2"><textarea id="Waypoints-ZY-CH-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-Leg-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-GS-Est>-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-ETE-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-ETA-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-Burn-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+
+
+			<tr data-waypoint-template="true">
+				<td rowspan="2"><textarea id="Waypoints-ZY-CP-2" oninput="saveValues();"
+						class="use-keyboard-input waypoint-checkpoint textarea-md"></textarea></td>
+				<td><textarea id="Waypoints-ZY-Ident-2" oninput="saveValues();"
+						class="use-keyboard-input textarea-ident"></textarea></td>
+				<td colspan="2"><textarea id="Waypoints-ZY-Temp-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-WCA-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-Var-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-Dev-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-Dist-Rem-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-Act-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-ATE-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-ATA-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Waypoints-ZY-Fuel-Rem-1" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+			<!--ZY Zeilenende--->
+
+
+			<tr data-waypoint-total="zy">
+				<td><textarea id="Waypoints-ZY-Freq-Total" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td colspan="10" class="bg-light td-text-right">Totals:&nbsp;</td>
+				<td><textarea id="Waypoints-ZY-Total-Dist" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td class="bg-light w-20px">&nbsp;</td>
+				<td><textarea id="Waypoints-ZY-Total-Time" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td class="bg-light">&nbsp;</td>
+				<td><textarea id="Waypoints-ZY-Total-GPH" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+		</tbody>
+	</table>
+
+	<table class="routeTable table-mt">
+		<th ondblclick="hideFlightPlan()" class="section-header" colspan="7">Flight&nbsp;Plan</th>
+		<tbody id="flightPlan">
+			<tr>
+				<td rowspan="2" class="bg-light">Aircraft Identification</td>
+				<td rowspan="2" class="bg-light">Aircraft&nbsp;Type Equipment</td>
+				<td rowspan="2" class="bg-light">True&nbsp;Airspeed</td>
+				<td rowspan="2" class="bg-light">Departure&nbsp;Point</td>
+				<td colspan="2" class="bg-dark">Departure&nbsp;Time</td>
+				<td rowspan="2" class="bg-light">Cruising&nbsp;Altitude</td>
+			</tr>
+			<tr>
+				<td class="bg-light w-12">Est.(UTC)</td>
+				<td class="bg-light w-12">Act.(UTC)</td>
+			</tr>
+			<tr>
+				<td rowspan="3"><textarea style= " height: 3.5em;" id="Aircraft-identification" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="3"><textarea style= " height: 3.5em;" id="Aircraft-Type-Equipment" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="3"><textarea style= " height: 3.5em;" id="True-Airspeed" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="3"><textarea style= " height: 3.5em;" id="Departure-Point" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="3"><textarea style= " height: 3.5em;" id="Dep-Est" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="3"><textarea style= " height: 3.5em;" id="Dep-Act" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="3"><textarea style= " height: 3.5em;" id="Cruise-Alt" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+			<tr></tr>
+			<tr></tr>
+			<tr>
+				<td colspan="7" class="bg-light">Route&nbsp;of&nbsp;flight</td>
+			</tr>
+			<tr>
+				<td colspan="7"><textarea id="Route-of-flight" oninput="saveValues();"
+						class="use-keyboard-input textarea-route"></textarea></td>
+			</tr>
+		</tbody>
+	</table>
+
+	<table class="routeTable table-mt">
+		<th ondblclick="hideDestination()" class="section-header" colspan="8">Destination</th>
+		<tbody id="destination">
+			<tr>
+				<td rowspan="2" class="bg-light w-30">Destination airport</td>
+				<td colspan="2" class="bg-dark">Estimated&nbsp;time&nbsp;enroute</td>
+				<td colspan="5" class="bg-light">Remarks</td>
+			</tr>
+			<tr>
+				<td class="bg-light w-12">Hours</td>
+				<td class="bg-light w-12">Minutes</td>
+				<td colspan="5" rowspan="4"><textarea id="Destination-Remarks" oninput="saveValues();"
+						class="use-keyboard-input textarea-remarks"></textarea></td>
+			</tr>
+			<tr>
+				<td rowspan="3"><textarea  style="height: 3.5em;" id="Destination-Airport" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="3"><textarea id="Destination-Hours" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="3"><textarea id="Destination-Minutes" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea>
+				</td>
+			</tr>
+			<tr></tr>
+			<tr></tr>
+		</tbody>
+	</table>
+
+	<table class="routeTable table-mt">
+		<th ondblclick="hideAlternate()" class="section-header" colspan="8">Alternate</th>
+		<tbody id="alternate">
+			<tr>
+				<td rowspan="2" class="bg-light w-30">Alternate airport</td>
+				<td colspan="2" class="bg-dark">Fuel&nbsp;on&nbsp;board</td>
+				<td colspan="5" class="bg-light">Alternate&nbsp;route</td>
+			</tr>
+			<tr>
+				<td class="bg-light w-12">Hours</td>
+				<td class="bg-light w-12">Minutes</td>
+				<td colspan="5" rowspan="4"><textarea id="Alternate-Route" oninput="saveValues();"
+						class="use-keyboard-input textarea-remarks"></textarea></td>
+			</tr>
+			<tr>
+				<td rowspan="3" ><textarea  id="Alternate-Airport" style="height: 3.5em;" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="3" ><textarea id="Alternate-Hours" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td rowspan="3" ><textarea id="Alternate-Minutes" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea>
+				</td>
+			</tr>
+			<tr></tr>
+			<tr></tr>
+		</tbody>
+	</table>
+
+	<table class="routeTable table-mt">
+		<th ondblclick="hideWeatherLog()" class="section-header" colspan="7">Weather&nbsp; Log</th>
+		<tbody id="weatherLog">
+			<tr>
+				<td class="bg-dark" rowspan="2" colspan="1"></td>
+				<td class="bg-dark" rowspan="1" colspan="2">Ceiling&nbsp;/&nbsp;Visibility&nbsp;/&nbsp;Precipitation</td>
+				<td rowspan="2" class="bg-light">Winds aloft</td>
+				<td rowspan="2" class="bg-light">Icing&nbsp;and<br>freezing&nbsp;level</td>
+				<td rowspan="2" class="bg-light">Turbulance&nbsp;and<br>Cloud&nbsp;tops</td>
+				<td rowspan="2" class="bg-light">Position&nbsp;of&nbsp;fronts<br>Low&nbsp;and&nbsp;Highs</td>
+			</tr>
+			<tr>
+				<td class="bg-light w-15">Reported</td>
+				<td class="bg-light w-15">Forecast</td>
+			</tr>
+			<tr>
+				<td class="bg-light td-border-none-right">Departure</td>
+				<td><textarea id="Weather-Log-Dep-Rep" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Dep-Fore" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Dep-Winds" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Dep-Ice" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Dep-Turb" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Dep-Pos" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+			<tr>
+				<td class="bg-light td-border-none-right">Enroute</td>
+				<td><textarea id="Weather-Log-Enr-Rep" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Enr-Fore" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Enr-Winds" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Enr-Ice" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Enr-Turb" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Enr-Pos" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+			<tr>
+				<td class="bg-light td-border-none-right">Arrival</td>
+				<td><textarea id="Weather-Log-Arr-Rep" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Arr-Fore" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Arr-Winds" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Arr-Ice" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Arr-Turb" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Arr-Pos" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+			<tr>
+				<td class="bg-light td-border-none-right">Alternate</td>
+				<td><textarea id="Weather-Log-Alt-Rep" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Alt-Fore" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Alt-Winds" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Alt-Ice" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Alt-Turb" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+				<td><textarea id="Weather-Log-Alt-Pos" oninput="saveValues();"
+						class="use-keyboard-input textarea-sm"></textarea></td>
+			</tr>
+		</tbody>
+	</table>
+
+	<table class="routeTable table-mt">
+		<th ondblclick="hideNotam()" class="section-header" colspan="8">Notes&nbsp;or&nbsp;NOTAM</th>
+		<tbody id="notam">
+			<tr>
+				<td colspan="8"><textarea id="Notam" oninput="saveValues();"
+						class="use-keyboard-input textarea-notam"></textarea></td>
+			</tr>
+		</tbody>
+	</table>
+</div>

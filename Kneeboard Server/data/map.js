@@ -1,0 +1,25242 @@
+// VERSION MARKER - Wird beim Laden der Datei geloggt um Cache-Probleme zu erkennen
+var MAP_JS_VERSION = "2025-12-19-v2.0";
+
+// Zentraler Logger - nutzt KneeboardLogger falls verfügbar
+var mapLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Map', { minLevel: 'INFO' })
+    : { info: function(){}, warn: console.warn.bind(console), error: console.error.bind(console) };
+
+// ============================================================================
+// SVG ICON HELPER - Returns SVG icon with optional color and size
+// ============================================================================
+function getIcon(name, options) {
+  options = options || {};
+  var color = options.color || 'currentColor';
+  var size = options.size || 18;
+  var svg = (typeof cssggSvg !== 'undefined' && cssggSvg[name]) ? cssggSvg[name] : '';
+  if (!svg) {
+    console.warn('[Icon] Unknown icon: ' + name);
+    return '<span style="font-size:10px;">' + name + '</span>';
+  }
+  // Replace size and color
+  svg = svg.replace(/width="24"/g, 'width="' + size + '"');
+  svg = svg.replace(/height="24"/g, 'height="' + size + '"');
+  svg = svg.replace(/fill="currentColor"/g, 'fill="' + color + '"');
+  return svg;
+}
+
+function btnIcon(name, label, options) {
+  options = options || {};
+  var color = options.color || 'currentColor';  // Use currentColor so CSS can control the color
+  var size = options.size || 18;
+  return '<span class="btn-icon">' + getIcon(name, {color: color, size: size}) + '</span>' +
+         '<span class="backButton">' + label + '</span>';
+}
+
+/**
+ * Updates the Settings icon color to match the current theme
+ * SVG data URLs don't support CSS variables, so we generate the SVG dynamically
+ */
+function updateSettingsIconColor(color) {
+  // Remove # from hex color and encode for SVG URL
+  var encodedColor = encodeURIComponent(color || '#205d8e');
+  var svgIcon = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='" + encodedColor + "'%3E%3Cpath d='M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z'/%3E%3C/svg%3E\")";
+  document.documentElement.style.setProperty('--settings-icon', svgIcon);
+}
+var DEBUG_CONFIG = {
+  DISABLE_ALL_LOGS: false,
+  
+  MAP: true,
+  MAP_DEBUG: true,
+  CENTER: false,
+  CACHE: false,
+  
+  NAVLOG: false,
+  NAVLOG_DEBUG: false,
+  NAVLOG_SUMMARY: false,
+  
+  OFP: true,
+  OFP_DEBUG: true,
+  OFP_MAPPING: true,
+  OFP_COMPUTED: false,
+  OFP_ENRICHMENT: false,
+  
+  RUNWAY: true,
+  WAYPOINTS: true,
+  ELEVATION: false,
+  
+  SIMCONNECT: false,
+  SIMBRIEF: false,
+  
+  WIND: false,
+  CONTROLZONES: false,
+  CZ: false,
+  CZ_POPUP: false,
+  
+  TELEPORT: false,
+  FREQUENCY: false,
+  FREQUENCY_MENU: false,
+  
+  CONTROLLER: false,
+  FAVORITES: false,
+  HOVER_ROUTE: false,
+  METAR: false,
+  ATIS: false,
+  
+  KNEEBOARD: false,
+  PERF: false,
+  FORMULAS: false,
+  BRIDGE: false,
+  INIT: false,
+  
+  API: false,
+  STATE: false,
+  EVENT: false,
+  POLYFILLS: false,
+  ICON: false
+};
+
+var DISABLE_ALL_LOGS = DEBUG_CONFIG.DISABLE_ALL_LOGS;
+var MAP_DEBUG = DEBUG_CONFIG.MAP;
+var WIND_DEBUG = DEBUG_CONFIG.WIND;
+var CZ_DEBUG = DEBUG_CONFIG.CZ;
+var FREQ_DEBUG = DEBUG_CONFIG.FREQ;
+var RUNWAY = DEBUG_CONFIG.RUNWAY;
+var RUNWAY_DEBUG = DEBUG_CONFIG.RUNWAY_DEBUG || false;
+
+function log(category, message, level) {
+  level = level || 'info';
+  if (DEBUG_CONFIG.DISABLE_ALL_LOGS) return;
+  
+  var category_upper = category.toUpperCase().replace(/\s+/g, '_');
+  if (!DEBUG_CONFIG[category_upper] && !DEBUG_CONFIG[category]) return;
+  
+  var timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+  var prefix = '[' + timestamp + '] [' + category + ']';
+  
+  switch(level) {
+    case 'error': console.error(prefix, message); break;
+    case 'warn': console.warn(prefix, message); break;
+    default: console.log(prefix, message);
+  }
+}
+
+function shouldLog(category) {
+  if (DEBUG_CONFIG.DISABLE_ALL_LOGS) return false;
+  var category_upper = category.toUpperCase().replace(/\s+/g, '_');
+  return DEBUG_CONFIG[category_upper] || DEBUG_CONFIG[category] || false;
+}
+
+if (DISABLE_ALL_LOGS) {
+  console.log = function() {};
+  console.warn = function() {};
+  console.info = function() {};
+}
+
+// Canvas-Renderer für bessere Performance bei vielen Polygonen (Offline-Zonen)
+var czCanvasRenderer = null; // Initialisiert nach map-Erstellung
+
+// Douglas-Peucker Polygon-Simplification für Performance
+function simplifyPolygon(coords, tolerance) {
+  if (!coords || coords.length < 4) return coords;
+
+  function perpDist(p, a, b) {
+    var dx = b[0] - a[0], dy = b[1] - a[1];
+    var mag = dx * dx + dy * dy;
+    if (mag === 0) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+    var t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / mag));
+    return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+  }
+
+  function dp(pts, tol) {
+    if (pts.length <= 2) return pts;
+    var maxD = 0, maxI = 0;
+    for (var i = 1; i < pts.length - 1; i++) {
+      var d = perpDist(pts[i], pts[0], pts[pts.length - 1]);
+      if (d > maxD) { maxD = d; maxI = i; }
+    }
+    if (maxD > tol) {
+      var left = dp(pts.slice(0, maxI + 1), tol);
+      var right = dp(pts.slice(maxI), tol);
+      return left.slice(0, -1).concat(right);
+    }
+    return [pts[0], pts[pts.length - 1]];
+  }
+
+  return dp(coords, tolerance);
+}
+
+// Vereinfache ein GeoJSON Feature für bessere Rendering-Performance
+function simplifyFeature(feature, tolerance) {
+  if (!feature || !feature.geometry || !feature.geometry.coordinates) return feature;
+  var g = feature.geometry;
+  var simplified = JSON.parse(JSON.stringify(feature));
+  if (g.type === 'Polygon' && g.coordinates[0]) {
+    simplified.geometry.coordinates[0] = simplifyPolygon(g.coordinates[0], tolerance);
+  } else if (g.type === 'MultiPolygon') {
+    simplified.geometry.coordinates = g.coordinates.map(function(poly) {
+      return poly[0] ? [simplifyPolygon(poly[0], tolerance)] : poly;
+    });
+  }
+  return simplified;
+}
+
+// TWR/GND/DEL circle sizes (used in multiple places)
+var CZ_CIRCLE_SIZES = [
+  { type: 'TWR', radius: 29632 },  // 16 nautical miles
+  { type: 'GND', radius: 22224 },  // 12 nautical miles
+  { type: 'DEL', radius: 14816 }   // 8 nautical miles
+];
+var browserDebug = 0;    // Set to 1 to disable postMessage to parent (for browser debugging)
+
+// Elevation Panel Konfiguration
+var ELEVATION_PANEL_MIN_HEIGHT_RATIO = 0.25;  // 35% of viewport
+
+
+// ============================================================================
+// ABORT CONTROLLER POLYFILL - Für Coherent GT und ältere Browser
+// ============================================================================
+if (typeof AbortController === 'undefined') {
+  window.AbortController = function() {
+    this.signal = { aborted: false };
+    this.abort = function() { this.signal.aborted = true; };
+  };
+  if (MAP_DEBUG) console.log('[Polyfill] AbortController polyfill installed');
+}
+
+// ============================================================================
+// STATE MACHINE - Ersetzt alle Legacy Flags
+// ============================================================================
+
+var FlightplanLoadState = {
+  IDLE: 'idle',
+  CHECKING_SERVER: 'checking_server',
+  LOADING_CACHE: 'loading_cache',
+  LOADING_SERVER: 'loading_server',
+  CENTERING_AIRCRAFT: 'centering_aircraft',
+  CENTERING_FLIGHTPLAN: 'centering_flightplan',
+  ANIMATING_WAYPOINTS: 'animating_waypoints',
+  SHOWING_ELEVATION: 'showing_elevation',
+  ACTIVATING_WIND: 'activating_wind',
+  READY: 'ready'
+};
+
+var currentFlightplanState = FlightplanLoadState.IDLE;
+var stateTransitionHistory = [];
+var DEGREE_SYMBOL = String.fromCharCode(176);
+
+function transitionToState(newState, reason) {
+  var oldState = currentFlightplanState;
+  currentFlightplanState = newState;
+  stateTransitionHistory.push({
+    from: oldState,
+    to: newState,
+    reason: reason || 'no reason',
+    timestamp: Date.now()
+  });
+  if (MAP_DEBUG) {
+    console.log('[State] ' + oldState + ' → ' + newState + (reason ? ' (' + reason + ')' : ''));
+  }
+}
+
+function isFlightplanAnimating() {mas
+  return currentFlightplanState === FlightplanLoadState.ANIMATING_WAYPOINTS ||
+         currentFlightplanState === FlightplanLoadState.SHOWING_ELEVATION;
+}
+
+function isFlightplanLoading() {
+  return currentFlightplanState === FlightplanLoadState.CHECKING_SERVER ||
+         currentFlightplanState === FlightplanLoadState.LOADING_CACHE ||
+         currentFlightplanState === FlightplanLoadState.LOADING_SERVER;
+}
+
+function isMapReady() {
+  return currentFlightplanState === FlightplanLoadState.READY;
+}
+
+// Minimal state for critical compatibility
+window.aircraftPositionInitialized = false;
+window.syncButtonLockedUntilServerFlightplan = false;
+window.pendingSyncButtonEnable = false; // Flag for delayed enable when toggle5 doesn't exist yet
+// Restore autoload block flag from localStorage (persists across page reloads)
+window.autoloadBlockedUntilNewFlightplan = (function() {
+  try {
+    return localStorage.getItem('autoloadBlockedUntilNewFlightplan') === 'true';
+  } catch (e) {
+    return false;
+  }
+})();
+
+// SimBrief Sync State
+var simbriefIdAvailable = false;
+var currentFlightplanAbortController = null;
+var updateCheckInterval = null;
+var UPDATE_CHECK_INTERVAL_MS = 180000; // 3 minutes
+
+// ============================================================================
+// EVENT-BASIERTE ANIMATION: Ersetzt setTimeout durch Custom Events
+// ============================================================================
+var FLIGHTPLAN_EVENTS = {
+  ANIMATION_START: 'flightplan:animation-start',
+  ANIMATION_COMPLETE: 'flightplan:animation-complete',
+  ELEVATION_UPDATED: 'flightplan:elevation-updated',
+  MAP_CENTERED: 'flightplan:map-centered',
+  MARKERS_READY: 'flightplan:markers-ready'
+};
+
+/**
+ * Emittiert ein Flightplan-Event
+ * @param {string} eventName - Event-Name aus FLIGHTPLAN_EVENTS
+ * @param {object} detail - Optionale Event-Details
+ */
+function emitFlightplanEvent(eventName, detail) {
+  if (MAP_DEBUG) log('MAP_EVENT', eventName, detail ? JSON.stringify(detail) : '');
+  window.dispatchEvent(new CustomEvent(eventName, { detail: detail || {} }));
+}
+
+/**
+ * Zentriert die Karte auf einen Flugplan (1..n Wegpunkte)
+ * @param {Array} flightplanData - Array mit {lat,lng}
+ * @param {object} options - { animate?: boolean, singleZoom?: number }
+ * @returns {boolean} true wenn Zentrierung durchgeführt wurde
+ */
+function centerMapOnFlightplanBounds(flightplanData, options) {
+  if (!map || !flightplanData || !flightplanData.length) return false;
+  options = options || {};
+  try {
+    map.invalidateSize({ pan: false });
+    var coords = [];
+    flightplanData.forEach(function(wp) {
+      var lat = parseFloat(wp.lat);
+      var lng = parseFloat(wp.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        coords.push(L.latLng(lat, lng));
+      }
+    });
+    if (!coords.length) return false;
+    var bounds = L.latLngBounds(coords);
+    if (!bounds.isValid()) return false;
+    if (coords.length === 1) {
+      var targetZoom = options.singleZoom || Math.min(map.getMaxZoom ? map.getMaxZoom() : 10, 12);
+      map.setView(bounds.getCenter(), targetZoom);
+    } else {
+      var defaultPadding = options.padding || [50, 50];
+      var fitOptions = {
+        maxZoom: typeof options.maxZoom === 'number' ? options.maxZoom : 13,
+        animate: options.animate === true
+      };
+      var customPadding =
+        options.paddingTop !== undefined ||
+        options.paddingBottom !== undefined ||
+        options.paddingLeft !== undefined ||
+        options.paddingRight !== undefined;
+      if (customPadding) {
+        fitOptions.paddingTopLeft = [
+          options.paddingLeft !== undefined ? options.paddingLeft : defaultPadding[0],
+          options.paddingTop !== undefined ? options.paddingTop : defaultPadding[1]
+        ];
+        fitOptions.paddingBottomRight = [
+          options.paddingRight !== undefined ? options.paddingRight : defaultPadding[0],
+          options.paddingBottom !== undefined ? options.paddingBottom : defaultPadding[1]
+        ];
+      } else {
+        fitOptions.padding = defaultPadding;
+      }
+      map.fitBounds(bounds, fitOptions);
+    }
+    if (MAP_DEBUG) console.log('[Map] Centered on flightplan bounds (', coords.length, 'waypoints)');
+    return true;
+  } catch (e) {
+    console.warn('[Map] Error centering on flightplan bounds:', e);
+    return false;
+  }
+}
+
+/**
+ * Centers the map on the current aircraft position.
+ * Returns true if centering succeeded, false otherwise.
+ */
+function centerMapOnAircraft(reason) {
+  if (!map) {
+    if (MAP_DEBUG) console.log('[Center] Cannot center - map not ready');
+    return false;
+  }
+
+  if (!window.aircraftPositionInitialized && !hasCachedAircraftPosition) {
+    if (MAP_DEBUG) console.log('[Center] Cannot center - aircraft position not received from simulator yet and no cached position');
+    return false;
+  }
+
+  var lat = parseFloat(pos_lat);
+  var lng = parseFloat(pos_lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    if (MAP_DEBUG) console.log('[Center] Cannot center - invalid aircraft position');
+    return false;
+  }
+
+  if (currentFlightplanState === FlightplanLoadState.ANIMATING_WAYPOINTS ||
+      currentFlightplanState === FlightplanLoadState.CENTERING_FLIGHTPLAN) {
+    if (MAP_DEBUG) console.log('[Center] Skipping aircraft center - flightplan active');
+    return false;
+  }
+
+  try {
+    var pos = new L.LatLng(lat, lng);
+    map.setView(pos);
+    if (MAP_DEBUG) {
+      var source = window.aircraftPositionInitialized ? 'live' : 'cached';
+      console.log('[Center] Aircraft (' + source + ')' + (reason ? ' (' + reason + ')' : '') + ':', lat.toFixed(4), lng.toFixed(4));
+    }
+    return true;
+  } catch (err) {
+    if (MAP_DEBUG) console.warn('[Center] Error:', err);
+    return false;
+  }
+}
+
+function preCenterMapOnFlightplan(flightplanData, reason) {
+  if (!flightplanData || !flightplanData.length) {
+    return false;
+  }
+  if (MAP_DEBUG) console.log('[Center] Pre-centering on flightplan' + (reason ? ' (' + reason + ')' : ''));
+  return centerMapOnFlightplanBounds(flightplanData, { animate: false, maxZoom: 13 });
+}
+
+function centerFlightplanWithElevationPadding() {
+  if (!map || !flightplan || !flightplan.length) {
+    return false;
+  }
+
+  // Elevation profile is a separate panel below the map, no extra padding needed
+  var options = {
+    animate: false,
+    maxZoom: 13,
+    padding: [50, 50]  // Equal padding on all sides
+  };
+
+  return centerMapOnFlightplanBounds(flightplan, options);
+}
+
+function disableSyncButton(reason) {
+  if (typeof toggle5 !== 'undefined' && toggle5 && typeof toggle5.disable === 'function') {
+    toggle5.disable();
+    if (MAP_DEBUG && reason) console.log('[Map] Sync button disabled (' + reason + ')');
+  }
+}
+
+function enableSyncButtonIfAllowed(reason) {
+  if (window.syncButtonLockedUntilServerFlightplan) {
+    if (MAP_DEBUG) console.log('[Map] Sync button remains locked' + (reason ? ' (' + reason + ')' : ''));
+    return;
+  }
+  if (typeof toggle5 !== 'undefined' && toggle5 && typeof toggle5.enable === 'function') {
+    toggle5.enable();
+    if (MAP_DEBUG && reason) console.log('[Map] Sync button enabled (' + reason + ')');
+  } else {
+    // Button doesn't exist yet - set flag for delayed enable when button is created
+    window.pendingSyncButtonEnable = true;
+    if (MAP_DEBUG) console.log('[Map] Sync button enable pending (' + reason + ')');
+  }
+}
+
+// JavaScript-based pulse animation for Coherent GT compatibility (CSS animations don't work reliably)
+var syncPulseInterval = null;
+var syncPulseState = 0;
+var syncPulseBaseScale = null;
+
+function startSyncButtonPulse() {
+  if (typeof toggle5 !== 'undefined' && toggle5) {
+    // Try button first, then _container as fallback
+    var container = toggle5.button || toggle5._container;
+    if (container) {
+      // Stop any existing animation
+      if (syncPulseInterval) {
+        clearInterval(syncPulseInterval);
+      }
+      syncPulseState = 0;
+
+      // Find the SVG icon - try multiple selectors
+      var svg = container.querySelector('svg') || container.querySelector('.btn-icon svg');
+
+      // JavaScript-based animation using setInterval
+      syncPulseInterval = setInterval(function() {
+        syncPulseState = (syncPulseState + 1) % 20; // 20 steps for smooth animation
+
+        // Calculate progress based on state (sine wave pattern: 0 to 1 to 0)
+        var progress = Math.sin(syncPulseState * Math.PI / 10);
+        var opacity = 0.7 + (0.3 * progress);
+
+        // Interpolate color from gray (128,128,128) to green (34,197,94)
+        var r = Math.round(128 + (34 - 128) * progress);
+        var g = Math.round(128 + (197 - 128) * progress);
+        var b = Math.round(128 + (94 - 128) * progress);
+        var color = 'rgb(' + r + ',' + g + ',' + b + ')';
+
+        // Scale for bounce effect
+        var scaleFactor = 1.0 + (0.15 * progress);
+
+        // Apply to SVG if found
+        if (svg) {
+          svg.style.opacity = opacity;
+          svg.style.transform = 'scale(' + scaleFactor + ')';
+          svg.style.transformOrigin = 'center center';
+          // Change fill color of all path elements inside SVG
+          var paths = svg.querySelectorAll('path');
+          for (var i = 0; i < paths.length; i++) {
+            paths[i].style.fill = color;
+          }
+        }
+
+        // Also pulse the container background as fallback visual feedback
+        container.style.backgroundColor = 'rgba(' + r + ',' + g + ',' + b + ',' + (0.2 + 0.1 * progress) + ')';
+      }, 125); // 125ms interval = 2.5s full cycle (20 * 125ms)
+
+      if (MAP_DEBUG) console.log('[Map] Sync button JS pulse started, svg found:', !!svg);
+    } else if (MAP_DEBUG) {
+      console.log('[Map] Sync button pulse: no button/container found');
+    }
+  } else {
+    // toggle5 doesn't exist yet, set flag to start pulse when created
+    window.pendingSyncButtonPulse = true;
+    if (MAP_DEBUG) console.log('[Map] Sync button pulse pending (button not yet created)');
+  }
+}
+
+/**
+ * Sets sync button to static ORANGE color (NO pulsing/animation)
+ * Used when server has a flightplan ready but user hasn't retrieved it yet
+ * Orange indicates "data ready on server" vs Green (pulsing) which indicates "update available on SimBrief"
+ */
+function setSyncButtonOrange() {
+  if (typeof toggle5 !== 'undefined' && toggle5) {
+    // Try button first, then _container as fallback
+    var container = toggle5.button || toggle5._container;
+    if (container) {
+      // Stop any existing pulse animation first
+      if (syncPulseInterval) {
+        clearInterval(syncPulseInterval);
+        syncPulseInterval = null;
+      }
+
+      // Find the SVG icon - try multiple selectors
+      var svg = container.querySelector('svg') || container.querySelector('.btn-icon svg');
+
+      // Set static ORANGE color (255,165,0) - NO animation
+      if (svg) {
+        svg.style.opacity = '1';
+        svg.style.transform = '';
+        svg.style.transformOrigin = '';
+        // Change fill color of all path elements inside SVG to orange
+        var paths = svg.querySelectorAll('path');
+        for (var i = 0; i < paths.length; i++) {
+          paths[i].style.fill = 'rgb(255,165,0)';
+        }
+      }
+
+      // Set container background to subtle orange
+      container.style.backgroundColor = 'rgba(255,165,0,0.25)';
+
+      // Mark that orange state is active
+      window.syncButtonOrangeActive = true;
+
+      if (MAP_DEBUG) console.log('[Map] Sync button set to ORANGE (server has flightplan ready)');
+    } else if (MAP_DEBUG) {
+      console.log('[Map] Sync button orange: no button/container found');
+    }
+  } else {
+    // toggle5 doesn't exist yet, set flag to apply orange when button is created
+    window.pendingSyncButtonOrange = true;
+    if (MAP_DEBUG) console.log('[Map] Sync button ORANGE pending (button not yet created)');
+  }
+}
+
+function stopSyncButtonPulse() {
+  // Stop JavaScript animation
+  if (syncPulseInterval) {
+    clearInterval(syncPulseInterval);
+    syncPulseInterval = null;
+  }
+  // Clear pending flags
+  window.pendingSyncButtonOrange = false;
+  window.syncButtonOrangeActive = false;
+
+  if (typeof toggle5 !== 'undefined' && toggle5) {
+    // Only clear pending flag if button exists (animation was actually running)
+    window.pendingSyncButtonPulse = false;
+
+    // Try button first, then _container as fallback
+    var container = toggle5.button || toggle5._container;
+    if (container) {
+      // Reset overflow styles
+      container.style.overflow = '';
+      var iconContainer = container.querySelector('.btn-icon');
+      if (iconContainer) iconContainer.style.overflow = '';
+      var buttonState = container.querySelector('.button-state');
+      if (buttonState) buttonState.style.overflow = '';
+
+      // New icon system: look for .btn-icon containing SVG, fallback to legacy .gg-repeat
+      var icon = iconContainer ? (iconContainer.querySelector('svg') || iconContainer) : container.querySelector('.gg-repeat');
+      if (icon) {
+        // Reset to original styles
+        icon.style.opacity = '';
+        icon.style.transform = '';
+        icon.style.transformOrigin = '';
+        if (icon.tagName === 'svg' || icon.tagName === 'SVG') {
+          icon.style.fill = '';
+          // IMPORTANT: Also reset path fill colors that were set during animation
+          var paths = icon.querySelectorAll('path');
+          for (var i = 0; i < paths.length; i++) {
+            paths[i].style.fill = '';
+          }
+        } else {
+          icon.style.color = '';
+          icon.style.boxShadow = '';
+        }
+        if (MAP_DEBUG) console.log('[Map] Sync button JS pulse stopped');
+      }
+
+      // Reset container background color
+      container.style.backgroundColor = '';
+    }
+  }
+  // If toggle5 doesn't exist, keep pendingSyncButtonPulse flag so animation
+  // can start when button is created (unless explicitly cleared elsewhere)
+}
+
+function lockSyncButtonUntilServerFlightplan(reason) {
+  if (!window.syncButtonLockedUntilServerFlightplan) {
+    window.syncButtonLockedUntilServerFlightplan = true;
+    if (MAP_DEBUG) console.log('[Map] Sync button locked until server flightplan (' + (reason || 'no reason') + ')');
+  }
+  disableSyncButton(reason || 'waiting for server flightplan');
+}
+
+function markServerFlightplanReceived(reason) {
+  if (!window.syncButtonLockedUntilServerFlightplan) {
+    return;
+  }
+  window.syncButtonLockedUntilServerFlightplan = false;
+  if (MAP_DEBUG) console.log('[Map] Server flightplan received, releasing sync lock' + (reason ? ' (' + reason + ')' : ''));
+  updateSyncButtonState();
+}
+
+// ============================================================================
+// SIMBRIEF SYNC FUNCTIONS - Check for SimBrief ID and updates
+// ============================================================================
+
+/**
+ * Checks if SimBrief ID is configured on the server
+ * @returns {Promise<boolean>} true if SimBrief ID is available
+ */
+async function checkSimbriefIdAvailable() {
+  try {
+    var response = await fetch('hasSimbriefId');
+    var data = await response.json();
+    simbriefIdAvailable = data.hasSimbriefId === true;
+    if (MAP_DEBUG) console.log('[SimBrief] ID available:', simbriefIdAvailable);
+    return simbriefIdAvailable;
+  } catch (e) {
+    console.warn('[SimBrief] Error checking ID availability:', e.message);
+    simbriefIdAvailable = false;
+    return false;
+  }
+}
+
+/**
+ * Checks if a newer flightplan is available on SimBrief
+ * Starts button pulse if update is available
+ */
+async function checkForSimbriefUpdate() {
+  if (!simbriefIdAvailable) {
+    if (MAP_DEBUG) console.log('[SimBrief] Skipping update check (no SimBrief ID)');
+    return;
+  }
+  try {
+    var response = await fetch('checkSimbriefUpdate');
+    var data = await response.json();
+    if (MAP_DEBUG) console.log('[SimBrief] Update check result:', data);
+    if (data.updateAvailable) {
+      console.log('[SimBrief] Newer flightplan available on SimBrief!');
+      startSyncButtonPulse();
+    }
+  } catch (e) {
+    console.warn('[SimBrief] Error checking for updates:', e.message);
+  }
+}
+
+/**
+ * Checks if server has a flightplan loaded (from background sync or previous session)
+ * Starts ORANGE pulse if server has flightplan but user hasn't retrieved it yet
+ * @returns {Promise<boolean>} true if server has a flightplan
+ */
+async function checkServerHasFlightplan() {
+  try {
+    var response = await fetch('hasServerFlightplan');
+    var data = await response.json();
+    if (MAP_DEBUG) console.log('[SimBrief] Server has flightplan:', data.hasFlightplan);
+    if (data.hasFlightplan) {
+      console.log('[SimBrief] Server has flightplan ready - setting button ORANGE');
+      setSyncButtonOrange();
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.warn('[SimBrief] Error checking server flightplan:', e.message);
+    return false;
+  }
+}
+
+/**
+ * Starts periodic update checking (every 3 minutes)
+ * Only runs when a flightplan is loaded
+ */
+function startUpdateCheckInterval() {
+  // Clear any existing interval
+  stopUpdateCheckInterval();
+
+  // Check immediately
+  checkForSimbriefUpdate();
+
+  // Then check periodically
+  updateCheckInterval = setInterval(function() {
+    checkForSimbriefUpdate();
+  }, UPDATE_CHECK_INTERVAL_MS);
+
+  if (MAP_DEBUG) console.log('[SimBrief] Update check interval started (' + (UPDATE_CHECK_INTERVAL_MS / 1000) + 's)');
+}
+
+/**
+ * Stops periodic update checking
+ */
+function stopUpdateCheckInterval() {
+  if (updateCheckInterval) {
+    clearInterval(updateCheckInterval);
+    updateCheckInterval = null;
+    if (MAP_DEBUG) console.log('[SimBrief] Update check interval stopped');
+  }
+}
+
+/**
+ * Aborts any pending flightplan loading operations
+ */
+function abortPendingFlightplanLoads() {
+  if (currentFlightplanAbortController) {
+    currentFlightplanAbortController.abort();
+    currentFlightplanAbortController = null;
+    if (MAP_DEBUG) console.log('[Map] Pending flightplan loads aborted');
+  }
+  stopUpdateCheckInterval();
+  stopSyncButtonPulse();
+}
+
+/**
+ * Updates sync button state based on SimBrief ID availability
+ */
+function updateSyncButtonState() {
+  if (simbriefIdAvailable) {
+    enableSyncButtonIfAllowed('SimBrief ID available');
+  } else {
+    disableSyncButton('No SimBrief ID configured');
+  }
+}
+
+var mapState = {
+  lat: "",
+  lon: "",
+  head: "",
+  style: "",
+};
+var map;
+
+// ============================================================================
+// CACHE-VERSIONIERUNG: Versionierte localStorage-Wrapper
+// ============================================================================
+var CACHE_VERSION = 'v1.0.0'; // Bei Breaking Changes erh�hen
+var CACHE_PREFIX = 'kbMap_' + CACHE_VERSION + '_';
+
+/**
+ * Speichert einen Wert im versionierten localStorage
+ * @param {string} key - Der Schl�ssel (ohne Versionspr�fix)
+ * @param {*} value - Der zu speichernde Wert (wird automatisch JSON-serialisiert)
+ * @returns {boolean} - true bei Erfolg, false bei Fehler
+ */
+function setCachedItem(key, value) {
+  try {
+    var versionedKey = CACHE_PREFIX + key;
+    var data = {
+      version: CACHE_VERSION,
+      timestamp: Date.now(),
+      value: value
+    };
+    localStorage.setItem(versionedKey, JSON.stringify(data));
+    return true;
+  } catch (e) {
+    console.warn('[Cache] Set failed for key:', key, e);
+    return false;
+  }
+}
+
+/**
+ * L�dt einen Wert aus dem versionierten localStorage
+ * @param {string} key - Der Schl�ssel (ohne Versionspr�fix)
+ * @param {number} maxAgeMs - Optional: Maximales Alter in Millisekunden
+ * @returns {*} - Der gespeicherte Wert oder null
+ */
+function getCachedItem(key, maxAgeMs) {
+  try {
+    var versionedKey = CACHE_PREFIX + key;
+    var raw = localStorage.getItem(versionedKey);
+
+    if (!raw) {
+      // Fallback: Versuche alte Daten zu migrieren
+      var oldData = localStorage.getItem(key);
+      if (oldData) {
+        if (MAP_DEBUG) console.log('[Cache] Migrating old data for key:', key);
+        try {
+          var value = JSON.parse(oldData);
+          setCachedItem(key, value);
+          localStorage.removeItem(key); // Alte Version l�schen
+          return value;
+        } catch (parseError) {
+          console.warn('[Cache] Migration parse error for key:', key);
+          return null;
+        }
+      }
+      return null;
+    }
+
+    var data = JSON.parse(raw);
+
+    // Versions-Check
+    if (data.version !== CACHE_VERSION) {
+      if (MAP_DEBUG) console.log('[Cache] Version mismatch for key:', key, '(expected:', CACHE_VERSION, 'got:', data.version, ')');
+      localStorage.removeItem(versionedKey);
+      return null;
+    }
+
+    // Age-Check (optional)
+    if (maxAgeMs && (Date.now() - data.timestamp) > maxAgeMs) {
+      if (MAP_DEBUG) console.log('[Cache] Expired key:', key, '(age:', Date.now() - data.timestamp, 'ms)');
+      localStorage.removeItem(versionedKey);
+      return null;
+    }
+
+    return data.value;
+  } catch (e) {
+    console.warn('[Cache] Get failed for key:', key, e);
+    return null;
+  }
+}
+
+/**
+ * Entfernt einen Wert aus dem versionierten localStorage
+ * @param {string} key - Der Schl�ssel (ohne Versionspr�fix)
+ */
+function removeCachedItem(key) {
+  var versionedKey = CACHE_PREFIX + key;
+  localStorage.removeItem(versionedKey);
+}
+
+// ============================================================================
+// MAP UI STATE MANAGEMENT - Speichert und stellt UI-Zustände wieder her
+// ============================================================================
+var MAP_STATE_KEY = 'mapUiState';
+
+/**
+ * Speichert den aktuellen UI-Zustand der Karte im LocalStorage
+ */
+function saveMapState() {
+  try {
+    var state = {
+      // Karten-Position und Zoom
+      mapCenter: map ? [map.getCenter().lat, map.getCenter().lng] : null,
+      zoomLevel: map ? map.getZoom() : null,
+
+      // Follow-Modus
+      follow: typeof follow !== 'undefined' ? follow : false
+    };
+
+    setCachedItem(MAP_STATE_KEY, state);
+    if (MAP_DEBUG) console.log('[MapState] Saved state:', state);
+    return true;
+  } catch (e) {
+    console.warn('[MapState] Save failed:', e);
+    return false;
+  }
+}
+
+/**
+ * Stellt den UI-Zustand der Karte aus dem LocalStorage wieder her
+ */
+function restoreMapState() {
+  try {
+    var state = getCachedItem(MAP_STATE_KEY);
+    if (!state) {
+      if (MAP_DEBUG) console.log('[MapState] No saved state found');
+      return false;
+    }
+
+    if (MAP_DEBUG) console.log('[MapState] Restoring state:', state);
+
+    // Karten-Position und Zoom wiederherstellen
+    if (state.mapCenter && state.zoomLevel && map) {
+      map.setView(state.mapCenter, state.zoomLevel, { animate: false });
+    }
+
+    // Follow-Modus wiederherstellen
+    if (typeof follow !== 'undefined' && typeof toggle !== 'undefined') {
+      follow = state.follow;
+      if (follow) {
+        toggle.disable();
+      } else {
+        toggle.enable();
+      }
+    }
+
+    if (MAP_DEBUG) console.log('[MapState] State restored successfully');
+    return true;
+  } catch (e) {
+    console.warn('[MapState] Restore failed:', e);
+    return false;
+  }
+}
+
+/**
+ * Debounced Auto-Save - speichert nicht bei jedem kleinen Event
+ */
+var mapStateSaveTimeout = null;
+function scheduleMapStateSave() {
+  if (mapStateSaveTimeout) {
+    clearTimeout(mapStateSaveTimeout);
+  }
+  mapStateSaveTimeout = setTimeout(function() {
+    saveMapState();
+    mapStateSaveTimeout = null;
+  }, 1000); // 1 Sekunde Debounce
+}
+
+/**
+ * Returns true when valid waypoint data exists in cache/local state.
+ * Helps decide if we must fetch from server even when hashes match.
+ */
+function hasCachedFlightplanData() {
+  if (!Array.isArray(wpNames) || wpNames.length === 0) {
+    return false;
+  }
+  try {
+    var cachedPoints = getCachedItem("clickedPoints");
+    return Array.isArray(cachedPoints) && cachedPoints.length > 0;
+  } catch (err) {
+    if (MAP_DEBUG) console.log("[Cache] hasCachedFlightplanData error:", err);
+    return false;
+  }
+}
+
+function hasActiveFlightplanOnMap() {
+  return (
+    typeof waypointLayers !== 'undefined' &&
+    waypointLayers &&
+    waypointLayers.length > 0
+  );
+}
+
+/**
+ * Cleanup: Alte Cache-Versionen entfernen
+ * Sollte beim Start der Map aufgerufen werden
+ */
+function cleanupOldCacheVersions() {
+  var keysToRemove = [];
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var key = localStorage.key(i);
+      // Alle kbMap_* Keys die NICHT die aktuelle Version haben
+      if (key && key.indexOf('kbMap_') === 0 && key.indexOf(CACHE_PREFIX) !== 0) {
+        keysToRemove.push(key);
+      }
+    }
+
+    if (keysToRemove.length > 0) {
+      if (MAP_DEBUG) console.log('[Cache] Removing ' + keysToRemove.length + ' outdated cache entries');
+      keysToRemove.forEach(function(key) {
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {
+          console.warn('[Cache] Error removing old key:', key, e);
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('[Cache] Cleanup error:', e);
+  }
+}
+// ============================================================================
+
+// ============================================================================
+// HTML TEMPLATE HELPERS
+// ============================================================================
+
+/**
+ * Creates a number input control with increment/decrement buttons
+ * @param {string} id - Input element ID
+ * @param {string} label - Label text
+ * @param {number} value - Initial value
+ * @param {string} onUpFn - Name of increment function
+ * @param {string} onDownFn - Name of decrement function
+ * @param {string} onUpUpFn - Optional name of double-click up function
+ * @param {string} onDownDownFn - Optional name of double-click down function
+ * @param {string} cssClass - Optional CSS class (defaults to 'quantityTeleport')
+ * @returns {string} HTML string for number input
+ */
+function createNumberInput(id, label, value, onUpFn, onDownFn, onUpUpFn, onDownDownFn, cssClass) {
+  cssClass = cssClass || 'quantityTeleport';
+  var upDblClick = onUpUpFn ? " ondblclick='" + onUpUpFn + "'" : "";
+  var downDblClick = onDownDownFn ? " ondblclick='" + onDownDownFn + "'" : "";
+
+  return "<tr><td style='text-align:left; padding:0; font-size: 14px'><p style='text-align: center'>" + label + "</p></td></tr>" +
+         "<tr><td><div class='number-input'>" +
+         "<button onclick='" + onDownFn + "'" + downDblClick + "></button>" +
+         "<input id='" + id + "' class='" + cssClass + " use-keyboard-input' min='0' name='" + id + "' value=" + Math.round(value) + " type='text'>" +
+         "<button onclick='" + onUpFn + "'" + upDblClick + " class='plus'></button>" +
+         "</div></td></tr>";
+}
+
+/**
+ * Creates a teleport popup with altitude, heading, and airspeed controls
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
+ * @param {number} altitude - Current altitude
+ * @param {number} heading - Current heading
+ * @param {number} speed - Current airspeed
+ * @returns {string} Complete HTML for teleport popup
+ */
+function createTeleportPopupHtml(lat, lng, altitude, heading, speed) {
+  return "<table class='popupTable'>" +
+         "<tr><td><p style='font-size: 1.5rem'>Teleport</p></td></tr>" +
+         createNumberInput('altitudeInput', 'Altitude (ft):', altitude, 'altitudeUp()', 'altitudeDwn()') +
+         createNumberInput('headingInput', 'Heading (deg):', heading, 'headingUp()', 'headingDwn()') +
+         createNumberInput('speedInput', 'Airspeed (kt):', speed, 'speedUp()', 'speedDwn()') +
+         "<br><tr><td><span style='margin-top: 15px'>" +
+         "<button style='margin-top:10px; text-align: center' class='teleportButton' onclick='teleport(" + lat + "," + lng + ")'>OK</button>" +
+         "</span></td></tr></table>";
+}
+
+/**
+ * Creates a waypoint popup with name, type, coordinates, altitude, and action buttons
+ * @param {string} name - Waypoint name
+ * @param {string} type - Waypoint type
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
+ * @param {number} altitude - Waypoint altitude
+ * @returns {string} Complete HTML for waypoint popup
+ */
+function createWaypointPopupHtml(name, type, lat, lng, altitude) {
+  return "<table class='popupTable'>" +
+         "<tr><td><input style='font-size: 1.3rem' class='nameInput use-keyboard-input' onchange='setWPname();' id='WPnameInput' min='0' name='WPnameInput' value='" + name + "' type='text'></input></td></tr>" +
+         "<tr><td><p style='font-size: 1.5rem'>" + type + "</p></td></tr>" +
+         "<tr style='text-align: left;'><td style='text-align: left;'><p style='font-size: 0.8rem, text-align: left;'>" +
+         lat.toFixed(6) + ",<br>" + lng.toFixed(6) + "</p></td></tr>" +
+         createNumberInput('WPaltitudeInput', 'Altitude (ft):', altitude, 'WPaltitudeUp()', 'WPaltitudeDwn()', 'WPaltitudeUpUp()', 'WPaltitudeDwnDwn()') +
+         "<br><tr><td><span style='margin-top: 5px'>" +
+         "<button style='margin-top:5px; text-align: center' class='marker-delete-button' onclick=''>Delete</button>" +
+         "</span></td></tr>" +
+         "<tr><td><span>" +
+         "<button style='margin-top:0px; text-align: center' class='teleportButton' onclick='teleport(" + lat + "," + lng + ")'>Teleport</button>" +
+         "</span></td></tr></table>";
+}
+
+/**
+ * Creates a geosearch teleport popup (for search results)
+ * @param {string} label - Location label/name
+ * @param {number} altitude - Current altitude
+ * @param {number} heading - Current heading
+ * @param {number} speed - Current airspeed
+ * @returns {string} Complete HTML for geosearch teleport popup
+ */
+function createGeoSearchTeleportPopupHtml(label, altitude, heading, speed) {
+  return "<table class='searchboxTable'>" +
+         "<tr><td><p style='font-size: 1.5rem'>Teleport</p></td></tr>" +
+         "<tr><td class='resaultLabel'>" + label + "</td></tr>" +
+         createNumberInput('altitudeInput', 'Altitude (ft):', altitude, 'altitudeUp()', 'altitudeDwn()', null, null, 'quantity') +
+         createNumberInput('headingInput', 'Heading (deg):', heading, 'headingUp()', 'headingDwn()', null, null, 'quantity') +
+         createNumberInput('speedInput', 'Airspeed (kt):', speed, 'speedUp()', 'speedDwn()', null, null, 'quantity') +
+         "<br><tr><td><span style='margin-top: 15px'>" +
+         "<button class='teleportButton' type='button' onclick='geoTeleport()'>OK</button>" +
+         "</span></td></tr></table></div></div>";
+}
+
+// ============================================================================
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Escapes HTML special characters to prevent XSS attacks
+ * @param {string} text - Text to escape
+ * @returns {string} HTML-safe string
+ */
+function escapeHtml(text) {
+  if (text === null || text === undefined) {
+    return "";
+  }
+  return String(text).replace(/[&<>"']/g, function (s) {
+    switch (s) {
+      case "&": return "&amp;";
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case '"': return "&quot;";
+      case "'": return "&#39;";
+      default: return s;
+    }
+  });
+}
+
+/**
+ * Sanitizes a value for use as a DOM ID
+ * @param {string} value - Value to sanitize
+ * @returns {string} Sanitized DOM ID (alphanumeric, dash, underscore, colon, period only)
+ */
+function sanitizeDomId(value) {
+  return (value || "").replace(/[^\w\-:.]/g, "_");
+}
+
+/**
+ * Normalizes whitespace in a string (collapses multiple spaces, trims)
+ * @param {string} str - String to normalize
+ * @returns {string} Normalized string
+ */
+function normalizeSpaces(str) {
+  return str ? String(str).replace(/\s+/g, ' ').trim() : '';
+}
+
+/**
+ * Normalizes coordinates array to consistent format [lat, lng]
+ * @param {Array} source - Array of coordinates in various formats
+ * @returns {Array<Array<number>>} Array of [lat, lng] pairs
+ */
+function normalizeCoordinatesForBounds(source) {
+  var normalized = [];
+  if (!Array.isArray(source)) {
+    return normalized;
+  }
+  source.forEach(function (point) {
+    if (!point) {
+      return;
+    }
+    var lat = null;
+    var lng = null;
+    if (typeof point.lat !== "undefined" && typeof point.lng !== "undefined") {
+      lat = parseFloat(point.lat);
+      lng = parseFloat(point.lng);
+    } else if (Array.isArray(point) && point.length >= 2) {
+      lat = parseFloat(point[0]);
+      lng = parseFloat(point[1]);
+    }
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      normalized.push([lat, lng]);
+    }
+  });
+  return normalized;
+}
+
+/**
+ * Generiert ein einheitliches Panel-List-Item (Modern Minimal Design)
+ * @param {Object} options - Konfigurationsobjekt
+ * @param {string} options.id - Eindeutige ID des Items
+ * @param {string} options.title - Haupttext
+ * @param {string} options.subtitle - Untertitel (optional)
+ * @param {string} options.iconClass - CSS-Klasse f�r Icon (default: gg-shape-circle)
+ * @param {Object} options.data - Zus�tzliche Data-Attribute
+ * @param {string} options.className - Zus�tzliche CSS-Klassen
+ * @returns {string} HTML-String
+ */
+function buildPanelListItem(options) {
+    var id = options.id || '';
+    var title = escapeHtml(normalizeSpaces(options.title || ''));
+    var subtitle = options.subtitle ? escapeHtml(normalizeSpaces(options.subtitle)) : '';
+    var iconClass = options.iconClass || 'gg-shape-circle';
+    var className = options.className || '';
+    var dotColor = options.dotColor || '';  // Color for the station type dot
+    var dataAttrs = '';
+
+    if (options.data) {
+        for (var key in options.data) {
+            if (options.data.hasOwnProperty(key)) {
+                dataAttrs += ' data-' + key + '="' + escapeHtml(String(options.data[key])) + '"';
+            }
+        }
+    }
+
+    var html = '<li class="kneeboard-list-item ' + className + '" id="' + id + '"' + dataAttrs + '>';
+    // Use colored dot if dotColor is provided, otherwise use icon
+    if (dotColor) {
+        html += '<span class="kneeboard-list-item-dot" style="background-color:' + dotColor + '"></span>';
+    } else {
+        html += '<i class="kneeboard-list-item-icon ' + iconClass + '"></i>';
+    }
+    html += '<div class="kneeboard-list-item-content">';
+    html += '<span class="kneeboard-list-item-title">' + title + '</span>';
+    if (subtitle) {
+        html += '<span class="kneeboard-list-item-subtitle">' + subtitle + '</span>';
+    }
+    html += '</div>';
+    html += '</li>';
+
+    return html;
+}
+
+/**
+ * Clears all polyline layer groups (main, DEP, ARR)
+ */
+function clearAllPolylineLayers() {
+  pLineGroup.clearLayers();
+  pLineGroupDEP.clearLayers();
+  pLineGroupARR.clearLayers();
+  if (pLineGroupRWY) pLineGroupRWY.clearLayers();
+}
+
+/**
+ * Resets all coordinate arrays to empty
+ */
+function resetCoordinateArrays() {
+  coordinatesArray = [];
+  coordinatesArrayDEP = [];
+  coordinatesArrayARR = [];
+}
+
+/**
+ * Removes all route-related layer groups from the map if they exist
+ */
+function removeAllRouteLayersFromMap() {
+  if (map.hasLayer(startLineGroup)) map.removeLayer(startLineGroup);
+  if (map.hasLayer(pLineGroup)) map.removeLayer(pLineGroup);
+  if (map.hasLayer(pLineGroupDEP)) map.removeLayer(pLineGroupDEP);
+  if (map.hasLayer(pLineGroupARR)) map.removeLayer(pLineGroupARR);
+  if (pLineGroupRWY && map.hasLayer(pLineGroupRWY)) map.removeLayer(pLineGroupRWY);
+}
+
+/**
+ * Safely cleans up a timer (interval or timeout) by name
+ * @param {string} timerName - Name of the global timer variable
+ */
+function safeCleanupTimer(timerName) {
+  if (typeof window[timerName] !== 'undefined' && window[timerName]) {
+    if (timerName.toLowerCase().includes('interval')) {
+      clearInterval(window[timerName]);
+    } else if (timerName.toLowerCase().includes('raf') || timerName.toLowerCase().includes('animationframe')) {
+      cancelAnimationFrame(window[timerName]);
+    } else {
+      clearTimeout(window[timerName]);
+    }
+    window[timerName] = null;
+  }
+}
+
+/**
+ * Adjusts a numeric input value by a delta amount
+ * @param {string} elementId - ID of the input element
+ * @param {number} delta - Amount to add (positive) or subtract (negative)
+ */
+function adjustNumericInput(elementId, delta) {
+  var input = document.getElementById(elementId);
+  if (!input) return;
+  var currentValue = parseFloat(input.value) || 0;
+  input.value = currentValue + delta;
+}
+
+/**
+ * Removes waypoint metadata at the specified index from all metadata arrays
+ * @param {number} waypointId - Index of the waypoint to remove
+ */
+function removeWaypointMetadata(waypointId) {
+  wpNames.splice(waypointId, 1);
+  wpTypes.splice(waypointId, 1);
+  altitudes.splice(waypointId, 1);
+  atbls.splice(waypointId, 1);
+  wpSourceTypes.splice(waypointId, 1);
+  wpDepartureProcedures.splice(waypointId, 1);
+  wpArrivalProcedures.splice(waypointId, 1);
+  wpAirways.splice(waypointId, 1);
+  wpRunwayNumbers.splice(waypointId, 1);
+  wpRunwayDesignators.splice(waypointId, 1);
+}
+
+// ============================================================================
+
+// Event listener registry for proper cleanup
+var eventListenerRegistry = [];
+
+// Wrapper to add event listener and track it for cleanup
+function addTrackedEventListener(element, event, handler, options) {
+  element.addEventListener(event, handler, options);
+  eventListenerRegistry.push({ element: element, event: event, handler: handler, options: options });
+}
+
+// Remove all tracked event listeners
+function removeAllTrackedEventListeners() {
+  eventListenerRegistry.forEach(function(item) {
+    try {
+      item.element.removeEventListener(item.event, item.handler, item.options);
+    } catch (e) {
+      console.warn('Error removing event listener:', e);
+    }
+  });
+  eventListenerRegistry = [];
+}
+
+// Timer registry for proper cleanup
+var timerRegistry = {
+  intervals: {},
+  timeouts: {}
+};
+
+// Wrapper to create interval and track it
+function createTrackedInterval(callback, delay, name) {
+  if (timerRegistry.intervals[name]) {
+    clearInterval(timerRegistry.intervals[name]);
+  }
+  var id = setInterval(callback, delay);
+  timerRegistry.intervals[name] = id;
+  return id;
+}
+
+// Wrapper to create timeout and track it
+function createTrackedTimeout(callback, delay, name) {
+  if (timerRegistry.timeouts[name]) {
+    clearTimeout(timerRegistry.timeouts[name]);
+  }
+  var id = setTimeout(callback, delay);
+  timerRegistry.timeouts[name] = id;
+  return id;
+}
+
+// Clear all tracked timers
+function clearAllTrackedTimers() {
+  // Clear all intervals
+  Object.keys(timerRegistry.intervals).forEach(function(name) {
+    clearInterval(timerRegistry.intervals[name]);
+  });
+  timerRegistry.intervals = {};
+
+  // Clear all timeouts
+  Object.keys(timerRegistry.timeouts).forEach(function(name) {
+    clearTimeout(timerRegistry.timeouts[name]);
+  });
+  timerRegistry.timeouts = {};
+}
+
+// Programmatic popup tracking to prevent toggle conflicts
+var programmaticPopupTimestamp = 0;
+
+// Global cleanup function - call when leaving map tab
+function cleanupMapIntervals() {
+  // Clear all tracked timers first
+  clearAllTrackedTimers();
+
+  // Cancel any ongoing flight plan animation
+  cancelFlightplanAnimation();
+
+  // Clean up all Leaflet layers
+  cleanupAllLayers();
+
+  safeCleanupTimer('controllerInterval');
+  safeCleanupTimer('startlineInterval');
+  // Stop leaflet-hash interval
+  if (typeof map !== 'undefined' && map && map.hash && map.hash.hashChangeInterval) {
+    clearInterval(map.hash.hashChangeInterval);
+    map.hash.hashChangeInterval = null;
+  }
+  // Clear pending timeouts and RAF
+  safeCleanupTimer('pendingFlightplanRafId');
+  safeCleanupTimer('navlogSyncTimeout');
+  safeCleanupTimer('waypointDataRefreshTimeout');
+  safeCleanupTimer('geometryRefreshDebounceTimer');
+  safeCleanupTimer('elevationUpdateTimer');
+  // Remove all tracked event listeners
+  removeAllTrackedEventListeners();
+
+  // Remove message event listener to prevent duplicates when panel reopens
+  if (typeof receiveMessage === 'function' && typeof window !== 'undefined') {
+    window.removeEventListener("message", receiveMessage);
+    mapMessageListenerBound = false; // Reset flag so it can be re-bound
+  }
+
+  // Reset canvas references so they're re-fetched after DOM reload
+  elevationCanvas = null;
+  elevationCtx = null;
+}
+
+// Pause map intervals when switching to another tab (Coherent GT optimization)
+function pauseMapIntervals() {
+  safeCleanupTimer('startlineInterval');
+  safeCleanupTimer('controllerInterval');
+}
+
+// Resume map intervals when returning to map tab
+function resumeMapIntervals() {
+  // Only restart if we have waypoint data and interval isn't already running
+  if (!startlineInterval && typeof waypointJsonData !== 'undefined' && waypointJsonData) {
+    startlineInterval = setInterval(line, 100);
+  }
+}
+
+var toggle;
+var toggle2;
+var toggle3;
+var toggle4;
+var toggle5;
+var toggle10;
+var toggle11;
+var toggle12;
+var newMarker;
+var airplane;
+// v1.47: follow standardmäßig false - verhindert Auto-Zentrierung auf Flugzeug beim Laden
+var follow = false;
+var followBeforePopup = false; // Saves follow state before popup opens
+var heading = 0;
+var altitude = 0;
+var speed = 0;
+var aircraftScale = 1.0; // Will be loaded from config
+var windSettings = {
+  gridSize: 3,  // Reduziert von 5 (25 Punkte) auf 3 (9 Punkte) um API Rate Limits zu vermeiden
+  maxSpeedForColor: 50,
+  arrowSize: 24
+}; // Will be loaded from config
+
+// SimConnect Configuration
+var simConnectPollingInterval = null;
+var simConnectEnabled = true;
+var simConnectPollRate = 1000; // 1 second
+var simConnectConnectionStatus = false;
+var simConnectLastUpdate = 0;
+
+// Teleport pause/resume state management
+var pendingTeleportData = null;  // Stores {lat, lng, altitude, heading, speed}
+var teleportPauseActive = false; // Track if waiting for resume
+var pauseConfirmationTimeout = null; // Timeout for pause confirmation
+// Wind Layer Variablen (global f�r persistence �ber map reloads)
+var owmWindLayer = null;
+var windTileLayer = null;
+var windOffLayer = null;
+var windMarkersLayer = null;
+var windDataCache = null;
+var windFetchTimeout = null;
+var lastWindFetchTime = 0;
+var lastWindFetchBounds = null; // Store bounds from last fetch for viewport change detection
+var MIN_FETCH_INTERVAL = 5 * 60 * 1000; // 5 minutes minimum between API calls
+
+// Wind API Retry-Logik bei Rate Limiting (429)
+var windRetryCount = 0;
+var windMaxRetries = 3;
+var windFetchInProgress = false; // Verhindert parallele API-Aufrufe
+var lastWindFetchAltitude = 0; // Track altitude used for last fetch
+
+// Konvertiert Flugzeughöhe (Fuß) in NOAA GFS Druckebenen-Parameter
+// NOAA GFS lev-Index Mapping: 0=1000mb, 1=975mb, 2=950mb, ..., 12=500mb, 16=300mb, etc.
+function getWindParametersForAltitude(altitudeFeet) {
+  // Druckebenen mit ungefähren Höhen (in Fuß) und NOAA lev-Index
+  // Standard-Atmosphäre: Druck nimmt mit Höhe ab
+  var pressureLevels = [
+    { levIdx: 0, pressure: 1000, altFt: 364 },    // ~111m
+    { levIdx: 1, pressure: 975, altFt: 1050 },    // ~320m
+    { levIdx: 2, pressure: 950, altFt: 1773 },    // ~540m
+    { levIdx: 3, pressure: 925, altFt: 2490 },    // ~759m
+    { levIdx: 4, pressure: 900, altFt: 3243 },    // ~988m
+    { levIdx: 5, pressure: 850, altFt: 4781 },    // ~1457m - FL048
+    { levIdx: 6, pressure: 800, altFt: 6527 },    // ~1989m - FL065
+    { levIdx: 7, pressure: 750, altFt: 8091 },    // ~2466m - FL081
+    { levIdx: 8, pressure: 700, altFt: 10171 },   // ~3100m - FL100
+    { levIdx: 9, pressure: 650, altFt: 11811 },   // ~3600m - FL118
+    { levIdx: 10, pressure: 600, altFt: 13793 },  // ~4204m - FL138
+    { levIdx: 11, pressure: 550, altFt: 16076 },  // ~4900m - FL161
+    { levIdx: 12, pressure: 500, altFt: 18289 },  // ~5574m - FL183
+    { levIdx: 13, pressure: 450, altFt: 20745 },  // ~6323m - FL207
+    { levIdx: 14, pressure: 400, altFt: 23574 },  // ~7185m - FL236
+    { levIdx: 15, pressure: 350, altFt: 26631 },  // ~8117m - FL266
+    { levIdx: 16, pressure: 300, altFt: 30065 },  // ~9164m - FL301
+    { levIdx: 17, pressure: 250, altFt: 33999 },  // ~10363m - FL340
+    { levIdx: 18, pressure: 200, altFt: 38662 },  // ~11784m - FL387
+    { levIdx: 19, pressure: 150, altFt: 44740 }   // ~13636m - FL447
+  ];
+
+  // Unter 1000ft: Bodenwind (10m) verwenden
+  if (!altitudeFeet || altitudeFeet < 1000) {
+    return { uParam: 'ugrd10m', vParam: 'vgrd10m', level: '10m', levIdx: -1, useSurface: true };
+  }
+
+  // Nächstgelegene Druckebene finden
+  var closest = pressureLevels[0];
+  var minDiff = Math.abs(altitudeFeet - closest.altFt);
+
+  for (var i = 1; i < pressureLevels.length; i++) {
+    var diff = Math.abs(altitudeFeet - pressureLevels[i].altFt);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = pressureLevels[i];
+    }
+  }
+
+  // NOAA GFS verwendet ugrdprs[time][lev][lat][lon] für Druckebenen
+  return {
+    uParam: 'ugrdprs',
+    vParam: 'vgrdprs',
+    level: closest.pressure + 'mb',
+    levIdx: closest.levIdx,
+    altFt: closest.altFt,
+    useSurface: false
+  };
+}
+
+// Parse NOAA batch response (single request for all grid points)
+function parseNoaaBatchResponse(text, level) {
+  var results = [];
+
+  // Extract lat and lon arrays from response
+  var latMatch = text.match(/lat,\s*\[\d+\]\n([\d\.,\s-]+)/);
+  var lonMatch = text.match(/lon,\s*\[\d+\]\n([\d\.,\s-]+)/);
+  if (!latMatch || !lonMatch) {
+    console.warn('[Wind] Failed to parse lat/lon from NOAA response');
+    return results;
+  }
+
+  var lats = latMatch[1].split(',').map(function(s) { return parseFloat(s.trim()); });
+  var lons = lonMatch[1].split(',').map(function(s) { return parseFloat(s.trim()); });
+
+  // Extract ugrd data block (everything between header and first blank line)
+  var ugrdSection = text.match(/ugrd(?:10m|prs)[^\n]*\n([\s\S]*?)\n\n/);
+  var vgrdSection = text.match(/vgrd(?:10m|prs)[^\n]*\n([\s\S]*?)\n\n/);
+  if (!ugrdSection || !vgrdSection) {
+    console.warn('[Wind] Failed to parse ugrd/vgrd sections');
+    return results;
+  }
+
+  var ugrdLines = ugrdSection[1].trim().split('\n');
+  var vgrdLines = vgrdSection[1].trim().split('\n');
+
+  // Parse each line: format is "[0][latIdx], val1, val2, ..." or "[0][0][latIdx], val1, ..."
+  for (var i = 0; i < ugrdLines.length; i++) {
+    // Extract values after the indices prefix
+    var ugrdMatch = ugrdLines[i].match(/\],\s*([\d\s,.\-]+)/);
+    var vgrdMatch = vgrdLines[i].match(/\],\s*([\d\s,.\-]+)/);
+    if (!ugrdMatch || !vgrdMatch) continue;
+
+    var uValues = ugrdMatch[1].split(',').map(function(s) { return parseFloat(s.trim()); });
+    var vValues = vgrdMatch[1].split(',').map(function(s) { return parseFloat(s.trim()); });
+
+    // i corresponds to latIdx
+    var lat = lats[i];
+
+    for (var j = 0; j < uValues.length; j++) {
+      var u = uValues[j];
+      var v = vValues[j];
+
+      if (!Number.isFinite(u) || !Number.isFinite(v)) continue;
+
+      var speedMs = Math.sqrt(u * u + v * v);
+      var speedKt = speedMs * 1.94384;
+      var direction = (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360;
+
+      // Convert lon > 180 back to negative (Western hemisphere)
+      var lng = lons[j];
+      if (lng > 180) lng = lng - 360;
+
+      results.push({
+        lat: lat,
+        lng: lng,
+        speed: speedKt,
+        direction: direction,
+        level: level
+      });
+    }
+  }
+
+  if (WIND_DEBUG) console.log('[Wind] Parsed', results.length, 'wind points from batch response');
+  return results;
+}
+
+// Wind Layer Utility Functions (global für persistence über map reloads)
+function fetchWindData() {
+  if (!map) return;
+
+  // Verhindere parallele API-Aufrufe
+  if (windFetchInProgress) {
+    if (WIND_DEBUG) console.log('[Wind] Fetch already in progress, skipping');
+    return;
+  }
+
+  // Skip wind updates while Control Zones are rendering
+  if (window.controlZonesRendering) {
+    return;
+  }
+
+  var bounds = map.getBounds();
+  var now = Date.now();
+
+  // Check if viewport has changed significantly (more than 1.0 degrees in any direction)
+  // Erhöht von 0.5 auf 1.0 um weniger häufig neue Daten zu fetchen
+  var viewportChanged = !lastWindFetchBounds ||
+    Math.abs(bounds.getNorth() - lastWindFetchBounds.getNorth()) > 1.0 ||
+    Math.abs(bounds.getSouth() - lastWindFetchBounds.getSouth()) > 1.0 ||
+    Math.abs(bounds.getEast() - lastWindFetchBounds.getEast()) > 1.0 ||
+    Math.abs(bounds.getWest() - lastWindFetchBounds.getWest()) > 1.0;
+
+  // Check if altitude has changed significantly (different pressure level)
+  var currentAlt = altitude || 0;
+  var currentParams = getWindParametersForAltitude(currentAlt);
+  var lastParams = getWindParametersForAltitude(lastWindFetchAltitude);
+  var altitudeChanged = currentParams.levIdx !== lastParams.levIdx;
+
+  // Rate limiting: only use cache if viewport AND altitude haven't changed AND we're within rate limit period
+  if (windDataCache && !viewportChanged && !altitudeChanged && (now - lastWindFetchTime) < MIN_FETCH_INTERVAL) {
+    if (WIND_DEBUG) console.log('[Wind] Using cached data for same viewport and altitude (' + lastParams.level + '), ' +
+                Math.round((MIN_FETCH_INTERVAL - (now - lastWindFetchTime)) / 1000) +
+                's until next fetch allowed');
+    updateWindDisplay();
+    // Ensure wind layer is visible (in case it was added with opacity 0)
+    // BUT only if UI sequence is not in progress (flightplan loading)
+    if (owmWindLayer && map.hasLayer(owmWindLayer) && !window.flightplanUISequenceInProgress && !window.flightplanAnimationInProgress) {
+      owmWindLayer.setOpacity(0.4);
+    } else if (window.flightplanUISequenceInProgress || window.flightplanAnimationInProgress) {
+      if (WIND_DEBUG) console.log('[Wind] Keeping wind layer hidden - UI sequence in progress');
+    }
+    return;
+  }
+
+  // Log reason for fetching new data
+  if (altitudeChanged) {
+    if (WIND_DEBUG) console.log('[Wind] Altitude changed from', lastWindFetchAltitude, 'ft (' + lastParams.level + ') to', currentAlt, 'ft (' + currentParams.level + '), fetching new data');
+  } else if (viewportChanged) {
+    if (WIND_DEBUG) console.log('[Wind] Viewport changed, fetching new data for current view');
+  } else {
+    if (WIND_DEBUG) console.log('[Wind] Rate limit period expired or no cache, fetching new data');
+  }
+
+  // Create grid of points aligned to GFS 1-degree grid
+  // Instead of viewport-based points that get rounded, directly calculate which GFS grid points are visible
+  var south = bounds.getSouth();
+  var north = bounds.getNorth();
+  var west = bounds.getWest();
+  var east = bounds.getEast();
+
+  // Calculate GFS grid bounds (1-degree resolution, aligned to integer coordinates)
+  // Use floor for min and ceil for max to include all GFS points within OR at edge of viewport
+  var gfsLatMin = Math.floor(south);  // First GFS lat at or below viewport south
+  var gfsLatMax = Math.ceil(north);   // Last GFS lat at or above viewport north
+  var gfsLngMin = Math.floor(west);   // First GFS lng at or left of viewport west
+  var gfsLngMax = Math.ceil(east);    // Last GFS lng at or right of viewport east
+
+  var points = [];
+
+  // Iterate over actual GFS grid points within viewport
+  for (var lat = gfsLatMin; lat <= gfsLatMax; lat++) {
+    for (var lng = gfsLngMin; lng <= gfsLngMax; lng++) {
+      points.push({ lat: lat, lng: lng, isGfsGrid: true });
+    }
+  }
+
+  if (WIND_DEBUG) console.log('[Wind] GFS grid points in viewport:', points.length, 'from', gfsLatMin + ',' + gfsLngMin, 'to', gfsLatMax + ',' + gfsLngMax);
+
+  // Fetch wind data from NOAA NOMADS GFS
+  // NOAA GFS 1-degree grid: lat index = lat + 90 (0-180), lon index = lon (0-360)
+  windFetchInProgress = true;
+
+  // Get wind parameters based on current aircraft altitude
+  var currentAlt = altitude || 0;  // Global altitude variable from simulator
+  var windParams = getWindParametersForAltitude(currentAlt);
+  lastWindFetchAltitude = currentAlt;
+
+  if (WIND_DEBUG) console.log('[Wind] Fetching wind for altitude:', currentAlt, 'ft -> Level:', windParams.level);
+
+  // Get current GFS run date (updated 4x daily: 00, 06, 12, 18 UTC)
+  // GFS data is available ~4-5 hours after run time
+  var now = new Date();
+  var utcHour = now.getUTCHours();
+
+  // Calculate hours since last run and determine which run to use
+  // Always use a run that's at least 6 hours old to ensure availability
+  var hoursAvailable = 6;
+  var availableHour = (utcHour - hoursAvailable + 24) % 24;
+  var runHour = Math.floor(availableHour / 6) * 6;
+
+  // Adjust date if we're using a run from yesterday
+  if (runHour > utcHour) {
+    now.setUTCDate(now.getUTCDate() - 1);
+  }
+
+  var dateStr = now.getUTCFullYear() +
+    String(now.getUTCMonth() + 1).padStart(2, '0') +
+    String(now.getUTCDate()).padStart(2, '0');
+  var runStr = String(runHour).padStart(2, '0');
+
+  if (WIND_DEBUG) console.log('[Wind] Using GFS run:', dateStr, runStr + 'z (current UTC hour:', utcHour + ')');
+
+  // Build SINGLE batch request URL with range syntax
+  // NOAA OPeNDAP allows ranges: ugrd10m[0][latMin:latMax][lonMin:lonMax]
+  // This avoids rate limiting by making ONE request instead of many
+  var latIdxMin = gfsLatMin + 90;  // Convert to NOAA lat index (0-180)
+  var latIdxMax = gfsLatMax + 90;
+
+  // Handle longitude conversion to NOAA index (0-360)
+  // Problem: If viewport crosses prime meridian (e.g. -12 to 20), we get invalid range (348:20)
+  // Solution: Convert everything to positive 0-360 range
+  var lonIdxMin, lonIdxMax;
+  if (gfsLngMin < 0 && gfsLngMax >= 0) {
+    // Viewport crosses prime meridian - limit to positive side only to avoid API issues
+    // This means we only show wind data for the eastern part when zoomed out far
+    lonIdxMin = 0;
+    lonIdxMax = gfsLngMax;
+    if (WIND_DEBUG) console.log('[Wind] Viewport crosses prime meridian, limiting to east:', lonIdxMin, '-', lonIdxMax);
+  } else if (gfsLngMin < 0 && gfsLngMax < 0) {
+    // Entire viewport in western hemisphere
+    lonIdxMin = gfsLngMin + 360;
+    lonIdxMax = gfsLngMax + 360;
+  } else {
+    // Entire viewport in eastern hemisphere (normal case)
+    lonIdxMin = gfsLngMin;
+    lonIdxMax = gfsLngMax;
+  }
+
+  var url;
+  if (windParams.useSurface) {
+    // Surface wind: ugrd10m[time][lat][lon]
+    url = '/api/wind/gfs_1p00/gfs' + dateStr + '/gfs_1p00_' + runStr + 'z.ascii?' +
+      'ugrd10m%5B0%5D%5B' + latIdxMin + ':' + latIdxMax + '%5D%5B' + lonIdxMin + ':' + lonIdxMax + '%5D,' +
+      'vgrd10m%5B0%5D%5B' + latIdxMin + ':' + latIdxMax + '%5D%5B' + lonIdxMin + ':' + lonIdxMax + '%5D';
+  } else {
+    // Pressure level: ugrdprs[time][lev][lat][lon]
+    url = '/api/wind/gfs_1p00/gfs' + dateStr + '/gfs_1p00_' + runStr + 'z.ascii?' +
+      'ugrdprs%5B0%5D%5B' + windParams.levIdx + '%5D%5B' + latIdxMin + ':' + latIdxMax + '%5D%5B' + lonIdxMin + ':' + lonIdxMax + '%5D,' +
+      'vgrdprs%5B0%5D%5B' + windParams.levIdx + '%5D%5B' + latIdxMin + ':' + latIdxMax + '%5D%5B' + lonIdxMin + ':' + lonIdxMax + '%5D';
+  }
+
+  if (WIND_DEBUG) console.log('[Wind] Fetching batch URL:', url);
+
+  fetch(url)
+    .then(function(response) {
+      if (WIND_DEBUG) console.log('[Wind] Batch response status:', response.status);
+      if (!response.ok) throw new Error('NOAA batch fetch failed: ' + response.status);
+      return response.text();
+    })
+    .then(function(text) {
+      windFetchInProgress = false;
+
+      if (WIND_DEBUG) console.log('[Wind] Batch response length:', text.length);
+
+      // Parse the batch response
+      windDataCache = parseNoaaBatchResponse(text, windParams.level);
+
+      if (windDataCache.length === 0) {
+        console.warn('[Wind] No wind data parsed from NOAA batch response');
+        return;
+      }
+
+      if (WIND_DEBUG) console.log('[Wind] NOAA batch data received:', windDataCache.length, 'points at', windParams.level);
+
+      // Update timestamp and bounds on successful fetch
+      lastWindFetchTime = Date.now();
+      lastWindFetchBounds = bounds;
+      updateWindDisplay();
+
+      // v1.24L: Clear initial fetch flag - moveend fetches are now allowed again
+      if (window.windLayerInitialFetchInProgress) {
+        window.windLayerInitialFetchInProgress = false;
+        if (WIND_DEBUG) console.log('[Wind] Initial fetch complete - moveend fetches re-enabled');
+      }
+
+      // Fade in wind layer after data is loaded (was added with opacity 0)
+      // BUT only if UI sequence is not in progress (flightplan loading)
+      var shouldKeepHidden = window.flightplanUISequenceInProgress ||
+                             window.flightplanAnimationInProgress ||
+                             window.autoloadCheckInProgress;
+      if (owmWindLayer && map.hasLayer(owmWindLayer) && !shouldKeepHidden) {
+        owmWindLayer.setOpacity(0.4);
+        if (WIND_DEBUG) console.log('[Wind] Wind layer faded in after data load');
+
+        // Check if bounds have changed significantly since fetch started
+        if (!window.windBoundsRefetchDone) {
+          var currentBounds = map.getBounds();
+          var boundsChanged = !bounds ||
+            Math.abs(currentBounds.getNorth() - bounds.getNorth()) > 0.1 ||
+            Math.abs(currentBounds.getSouth() - bounds.getSouth()) > 0.1 ||
+            Math.abs(currentBounds.getEast() - bounds.getEast()) > 0.1 ||
+            Math.abs(currentBounds.getWest() - bounds.getWest()) > 0.1;
+
+          if (boundsChanged) {
+            window.windBoundsRefetchDone = true;
+            if (WIND_DEBUG) console.log('[Wind] Bounds changed during fetch, scheduling refetch');
+            requestAnimationFrame(function() {
+              requestAnimationFrame(function() {
+                fetchWindData();
+              });
+            });
+          }
+        }
+      } else if (shouldKeepHidden) {
+        if (WIND_DEBUG) console.log('[Wind] Wind data loaded but keeping layer hidden - UI sequence in progress');
+      }
+    })
+    .catch(function(err) {
+      console.warn('[Wind] Batch fetch failed:', err);
+      window.windLayerInitialFetchInProgress = false;
+      windFetchInProgress = false;
+    });
+}
+
+// Get wind color based on speed (--colorLight for weak, red for strong)
+function getWindColor(speed) {
+  // 0 kt = --colorLight, maxSpeedForColor+ kt = red (#ff0000)
+  var maxSpeed = windSettings.maxSpeedForColor;
+  var ratio = Math.min(speed / maxSpeed, 1);
+
+  // Get --colorLight from CSS
+  var colorLight = getComputedStyle(document.documentElement).getPropertyValue('--colorLight').trim();
+
+  // Parse --colorLight to RGB
+  var tempDiv = document.createElement('div');
+  tempDiv.style.color = colorLight;
+  document.body.appendChild(tempDiv);
+  var computedColor = getComputedStyle(tempDiv).color;
+  document.body.removeChild(tempDiv);
+
+  // Extract RGB values from computed color
+  var rgbMatch = computedColor.match(/\d+/g);
+  var startR = parseInt(rgbMatch[0]);
+  var startG = parseInt(rgbMatch[1]);
+  var startB = parseInt(rgbMatch[2]);
+
+  // Interpolate from --colorLight to red (255, 0, 0)
+  var r = Math.round(startR + (255 - startR) * ratio);
+  var g = Math.round(startG * (1 - ratio));
+  var b = Math.round(startB * (1 - ratio));
+
+  return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
+// Generate Wind Barb SVG (meteorological standard symbol)
+// Short feather = 5 knots, Long feather = 10 knots, Triangle = 50 knots
+function createWindBarb(speed, direction, color) {
+  var barbs = [];
+  var remainingSpeed = Math.round(speed);
+  var yOffset = 0;
+
+  // Add 50-knot triangles
+  while (remainingSpeed >= 50) {
+    barbs.push('<path d="M 0,' + yOffset + ' L 8,' + (yOffset + 4) + ' L 0,' + (yOffset + 8) + ' Z" fill="' + color + '" stroke="' + color + '" stroke-width="2"/>');
+    remainingSpeed -= 50;
+    yOffset += 10;
+  }
+
+  // Add 10-knot feathers (long)
+  while (remainingSpeed >= 10) {
+    barbs.push('<line x1="0" y1="' + yOffset + '" x2="8" y2="' + (yOffset + 4) + '" stroke="' + color + '" stroke-width="2.5"/>');
+    remainingSpeed -= 10;
+    yOffset += 4;
+  }
+
+  // Add 5-knot feathers (short) - also show for 2-5 kt winds
+  if (remainingSpeed >= 2) {
+    barbs.push('<line x1="0" y1="' + yOffset + '" x2="5" y2="' + (yOffset + 2.5) + '" stroke="' + color + '" stroke-width="2.5"/>');
+  }
+
+  // Calm wind (< 2 knots) - circle only
+  if (speed < 2) {
+    return '<svg width="40" height="40" viewBox="-20 -20 40 40" style="filter: drop-shadow(0 0 2px white) drop-shadow(0 0 2px white) drop-shadow(0 0 4px rgba(255,255,255,0.8));">' +
+      '<circle cx="0" cy="0" r="5" fill="none" stroke="' + color + '" stroke-width="2.5"/>' +
+      '</svg>';
+  }
+
+  // Variable wind (no direction data)
+  if (!direction && direction !== 0) {
+    return '<svg width="40" height="40" viewBox="-20 -20 40 40" style="filter: drop-shadow(0 0 2px white) drop-shadow(0 0 2px white) drop-shadow(0 0 4px rgba(255,255,255,0.8));">' +
+      '<circle cx="0" cy="0" r="5" fill="none" stroke="' + color + '" stroke-width="2.5"/>' +
+      '<line x1="-8" y1="-8" x2="8" y2="8" stroke="' + color + '" stroke-width="2.5"/>' +
+      '<line x1="-8" y1="8" x2="8" y2="-8" stroke="' + color + '" stroke-width="2.5"/>' +
+      '</svg>';
+  }
+
+  // Create wind barb with shaft pointing to wind direction and feathers on right side
+  return '<svg width="50" height="50" viewBox="-25 -25 50 50" style="transform: rotate(' + direction + 'deg); filter: drop-shadow(0 0 2px white) drop-shadow(0 0 2px white) drop-shadow(0 0 4px rgba(255,255,255,0.8));">' +
+    // Shaft (vertical line pointing up = wind FROM direction)
+    '<line x1="0" y1="-20" x2="0" y2="10" stroke="' + color + '" stroke-width="3"/>' +
+    // Feathers/barbs on the right side
+    '<g transform="translate(0, -20)">' + barbs.join('') + '</g>' +
+    '</svg>';
+}
+
+// Bilinear interpolation for wind data at any point
+function interpolateWind(lat, lng, windData) {
+  // Find the 4 surrounding GFS grid points
+  var latFloor = Math.floor(lat);
+  var latCeil = Math.ceil(lat);
+  var lngFloor = Math.floor(lng);
+  var lngCeil = Math.ceil(lng);
+
+  // Find wind data for each corner
+  var corners = {};
+  windData.forEach(function(w) {
+    var key = w.lat + ',' + w.lng;
+    corners[key] = w;
+  });
+
+  var sw = corners[latFloor + ',' + lngFloor];
+  var se = corners[latFloor + ',' + lngCeil];
+  var nw = corners[latCeil + ',' + lngFloor];
+  var ne = corners[latCeil + ',' + lngCeil];
+
+  // If we don't have all 4 corners, find nearest point
+  if (!sw || !se || !nw || !ne) {
+    var nearest = null;
+    var minDist = Infinity;
+    windData.forEach(function(w) {
+      var dist = Math.sqrt(Math.pow(w.lat - lat, 2) + Math.pow(w.lng - lng, 2));
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = w;
+      }
+    });
+    return nearest ? { speed: nearest.speed, direction: nearest.direction } : null;
+  }
+
+  // Bilinear interpolation weights
+  var latFrac = lat - latFloor;
+  var lngFrac = lng - lngFloor;
+
+  // Convert directions to u,v components for proper interpolation
+  function toUV(speed, dir) {
+    var rad = dir * Math.PI / 180;
+    return { u: -speed * Math.sin(rad), v: -speed * Math.cos(rad) };
+  }
+
+  var swUV = toUV(sw.speed, sw.direction);
+  var seUV = toUV(se.speed, se.direction);
+  var nwUV = toUV(nw.speed, nw.direction);
+  var neUV = toUV(ne.speed, ne.direction);
+
+  // Interpolate u and v separately
+  var u = (1 - latFrac) * ((1 - lngFrac) * swUV.u + lngFrac * seUV.u) +
+          latFrac * ((1 - lngFrac) * nwUV.u + lngFrac * neUV.u);
+  var v = (1 - latFrac) * ((1 - lngFrac) * swUV.v + lngFrac * seUV.v) +
+          latFrac * ((1 - lngFrac) * nwUV.v + lngFrac * neUV.v);
+
+  // Convert back to speed and direction
+  var speed = Math.sqrt(u * u + v * v);
+  var direction = (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360;
+
+  return { speed: speed, direction: direction };
+}
+
+// Berechnet dynamische Grid-Größe basierend auf Zoom-Level
+// Je weiter rausgezoomt (kleinerer Zoom), desto mehr Punkte
+function calculateWindGridSize() {
+    var zoom = map.getZoom();
+    var gridSize;
+
+    // Zoom-basierte Grid-Größe 
+    if (zoom <= 5) gridSize = 6;       // Kontinental: 6x6 = 36 Punkte
+    else if (zoom <= 7) gridSize = 5;  // Regional: 5x5 = 25 Punkte
+    else if (zoom <= 9) gridSize = 4;  // Standard: 4x4 = 16 Punkte
+    else if (zoom <= 11) gridSize = 3; // Näher: 3x3 = 9 Punkte
+    else gridSize = 2;                 // Sehr nah: 2x2 = 4 Punkte
+
+    return { rows: gridSize, cols: gridSize };
+}
+
+function updateWindDisplay() {
+  if (WIND_DEBUG) console.log('[Wind] updateWindDisplay called');
+  if (WIND_DEBUG) console.log('[Wind] windDataCache:', windDataCache);
+  if (WIND_DEBUG) console.log('[Wind] map.hasLayer(owmWindLayer):', map.hasLayer(owmWindLayer));
+
+  if (!windDataCache || !Array.isArray(windDataCache) || windDataCache.length === 0 || !map.hasLayer(owmWindLayer)) {
+    if (WIND_DEBUG) console.log('[Wind] Early return - no data or layer not active');
+    return;
+  }
+
+  windMarkersLayer.clearLayers();
+
+  // Create evenly spaced grid based on viewport
+  var bounds = map.getBounds();
+  var north = bounds.getNorth();
+  var south = bounds.getSouth();
+  var east = bounds.getEast();
+  var west = bounds.getWest();
+
+  // Calculate dynamic grid size based on viewport and zoom
+  var latRange = north - south;
+  var lngRange = east - west;
+  var gridDimensions = calculateWindGridSize();
+  var gridRows = gridDimensions.rows;
+  var gridCols = gridDimensions.cols;
+
+  // Calculate spacing: full step between markers, half step to edges
+  var latStep = latRange / gridRows;
+  var lngStep = lngRange / gridCols;
+  var latOffset = latStep / 2;  // Half step margin to edge
+  var lngOffset = lngStep / 2;
+
+  if (WIND_DEBUG) console.log('[Wind] Creating evenly spaced grid:', gridRows, 'x', gridCols, 'in bounds', south, west, 'to', north, east);
+
+  var markersCreated = 0;
+
+  // Create markers at evenly spaced positions (half step from edges)
+  for (var row = 0; row < gridRows; row++) {
+    for (var col = 0; col < gridCols; col++) {
+      var lat = south + latOffset + row * latStep;
+      var lng = west + lngOffset + col * lngStep;
+
+      // Interpolate wind at this position
+      var wind = interpolateWind(lat, lng, windDataCache);
+      if (!wind) continue;
+
+      var windColor = getWindColor(wind.speed);
+
+      // Use custom SVG wind barb (stable, no external dependencies)
+      var windBarbSvg = createWindBarb(wind.speed, wind.direction, windColor);
+
+      var windIcon = L.divIcon({
+        className: 'wind-arrow',
+        html: windBarbSvg,
+        iconSize: [50, 50],
+        iconAnchor: [25, 25]
+      });
+
+      var marker = L.marker([lat, lng], {
+        icon: windIcon,
+        interactive: true,
+        pane: 'markerPane',
+        zIndexOffset: 1000
+      });
+
+      // Tooltip mit Windgeschwindigkeit - nur beim Hovern sichtbar
+      marker.bindTooltip(Math.round(wind.speed) + ' kt', {
+        permanent: false,
+        direction: 'top',
+        offset: [0, -5],
+        className: 'wind-speed-tooltip'
+      });
+
+      marker.addTo(windMarkersLayer);
+      markersCreated++;
+    }
+  }
+
+  if (WIND_DEBUG) console.log('[Wind] Wind markers layer contains', markersCreated, 'markers (evenly spaced grid)');
+}
+
+// Wind event handlers will be set up after map initialization
+function setupWindEventHandlers() {
+  if (!map) return;
+
+  map.on('overlayadd', function(e) {
+    if (e.layer === owmWindLayer) {
+      // v1.24j: Skip wind data fetch when activating from animation complete
+      // The fetch will be done explicitly in handleAnimationComplete with correct bounds
+      if (window.windLayerActivatingFromComplete) {
+        if (WIND_DEBUG) console.log('[Wind] Wind layer add from animation complete - skipping overlayadd fetch');
+        owmWindLayer.setOpacity(0);
+        windMarkersLayer.addTo(map);
+        return;
+      }
+      // v1.24i: Skip wind data fetch during autoload - will be triggered properly later
+      if (window.autoloadCheckInProgress || window.flightplanUISequenceInProgress || window.flightplanAnimationInProgress) {
+        if (WIND_DEBUG) console.log('[Wind] Wind layer add during autoload/animation - deferring data fetch');
+        owmWindLayer.setOpacity(0);
+        windMarkersLayer.addTo(map);
+        // Don't fetch data yet - it will be fetched after animation complete with correct bounds
+        return;
+      }
+      // Start with opacity 0, will fade in after wind data is loaded
+      owmWindLayer.setOpacity(0);
+      if (WIND_DEBUG) console.log('[Wind] Wind layer added via overlayadd, starting with opacity 0');
+      windMarkersLayer.addTo(map);
+      fetchWindData();
+    }
+  });
+
+  map.on('overlayremove', function(e) {
+    if (e.layer === owmWindLayer) {
+      map.removeLayer(windMarkersLayer);
+    }
+  });
+
+  // Hide wind markers during zoom to prevent visual glitches
+  map.on('zoomstart', function() {
+    if (map.hasLayer(windMarkersLayer)) {
+      // Clear all wind markers during zoom - they will be recreated after zoomend
+      windMarkersLayer.clearLayers();
+    }
+    // Also hide hover route during zoom (immediate)
+    if (typeof hidePilotHoverRoute === 'function') {
+      hidePilotHoverRoute(true);
+    }
+  });
+
+  // Hide hover route when dragging the map (immediate)
+  map.on('dragstart', function() {
+    if (typeof hidePilotHoverRoute === 'function') {
+      hidePilotHoverRoute(true);
+    }
+  });
+
+  // Fetch new wind data after zoom completes (grid needs to adapt to new viewport)
+  map.on('zoomend', function() {
+    if (map.hasLayer(owmWindLayer)) {
+      // v1.24L: Skip if initial fetch is still in progress
+      if (window.windLayerInitialFetchInProgress) {
+        if (WIND_DEBUG) console.log('[Wind] Skipping zoomend fetch - initial fetch in progress');
+        return;
+      }
+      // After zoom, fetch new data for the new viewport (grid density changes with zoom)
+      if (WIND_DEBUG) console.log('[Wind] Zoom ended - fetching new wind data for updated viewport');
+      // Short delay to let map settle, then fetch (bypass rate limit for zoom)
+      clearTimeout(windFetchTimeout);
+      windFetchTimeout = setTimeout(function() {
+        // Force fetch by clearing lastWindFetchBounds
+        lastWindFetchBounds = null;
+        fetchWindData();
+      }, 500);
+    }
+  });
+
+  map.on('moveend', function() {
+    if (map.hasLayer(owmWindLayer)) {
+      // v1.24L: Skip moveend fetch if initial fetch is still in progress
+      if (window.windLayerInitialFetchInProgress) {
+        if (WIND_DEBUG) console.log('[Wind] Skipping moveend fetch - initial fetch in progress');
+        return;
+      }
+
+      // Always immediately redisplay cached wind data after move (if available)
+      if (windDataCache && windDataCache.length > 0 && windMarkersLayer.getLayers().length === 0) {
+        if (WIND_DEBUG) console.log('[Wind] Move ended - redisplaying cached wind data immediately');
+        updateWindDisplay();
+      }
+
+      // Rate-Limit für neue Daten-Fetches respektieren (verhindert API 429 Fehler)
+      var timeSinceLastFetch = Date.now() - lastWindFetchTime;
+      if (timeSinceLastFetch < MIN_FETCH_INTERVAL) {
+        if (WIND_DEBUG) console.log('[Wind] Skipping moveend fetch - rate limit active (' +
+          Math.round((MIN_FETCH_INTERVAL - timeSinceLastFetch) / 1000) + 's remaining)');
+        return;
+      }
+      clearTimeout(windFetchTimeout);
+      windFetchTimeout = setTimeout(fetchWindData, 3000); // 3 second debounce
+    }
+  });
+}
+
+var mapSettings = {
+  defaultZoom: 9,
+  smoothSensitivity: 1.5
+}; // Will be loaded from config
+var defaultOverlays = {}; // Will be loaded from config
+var defaultBaseLayer = 'Streets'; // Will be loaded from config
+var scaleControl = {
+  metric: true,
+  imperial: false,
+  nautic: true
+}; // Will be loaded from config
+var owmApiKey = null; // Will be loaded from config
+var polyline = [];
+var markers;
+var wp1_lat;
+var wp1_lng;
+var wpi;
+var startLineGroup;
+var pos_lat = 48.5357;  // Fallback: Appenweier, Simon-Bruder-Str. 1
+var pos_lng = 7.9893;
+var hasCachedAircraftPosition = false;
+var coordinates = [];
+var polylinepoints = [];
+var showPath = false;
+var targetMarker = -1;
+var distance;
+var bearing;
+var middleMarkers;
+var headings = [];
+var startlineShow = false;
+var startlineInterval;
+var limitStartlineDistance = false;  // true = 20nm Limit aktiv (nach Flugplan-Laden)
+var pendingFirstActivation = false;
+var keyboardObserver;
+var searchResetHandlerBound = false;
+var altitudes = [];
+var activeWP;
+var distances = [];
+var deleted = false;
+var wpNum = 0;
+var geosearchLat;
+var geosearchLng;
+var AlgoliaProvider;
+var provider;
+var GeoSearchControl;
+var searchControl;
+try {
+  var cachedLatStr = window.localStorage.getItem("mapCenterLat");
+  var cachedLngStr = window.localStorage.getItem("mapCenterLng");
+  if (MAP_DEBUG) console.log('[Map] localStorage aircraft position raw:', cachedLatStr, cachedLngStr);
+  
+  var cachedLat = parseFloat(cachedLatStr);
+  var cachedLng = parseFloat(cachedLngStr);
+  if (MAP_DEBUG) console.log('[Map] localStorage aircraft position parsed:', cachedLat, cachedLng, 'isFinite:', Number.isFinite(cachedLat), Number.isFinite(cachedLng));
+  
+  if (Number.isFinite(cachedLat) && Number.isFinite(cachedLng)) {
+    pos_lat = cachedLat;
+    pos_lng = cachedLng;
+    hasCachedAircraftPosition = true;
+    if (MAP_DEBUG) console.log('[Map] Using cached aircraft position:', pos_lat, pos_lng);
+  } else {
+    if (MAP_DEBUG) console.log('[Map] No valid cached aircraft position found');
+  }
+} catch (posCacheError) {
+  if (MAP_DEBUG) console.log('[Map] Unable to read cached aircraft position:', posCacheError);
+}
+// Initiales Kartenzentrum = Flugzeugposition (falls verfügbar), sonst Fallback auf 0,0
+var mapCenter = [pos_lat || 0, pos_lng || 0];
+var zoomLevel = 9;
+var airac;
+var LayerControl;
+var wpListOn = false;
+var popupTimeout;
+var windowResizeListenerBound = false;
+var mapInitialized = false;
+var mapMessageListenerBound = false;
+var mapDomListenersBound = false;
+var pendingFlightplanMessage = null;
+var pendingFlightplanMessageProcessed = false;
+var localStorageRestoreCompleted = false;
+
+// ============================================================================
+// EVENT-LISTENER: Reagieren auf Flightplan-Events
+// ============================================================================
+
+// Handler für ANIMATION_COMPLETE - aktiviert Sync-Button und Wind-Layer
+function handleAnimationComplete(e) {
+  if (MAP_DEBUG) console.log('[Event] Animation complete', e.detail);
+
+  // Animation-Flags SOFORT zurücksetzen
+  window.flightplanAnimationInProgress = false;
+  window.flightplanUISequenceInProgress = false;
+
+  transitionToState(FlightplanLoadState.SHOWING_ELEVATION, 'animation-complete');
+
+  // Stop pulse animation now that loading is complete
+  stopSyncButtonPulse();
+  updateSyncButtonState();
+
+
+
+  // Start periodic update check since we now have a flightplan loaded
+  // Skip the immediate check - we just synced so data is fresh
+  // Only start the interval for future checks
+  stopUpdateCheckInterval();  // Clear any existing interval first
+  updateCheckInterval = setInterval(function() {
+    checkForSimbriefUpdate();
+  }, UPDATE_CHECK_INTERVAL_MS);
+  if (MAP_DEBUG) console.log('[SimBrief] Update check interval started (skipped initial check - just synced)');
+
+  var finalizeAfterElevation = function() {
+    centerFlightplanWithElevationPadding();
+
+    transitionToState(FlightplanLoadState.ACTIVATING_WIND, 'elevation-shown');
+    
+    var shouldActivateWind = window.windLayerWasActiveBeforeAnimation ||
+      (window.initialWindLayerConfig && window.initialWindLayerConfig.shouldActivate);
+
+    // Don't activate wind layer if controller panel is open
+    if (shouldActivateWind && window.initialWindLayerConfig && window.initialWindLayerConfig.layer && !(typeof moverX !== 'undefined' && moverX)) {
+      var windLayer = window.initialWindLayerConfig.layer;
+
+      if (typeof map !== 'undefined' && map && !map.hasLayer(windLayer)) {
+        windLayer.setOpacity(0);
+        windLayer.addTo(map);
+
+        // Smooth fade-in
+        setTimeout(function() {
+          if (typeof fetchWindData === 'function') {
+            fetchWindData();
+            setTimeout(function() {
+              if (windLayer && map.hasLayer(windLayer)) {
+                windLayer.setOpacity(0.4);
+              }
+            }, 300);
+          }
+        }, 100);
+      }
+
+      window.windLayerWasActiveBeforeAnimation = false;
+    } else if (typeof moverX !== 'undefined' && moverX && MAP_DEBUG) {
+      console.log('[Wind] Skipping wind layer activation - controller panel is open');
+    }
+
+    transitionToState(FlightplanLoadState.READY, 'complete');
+    if (MAP_DEBUG) console.log('[Event] Ready');
+
+    // Show elevation profile after animation completes (if 2+ waypoints exist)
+    // Muss HIER aufgerufen werden, nachdem die Animation-Flags zurückgesetzt wurden
+    // ABER: Nicht einblenden wenn der User das Panel manuell geschlossen hat
+    // ABER: Nicht einblenden wenn Controller Modus aktiv ist
+    var waypointLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
+    if (waypointLayers.length >= 2 && typeof showElevationProfile === 'function' && !elevationProfileUserClosed && !moverX) {
+      if (MAP_DEBUG) console.log('[Map] Showing elevation profile after animation complete');
+      showElevationProfile();
+    } else if (moverX && MAP_DEBUG) {
+      console.log('[Map] Skipping elevation profile - controller mode active');
+    } else if (elevationProfileUserClosed && MAP_DEBUG) {
+      console.log('[Map] Skipping elevation profile - user manually closed it');
+    }
+  };
+
+  var handleElevationError = function(err) {
+    if (err) console.warn('[Elevation] Error:', err);
+    finalizeAfterElevation();
+  };
+
+  if (typeof updateElevationProfileImmediate === 'function') {
+    try {
+      var result = updateElevationProfileImmediate();
+      if (result && typeof result.then === 'function') {
+        result.then(function() {
+          if (MAP_DEBUG) console.log('[Elevation] Profile shown');
+          finalizeAfterElevation();
+        }).catch(handleElevationError);
+        return;
+      } else {
+        if (MAP_DEBUG) console.log('[Elevation] Profile shown');
+      }
+    } catch (err) {
+      handleElevationError(err);
+      return;
+    }
+  }
+
+  finalizeAfterElevation();
+}
+
+// Handler für MARKERS_READY - Einzelne Zentrierung am Anfang der Chain
+function handleMarkersReady(e) {
+  if (MAP_DEBUG) console.log('[Event] Markers ready', e.detail);
+
+  if (currentFlightplanState === FlightplanLoadState.READY) {
+    if (MAP_DEBUG) console.log('[Event] Already ready, skipping');
+    return;
+  }
+
+  transitionToState(FlightplanLoadState.SHOWING_ELEVATION, 'markers-ready');
+
+  var fpData = typeof flightplan !== 'undefined' ? flightplan : [];
+  if (fpData && fpData.length > 0) {
+    centerMapOnFlightplanBounds(fpData, { animate: true });
+  }
+
+  emitFlightplanEvent(FLIGHTPLAN_EVENTS.MAP_CENTERED);
+}
+
+function handleMapCentered(e) {
+  if (MAP_DEBUG) console.log('[Event] Map centered');
+  emitFlightplanEvent(FLIGHTPLAN_EVENTS.ELEVATION_UPDATED);
+}
+
+function handleElevationUpdated(e) {
+  if (MAP_DEBUG) console.log('[Event] Elevation updated');
+
+  if (currentFlightplanState === FlightplanLoadState.READY) {
+    if (MAP_DEBUG) console.log('[Event] Already ready, skipping');
+    return;
+  }
+
+  emitFlightplanEvent(FLIGHTPLAN_EVENTS.ANIMATION_COMPLETE, {
+    waypointCount: typeof wpNames !== 'undefined' ? wpNames.length : 0
+  });
+}
+
+// Register event listeners
+window.addEventListener(FLIGHTPLAN_EVENTS.ANIMATION_COMPLETE, handleAnimationComplete);
+window.addEventListener(FLIGHTPLAN_EVENTS.ELEVATION_UPDATED, handleElevationUpdated);
+window.addEventListener(FLIGHTPLAN_EVENTS.MAP_CENTERED, handleMapCentered);
+window.addEventListener(FLIGHTPLAN_EVENTS.MARKERS_READY, handleMarkersReady);
+
+// Legacy callback function - emits MARKERS_READY event
+function onFlightplanAnimationComplete() {
+  if (MAP_DEBUG) console.log('[Event] onFlightplanAnimationComplete');
+  emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY);
+  // showElevationProfile() wird jetzt in finalizeAfterElevation() aufgerufen,
+  // nachdem die Animation-Flags zurückgesetzt wurden
+}
+
+// Stub/Fallback: executeFlightplanPath (wird von kneeboard.js erwartet)
+// Delegiert direkt an processFlightplanMessage
+function executeFlightplanPath(data) {
+  try {
+    // Check if autoload is blocked (user deleted flightplan manually)
+    if (window.autoloadBlockedUntilNewFlightplan) {
+      if (MAP_DEBUG) console.log('[Map] executeFlightplanPath blocked - user deleted flightplan, waiting for manual sync or new server flightplan');
+      return Promise.resolve(); // Silently ignore
+    }
+
+    // BLOCK when controller mode is active
+    if (moverX) {
+      console.log('[Map] executeFlightplanPath BLOCKED - Controller mode active (moverX=true)');
+      return Promise.resolve(); // Silently ignore
+    }
+
+    // BUGFIX: Blockiere Flightplan-Loading im Teleport-Modus
+    // Im Teleport-Modus (toggle4.state() === 'add-markers') soll KEIN Flugplan angezeigt werden
+    var toggle4State = (typeof toggle4 !== 'undefined' && toggle4) ? toggle4.state() : null;
+    if (toggle4State === 'add-markers') {
+      console.log('[Map] executeFlightplanPath BLOCKED - Teleport mode active (no flightplan display)');
+      return Promise.resolve(); // Silently ignore
+    }
+
+    var msg = (typeof data === 'string') ? data : JSON.stringify(data || {});
+    processFlightplanMessage(msg, true);
+    return Promise.resolve();
+  } catch (err) {
+    console.error('[Map] executeFlightplanPath failed:', err);
+    return Promise.reject(err);
+  }
+}
+
+// Register message listener immediately when script loads to catch early flightplan imports
+(function() {
+  if (typeof window !== "undefined" && !mapMessageListenerBound) {
+    addTrackedEventListener(window, "message", receiveMessage);
+    mapMessageListenerBound = true;
+  }
+})();
+
+// Long-press handling for EFB compatibility (no right-click support)
+var longPressTimer = null;
+var longPressDelay = 500; // 500ms for long press
+var longPressTarget = null;
+var longPressStartX = 0;
+var longPressStartY = 0;
+var longPressMoveThreshold = 10; // pixels movement allowed
+var longPressTriggered = false; // flag to prevent click after long press
+
+// Frequency context menu state
+var frequencyContextMenuOpen = false;
+var frequencyContextMenuData = null; // {frequency: "119.925", callsign: "EDDF_TWR"}
+var frequencyContextMenuOpenTime = 0; // Timestamp when menu was opened (to ignore immediate clicks)
+
+// Waypoint insert context menu state
+var waypointInsertMenuOpen = false;
+var waypointInsertMenuData = null; // {lat, lng}
+
+function createWaypointInsertMenu() {
+  var menu = document.createElement('div');
+  menu.id = 'waypointInsertMenu';
+  menu.style.cssText = 'position:fixed;display:none;background:white;border-radius:4px;padding:8px 0;z-index:10000;min-width:180px;box-shadow:0 3px 14px rgba(0,0,0,0.4);';
+  document.body.appendChild(menu);
+}
+
+function showWaypointInsertMenu(x, y, lat, lng, popupType) {
+  var menu = document.getElementById('waypointInsertMenu');
+  if (!menu) {
+    createWaypointInsertMenu();
+    menu = document.getElementById('waypointInsertMenu');
+  }
+  waypointInsertMenuData = { lat: lat, lng: lng };
+
+  // Optionen je nach Popup-Typ (Popup-Style: weißer Hintergrund, dunkle Schrift)
+  var optionsHtml = '';
+  if (popupType === 'airport') {
+    // Airports: alle 4 Optionen
+    optionsHtml =
+      '<div class="wp-insert-option" data-action="start" style="padding:8px 16px;cursor:pointer;color:var(--fontDark);">Als Start</div>' +
+      '<div class="wp-insert-option" data-action="route" style="padding:8px 16px;cursor:pointer;color:var(--fontDark);">Zur Route hinzufügen</div>' +
+      '<div class="wp-insert-option" data-action="append" style="padding:8px 16px;cursor:pointer;color:var(--fontDark);">Am Ende anfügen</div>' +
+      '<div class="wp-insert-option" data-action="dest" style="padding:8px 16px;cursor:pointer;color:var(--fontDark);">Als Ziel</div>';
+  } else {
+    // Navaids, Reporting Points: alle 4 Optionen
+    optionsHtml =
+      '<div class="wp-insert-option" data-action="start" style="padding:8px 16px;cursor:pointer;color:var(--fontDark);">Als Start</div>' +
+      '<div class="wp-insert-option" data-action="route" style="padding:8px 16px;cursor:pointer;color:var(--fontDark);">Zur Route hinzufügen</div>' +
+      '<div class="wp-insert-option" data-action="append" style="padding:8px 16px;cursor:pointer;color:var(--fontDark);">Am Ende anfügen</div>' +
+      '<div class="wp-insert-option" data-action="dest" style="padding:8px 16px;cursor:pointer;color:var(--fontDark);">Als Ziel</div>';
+  }
+  menu.innerHTML = optionsHtml;
+
+  // Event Listener für neue Optionen
+  menu.querySelectorAll('.wp-insert-option').forEach(function(opt) {
+    opt.addEventListener('mouseenter', function() { this.style.background = 'rgba(0,0,0,0.1)'; });
+    opt.addEventListener('mouseleave', function() { this.style.background = 'transparent'; });
+    opt.addEventListener('click', onWaypointInsertOptionClick);
+  });
+
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  menu.style.display = 'block';
+  waypointInsertMenuOpen = true;
+}
+
+function hideWaypointInsertMenu() {
+  var menu = document.getElementById('waypointInsertMenu');
+  if (menu) menu.style.display = 'none';
+  waypointInsertMenuOpen = false;
+  waypointInsertMenuData = null;
+}
+
+function showWaypointInsertMenuFromButton(event, lat, lng, popupType) {
+  event.stopPropagation();
+  var rect = event.target.getBoundingClientRect();
+  showWaypointInsertMenu(rect.left, rect.bottom + 5, lat, lng, popupType || 'airport');
+}
+
+function onWaypointInsertOptionClick(e) {
+  var action = e.target.getAttribute('data-action');
+  if (!waypointInsertMenuData) return;
+
+  var lat = waypointInsertMenuData.lat;
+  var lng = waypointInsertMenuData.lng;
+
+  hideWaypointInsertMenu();
+
+  switch(action) {
+    case 'start':
+      setWaypointAsStart(lat, lng);
+      break;
+    case 'route':
+      addWaypointToRoute(lat, lng);
+      break;
+    case 'append':
+      appendWaypointAtEnd(lat, lng);
+      break;
+    case 'dest':
+      setWaypointAsDestination(lat, lng);
+      break;
+  }
+}
+
+// Als Start setzen - ersetzt bestehenden Start (nur wenn mehr als 1 Wegpunkt)
+function setWaypointAsStart(lat, lng) {
+  var activePopup = map && map._popup && map._popup._source && map._popup._map ? map._popup : null;
+
+  // Sichere temp-Werte bevor deleteWaypointByIndex aufgerufen wird (drawLines könnte sie zurücksetzen)
+  var savedName = tempWPName;
+  var savedType = tempWPType;
+  var savedElevation = tempWPElevation;
+
+  // Nur den Start ersetzen wenn es MEHR als 1 Wegpunkt gibt
+  // Bei nur 1 Wegpunkt (Ziel) wird der Start einfach hinzugefügt
+  if (wpNames.length > 1) {
+    deleteWaypointByIndex(0);
+  }
+
+  // Stelle temp-Werte wieder her
+  tempWPName = savedName;
+  tempWPType = savedType;
+  tempWPElevation = savedElevation;
+
+  // Füge neuen Start an Position 0 ein
+  insertWaypointAtIndex(lat, lng, 0, activePopup);
+}
+
+// Als Ziel setzen - fügt neues Ziel am Ende hinzu (alter Zielpunkt wird zum Wegpunkt)
+function setWaypointAsDestination(lat, lng) {
+  var activePopup = map && map._popup && map._popup._source && map._popup._map ? map._popup : null;
+
+  // Füge neues Ziel am Ende ein - der alte Zielpunkt bleibt als Wegpunkt erhalten
+  insertWaypointAtIndex(lat, lng, wpNames.length, activePopup);
+}
+
+// Zur Route hinzufügen - fügt zwischen den nächsten zwei aufeinanderfolgenden Punkten ein
+function addWaypointToRoute(lat, lng) {
+  var activePopup = map && map._popup && map._popup._source && map._popup._map ? map._popup : null;
+
+  // Wenn 0-1 Wegpunkte: am Ende anfügen
+  if (wpNames.length <= 1) {
+    insertWaypointAtIndex(lat, lng, wpNames.length, activePopup);
+    return;
+  }
+
+  // Finde das Segment mit der kürzesten Distanz zum neuen Punkt
+  var layers = getWaypointLayersSorted();
+  var bestIndex = wpNames.length; // Fallback: am Ende
+  var bestDistance = Infinity;
+
+  for (var i = 0; i < layers.length - 1; i++) {
+    var p1 = layers[i].getLatLng();
+    var p2 = layers[i + 1].getLatLng();
+
+    // Berechne Distanz vom neuen Punkt zur Linie zwischen p1 und p2
+    var dist = pointToSegmentDistance(lat, lng, p1.lat, p1.lng, p2.lat, p2.lng);
+
+    if (dist < bestDistance) {
+      bestDistance = dist;
+      bestIndex = i + 1; // Einfügen nach p1
+    }
+  }
+
+  insertWaypointAtIndex(lat, lng, bestIndex, activePopup);
+}
+
+// Berechnet die kürzeste Distanz eines Punktes zu einem Liniensegment
+function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+  var dx = x2 - x1;
+  var dy = y2 - y1;
+
+  if (dx === 0 && dy === 0) {
+    // Segment ist ein Punkt
+    return Math.sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1));
+  }
+
+  // Parameter t für die Projektion auf die Linie
+  var t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
+
+  // Begrenze t auf [0, 1] um auf dem Segment zu bleiben
+  t = Math.max(0, Math.min(1, t));
+
+  // Nächster Punkt auf dem Segment
+  var nearestX = x1 + t * dx;
+  var nearestY = y1 + t * dy;
+
+  // Distanz zum nächsten Punkt
+  return Math.sqrt((px - nearestX) * (px - nearestX) + (py - nearestY) * (py - nearestY));
+}
+
+// Am Ende anfügen - fügt nach dem letzten Wegpunkt ein
+function appendWaypointAtEnd(lat, lng) {
+  var activePopup = map && map._popup && map._popup._source && map._popup._map ? map._popup : null;
+
+  // Immer am Ende anfügen
+  insertWaypointAtIndex(lat, lng, wpNames.length, activePopup);
+}
+
+// Wegpunkt per Index löschen
+function deleteWaypointByIndex(index) {
+  if (index < 0 || index >= wpNames.length) return;
+
+  // Marker von Map entfernen
+  var layers = getWaypointLayersSorted();
+  if (layers[index]) {
+    map.removeLayer(layers[index]);
+  }
+
+  // Arrays bereinigen
+  wpNames.splice(index, 1);
+  wpTypes.splice(index, 1);
+  altitudes.splice(index, 1);
+  atbls.splice(index, 1);
+  if (wpSourceTypes && wpSourceTypes.length > index) wpSourceTypes.splice(index, 1);
+  if (wpDepartureProcedures && wpDepartureProcedures.length > index) wpDepartureProcedures.splice(index, 1);
+  if (wpArrivalProcedures && wpArrivalProcedures.length > index) wpArrivalProcedures.splice(index, 1);
+  if (wpAirways && wpAirways.length > index) wpAirways.splice(index, 1);
+  if (wpRunwayNumbers && wpRunwayNumbers.length > index) wpRunwayNumbers.splice(index, 1);
+  if (wpRunwayDesignators && wpRunwayDesignators.length > index) wpRunwayDesignators.splice(index, 1);
+
+  // Alle Layer-IDs neu nummerieren
+  renumberWaypointLayerIds();
+
+  // UI aktualisieren
+  if (typeof drawLines === 'function') {
+    drawLines();
+  } else {
+    // drawLines nicht verfügbar - zumindest die Daten speichern
+    savePoints();
+  }
+}
+
+// Wegpunkt an bestimmter Position einfügen
+function insertWaypointAtIndex(lat, lng, insertIndex, activePopup) {
+  var capturedName = tempWPName;
+  var capturedType = tempWPType;
+  var capturedElevation = tempWPElevation;
+
+  var isAirportType = capturedType && (
+    capturedType.toLowerCase().indexOf("airport") !== -1 ||
+    capturedType.toLowerCase().indexOf("airfield") !== -1 ||
+    capturedType.toLowerCase().indexOf("aerodrome") !== -1 ||
+    capturedType.toLowerCase().indexOf("heliport") !== -1 ||
+    capturedType.toLowerCase().indexOf("altiport") !== -1 ||
+    capturedType.toLowerCase().indexOf("landing") !== -1 ||
+    capturedType.toLowerCase().indexOf("glider") !== -1 ||
+    capturedType.toLowerCase().indexOf("ultra light") !== -1
+  );
+
+  if (isAirportType) {
+    var airportAltitude = capturedElevation || 0;
+    finishInsertWaypointAtIndex(lat, lng, insertIndex, capturedName, capturedType, airportAltitude, activePopup);
+  } else {
+    getGroundElevationForPoint(lat, lng).then(function(groundElevMeters) {
+      var altitudeFeet = groundElevMeters !== null ? Math.round(groundElevMeters * 3.28084) + 1000 : 1000;
+      finishInsertWaypointAtIndex(lat, lng, insertIndex, capturedName, capturedType, altitudeFeet, activePopup);
+    }).catch(function() {
+      finishInsertWaypointAtIndex(lat, lng, insertIndex, capturedName, capturedType, 1000, activePopup);
+    });
+  }
+}
+
+function finishInsertWaypointAtIndex(lat, lng, insertIndex, name, type, altitude, activePopup) {
+  nextWaypointInsertIndex = insertIndex;
+  nextWaypointUseExisting = false;
+
+  map.fire("contextmenu", {
+    latlng: new L.LatLng(lat, lng),
+    synthetic: true,
+    setName: name,
+    setType: type,
+    setAltitude: String(altitude)
+  });
+
+  wpNum++;
+
+  if (activePopup && activePopup._source && activePopup._map) {
+    setTimeout(function() {
+      programmaticPopupTimestamp = Date.now();
+      activePopup._source.openPopup();
+    }, 0);
+  }
+}
+
+// Layer-IDs neu nummerieren nach Löschung
+function renumberWaypointLayerIds() {
+  var layers = getWaypointLayersSorted();
+  layers.forEach(function(layer, index) {
+    if (layer.options) layer.options.myId = index;
+    if (layer.feature) layer.feature.id = index;
+  });
+}
+
+function bindWindowResizeInvalidation() {
+  if (
+    windowResizeListenerBound ||
+    typeof window === "undefined" ||
+    typeof window.addEventListener !== "function"
+  ) {
+    return;
+  }
+
+  var resizeDebounceTimer = null;
+  addTrackedEventListener(window, "resize", function () {
+    clearTimeout(resizeDebounceTimer);
+    resizeDebounceTimer = setTimeout(function() {
+      if (map && typeof map.invalidateSize === "function") {
+        map.invalidateSize({ pan: false });
+        // Re-center on aircraft if follow mode is active AND no animation running
+        if (follow && !window.flightplanAnimationInProgress && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+          map.setView(new L.LatLng(pos_lat, pos_lng));
+        }
+      }
+      // Force redraw elevation profile canvas if visible (skip throttling for resize events)
+      var elevationSection = document.getElementById('elevationProfileSection');
+      if (elevationSection && elevationSection.style.display !== 'none' && typeof redrawElevationCanvas === "function") {
+        // Use requestAnimationFrame to ensure layout is complete before redrawing
+        requestAnimationFrame(function() {
+          redrawElevationCanvas(true);
+        });
+      }
+    }, 150); // Wait 150ms after last resize - faster response
+  });
+  windowResizeListenerBound = true;
+}
+var waypointmode = true;
+var clickArr = [];
+var markerId = 0;
+var coordinatesArray = [];
+var coordinatesArrayDEP = [];
+var coordinatesArrayARR = [];
+var geojsonFeature;
+var id = 0;
+var pLineGroup;
+var pLineGroupDEP;
+var pLineGroupARR;
+var pline;
+var plineDEP;
+var plineARR;
+var wpNames = [];
+var wpTypes = [];
+var atbls = [];
+var wpi = 0;
+var wpi2 = 0;
+var wpi3 = 0;
+var wpSourceTypes = [];
+var wpDepartureProcedures = [];
+var wpArrivalProcedures = [];
+var wpAirways = [];
+var wpRunwayNumbers = [];
+var wpRunwayDesignators = [];
+var importedFlightplanMeta = null;
+var importedOFPData = null;  // Full OFP object for ETA calculation
+var dep = "";
+var arr = "";
+
+// Runway endpoint data for accurate route drawing
+var departureRunwayData = null;   // {thresholdLat, thresholdLon, endLat, endLon, identifier, heading}
+var arrivalRunwayData = null;     // {thresholdLat, thresholdLon, endLat, endLon, identifier, heading}
+var pLineGroupRWY = null;         // Layer group for runway polylines
+var controllersInRange = [];
+
+// Layer registry for cleanup
+var layerRegistry = {
+  waypoints: null,
+  middleMarkers: null,
+  pLineGroup: null,
+  pLineGroupDEP: null,
+  pLineGroupARR: null,
+  pLineGroupRWY: null,
+  startLineGroup: null,
+  windLayer: null,
+  windMarkersLayer: null
+};
+
+function registerLayer(name, layer) {
+  if (layerRegistry[name]) {
+    // Clean up old layer before registering new one
+    if (map && map.hasLayer(layerRegistry[name])) {
+      map.removeLayer(layerRegistry[name]);
+    }
+    if (layerRegistry[name].clearLayers) {
+      layerRegistry[name].clearLayers();
+    }
+  }
+  layerRegistry[name] = layer;
+}
+
+function cleanupAllLayers() {
+  Object.keys(layerRegistry).forEach(function(name) {
+    var layer = layerRegistry[name];
+    if (layer) {
+      if (map && map.hasLayer(layer)) {
+        map.removeLayer(layer);
+      }
+      if (layer.clearLayers) {
+        layer.clearLayers();
+      }
+      layerRegistry[name] = null;
+    }
+  });
+}
+
+// Validate all waypoint arrays are synchronized
+function validateWaypointArrays(context) {
+  var arrays = {
+    wpNames: wpNames,
+    wpTypes: wpTypes,
+    altitudes: altitudes,
+    atbls: atbls,
+    wpSourceTypes: wpSourceTypes,
+    wpDepartureProcedures: wpDepartureProcedures,
+    wpArrivalProcedures: wpArrivalProcedures,
+    wpAirways: wpAirways,
+    wpRunwayNumbers: wpRunwayNumbers,
+    wpRunwayDesignators: wpRunwayDesignators
+  };
+
+  var expectedLength = wpNames.length;
+  var errors = [];
+
+  Object.keys(arrays).forEach(function(name) {
+    if (arrays[name].length !== expectedLength) {
+      errors.push(name + '=' + arrays[name].length);
+    }
+  });
+
+  if (errors.length > 0) {
+    console.error('[Map] Array-Sync-Fehler in ' + context + ': expected=' + expectedLength + ', ' + errors.join(', '));
+    return false;
+  }
+
+  return true;
+}
+
+var vatsim = true;
+var airportsToggle = "airports";
+var headerText = "Vatsim Controllers";
+var airports = [];
+var transceivers = [];
+var controllers_array = [];
+var controllersWithCoordArray = [];
+var controllerInterval;
+
+/**
+ * Fetches runway data from Navigraph database for accurate route start/end points
+ * @param {string} icao - Airport ICAO code
+ * @param {string} runwayId - Runway identifier (e.g. "25C", "09L")
+ * @returns {Promise<Object|null>} Runway data with coordinates or null
+ */
+async function fetchRunwayData(icao, runwayId) {
+  if (MAP_DEBUG) console.log('[Runway] fetchRunwayData called with icao=', icao, 'runwayId=', runwayId);
+  
+  if (!icao || !runwayId) {
+    if (MAP_DEBUG) console.log('[Runway] Skipping fetch - missing icao or runwayId');
+    return null;
+  }
+
+  try {
+    var serverUrl = getServerUrl();
+    var url = serverUrl + '/api/navigraph/runway/' + icao + '/' + runwayId;
+    if (MAP_DEBUG) console.log('[Runway] Fetching from URL:', url);
+    
+    var response = await fetch(url, {
+      method: 'GET',
+      timeout: 5000
+    });
+
+    if (MAP_DEBUG) console.log('[Runway] Response status:', response.status);
+
+    if (!response.ok) {
+      console.warn('[Runway] Failed to fetch runway data for', icao, runwayId, ':', response.status);
+      return null;
+    }
+
+    var data = await response.json();
+    if (MAP_DEBUG) console.log('[Runway] Response data:', data);
+    
+    if (data && data.thresholdLat && data.thresholdLon) {
+      if (MAP_DEBUG) console.log('[Runway] Successfully fetched runway data:', icao, runwayId, 'Threshold:', data.thresholdLat, data.thresholdLon);
+      return data;
+    }
+    if (MAP_DEBUG) console.log('[Runway] Response missing thresholdLat or thresholdLon');
+    return null;
+  } catch (err) {
+    console.warn('[Runway] Error fetching runway data:', err.message, err);
+    return null;
+  }
+}
+
+/**
+ * Fetches runway data for departure and arrival from OFP
+ * Updates global departureRunwayData and arrivalRunwayData
+ * CRITICAL: After loading, redraws polylines to include runway segments
+ */
+async function updateRunwayDataFromOFP() {
+  if (!importedOFPData) {
+    departureRunwayData = null;
+    arrivalRunwayData = null;
+    return;
+  }
+
+  try {
+    // Get origin data
+    var origin = importedOFPData.Origin || importedOFPData.origin;
+    var destination = importedOFPData.Destination || importedOFPData.destination;
+
+    var depIcao = origin?.Icao_code || origin?.icao_code || origin?.icao;
+    var depRunway = origin?.Plan_rwy || origin?.plan_rwy;
+    var arrIcao = destination?.Icao_code || destination?.icao_code || destination?.icao;
+    var arrRunway = destination?.Plan_rwy || destination?.plan_rwy;
+
+    console.log('[Runway] Raw values - depRunway:', depRunway, 'arrRunway:', arrRunway);
+    console.log('[Runway] OFP airports - Dep:', depIcao, depRunway, ', Arr:', arrIcao, arrRunway);
+
+    // Fetch both runways in parallel
+    var [depData, arrData] = await Promise.all([
+      fetchRunwayData(depIcao, depRunway),
+      fetchRunwayData(arrIcao, arrRunway)
+    ]);
+
+    departureRunwayData = depData;
+    arrivalRunwayData = arrData;
+
+    if (MAP_DEBUG) {
+      console.log('[Runway] Departure runway loaded:', departureRunwayData ? 'yes' : 'no');
+      console.log('[Runway] Arrival runway loaded:', arrivalRunwayData ? 'yes' : 'no');
+      if (departureRunwayData) {
+        console.log('[Runway] DEP coords:', departureRunwayData.thresholdLat, departureRunwayData.thresholdLon, '->', departureRunwayData.endLat, departureRunwayData.endLon);
+      }
+    }
+
+    // Runway data is now loaded - animation will use it when building coordinates
+    if (MAP_DEBUG) {
+      console.log('[Runway] Data ready for animation');
+    }
+  } catch (err) {
+    console.warn('[Runway] Error loading runway data from OFP:', err.message);
+    departureRunwayData = null;
+    arrivalRunwayData = null;
+  }
+}
+
+/**
+ * Clears runway data (called when flightplan is cleared)
+ */
+function clearRunwayData() {
+  departureRunwayData = null;
+  arrivalRunwayData = null;
+  if (pLineGroupRWY && map) {
+    pLineGroupRWY.clearLayers();
+  }
+}
+
+// Close all popups on the map (including layer-bound popups)
+function closeAllPopups() {
+  if (!map) return;
+
+  // Remove ALL popup elements from DOM directly - most reliable method
+  var allPopups = document.querySelectorAll('.leaflet-popup');
+  allPopups.forEach(function(popup) {
+    popup.remove();
+  });
+
+  // Clear Leaflet's internal popup reference
+  if (map._popup) {
+    map._popup = null;
+  }
+
+  // Close via Leaflet API as well
+  map.closePopup();
+  map.closeTooltip();
+
+  // Also close popups on all layers and clear references
+  map.eachLayer(function(layer) {
+    try {
+      if (layer.closePopup) layer.closePopup();
+      if (layer._popup) {
+        if (layer._popup._map) layer._popup._map = null;
+        layer._popup = null;
+      }
+    } catch(e) {}
+    // Also check sublayers in LayerGroups
+    if (layer.eachLayer) {
+      try {
+        layer.eachLayer(function(subLayer) {
+          try {
+            if (subLayer.closePopup) subLayer.closePopup();
+            if (subLayer._popup) {
+              if (subLayer._popup._map) subLayer._popup._map = null;
+              subLayer._popup = null;
+            }
+          } catch(e) {}
+        });
+      } catch(e) {}
+    }
+  });
+}
+
+// ============================================================================
+// CONTROL ZONES - NEU GESCHRIEBEN (Dezember 2025)
+// Einfach, funktional, ohne verschachtelte Callbacks
+// ============================================================================
+var czState = {
+  enabled: false,
+  network: 'VATSIM',  // 'VATSIM' oder 'IVAO'
+  loading: false,
+  layer: null,        // Aktive Zonen Layer
+  offlineLayer: null, // Offline/Hintergrund Layer
+  labelsLayer: null   // Labels Layer
+};
+
+var czCache = {
+  vatsim: null,
+  ivao: null
+};
+
+var czColors = {
+  CTR: '#22c55e',   // Green (ACC/Center sectors) - wie Simaware
+  APP: '#ea580c',   // Orange (Approach) - wie Simaware
+  TWR: '#ef4444',   // Red (Tower)
+  GND: '#eab308',   // Yellow (Ground)
+  DEL: '#eab308',   // Yellow (Delivery)
+  FSS: '#6b7280',   // Gray (Flight Service)
+  MIL: '#22c55e',   // Green (Military)
+  DEFAULT: '#6b7280'
+};
+
+// Länder mit EINER CTR-Zone: Controller-Prefix → Zone-Prefix Mapping
+// z.B. ESAA_S_CTR (Controller) → ESOS (Zone), weil Schweden nur ESOS_CTR hat
+// Auto-generiert aus IVAO Boundaries-Daten (29 Länder)
+var singleCtrZoneCountries = {
+  'BI': 'BIRD',  // Iceland
+  'EB': 'EBBU',  // Belgium
+  'EE': 'EETT',  // Estonia
+  'EF': 'EFIN',  // Finland
+  'EH': 'EHAA',  // Netherlands
+  'EK': 'EKDK',  // Denmark
+  'EN': 'ENOR',  // Norway
+  'EP': 'EPWW',  // Poland
+  'ES': 'ESOS',  // Sweden
+  'EV': 'EVRR',  // Latvia
+  'EY': 'EYVL',  // Lithuania
+  'LB': 'LBSR',  // Bulgaria
+  'LC': 'LCCC',  // Cyprus
+  'LD': 'LDZO',  // Croatia
+  'LG': 'LGGG',  // Greece
+  'LH': 'LHCC',  // Hungary
+  'LK': 'LKAA',  // Czech Republic
+  'LM': 'LMMM',  // Malta
+  'LO': 'LOVV',  // Austria
+  'LR': 'LRBB',  // Romania
+  'LS': 'LSAZ',  // Switzerland
+  'LT': 'LTAA',  // Turkey
+  'LZ': 'LZBB',  // Slovakia
+  'ZB': 'ZBW',   // USA Boston
+  'ZH': 'ZHU',   // USA Houston
+  'ZL': 'ZLA',   // USA Los Angeles
+  'ZN': 'ZNY',   // USA New York
+  'ZS': 'ZSE',   // USA Seattle
+  'ZT': 'ZTL'    // USA Atlanta
+};
+
+// Cache: Airport-Code → ARTCC-Code (z.B. "SEA" → "ZSE")
+// Wird von lookupArtccForAirport() befüllt und von Rule 2b verwendet
+var airportToArtccCache = {};
+
+// Cache: IATA → ICAO Mapping (z.B. "JFK" → "KJFK", "YYZ" → "CYYZ")
+// Wird beim Start vom Backend geladen
+var iataToIcaoCache = {};
+var iataToIcaoLoaded = false;
+
+// Legacy compatibility - diese Variablen werden noch von anderem Code referenziert
+var controlZonesLayer = null;
+var controlZonesOfflineLayer = null;
+var controlZonesEnabled = false;
+var controlZonesNetwork = 'VATSIM';
+
+
+// Legacy controlZonesSettings - wird von altem Code referenziert
+var controlZonesSettings = {
+  colors: {
+    CTR: '#6b7280',   // Gray (ACC/Center sectors)
+    APP: '#3b82f6',   // Blue (Approach)
+    TWR: '#ef4444',   // Red (Tower)
+    GND: '#eab308',   // Yellow (Ground)
+    DEL: '#eab308',   // Yellow (Delivery)
+    FSS: '#6b7280',   // Gray (Flight Service)
+    MIL: '#22c55e',   // Green (Military)
+    ATIS: '#a855f7',  // Purple (ATIS)
+    DEFAULT: '#6b7280'
+  },
+  opacity: 0.6
+};
+
+// Cache für visible prefixes (wird von checkInRange verwendet)
+var _cachedVisiblePrefixes = null;
+var _cachedVisiblePrefixesBounds = null;
+var _cachedVatsimBoundaryFeatures = null;  // Cache für VATSIM Boundary Features
+var _cachedIvaoGeoJsonFeatures = null;     // Cache für IVAO Boundary Features (konvertierte GeoJSON)
+
+// Cache für ATIS-Koordinaten-Lookups (verhindert mehrfache Abrufe)
+// Key = callsign, Value = { status: 'pending'|'found'|'notfound', lat, lng }
+var _atisCoordLookupCache = {};
+
+// Mapping: LittleNavMap Zone-Namen → IVAO ICAO-Prefixes
+// Für Zonen die keinen ICAO-Code haben (z.B. "CANARIAS CONTROL" statt "GCCC")
+var ivaoZoneNameToIcao = {
+  // === SPAIN ===
+  'CANARIAS CONTROL': 'GCCC',
+  'CANARIAS MILITAR': 'GCCC',
+  'MADRID CONTROL': 'LECM',
+  'MADRID MILITAR': 'LECM',
+  'MADRID RADAR': 'LECM',
+  'BARCELONA CONTROL': 'LECB',
+  'BARCELONA RADAR': 'LECB',
+  'SEVILLA CONTROL': 'LECS',
+  'SEVILLA RADAR': 'LECS',
+  'PALMA CONTROL': 'LECP',
+  'PALMA RADAR': 'LECP',
+
+  // === FRANCE ===
+  'PARIS CONTROL': 'LFFF',
+  'PARIS RADAR': 'LFFF',
+  'REIMS CONTROL': 'LFEE',
+  'CHAMPAGNE CONTROL': 'LFEE',
+  'METRO CONTROL': 'LFEE',
+  'RAKI CONTROL': 'LFEE',
+  'BORDEAUX CONTROL': 'LFBB',
+  'BORDEAUX RADAR': 'LFBB',
+  'BREST CONTROL': 'LFRR',
+  'BREST RADAR': 'LFRR',
+  'MARSEILLE CONTROL': 'LFMM',
+  'MARSEILLE RADAR': 'LFMM',
+
+  // === ITALY ===
+  'ROMA RADAR': 'LIRR',
+  'ROMA CONTROL': 'LIRR',
+  'ROMA MILITARY': 'LIRR',
+  'MILANO RADAR': 'LIMM',
+  'MILANO CONTROL': 'LIMM',
+  'MILANO MILITARY': 'LIMM',
+  'PADOVA RADAR': 'LIPP',
+  'PADOVA CONTROL': 'LIPP',
+  'PADOVA MILITARY': 'LIPP',
+  'BRINDISI RADAR': 'LIBB',
+  'BRINDISI CONTROL': 'LIBB',
+  'BRINDISI MILITARY': 'LIBB',
+
+  // === GERMANY ===
+  'LANGEN RADAR': 'EDGG',
+  'LANGEN CONTROL': 'EDGG',
+  'MUENCHEN RADAR': 'EDMM',
+  'MUENCHEN CONTROL': 'EDMM',
+  'MUNICH RADAR': 'EDMM',
+  'MUNICH CONTROL': 'EDMM',
+  'BREMEN RADAR': 'EDWW',
+  'BREMEN CONTROL': 'EDWW',
+  'BERLIN RADAR': 'EDBB',
+  'BERLIN CONTROL': 'EDBB',
+
+  // === UK ===
+  'LONDON CONTROL': 'EGTT',
+  'LONDON RADAR': 'EGTT',
+  'SCOTTISH CONTROL': 'EGPX',
+  'SCOTTISH RADAR': 'EGPX',
+  'SHANNON CONTROL': 'EISN',
+  'SHANNON RADAR': 'EISN',
+
+  // === BENELUX ===
+  'BRUSSELS CONTROL': 'EBBU',
+  'BRUSSELS RADAR': 'EBBU',
+  'AMSTERDAM RADAR': 'EHAA',
+  'AMSTERDAM CONTROL': 'EHAA',
+  'MAASTRICHT RADAR': 'EDYY',
+  'MAASTRICHT CONTROL': 'EDYY',
+
+  // === TURKEY ===
+  'ANKARA CONTROL': 'LTAA',
+  'ANKARA RADAR': 'LTAA',
+  'ISTANBUL CONTROL': 'LTBB',
+  'ISTANBUL RADAR': 'LTBB',
+
+  // === AFRICA ===
+  'TUNIS RADAR': 'DTTC',
+  'TUNIS CONTROL': 'DTTC',
+  'CASABLANCA CONTROL': 'GMMM',
+  'CASABLANCA RADAR': 'GMMM',
+  'ALGIERS CONTROL': 'DAAA',
+  'ALGIERS RADAR': 'DAAA',
+  'JOHANNESBURG CENTER': 'FAJA',
+  'JOHANNESBURG CENTRAL CENTER': 'FAJA',
+  'JOHANNESBURG CONTROL': 'FAJA',
+  'XZ CONTROL': 'FAJA',
+  'CAIRO CONTROL': 'HECC',
+  'CAIRO RADAR': 'HECC',
+
+  // === USA ===
+  'MIAMI CENTER': 'KZMA',
+  'MIAMI CONTROL': 'KZMA',
+  'NEW YORK CENTER': 'KZNY',
+  'NEW YORK CONTROL': 'KZNY',
+  'WASHINGTON CENTER': 'KZDC',
+  'WASHINGTON CONTROL': 'KZDC',
+  'BOSTON CENTER': 'KZBW',
+  'BOSTON CONTROL': 'KZBW',
+  'JACKSONVILLE CENTER': 'KZJX',
+  'JACKSONVILLE CONTROL': 'KZJX',
+  'ATLANTA CENTER': 'KZAT',
+  'ATLANTA CONTROL': 'KZAT',
+  'CHICAGO CENTER': 'KZAU',
+  'CHICAGO CONTROL': 'KZAU',
+  'INDIANAPOLIS CENTER': 'KZID',
+  'INDIANAPOLIS CONTROL': 'KZID',
+  'KANSAS CITY CENTER': 'KZKC',
+  'KANSAS CITY CONTROL': 'KZKC',
+  'MINNEAPOLIS CENTER': 'KZMP',
+  'MINNEAPOLIS CONTROL': 'KZMP',
+  'CLEVELAND CENTER': 'KZOB',
+  'CLEVELAND CONTROL': 'KZOB',
+  'DENVER CENTER': 'KZDV',
+  'DENVER CONTROL': 'KZDV',
+  'FORT WORTH CENTER': 'KZFW',
+  'FORT WORTH CONTROL': 'KZFW',
+  'HOUSTON CENTER': 'KZHU',
+  'HOUSTON CONTROL': 'KZHU',
+  'ALBUQUERQUE CENTER': 'KZAB',
+  'ALBUQUERQUE CONTROL': 'KZAB',
+  'LOS ANGELES CENTER': 'KZLA',
+  'LOS ANGELES CONTROL': 'KZLA',
+  'OAKLAND CENTER': 'KZOA',
+  'OAKLAND CONTROL': 'KZOA',
+  'SEATTLE CENTER': 'KZSE',
+  'SEATTLE CONTROL': 'KZSE',
+  'SALT LAKE CENTER': 'KZLC',
+  'SALT LAKE CONTROL': 'KZLC',
+  'ANCHORAGE CENTER': 'PAZA',
+  'ANCHORAGE CONTROL': 'PAZA',
+  'HONOLULU CENTER': 'PHZH',
+  'HONOLULU CONTROL': 'PHZH',
+
+  // === SOUTH AMERICA ===
+  'BOGOTA CONTROL': 'SKED',
+  'BOGOTA RADAR': 'SKED',
+  'LIMA CONTROL': 'SPIM',
+  'LIMA RADAR': 'SPIM',
+  'SANTIAGO CONTROL': 'SCEZ',
+  'SANTIAGO RADAR': 'SCEZ',
+  'BUENOS AIRES CONTROL': 'SAEF',
+  'BUENOS AIRES RADAR': 'SAEF',
+  'SAO PAULO CONTROL': 'SBCW',
+  'SAO PAULO RADAR': 'SBCW',
+  'BRASILIA CONTROL': 'SBBS',
+  'BRASILIA RADAR': 'SBBS',
+  'BRASILIA CENTER': 'SBBS',
+  'RECIFE CONTROL': 'SBRE',
+  'RECIFE RADAR': 'SBRE',
+  'CURITIBA CONTROL': 'SBCT',
+  'CURITIBA RADAR': 'SBCT',
+
+  // === AUSTRALIA / OCEANIA ===
+  'MELBOURNE CENTRE': 'YMME',
+  'MELBOURNE CENTER': 'YMME',
+  'MELBOURNE CONTROL': 'YMME',
+  'MELBOURNE RADIO': 'YMME',
+  'BRISBANE CENTRE': 'YBBB',
+  'BRISBANE CENTER': 'YBBB',
+  'BRISBANE CONTROL': 'YBBB',
+  'BRISBANE RADIO': 'YBBB',
+  'SYDNEY CONTROL': 'YMMM',
+  'SYDNEY RADAR': 'YMMM',
+  'AUCKLAND CONTROL': 'NZZO',
+  'AUCKLAND RADAR': 'NZZO',
+
+  // === ASIA ===
+  'HONG KONG CONTROL': 'VHHH',
+  'HONG KONG RADAR': 'VHHH',
+  'SINGAPORE CONTROL': 'WSJC',
+  'SINGAPORE RADAR': 'WSJC',
+  'BANGKOK CONTROL': 'VTBB',
+  'BANGKOK RADAR': 'VTBB',
+  'MANILA CONTROL': 'RPHI',
+  'MANILA RADAR': 'RPHI',
+  'TAIPEI CONTROL': 'RCAA',
+  'TAIPEI RADAR': 'RCAA',
+  'TOKYO CONTROL': 'RJTT',
+  'TOKYO RADAR': 'RJTT',
+  'SEOUL CONTROL': 'RKRR',
+  'SEOUL RADAR': 'RKRR',
+  'BEIJING CONTROL': 'ZBAA',
+  'BEIJING RADAR': 'ZBAA',
+  'SHANGHAI CONTROL': 'ZSPD',
+  'SHANGHAI RADAR': 'ZSPD',
+  'MUMBAI CONTROL': 'VABF',
+  'MUMBAI RADAR': 'VABF',
+  'DELHI CONTROL': 'VIDF',
+  'DELHI RADAR': 'VIDF',
+  'CHENNAI CONTROL': 'VOMF',
+  'CHENNAI RADAR': 'VOMF',
+
+  // === MIDDLE EAST ===
+  'DUBAI CONTROL': 'OMAE',
+  'DUBAI RADAR': 'OMAE',
+  'ABU DHABI CONTROL': 'OMAE',
+  'JEDDAH CONTROL': 'OEJD',
+  'JEDDAH RADAR': 'OEJD',
+  'TEHRAN CONTROL': 'OIIX',
+  'TEHRAN RADAR': 'OIIX',
+  'TEL AVIV CONTROL': 'LLLL',
+  'TEL AVIV RADAR': 'LLLL',
+
+  // === CANADA ===
+  'VANCOUVER CONTROL': 'CZVR',
+  'VANCOUVER RADAR': 'CZVR',
+  'EDMONTON CONTROL': 'CZEG',
+  'EDMONTON RADAR': 'CZEG',
+  'WINNIPEG CONTROL': 'CZWG',
+  'WINNIPEG RADAR': 'CZWG',
+  'TORONTO CONTROL': 'CZYZ',
+  'TORONTO RADAR': 'CZYZ',
+  'MONTREAL CONTROL': 'CZUL',
+  'MONTREAL RADAR': 'CZUL',
+  'MONCTON CONTROL': 'CZQM',
+  'MONCTON RADAR': 'CZQM',
+  'GANDER CONTROL': 'CZQX',
+  'GANDER RADAR': 'CZQX',
+
+  // === SCANDINAVIA ===
+  'OSLO CONTROL': 'ENOR',
+  'OSLO RADAR': 'ENOR',
+  'STOCKHOLM CONTROL': 'ESAA',
+  'STOCKHOLM RADAR': 'ESAA',
+  'COPENHAGEN CONTROL': 'EKDK',
+  'COPENHAGEN RADAR': 'EKDK',
+  'HELSINKI CONTROL': 'EFIN',
+  'HELSINKI RADAR': 'EFIN',
+  'REYKJAVIK CONTROL': 'BIRD',
+  'REYKJAVIK RADAR': 'BIRD',
+
+  // === EASTERN EUROPE ===
+  'WARSZAWA CONTROL': 'EPWW',
+  'WARSZAWA RADAR': 'EPWW',
+  'WARSAW CONTROL': 'EPWW',
+  'WARSAW RADAR': 'EPWW',
+  'PRAHA CONTROL': 'LKAA',
+  'PRAHA RADAR': 'LKAA',
+  'PRAGUE CONTROL': 'LKAA',
+  'PRAGUE RADAR': 'LKAA',
+  'BUDAPEST CONTROL': 'LHCC',
+  'BUDAPEST RADAR': 'LHCC',
+  'BUCHAREST CONTROL': 'LRBB',
+  'BUCHAREST RADAR': 'LRBB',
+  'SOFIA CONTROL': 'LBSR',
+  'SOFIA RADAR': 'LBSR',
+  'BEOGRAD CONTROL': 'LYBA',
+  'BEOGRAD RADAR': 'LYBA',
+  'BELGRADE CONTROL': 'LYBA',
+  'BELGRADE RADAR': 'LYBA',
+  'ZAGREB CONTROL': 'LDZO',
+  'ZAGREB RADAR': 'LDZO',
+  'KIEV CONTROL': 'UKBV',
+  'KIEV RADAR': 'UKBV',
+  'KYIV CONTROL': 'UKBV',
+  'KYIV RADAR': 'UKBV',
+  'MOSKVA CONTROL': 'UUWV',
+  'MOSKVA RADAR': 'UUWV',
+  'MOSCOW CONTROL': 'UUWV',
+  'MOSCOW RADAR': 'UUWV',
+
+  // === AUSTRIA / SWITZERLAND / GREECE ===
+  'WIEN CONTROL': 'LOVV',
+  'WIEN RADAR': 'LOVV',
+  'VIENNA CONTROL': 'LOVV',
+  'VIENNA RADAR': 'LOVV',
+  'ZURICH CONTROL': 'LSAZ',
+  'ZURICH RADAR': 'LSAZ',
+  'GENEVA CONTROL': 'LSAG',
+  'GENEVA RADAR': 'LSAG',
+  'ATHINAI CONTROL': 'LGGG',
+  'ATHINAI RADAR': 'LGGG',
+  'ATHENS CONTROL': 'LGGG',
+  'ATHENS RADAR': 'LGGG',
+
+  // === PORTUGAL ===
+  'LISBOA CONTROL': 'LPPC',
+  'LISBOA RADAR': 'LPPC',
+  'LISBON CONTROL': 'LPPC',
+  'LISBON RADAR': 'LPPC',
+  'SANTA MARIA CONTROL': 'LPPO',
+  'SANTA MARIA RADAR': 'LPPO'
+};
+
+// ============================================================================
+// CONTROL ZONES - NEUE FUNKTIONEN
+// ============================================================================
+
+/**
+ * Aktiviert/Deaktiviert Control Zones
+ */
+function czSetEnabled(enabled) {
+  if (CZ_DEBUG) console.log('[CZ] setEnabled:', enabled);
+  czState.enabled = enabled;
+  controlZonesEnabled = enabled; // Legacy sync
+
+  // Synchronisiere Layer Control UI
+  if (typeof updateControlZonesLayerUI === 'function') {
+    updateControlZonesLayerUI(enabled);
+  }
+
+  if (enabled) {
+    // NICHT sofort rendern - wird von checkInRange() aufgerufen
+    // wenn die Controller-Daten geladen sind
+    if (CZ_DEBUG) console.log('[CZ] Enabled - waiting for controller data to render');
+  } else {
+    // Cancel any pending debounced render
+    if (czRenderDebounceTimer) {
+      clearTimeout(czRenderDebounceTimer);
+      czRenderDebounceTimer = null;
+      if (CZ_DEBUG) console.log('[CZ] Cancelled pending render timer');
+    }
+    czClear();
+    // Reset first render flag for next time
+    window._czFirstRenderDone = false;
+  }
+}
+
+/**
+ * Wechselt das Netzwerk (VATSIM/IVAO)
+ */
+function czSetNetwork(network) {
+  if (CZ_DEBUG) console.log('[CZ] setNetwork:', network);
+  czState.network = network;
+  controlZonesNetwork = network; // Legacy sync
+  czClear();
+
+  // IATA→ICAO Mapping laden (einmalig)
+  loadIataToIcaoMapping();
+
+  // NICHT sofort rendern - warte auf Controller-Daten von checkInRange()
+  // Nur Boundaries vorladen (Cache warmup)
+  if (czState.enabled) {
+    czLoadBoundaries(network);  // Async, kein Render - checkInRange triggert czRender()
+    // Preload offline FIR layer for faster initial render
+    if (network.toUpperCase() === 'IVAO') {
+      loadIvaoOfflineFir();  // Async preload
+    }
+  }
+}
+
+// Request-Deduplication: Verhindert parallele Requests für gleiche Boundaries
+var czBoundariesPromise = {};
+
+/**
+ * Lädt Boundaries vom Server (mit Cache + Request-Deduplication)
+ */
+async function czLoadBoundaries(network) {
+  var cacheKey = network.toLowerCase();
+
+  // CACHE CHECK: Nicht neu laden wenn bereits im Cache
+  if (czCache[cacheKey] && czCache[cacheKey].features) {
+    if (CZ_DEBUG) console.log('[CZ] Using cached boundaries for', network, ':', czCache[cacheKey].features.length, 'features');
+    return czCache[cacheKey];
+  }
+
+  // REQUEST-DEDUPLICATION: Warte auf laufenden Request statt neuen zu starten
+  if (czBoundariesPromise[cacheKey]) {
+    if (CZ_DEBUG) console.log('[CZ] Waiting for in-flight request for', network);
+    return czBoundariesPromise[cacheKey];
+  }
+
+  var url = '/api/boundaries/' + cacheKey;
+  if (CZ_DEBUG) console.log('[CZ] Loading boundaries from:', url);
+
+  // Neuer Request - Promise speichern für Deduplication
+  czBoundariesPromise[cacheKey] = (async function() {
+    try {
+      var response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('HTTP ' + response.status);
+      }
+      var data = await response.json();
+      if (CZ_DEBUG) console.log('[CZ] Loaded', data.features ? data.features.length : 0, 'features');
+
+      // Cache speichern
+      czCache[cacheKey] = data;
+      return data;
+    } catch (err) {
+      console.error('[CZ] Failed to load boundaries:', err);
+      return null;
+    } finally {
+      // Promise aus Deduplication-Cache entfernen
+      delete czBoundariesPromise[cacheKey];
+    }
+  })();
+
+  return czBoundariesPromise[cacheKey];
+}
+
+/**
+ * PREFETCH: Lädt Boundaries im Hintergrund beim App-Start
+ * Dadurch sind die Daten bereits verfügbar wenn User Zonen aktiviert
+ */
+function prefetchBoundaries() {
+  if (CZ_DEBUG) console.log('[Prefetch] Loading boundaries in background...');
+
+  // VATSIM und IVAO parallel laden
+  Promise.all([
+    czLoadBoundaries('VATSIM'),
+    czLoadBoundaries('IVAO')
+  ]).then(function(results) {
+    if (CZ_DEBUG) {
+      var vatsimCount = results[0] && results[0].features ? results[0].features.length : 0;
+      var ivaoCount = results[1] && results[1].features ? results[1].features.length : 0;
+      console.log('[Prefetch] Boundaries loaded - VATSIM:', vatsimCount, 'IVAO:', ivaoCount);
+    }
+  }).catch(function(err) {
+    console.warn('[Prefetch] Some boundaries failed to load:', err);
+  });
+}
+
+// Track last rendered controller state to avoid unnecessary re-renders
+var czLastRenderedControllers = null;
+var czRenderDebounceTimer = null;
+var CZ_RENDER_DEBOUNCE_MS = 200;  // Debounce für czRender (reduziert für schnellere Reaktion)
+// Diff-based rendering: Track which zones are currently rendered
+var czRenderedZones = {}; // { "EDDF_TWR": { layer: L.geoJSON, label: L.marker }, ... }
+var czRenderedLabels = {}; // Track labels separately for easier cleanup
+
+// Polygon-Validierungs-Cache für bessere Performance
+var czValidatedPolygonCache = {};
+
+/**
+ * Berechnet den Centroid (Schwerpunkt) eines Polygons
+ * Für konkave Polygone kann der Centroid außerhalb liegen - dann Fallback auf Bounding-Box-Mitte
+ * @param {Object} feature - GeoJSON Feature mit Polygon oder MultiPolygon Geometrie
+ * @returns {L.LatLng|null} - Leaflet LatLng Objekt oder null
+ */
+function getPolygonCentroid(feature) {
+  if (!feature || !feature.geometry || !feature.geometry.coordinates) {
+    return null;
+  }
+
+  var geom = feature.geometry;
+  var coords;
+
+  // Koordinaten extrahieren je nach Geometrie-Typ
+  if (geom.type === 'Polygon') {
+    coords = geom.coordinates[0]; // Äußerer Ring
+  } else if (geom.type === 'MultiPolygon') {
+    // Für MultiPolygon: Verwende das größte Polygon
+    var largestArea = 0;
+    var largestCoords = null;
+    for (var p = 0; p < geom.coordinates.length; p++) {
+      var ring = geom.coordinates[p][0];
+      var area = calculatePolygonArea(ring);
+      if (area > largestArea) {
+        largestArea = area;
+        largestCoords = ring;
+      }
+    }
+    coords = largestCoords;
+  } else {
+    return null;
+  }
+
+  if (!coords || coords.length < 3) {
+    return null;
+  }
+
+  // Centroid-Berechnung mit der "Shoelace"-Formel
+  var signedArea = 0;
+  var cx = 0;
+  var cy = 0;
+
+  for (var i = 0; i < coords.length - 1; i++) {
+    var x0 = coords[i][0];
+    var y0 = coords[i][1];
+    var x1 = coords[i + 1][0];
+    var y1 = coords[i + 1][1];
+
+    var a = x0 * y1 - x1 * y0;
+    signedArea += a;
+    cx += (x0 + x1) * a;
+    cy += (y0 + y1) * a;
+  }
+
+  signedArea *= 0.5;
+
+  if (Math.abs(signedArea) < 1e-10) {
+    // Degeneriertes Polygon - verwende Bounding-Box-Mitte
+    return getBoundingBoxCenter(coords);
+  }
+
+  cx = cx / (6 * signedArea);
+  cy = cy / (6 * signedArea);
+
+  var centroid = L.latLng(cy, cx);
+
+  // Prüfe ob der Centroid innerhalb des Polygons liegt
+  if (isPointInPolygon(centroid, coords)) {
+    return centroid;
+  }
+
+  // Centroid liegt außerhalb - suche einen Punkt auf einer horizontalen Linie durch den Centroid
+  var innerPoint = findInnerPoint(coords, cy);
+  if (innerPoint) {
+    return innerPoint;
+  }
+
+  // Fallback: Bounding-Box-Mitte
+  return getBoundingBoxCenter(coords);
+}
+
+/**
+ * Berechnet die Fläche eines Polygons (für MultiPolygon-Auswahl)
+ */
+function calculatePolygonArea(coords) {
+  if (!coords || coords.length < 3) return 0;
+  var area = 0;
+  for (var i = 0; i < coords.length - 1; i++) {
+    area += coords[i][0] * coords[i + 1][1];
+    area -= coords[i + 1][0] * coords[i][1];
+  }
+  return Math.abs(area / 2);
+}
+
+/**
+ * Berechnet die Mitte der Bounding Box
+ */
+function getBoundingBoxCenter(coords) {
+  var minLng = Infinity, maxLng = -Infinity;
+  var minLat = Infinity, maxLat = -Infinity;
+  for (var i = 0; i < coords.length; i++) {
+    var lng = coords[i][0];
+    var lat = coords[i][1];
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+  return L.latLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+}
+
+/**
+ * Prüft ob ein Punkt innerhalb eines Polygons liegt (Ray-Casting)
+ */
+function isPointInPolygon(point, coords) {
+  var x = point.lng;
+  var y = point.lat;
+  var inside = false;
+
+  for (var i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+    var xi = coords[i][0], yi = coords[i][1];
+    var xj = coords[j][0], yj = coords[j][1];
+
+    var intersect = ((yi > y) !== (yj > y)) &&
+      (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+
+  return inside;
+}
+
+/**
+ * Findet einen Punkt innerhalb des Polygons auf einer horizontalen Linie
+ * durch die gegebene Y-Koordinate (lat)
+ */
+function findInnerPoint(coords, targetLat) {
+  var intersections = [];
+
+  // Finde alle Schnittpunkte der horizontalen Linie mit dem Polygon
+  for (var i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+    var y1 = coords[i][1], y2 = coords[j][1];
+    var x1 = coords[i][0], x2 = coords[j][0];
+
+    if ((y1 <= targetLat && y2 > targetLat) || (y2 <= targetLat && y1 > targetLat)) {
+      var x = x1 + (targetLat - y1) / (y2 - y1) * (x2 - x1);
+      intersections.push(x);
+    }
+  }
+
+  if (intersections.length < 2) {
+    return null;
+  }
+
+  // Sortiere Schnittpunkte
+  intersections.sort(function(a, b) { return a - b; });
+
+  // Finde das größte Intervall innerhalb des Polygons
+  var bestMidpoint = null;
+  var bestWidth = 0;
+
+  for (var k = 0; k < intersections.length - 1; k += 2) {
+    var width = intersections[k + 1] - intersections[k];
+    if (width > bestWidth) {
+      bestWidth = width;
+      bestMidpoint = (intersections[k] + intersections[k + 1]) / 2;
+    }
+  }
+
+  if (bestMidpoint !== null) {
+    return L.latLng(targetLat, bestMidpoint);
+  }
+
+  return null;
+}
+
+/**
+ * Prüft ob ein Punkt in einem der gegebenen Feature-Polygone liegt
+ * @param {L.LatLng} point - Punkt zum Prüfen
+ * @param {Array} features - Array von GeoJSON Features
+ * @returns {boolean}
+ */
+function isPointInAnyFeature(point, features) {
+  if (!point || !features || features.length === 0) return false;
+
+  for (var i = 0; i < features.length; i++) {
+    var f = features[i];
+    if (!f || !f.geometry || !f.geometry.coordinates) continue;
+
+    var coords;
+    if (f.geometry.type === 'Polygon') {
+      coords = f.geometry.coordinates[0];
+    } else if (f.geometry.type === 'MultiPolygon') {
+      coords = f.geometry.coordinates[0][0];
+    } else {
+      continue;
+    }
+
+    if (coords && isPointInPolygon(point, coords)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Berechnet den Polygon-Centroid, vermeidet aber Positionen innerhalb von Ausschluss-Zonen
+ * @param {Object} feature - GeoJSON Feature
+ * @param {Array} excludeFeatures - Array von Features deren Polygone vermieden werden sollen
+ * @returns {L.LatLng|null}
+ */
+function getPolygonCentroidAvoidingZones(feature, excludeFeatures) {
+  var centroid = getPolygonCentroid(feature);
+  if (!centroid || !excludeFeatures || excludeFeatures.length === 0) {
+    return centroid;
+  }
+
+  // Prüfe ob Centroid in einer Ausschluss-Zone liegt
+  if (!isPointInAnyFeature(centroid, excludeFeatures)) {
+    return centroid; // OK - nicht in kleinerer Zone
+  }
+
+  // Centroid liegt in kleinerer Zone - suche Alternative
+  var geom = feature.geometry;
+  var coords;
+  if (geom.type === 'Polygon') {
+    coords = geom.coordinates[0];
+  } else if (geom.type === 'MultiPolygon') {
+    // Für MultiPolygon: Verwende das größte Polygon
+    var largestArea = 0;
+    for (var p = 0; p < geom.coordinates.length; p++) {
+      var ring = geom.coordinates[p][0];
+      var area = calculatePolygonArea(ring);
+      if (area > largestArea) {
+        largestArea = area;
+        coords = ring;
+      }
+    }
+  }
+
+  if (!coords || coords.length < 3) {
+    return centroid; // Fallback
+  }
+
+  // Bounding Box berechnen
+  var minLat = Infinity, maxLat = -Infinity;
+  for (var i = 0; i < coords.length; i++) {
+    var lat = coords[i][1];
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+
+  // Versuche verschiedene Punkte auf horizontalen Linien
+  var step = (maxLat - minLat) / 10;
+
+  for (var lat = minLat + step; lat < maxLat; lat += step) {
+    var innerPt = findInnerPoint(coords, lat);
+    if (innerPt && !isPointInAnyFeature(innerPt, excludeFeatures)) {
+      return innerPt;
+    }
+  }
+
+  return centroid; // Fallback wenn kein guter Punkt gefunden
+}
+
+/**
+ * Validiert und repariert GeoJSON-Polygone (verhindert Linien-Rendering-Artefakte)
+ * GLOBAL: Wird von czCreateLayers und renderControlZonesWithData verwendet
+ */
+function validateAndFixPolygon(feature) {
+  if (!feature || !feature.geometry || !feature.geometry.coordinates) {
+    return null;
+  }
+  var geom = feature.geometry;
+
+  // Nur Polygon und MultiPolygon verarbeiten
+  if (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon') {
+    return null;
+  }
+
+  // EINFACHE Validierung - Server macht die Hauptkorrektur
+  function validateRing(ring) {
+    if (!ring || !Array.isArray(ring) || ring.length < 4) {
+      return null;
+    }
+
+    var validRing = [];
+
+    for (var i = 0; i < ring.length; i++) {
+      var coord = ring[i];
+
+      // Basis-Validierung
+      if (!Array.isArray(coord) || coord.length < 2) continue;
+      if (typeof coord[0] !== 'number' || typeof coord[1] !== 'number') continue;
+      if (isNaN(coord[0]) || isNaN(coord[1])) continue;
+
+      var lon = coord[0];
+      var lat = coord[1];
+
+      // Ungültige Koordinaten überspringen
+      if (Math.abs(lat) > 90) continue;
+
+      validRing.push([lon, lat]);
+    }
+
+    // Mindestens 4 Punkte für gültiges Polygon?
+    if (validRing.length < 4) {
+      return null;
+    }
+
+    // Polygon schließen wenn nötig
+    var first = validRing[0];
+    var last = validRing[validRing.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      validRing.push([first[0], first[1]]);
+    }
+
+    return validRing;
+  }
+
+  if (geom.type === 'Polygon') {
+    var validRing = validateRing(geom.coordinates[0]);
+    if (!validRing) return null;
+    return {
+      type: 'Feature',
+      properties: feature.properties,
+      geometry: { type: 'Polygon', coordinates: [validRing] }
+    };
+  } else if (geom.type === 'MultiPolygon') {
+    var validPolys = [];
+    for (var p = 0; p < geom.coordinates.length; p++) {
+      var poly = geom.coordinates[p];
+      if (poly && poly[0]) {
+        var validRingMulti = validateRing(poly[0]);
+        if (validRingMulti) {
+          validPolys.push([validRingMulti]);
+        }
+      }
+    }
+    if (validPolys.length === 0) return null;
+    return {
+      type: 'Feature',
+      properties: feature.properties,
+      geometry: { type: 'MultiPolygon', coordinates: validPolys }
+    };
+  }
+  return null;
+}
+
+/**
+ * Debounced czRender - verhindert mehrfache Aufrufe in kurzer Zeit
+ */
+function czRenderDebounced() {
+  if (czRenderDebounceTimer) {
+    clearTimeout(czRenderDebounceTimer);
+  }
+  czRenderDebounceTimer = setTimeout(function() {
+    czRenderDebounceTimer = null;
+    czRender();
+  }, CZ_RENDER_DEBOUNCE_MS);
+}
+
+/**
+ * Hauptfunktion: Rendert die Zonen
+ * OPTIMIERT: Nur neu zeichnen wenn sich die Controller-Liste geändert hat
+ */
+async function czRender() {
+  // Nur rendern wenn aktiviert und Panel offen
+  if (!czState.enabled) {
+    if (CZ_DEBUG) console.log('[CZ] Skip render - not enabled');
+    return;
+  }
+
+  var panel = document.getElementById('controllerContainer');
+  if (!panel || panel.style.visibility !== 'visible') {
+    if (CZ_DEBUG) console.log('[CZ] Skip render - panel not visible');
+    return;
+  }
+
+  if (panelState !== 'vatsim' && panelState !== 'ivao') {
+    if (CZ_DEBUG) console.log('[CZ] Skip render - panelState:', panelState);
+    return;
+  }
+
+  if (czState.loading) {
+    if (CZ_DEBUG) console.log('[CZ] Skip render - already loading');
+    return;
+  }
+
+  // 1. Hole aktive Controller ZUERST (für Change-Detection)
+  var activePrefixes = getActiveControllerPrefixes();
+  var activePrefixList = Object.keys(activePrefixes).sort();
+  var network = czState.network;
+
+  // OPTIMIZATION: Check if controllers have changed since last render
+  var currentControllerKey = network + ':' + activePrefixList.join(',');
+
+  // NUR Controller-Key prüfen - hasLayers Check entfernt weil er false-positives verursacht
+  if (czLastRenderedControllers === currentControllerKey) {
+    if (CZ_DEBUG) console.log('[CZ] Skip render - no controller changes (', activePrefixList.length, 'controllers)');
+    return;
+  }
+
+  czState.loading = true;
+  if (CZ_DEBUG) console.log('[CZ] Rendering for network:', network, '- Controllers changed:', activePrefixList.length);
+
+  try {
+    // 2. Lade Boundaries (mit Cache - kein erneuter Fetch wenn im Cache)
+    var data = await czLoadBoundaries(network);
+
+    // Race-condition check: User könnte während des Ladens deaktiviert haben
+    if (!czState.enabled) {
+      if (CZ_DEBUG) console.log('[CZ] Aborted after boundary load - disabled during loading');
+      czState.loading = false;
+      return;
+    }
+
+    if (!data || !data.features) {
+      console.error('[CZ] No boundary data available');
+      czState.loading = false;
+      return;
+    }
+
+    // 3. Entferne nur Online-Layer (Offline-Layer bleibt für Diff-Rendering)
+    czClearOnlineOnly();
+
+    // 4. Lade TRACON-Daten für VATSIM (APP/DEP Sektoren)
+    var traconData = null;
+    if (network === 'VATSIM') {
+      // Lade TRACON-Daten asynchron falls nicht im Cache
+      if (!vatsimTraconBoundariesCache) {
+        if (CZ_DEBUG) console.log('[CZ] Loading TRACON boundaries for VATSIM...');
+        await new Promise(function(resolve) {
+          loadVatsimTraconBoundaries(function(loadedData) {
+            traconData = loadedData;
+            resolve();
+          });
+        });
+
+        // Race-condition check: User könnte während TRACON-Load deaktiviert haben
+        if (!czState.enabled) {
+          if (CZ_DEBUG) console.log('[CZ] Aborted after TRACON load - disabled during loading');
+          czState.loading = false;
+          return;
+        }
+      } else {
+        traconData = vatsimTraconBoundariesCache;
+      }
+      if (CZ_DEBUG) console.log('[CZ] TRACON data:', traconData ? (traconData.features ? traconData.features.length : 0) + ' features' : 'none');
+    }
+
+    // 5. Rufe die alte komplexe Render-Funktion auf (mit Labels und Kreisen)
+    renderControlZonesWithData(data, activePrefixes, activePrefixList, 0, traconData);
+
+    // 6. Speichere den aktuellen Controller-Stand für Change-Detection
+    czLastRenderedControllers = currentControllerKey;
+
+  } catch (err) {
+    console.error('[CZ] Render error:', err);
+  } finally {
+    czState.loading = false;
+  }
+}
+
+/**
+ * Holt aktive Controller-Prefixes
+ * Erstellt auch Einträge für gemappte Zone-Prefixes (z.B. ESAA → ESOS)
+ */
+function czGetActiveControllers() {
+  var result = {};
+  var source = (typeof controllersWithCoordArray !== 'undefined' && controllersWithCoordArray.length > 0)
+               ? controllersWithCoordArray
+               : (typeof controllers_array !== 'undefined' ? controllers_array : []);
+
+  for (var i = 0; i < source.length; i++) {
+    var ctrl = source[i];
+    var callsign = (ctrl.callsign || '').toUpperCase();
+    var parts = callsign.split('_');
+    var prefix = parts[0];
+    var suffix = parts[parts.length - 1];
+
+    // Füge Controller unter eigenem Prefix hinzu
+    if (!result[prefix]) {
+      result[prefix] = { callsigns: [], types: [] };
+    }
+    result[prefix].callsigns.push(callsign);
+    if (result[prefix].types.indexOf(suffix) === -1) {
+      result[prefix].types.push(suffix);
+    }
+
+    // Für CTR/FSS Controller: Auch unter gemapptem Zone-Prefix hinzufügen
+    // z.B. ESAA_S_CTR → auch unter ESOS speichern für Popup-Lookup
+    if (suffix === 'CTR' || suffix === 'FSS') {
+      var countryCode = prefix.substring(0, 2);
+      var mappedZone = singleCtrZoneCountries[countryCode];
+
+      if (mappedZone && mappedZone !== prefix) {
+        // Erstelle auch einen Eintrag für den Zone-Prefix
+        if (!result[mappedZone]) {
+          result[mappedZone] = { callsigns: [], types: [] };
+        }
+        // Füge den Controller auch unter dem Zone-Prefix hinzu
+        if (result[mappedZone].callsigns.indexOf(callsign) === -1) {
+          result[mappedZone].callsigns.push(callsign);
+        }
+        if (result[mappedZone].types.indexOf(suffix) === -1) {
+          result[mappedZone].types.push(suffix);
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Erstellt die Leaflet Layer
+ */
+function czCreateLayers(features, activeControllers) {
+  if (!map) {
+    console.error('[CZ] No map available');
+    return;
+  }
+
+  // Pane für Control Zones (unter Markern)
+  if (!map.getPane('czPane')) {
+    map.createPane('czPane');
+    map.getPane('czPane').style.zIndex = 250;
+  }
+
+  var activeFeatures = [];
+  var offlineFeatures = [];
+
+  // DEDUPLIZIERUNG: IVAO-Daten haben Duplikate (z.B. LTAA_CTR: 6x, LTFM_APP: 29x)
+  var processedZoneIds = {};
+
+  // Erstelle Set aller aktiven Controller-Callsigns für exaktes Matching
+  var activeCallsigns = {};
+  for (var prefix in activeControllers) {
+    var callsigns = activeControllers[prefix].callsigns || [];
+    for (var c = 0; c < callsigns.length; c++) {
+      activeCallsigns[callsigns[c].toUpperCase()] = true;
+    }
+  }
+
+  // Sortiere Features in aktiv/offline
+  for (var i = 0; i < features.length; i++) {
+    var feature = features[i];
+    var props = feature.properties || {};
+    var featureId = (props.id || '').toUpperCase();
+
+    // Skip bereits verarbeitete Zone-IDs (Duplikate)
+    if (processedZoneIds[featureId]) {
+      continue;
+    }
+    processedZoneIds[featureId] = true;
+
+    var prefix = featureId.split('_')[0];
+
+    // Exaktes Matching: Zone-ID muss mit Controller-Callsign übereinstimmen
+    // z.B. EFIN_H_CTR Zone zeigt nur wenn EFIN_H_CTR Controller online ist
+    var isActive = false;
+
+    // Check 1: Exaktes ID-Match (für sektorierte Zonen wie EFIN_H_CTR, EFIN_HJ_CTR)
+    if (activeCallsigns[featureId]) {
+      isActive = true;
+    }
+    // Check 2: Prefix-Match als Fallback (für unsektorierte Zonen)
+    // Sektorierte Zonen haben Format: PREFIX_X_CTR oder PREFIX_XX_CTR (z.B. EFIN_H_CTR, EFIN_HJ_CTR)
+    else if (activeControllers[prefix]) {
+      // Prüfe ob es eine sektorierte Zone ist (hat Buchstaben zwischen Prefix und CTR)
+      var isSectoredZone = featureId.match(/^[A-Z]{4}_[A-Z0-9]+_CTR$/);
+      if (!isSectoredZone) {
+        // Unsektorierte Zone (z.B. EFIN_CTR) - zeige wenn Prefix aktiv
+        isActive = true;
+      }
+    }
+
+    if (isActive) {
+      activeFeatures.push(feature);
+    } else {
+      offlineFeatures.push(feature);
+    }
+  }
+
+  if (CZ_DEBUG) console.log('[CZ] Active:', activeFeatures.length, 'Offline:', offlineFeatures.length);
+
+  // Offline Layer (grau, transparent) - NUR FIR-Grenzen (CTR)
+  // HINWEIS: validateAndFixPolygon ist jetzt global definiert (siehe oben)
+  var czRenderOffline = true;
+  if (czRenderOffline && offlineFeatures.length > 0) {
+    // Nur CTR-Zonen für FIR-Grenzen, keine APP/TWR/GND
+    var firFeatures = offlineFeatures.filter(function(f) {
+      var id = (f.properties && f.properties.id) || '';
+      // Nur _CTR Zonen (FIR-Grenzen)
+      return id.toUpperCase().indexOf('_CTR') !== -1;
+    });
+
+    // Gruppiere nach FIR-Prefix und behalte nur das größte pro FIR
+    var firGroups = {};
+    firFeatures.forEach(function(feature) {
+      var id = (feature.properties && feature.properties.id) || '';
+      var prefix = id.split('_')[0].toUpperCase();
+      if (!prefix || prefix.length < 2) return;
+
+      // Zähle Koordinaten für Größenvergleich
+      var coordCount = 0;
+      if (feature.geometry && feature.geometry.coordinates) {
+        var coords = feature.geometry.coordinates;
+        if (feature.geometry.type === 'Polygon' && coords[0]) {
+          coordCount = coords[0].length;
+        } else if (feature.geometry.type === 'MultiPolygon') {
+          coords.forEach(function(poly) {
+            if (poly[0]) coordCount += poly[0].length;
+          });
+        }
+      }
+
+      if (!firGroups[prefix] || coordCount > firGroups[prefix].size) {
+        firGroups[prefix] = { feature: feature, size: coordCount };
+      }
+    });
+
+    // Validiere und sammle FIR-Features
+    var validFirFeatures = [];
+    for (var prefix in firGroups) {
+      var validated = validateAndFixPolygon(firGroups[prefix].feature);
+      if (validated) {
+        validFirFeatures.push(validated);
+      }
+    }
+
+    if (CZ_DEBUG) console.log('[CZ] FIR boundaries:', validFirFeatures.length, 'of', offlineFeatures.length, 'offline');
+
+    if (validFirFeatures.length > 0) {
+      var offlineOptions = {
+        style: {
+          color: '#d1d5db',         // Sehr hellgrau - Randfarbe
+          weight: 0.5,
+          opacity: 0.25,
+          fillColor: '#e5e7eb',     // Fast weiß - Füllfarbe
+          fillOpacity: 0.02         // 2% Füllung - kaum sichtbar
+        },
+        pane: 'czPane',
+        interactive: false
+      };
+      if (czCanvasRenderer) {
+        offlineOptions.renderer = czCanvasRenderer;
+      }
+
+      czState.offlineLayer = L.geoJSON({
+        type: 'FeatureCollection',
+        features: validFirFeatures
+      }, offlineOptions).addTo(map);
+      controlZonesOfflineLayer = czState.offlineLayer;
+    }
+  }
+
+  // Aktive Layer (farbig)
+  if (activeFeatures.length > 0) {
+    czState.layer = L.geoJSON({
+      type: 'FeatureCollection',
+      features: activeFeatures
+    }, {
+      style: function(feature) {
+        return czGetStyle(feature);
+      },
+      pane: 'czPane',
+      onEachFeature: function(feature, layer) {
+        layer.on('click', function(e) {
+          // Panel wieder öffnen wenn Controller-Modus aktiv aber Panel versteckt
+          showControllerPanel();
+          czShowPopup(feature, e.latlng, activeControllers);
+          L.DomEvent.stopPropagation(e);
+        });
+      }
+    }).addTo(map);
+    controlZonesLayer = czState.layer; // Legacy sync
+  }
+
+  if (CZ_DEBUG) console.log('[CZ] Layers created successfully');
+}
+
+/**
+ * Style für aktive Zonen
+ */
+function czGetStyle(feature) {
+  var props = feature.properties || {};
+  var position = (props.position || '').toUpperCase();
+
+  var color = czColors[position] || czColors.DEFAULT;
+
+  return {
+    color: color,
+    weight: 2,
+    opacity: 0.7,
+    fillColor: color,
+    fillOpacity: 0.15
+  };
+}
+
+/**
+ * Popup für Zone
+ */
+function czShowPopup(feature, latlng, activeControllers) {
+  var props = feature.properties || {};
+  var prefix = (props.prefix || props.id || '').toUpperCase().split('_')[0];
+  var name = props.name || prefix;
+  var position = props.position || '';
+
+  var html = '<div class="cz-popup">';
+  html += '<div class="cz-popup-header"><strong>' + name + '</strong></div>';
+
+  // Zeige aktive Controller für diese Zone
+  if (activeControllers && activeControllers[prefix]) {
+    html += '<div class="cz-popup-controllers">';
+    var callsigns = activeControllers[prefix].callsigns;
+    for (var i = 0; i < callsigns.length && i < 5; i++) {
+      html += '<div>' + callsigns[i] + '</div>';
+    }
+    if (callsigns.length > 5) {
+      html += '<div>... und ' + (callsigns.length - 5) + ' weitere</div>';
+    }
+    html += '</div>';
+  }
+
+  html += '</div>';
+
+  L.popup({ className: 'cz-popup-container' })
+    .setLatLng(latlng)
+    .setContent(html)
+    .openOn(map);
+}
+
+/**
+ * Entfernt alle Control Zone Layer - robuste Version
+ */
+function czClear() {
+  if (CZ_DEBUG) console.log('[CZ] czClear called');
+
+  // Speichere Referenzen bevor wir sie nullen
+  var layersToRemove = [
+    controlZonesLayer,
+    controlZonesOfflineLayer,
+    czState.layer,
+    czState.offlineLayer,
+    czState.labelsLayer
+  ];
+
+  // Force clear - alle Control Zone Layer von der Map entfernen
+  if (map) {
+    map.eachLayer(function(layer) {
+      // Entferne Layer die zu controlZones gehören
+      for (var i = 0; i < layersToRemove.length; i++) {
+        if (layer === layersToRemove[i] && layersToRemove[i] !== null) {
+          try {
+            map.removeLayer(layer);
+          } catch (e) {
+            console.warn('[CZ] Error removing layer:', e);
+          }
+          break;
+        }
+      }
+    });
+  }
+
+  // Reset State
+  czState.layer = null;
+  czState.offlineLayer = null;
+  czState.labelsLayer = null;
+  controlZonesLayer = null;
+  controlZonesOfflineLayer = null;
+
+  if (CZ_DEBUG) console.log('[CZ] czClear done');
+}
+
+/**
+ * Entfernt nur Online-Layer (aktive Zonen und Labels) - Offline-Layer bleibt erhalten
+ * Für Diff-basiertes Rendering: Vermeidet Flackern der grauen Hintergrund-Zonen
+ */
+function czClearOnlineOnly() {
+  if (CZ_DEBUG) console.log('[CZ] czClearOnlineOnly called');
+
+  // Nur Online-Layer und Labels entfernen, NICHT den Offline-Layer
+  var layersToRemove = [
+    controlZonesLayer,
+    czState.layer,
+    czState.labelsLayer
+  ];
+
+  if (map) {
+    map.eachLayer(function(layer) {
+      for (var i = 0; i < layersToRemove.length; i++) {
+        if (layer === layersToRemove[i] && layersToRemove[i] !== null) {
+          try {
+            map.removeLayer(layer);
+          } catch (e) {
+            console.warn('[CZ] Error removing layer:', e);
+          }
+          break;
+        }
+      }
+    });
+  }
+
+  // Reset nur Online-State, Offline-Layer behalten
+  czState.layer = null;
+  czState.labelsLayer = null;
+  controlZonesLayer = null;
+  // czRenderedZones und czRenderedLabels werden beim nächsten Render neu befüllt
+  czRenderedZones = {};
+  czRenderedLabels = {};
+
+  if (CZ_DEBUG) console.log('[CZ] czClearOnlineOnly done - offline layer preserved');
+}
+
+/**
+ * Legacy-Kompatibilitätsfunktionen
+ */
+function setControlZonesEnabled(enabled) {
+  czSetEnabled(enabled);
+}
+
+function setControlZonesNetwork(network) {
+  czSetNetwork(network);
+}
+
+function renderControlZones(force) {
+  czRenderDebounced();
+}
+
+function initControlZones(config) {
+  if (CZ_DEBUG) console.log('[CZ] initControlZones called');
+  // Nichts zu tun - State ist bereits initialisiert
+}
+
+// ============================================================================
+// VATSIM POLLING HELPER - Konsolidiert 3 redundante setInterval-Aufrufe
+// Optimized: 30s interval (was 10s) + visibility check to reduce server load
+// ============================================================================
+function startVatsimPolling() {
+  if (typeof getVatsimData !== "function") return;
+  if (controllerInterval) {
+    clearInterval(controllerInterval);
+    controllerInterval = null;
+  }
+  // Poll every 30 seconds instead of 10 (VATSIM data updates slowly)
+  // With visibility check to avoid unnecessary requests when tab is hidden
+  controllerInterval = setInterval(function() {
+    if (!document.hidden) {
+      getVatsimData();
+    }
+  }, 30000);
+}
+
+function stopVatsimPolling() {
+  if (controllerInterval) {
+    clearInterval(controllerInterval);
+    controllerInterval = null;
+  }
+}
+// ============================================================================
+
+var stopwatchButton;
+var tempWPName;
+var tempWPType;
+var tempWPElevation = 0; // Airport elevation in feet
+var tempWPNavFrequency = null; // NAV frequency for VOR-based navaids (MHz)
+var airportsPanel = false;
+var airports = [];
+var navaids = [];
+var reportingPoints = [];
+var airportMarkers;
+var navaidMarkers;
+var reportingPointMarkers;
+var panelState = "";
+var ActiveMarker;
+var WpBlocked = false;
+var pendingAirportFocus = null;
+
+var OPENAIP_CACHE_TTL_MS = 120000;
+var OPENAIP_CACHE_MAX_ENTRIES = 6;
+var openAipCache = {
+  airports: createSpatialCache(OPENAIP_CACHE_MAX_ENTRIES, OPENAIP_CACHE_TTL_MS),
+  navaids: createSpatialCache(OPENAIP_CACHE_MAX_ENTRIES, OPENAIP_CACHE_TTL_MS),
+  reportingPoints: createSpatialCache(
+    OPENAIP_CACHE_MAX_ENTRIES,
+    OPENAIP_CACHE_TTL_MS
+  ),
+};
+var openAipRequests = {
+  airports: null,
+  navaids: null,
+  reportingPoints: null,
+};
+var openAipRequestSequence = {
+  airports: 0,
+  navaids: 0,
+  reportingPoints: 0,
+};
+// Performance: Track last rendered cache key to avoid unnecessary layer rebuilds
+var openAipLastRenderedKey = {
+  airports: null,
+  navaids: null,
+  reportingPoints: null,
+};
+
+var OPENAIP_PROXY_FALLBACK = (function () {
+  if (typeof window !== "undefined" && window.KneeboardApiProxyUrl) {
+    return (
+      normalizeProxyRoot(window.KneeboardApiProxyUrl) || "http://localhost:815"
+    );
+  }
+  return "http://localhost:815";
+})();
+
+// native postMessage sichern, bevor wir es �berschreiben
+if (typeof window !== "undefined" && !window.__nativePostMessage) {
+  try {
+    window.__nativePostMessage = window.postMessage.bind(window);
+  } catch (err) {
+    console.warn("Native postMessage nicht verf�gbar:", err);
+  }
+}
+
+function normalizeProxyRoot(url) {
+  if (!url) {
+    return null;
+  }
+  var value = String(url).trim();
+  if (!/^(https?:\/\/)/i.test(value)) {
+    return null;
+  }
+  if (value.endsWith("/")) {
+    value = value.slice(0, -1);
+  }
+  return value;
+}
+
+function getOpenAipProxyRoot() {
+  var root = null;
+  try {
+    if (typeof window !== "undefined") {
+      if (window.KneeboardApiProxyUrl) {
+        root = normalizeProxyRoot(window.KneeboardApiProxyUrl);
+      }
+      if (
+        !root &&
+        window.parent &&
+        window.parent !== window &&
+        window.parent.KneeboardApiProxyUrl
+      ) {
+        root = normalizeProxyRoot(window.parent.KneeboardApiProxyUrl);
+      }
+    }
+  } catch (error) {
+    console.warn("Unable to read KneeboardApiProxyUrl:", error);
+  }
+  if (!root) {
+    try {
+      var origin = window.location.origin;
+      if (
+        origin &&
+        origin !== "null" &&
+        origin !== "file:" &&
+        /^(https?:\/\/)/i.test(origin)
+      ) {
+        root = normalizeProxyRoot(origin);
+      }
+    } catch (error) {
+      console.warn("Unable to read window.location.origin:", error);
+    }
+  }
+  if (!root) {
+    root = normalizeProxyRoot(OPENAIP_PROXY_FALLBACK);
+  }
+  if (!root) {
+    root = "http://localhost:815";
+  }
+  return root;
+}
+
+function getDfsProxyRoot() {
+  // DFS uses the same proxy server as OpenAIP
+  return getOpenAipProxyRoot();
+}
+
+function getServerUrl() {
+  try {
+    return window.location.origin || 'http://localhost:815';
+  } catch (e) {
+    return 'http://localhost:815';
+  }
+}
+
+function getOpenAipUrl(path) {
+  var root = getOpenAipProxyRoot();
+  if (!path.startsWith("/")) {
+    path = "/" + path;
+  }
+  return "" + root + path;
+}
+
+function getTileProxyUrl(path) {
+  var base = getOpenAipProxyRoot();
+  if (!path.startsWith("/")) {
+    path = "/" + path;
+  }
+  return "" + base + path;
+}
+
+function isWaypointLayer(layer) {
+  if (
+    !layer ||
+    !layer.feature ||
+    !layer.options ||
+    layer.feature.mytype === "airport" ||
+    layer.feature.mytype === "navaid" ||
+    layer.feature.mytype === "reportingPoint"
+  ) {
+    return false;
+  }
+
+  if (layer.feature.mytype === "waypoint") {
+    return true;
+  }
+
+  var myId = layer.options.myId;
+  if (typeof myId === "number" && !isNaN(myId)) {
+    return true;
+  }
+  if (
+    typeof myId === "string" &&
+    myId.trim() !== "" &&
+    !isNaN(parseInt(myId, 10))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function getWaypointLayersSorted() {
+  var layers = [];
+  if (!map || !map.eachLayer) {
+    return layers;
+  }
+  map.eachLayer(function (layer) {
+    if (isWaypointLayer(layer)) {
+      layers.push(layer);
+    }
+  });
+  layers.sort(function (a, b) {
+    var idA =
+      typeof a.options.myId === "number"
+        ? a.options.myId
+        : parseInt(a.options.myId, 10);
+    var idB =
+      typeof b.options.myId === "number"
+        ? b.options.myId
+        : parseInt(b.options.myId, 10);
+    if (isNaN(idA)) {
+      idA = 0;
+    }
+    if (isNaN(idB)) {
+      idB = 0;
+    }
+    return idA - idB;
+  });
+  return layers;
+}
+
+// Waypoint icon scaling configuration
+var WAYPOINT_ICON_CONFIG = {
+  baseSize: 30,
+  minSize: 24,
+  maxSize: 48,
+  midZoom: 9,
+  scaleFactor: 0.08
+};
+
+/**
+ * Calculate icon size based on current zoom level
+ * @param {number} zoom - Current map zoom level
+ * @returns {number} Icon size in pixels (rounded to integer)
+ */
+function getWaypointIconSize(zoom) {
+  var config = WAYPOINT_ICON_CONFIG;
+  var scaleFactor = 1 + (config.midZoom - zoom) * config.scaleFactor;
+  var size = Math.round(config.baseSize * scaleFactor);
+  return Math.max(config.minSize, Math.min(config.maxSize, size));
+}
+
+// WAYPOINT ICON CACHE - Prevents re-creating identical icons
+var waypointIconCache = {};
+var waypointLastIconSize = null;  // Track last icon size to skip redundant updates
+
+/**
+ * Create a waypoint divIcon with zoom-appropriate sizing
+ * OPTIMIZED: Uses cache to avoid re-creating identical icons
+ * @param {boolean} isActive - true for red active icon, false for blue normal icon
+ * @param {number} [zoom] - Zoom level (defaults to current map zoom)
+ * @returns {L.DivIcon} Leaflet divIcon instance
+ */
+function createWaypointIcon(isActive, zoom) {
+  if (zoom === undefined) {
+    zoom = map ? map.getZoom() : zoomLevel;
+  }
+
+  var size = getWaypointIconSize(zoom);
+
+  // CACHE KEY: size + isActive
+  var cacheKey = size + '_' + (isActive ? 'active' : 'normal');
+  if (waypointIconCache[cacheKey]) {
+    return waypointIconCache[cacheKey];
+  }
+
+  var center = size / 2;
+  var outerRadius = Math.round(size * 0.5);  // Increased from 0.4 for better click area
+  var innerRadius = Math.round(size / 6);
+  var strokeWidth = Math.max(2, Math.round(size / 10));
+
+  var fillColor = isActive ? 'rgb(255, 0, 0)' : 'rgb(41, 129, 202)';
+  var className = isActive ? 'waypoint-active' : '';
+
+  var html = '<svg height="' + size + '" width="' + size + '">' +
+    '<circle cx="' + center + '" cy="' + center + '" r="' + outerRadius + '" fill="transparent" />' +
+    '<circle cx="' + center + '" cy="' + center + '" r="' + innerRadius + '" stroke="grey" stroke-width="' + strokeWidth + '" fill="' + fillColor + '" />' +
+    '</svg>';
+
+  var icon = L.divIcon({
+    html: html,
+    className: className,
+    iconSize: [size, size],
+    iconAnchor: [center, center]
+  });
+
+  // Cache the icon
+  waypointIconCache[cacheKey] = icon;
+  return icon;
+}
+
+/**
+ * Update all waypoint marker icons to match current zoom level
+ * OPTIMIERT: Skippt wenn Icon-Größe unverändert
+ * Preserves active/inactive state of each marker
+ */
+function updateAllWaypointIcons() {
+  var zoom = map.getZoom();
+  var currentSize = getWaypointIconSize(zoom);
+
+  // PERFORMANCE: Skip wenn Icon-Größe unverändert
+  if (waypointLastIconSize === currentSize) {
+    return;
+  }
+  waypointLastIconSize = currentSize;
+
+  var layers = getWaypointLayersSorted();
+  var count = layers.length;
+
+  layers.forEach(function(layer) {
+    if (typeof layer.setIcon === 'function') {
+      var isActive = (layer === ActiveMarker);
+      layer.setIcon(createWaypointIcon(isActive, zoom));
+    }
+  });
+
+  if (count > 0) {
+    console.log('[Waypoints] Updated', count, 'icons for zoom', zoom, '(size:', currentSize + ')');
+  }
+}
+
+var nextWaypointInsertIndex = null;
+var nextWaypointUseExisting = false;
+var skipNextMapClick = false;
+var suppressPolylineClick = false;
+var keyboardObserver;
+var routeRefreshRafId = null;
+
+function attachKeyboard(element) {
+  if (!element) {
+    return;
+  }
+  if (element.dataset && element.dataset.keyboardBound === "1") {
+    return;
+  }
+  if (element.dataset) {
+    element.dataset.keyboardBound = "1";
+  }
+  var handler = function (e) {
+    var keyboard = window.Keyboard || (window.parent && window.parent.Keyboard);
+    if (!keyboard) {
+      return;
+    }
+    // Ensure element is focused
+    if (document.activeElement !== element) {
+      element.focus();
+    }
+    keyboard.open(
+      element.value,
+      function (currentValue) {
+        if (element === document.activeElement) {
+          element.value = currentValue;
+          if (typeof element.setSelectionRange === "function") {
+            try {
+              var caretPos = currentValue.length;
+              element.setSelectionRange(caretPos, caretPos);
+            } catch (e) {}
+          }
+        } else {
+          element.value = currentValue;
+        }
+        var inputEvt = new Event("input", { bubbles: true });
+        element.dispatchEvent(inputEvt);
+        try {
+          var keyEvt = new KeyboardEvent("keyup", {
+            bubbles: true,
+            key: "Unidentified",
+          });
+          element.dispatchEvent(keyEvt);
+        } catch (err) {
+          var keyEvtLegacy = document.createEvent("KeyboardEvent");
+          keyEvtLegacy.initEvent("keyup", true, false);
+          element.dispatchEvent(keyEvtLegacy);
+        }
+      },
+      element
+    );
+  };
+  addTrackedEventListener(element, "focus", handler);
+  addTrackedEventListener(element, "click", handler);
+  addTrackedEventListener(element, "mousedown", handler);
+  addTrackedEventListener(element, "touchstart", handler);
+}
+
+function refreshKeyboardBindings() {
+  var inputs = document.querySelectorAll(
+    ".use-keyboard-input, .leaflet-geosearch-input, input.glass"
+  );
+  inputs.forEach(function (input) {
+    attachKeyboard(input);
+  });
+}
+
+function initKeyboardWatcher() {
+  refreshKeyboardBindings();
+  if (!keyboardObserver && window.MutationObserver) {
+    keyboardObserver = new MutationObserver(function (mutations) {
+      mutations.forEach(function (mutation) {
+        mutation.addedNodes.forEach(function (node) {
+          if (!node || node.nodeType !== 1) {
+            return;
+          }
+          if (
+            node.matches &&
+            (node.matches(".use-keyboard-input") ||
+              node.matches(".leaflet-geosearch-input"))
+          ) {
+            attachKeyboard(node);
+          }
+          if (node.querySelectorAll) {
+            node
+              .querySelectorAll(
+                ".use-keyboard-input, .leaflet-geosearch-input, input.glass"
+              )
+              .forEach(function (el) {
+                attachKeyboard(el);
+              });
+          }
+        });
+      });
+    });
+    keyboardObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  // Re-initialize keyboard bindings when page becomes visible (after tab switch/reload)
+  if (!window.keyboardVisibilityHandlerBound) {
+    addTrackedEventListener(window, 'pageshow', function() {
+      setTimeout(function() {
+        resetKeyboardBindings();
+        refreshKeyboardBindings();
+        // Re-initialize elevation profile if it should be visible
+        reloadElevationProfileAfterTabSwitch();
+        // Re-initialize panel resize handles
+        if (window.reinitializePanelResizeHandles) {
+          window.reinitializePanelResizeHandles();
+        }
+      }, 150);
+    });
+
+    addTrackedEventListener(document, 'visibilitychange', function() {
+      if (!document.hidden) {
+        setTimeout(function() {
+          resetKeyboardBindings();
+          refreshKeyboardBindings();
+          // Re-initialize elevation profile if it should be visible
+          reloadElevationProfileAfterTabSwitch();
+          // Re-initialize panel resize handles
+          if (window.reinitializePanelResizeHandles) {
+            window.reinitializePanelResizeHandles();
+          }
+        }, 150);
+      }
+    });
+
+    window.keyboardVisibilityHandlerBound = true;
+  }
+
+  bindSearchResetHandler();
+}
+
+function resetKeyboardBindings() {
+  // Remove keyboardBound flags to allow re-binding
+  var inputs = document.querySelectorAll(
+    ".use-keyboard-input, .leaflet-geosearch-input, input.glass"
+  );
+  inputs.forEach(function (input) {
+    if (input.dataset) {
+      delete input.dataset.keyboardBound;
+    }
+  });
+}
+
+function reloadElevationProfileAfterTabSwitch() {
+  // Check if elevation profile should be visible
+  if (typeof map === 'undefined' || !map || typeof elevationProfileLayer === 'undefined') {
+    return;
+  }
+
+  // Check if the elevation profile layer is active on the map
+  var shouldBeVisible = map.hasLayer(elevationProfileLayer);
+
+  if (shouldBeVisible) {
+    if (MAP_DEBUG) console.log('[Map] Reloading elevation profile after tab switch');
+
+    // Ensure the layer is on the map
+    if (!map.hasLayer(elevationProfileLayer)) {
+      elevationProfileLayer.addTo(map);
+    }
+
+    // Get waypoint count
+    var waypointLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
+
+    // Only show if we have 2+ waypoints
+    if (waypointLayers.length >= 2) {
+      // Force re-initialization
+      if (typeof showElevationProfile === 'function') {
+        showElevationProfile();
+      }
+
+      // Trigger update (use requestAnimationFrame instead of setTimeout)
+      if (typeof updateElevationProfile === 'function') {
+        requestAnimationFrame(function() {
+          updateElevationProfile();
+        });
+      }
+    }
+  }
+}
+
+function bindSearchResetHandler() {
+  if (searchResetHandlerBound) {
+    return;
+  }
+  addTrackedEventListener(
+    document,
+    "click",
+    function (ev) {
+      var target = ev.target;
+      if (!target) {
+        return;
+      }
+      var resetAnchor =
+        target.classList && target.classList.contains("reset")
+          ? target
+          : target.closest
+          ? target.closest("a.reset")
+          : null;
+      if (!resetAnchor) {
+        return;
+      }
+      ev.preventDefault();
+      ev.stopPropagation();
+      var searchInput = document.querySelector(".leaflet-geosearch-input");
+      if (searchInput) {
+        searchInput.value = "";
+        var inputEvt = new Event("input", { bubbles: true });
+        searchInput.dispatchEvent(inputEvt);
+        setTimeout(function () {
+          searchInput.blur();
+        }, 0);
+        if (searchInput.parentElement && searchInput.parentElement.classList) {
+          searchInput.parentElement.classList.remove("active");
+        }
+      }
+      if (
+        searchControl &&
+        searchControl.searchElement &&
+        searchControl.searchElement.container
+      ) {
+        try {
+          searchControl.searchElement.container.classList.remove("active");
+        } catch (e) {}
+      }
+      if (searchControl && typeof searchControl.clearResults === "function") {
+        try {
+          searchControl.clearResults(null, true);
+        } catch (e) {}
+      }
+      if (
+        searchControl &&
+        searchControl.resultList &&
+        typeof searchControl.resultList.clear === "function"
+      ) {
+        // keep the current popup-visible marker (wird vom Suchtreffer genutzt)
+        // Ergebnisse erst nach einer kleinen Verz�gerung aufr�umen
+        if (!searchControl._keepResultActive) {
+          setTimeout(function () {
+            try {
+              searchControl.resultList.clear();
+            } catch (e) {}
+          }, 600);
+        }
+      }
+      if (
+        searchControl &&
+        searchControl.markers &&
+        typeof searchControl.markers.clearLayers === "function"
+      ) {
+        setTimeout(function () {
+          if (!searchControl._keepResultActive) {
+            try {
+              searchControl.markers.clearLayers();
+            } catch (e) {}
+          }
+        }, 600);
+      }
+      var kb = window.Keyboard || (window.parent && window.parent.Keyboard);
+      if (kb && typeof kb.close === "function") {
+        try {
+          kb.close();
+        } catch (e) {}
+      }
+    },
+    true
+  );
+  searchResetHandlerBound = true;
+}
+
+// Collapse/clear the geosearch UI (input + results list).
+function closeSearchUi(options) {
+  var opts = options || {};
+  var clearResults = opts.clearResults !== false; // default: clear results
+  var clearMarkers = !!opts.clearMarkers;
+  var closeKeyboard = opts.closeKeyboard !== false; // default: close keyboard
+
+  var input = document.querySelector(".leaflet-geosearch-input");
+  if (input) {
+    input.blur();
+    if (input.parentElement && input.parentElement.classList) {
+      input.parentElement.classList.remove("active");
+    }
+  }
+  if (
+    searchControl &&
+    searchControl.searchElement &&
+    searchControl.searchElement.container
+  ) {
+    try {
+      searchControl.searchElement.container.classList.remove("active");
+    } catch (e) {}
+  }
+  if (clearResults && searchControl) {
+    if (
+      searchControl.resultList &&
+      typeof searchControl.resultList.clear === "function"
+    ) {
+      try {
+        searchControl.resultList.clear();
+      } catch (e) {}
+    }
+    if (
+      clearMarkers &&
+      searchControl.markers &&
+      typeof searchControl.markers.clearLayers === "function"
+    ) {
+      try {
+        searchControl.markers.clearLayers();
+      } catch (e) {}
+    }
+  }
+
+  // Close keyboard if requested and available
+  if (closeKeyboard && window.Keyboard && typeof window.Keyboard.close === 'function') {
+    try {
+      window.Keyboard.close();
+    } catch (e) {}
+  }
+}
+
+// Tie keyboard close to the search UI so suggestions disappear when the keyboard is dismissed.
+function bindKeyboardCloseToSearch() {
+  if (!window.Keyboard || window.Keyboard.__searchClosePatched) {
+    return;
+  }
+  var originalClose = window.Keyboard.close;
+  window.Keyboard.close = function () {
+    try {
+      closeSearchUi({ clearResults: true, clearMarkers: false, closeKeyboard: false });
+    } catch (e) {}
+    if (typeof originalClose === "function") {
+      return originalClose.apply(this, arguments);
+    }
+  };
+  window.Keyboard.__searchClosePatched = true;
+}
+
+function normalizeWaypointNames() {
+  var nextAutoNumber = 1;
+  for (var i = 0; i < wpNames.length; i++) {
+    var name = wpNames[i];
+    if (!name || /^WP\d+$/.test(name)) {
+      wpNames[i] = "WP" + nextAutoNumber;
+      nextAutoNumber++;
+    }
+  }
+}
+
+function reindexWaypointLayers() {
+  var layers = getWaypointLayersSorted();
+  coordinates = [];
+  layers.forEach(function (layer, index) {
+    if (layer.feature) {
+      layer.feature.id = index;
+    }
+    if (layer.options) {
+      layer.options.myId = index;
+      if (wpNames[index]) {
+        layer.options.name = wpNames[index];
+      }
+      if (typeof layer.setTooltipContent === "function") {
+        var tooltipType = layer.options.type;
+        if (tooltipType == "reportingPoint") {
+          tooltipType = "MRP";
+        }
+        if (tooltipType) {
+          layer.setTooltipContent(tooltipType + " " + layer.options.name);
+        } else {
+          layer.setTooltipContent(layer.options.name);
+        }
+      }
+    }
+    if (layer.getLatLng) {
+      var latlng = layer.getLatLng();
+      layer.feature.geometry.coordinates = [latlng.lat, latlng.lng];
+      coordinates.push([latlng.lat, latlng.lng]);
+    }
+  });
+  if (layers.length > 0) {
+    wp1_lat = layers[0].feature.geometry.coordinates[0];
+    wp1_lng = layers[0].feature.geometry.coordinates[1];
+  }
+  markerId = layers.length;
+  wpi3 = layers.length;
+}
+
+function shiftWaypointLayerIdsFrom(startIndex) {
+  var layers = getWaypointLayersSorted();
+  for (var i = layers.length - 1; i >= 0; i--) {
+    var layer = layers[i];
+    if (layer.options && layer.options.myId >= startIndex) {
+      layer.options.myId = layer.options.myId + 1;
+    }
+    if (layer.feature && layer.feature.id >= startIndex) {
+      layer.feature.id = layer.feature.id + 1;
+    }
+  }
+}
+
+function findSegmentIndex(latlngs, latlng) {
+  if (!latlngs || latlngs.length < 2) {
+    return -1;
+  }
+  var closestIndex = -1;
+  var minDelta = Infinity;
+  for (var i = 0; i < latlngs.length - 1; i++) {
+    var start = latlngs[i];
+    var end = latlngs[i + 1];
+    if (!start || !end) {
+      continue;
+    }
+    var total = map.distance(start, end);
+    var part1 = map.distance(start, latlng);
+    var part2 = map.distance(latlng, end);
+    var delta = Math.abs(part1 + part2 - total);
+    if (delta < minDelta) {
+      minDelta = delta;
+      closestIndex = i;
+    }
+  }
+  return closestIndex;
+}
+
+function onMainPolylineClick(event) {
+  if (suppressPolylineClick === true) {
+    suppressPolylineClick = false;
+    return;
+  }
+  if (!map || waypointmode == false || WpBlocked == true) {
+    return;
+  }
+  if (event && event.originalEvent && L && L.DomEvent && L.DomEvent.stop) {
+    L.DomEvent.stop(event.originalEvent);
+  }
+  var latlngs = event.target.getLatLngs();
+  var segmentIndex = findSegmentIndex(latlngs, event.latlng);
+  if (segmentIndex < 0) {
+    return;
+  }
+  if (segmentIndex >= latlngs.length - 1) {
+    return;
+  }
+  skipNextMapClick = true;
+  // Safety timeout - auto-reset after 500ms if still true
+  setTimeout(function() {
+    if (skipNextMapClick === true) {
+      console.warn('[Map Safety] skipNextMapClick stuck after 500ms at polyline click - auto-reset');
+      skipNextMapClick = false;
+    }
+  }, 500);
+  try {
+    var start = latlngs[segmentIndex];
+    var end = latlngs[segmentIndex + 1];
+    var midpoint = calcMiddleLatLng(map, start, end);
+    nextWaypointInsertIndex = segmentIndex + 1;
+    nextWaypointUseExisting = false;
+    map.fire("contextmenu", {
+      latlng: midpoint,
+      midpointInsert: true,
+      synthetic: true,
+    });
+  } catch (err) {
+    console.error('[Map] Error firing contextmenu from polyline click:', err);
+    skipNextMapClick = false;
+  }
+}
+
+// Auto-load flight plan from server - fetch hash
+async function fetchServerFlightplanHash() {
+  var SERVER_URL = getServerUrl();
+  var TIMEOUT_MS = 3000;
+
+  try {
+    var controller = new AbortController();
+    var timeout = setTimeout(function() { controller.abort(); }, TIMEOUT_MS);
+
+    var response = await fetch(SERVER_URL + '/getFlightplanHash', {
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      console.warn('[Map Auto-Load] Server returned', response.status);
+      return null;
+    }
+
+    var data = await response.json();
+    return data; // {exists: true/false, hash: "..."}
+  } catch (error) {
+    console.warn('[Map Auto-Load] Failed to fetch hash:', error.message);
+    return null;
+  }
+}
+
+// Auto-load flight plan from server - fetch full flight plan
+async function fetchServerFlightplan() {
+  var SERVER_URL = getServerUrl();
+  var TIMEOUT_MS = 5000;
+
+  try {
+    var controller = new AbortController();
+    var timeout = setTimeout(function() { controller.abort(); }, TIMEOUT_MS);
+
+    var response = await fetch(SERVER_URL + '/getFlightplan', {
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      console.warn('[Map Auto-Load] Server returned', response.status);
+      return null;
+    }
+
+    var text = await response.text();
+    // Server returns "PLN:" prefix
+    if (text.startsWith('PLN:')) {
+      text = text.substring(4);
+    }
+
+    if (!text || text.trim() === '') {
+      if (MAP_DEBUG) console.log('[Map Auto-Load] Server returned empty flight plan');
+      return null;
+    }
+
+    return JSON.parse(text);
+  } catch (error) {
+    console.warn('[Map Auto-Load] Failed to fetch flight plan:', error.message);
+    return null;
+  }
+}
+
+// NOTE: Auto-load functions removed - flightplan is now only loaded from local cache on startup
+// User must manually click Sync button to load from SimBrief
+
+function resetMapState() {
+  // Cancel any ongoing operations (only if map exists)
+  if (typeof map !== 'undefined' && map) {
+    cancelFlightplanAnimation();
+    clearAllTrackedTimers();
+    removeAllTrackedEventListeners();
+    cleanupAllLayers();
+  }
+
+  // Reset waypoint arrays
+  wpNames = [];
+  wpTypes = [];
+  altitudes = [];
+  atbls = [];
+  wpSourceTypes = [];
+  wpDepartureProcedures = [];
+  wpArrivalProcedures = [];
+  wpAirways = [];
+  wpRunwayNumbers = [];
+  wpRunwayDesignators = [];
+
+  // Reset other state
+  flightplan = null;
+  coordinates = [];
+  coordinatesArray = [];
+  coordinatesArrayDEP = [];
+  coordinatesArrayARR = [];
+  markers = null;
+  middleMarkers = null;
+  targetMarker = -1;
+  activeWP = null;
+
+  // Reset flags
+  mapInitialized = false;
+  WpBlocked = false;
+  deleted = false;
+  wpListOn = false;
+  localStorageRestoreCompleted = false; // Allow localStorage restore after full reset
+  window.centerOnAircraftPending = false;
+  window.aircraftPositionInitialized = false;
+  window.syncButtonLockedUntilServerFlightplan = false;
+
+  // Reset OpenAIP last rendered keys to force rebuild on next render
+  openAipLastRenderedKey.airports = null;
+  openAipLastRenderedKey.navaids = null;
+  openAipLastRenderedKey.reportingPoints = null;
+
+  if (MAP_DEBUG) console.log('[Map] State komplett zurückgesetzt');
+}
+
+function initMapPage() {
+  // Cleanup alte Cache-Versionen beim Start
+  cleanupOldCacheVersions();
+
+  // PREFETCH: Boundaries im Hintergrund laden für schnelleren Zonenwechsel
+  prefetchBoundaries();
+
+  // Reset flag to allow cache restore on tab switch reload
+  localStorageRestoreCompleted = false;
+
+  // Reset pending flightplan message flag to allow new messages
+  pendingFlightplanMessageProcessed = false;
+
+  if (!mapMessageListenerBound && typeof window !== "undefined") {
+    window.addEventListener("message", receiveMessage);
+    mapMessageListenerBound = true;
+  }
+
+  // Initialize frequency context menu for controller list
+  initFrequencyContextMenu();
+
+  // Piloten-Favoriten und User-IDs vom Server laden
+  loadPilotFavorites();
+  loadUserIds();
+
+  const savedLight = localStorage.getItem("colorLight");
+  const savedDark = localStorage.getItem("colorDark");
+  const savedFontLight = localStorage.getItem("fontColorLight");
+  const savedFontDark = localStorage.getItem("fontColorDark");
+
+  if (savedLight && savedDark && savedFontLight && savedFontDark) {
+    colorLight = savedLight;
+    colorDark = savedDark;
+    fontColorLight = savedFontLight;
+    fontColorDark = savedFontDark;
+    document.documentElement.style.setProperty("--light", colorLight);
+    document.documentElement.style.setProperty("--dark", colorDark);
+    document.documentElement.style.setProperty("--fontLight", fontColorLight);
+    document.documentElement.style.setProperty("--fontDark", fontColorDark);
+    updateSettingsIconColor(colorDark);
+    if (MAP_DEBUG) console.log('[Map] Farben aus Cache übernommen:', colorLight, colorDark);
+  } else {
+    // No saved colors - use default theme color from CSS
+    var defaultDark = getComputedStyle(document.documentElement).getPropertyValue('--dark').trim() || '#205d8e';
+    updateSettingsIconColor(defaultDark);
+  }
+
+  // Listen for theme changes to update settings icon color
+  document.addEventListener('themechange', function(e) {
+    if (e.detail && e.detail.colorDark) {
+      updateSettingsIconColor(e.detail.colorDark);
+    }
+  });
+
+  bindKeyboardCloseToSearch();
+
+  // --- Map-Container pr�fen ---
+  var mapDiv = document.getElementById("map");
+  if (!mapDiv) {
+    console.error(
+      "? Kein #map-Container gefunden (map.html wurde evtl. zu sp�t geladen)"
+    );
+    return; // ?? ganz wichtig: NICHT weiter machen
+  }
+
+  if (mapInitialized && map && typeof map.remove === "function") {
+    try {
+      map.remove();
+    } catch (disposeError) {
+      console.warn("map.js: Unable to dispose existing Leaflet map:", disposeError);
+    }
+    map = null;
+
+    // CRITICAL FIX: Reset flightplan fingerprint when map is recreated
+    // Otherwise scheduleFlightplanRender() will skip animation (same fingerprint)
+    currentFlightplanFingerprint = null;
+    if (MAP_DEBUG) console.log('[Map] Fingerprint reset for map re-initialization');
+  }
+  // State aus localStorage
+  airac = calculate_airac_cycle();
+
+  try {
+    var cachedCenterLat = parseFloat(window.localStorage.getItem("mapCenterLat"));
+    var cachedCenterLng = parseFloat(window.localStorage.getItem("mapCenterLng"));
+    if (Number.isFinite(cachedCenterLat) && Number.isFinite(cachedCenterLng)) {
+      mapCenter[0] = cachedCenterLat;
+      mapCenter[1] = cachedCenterLng;
+      if (MAP_DEBUG) console.log('[Map] Restored map center from cache:', mapCenter[0], mapCenter[1]);
+    }
+  } catch (centerCacheError) {
+    if (MAP_DEBUG) console.log('[Map] Unable to restore cached map center:', centerCacheError);
+  }
+
+  // Restored cached center above - legacy block retained for reference
+
+  // v1.34: Conditional map center - neutral if flightplan available, aircraft otherwise
+  // Prevents visual jump from aircraft → flightplan when cache is populated
+  // if (window.localStorage.getItem("mapCenterLat")) {
+  //   mapCenter[0] = window.localStorage.getItem("mapCenterLat");
+  //   mapCenter[1] = window.localStorage.getItem("mapCenterLng");
+  // }
+
+  if (window.localStorage.getItem("zoomLevel")) {
+    zoomLevel = window.localStorage.getItem("zoomLevel");
+  }
+
+  // MIGRIERT: Versionierte Cache-Wrapper verwenden
+  altitudes = getCachedItem("altitudes") || [];
+  atbls = getCachedItem("atbls") || [];
+  wpNames = getCachedItem("wpNames") || [];
+  if (wpNames.length > 0) {
+    normalizeWaypointNames();
+    // Set animation flag EARLY to prevent loadPoints() from centering on aircraft
+    // This will be properly managed by preCenterMapOnFlightplan() later
+    window.flightplanAnimationInProgress = true;
+    if (MAP_DEBUG) console.log('[Map] Flightplan exists in cache, setting animation flag early to prevent aircraft centering');
+
+    // Set mapCenter to BOUNDS CENTER of cached flightplan (not just first waypoint)
+    var cachedPoints = getCachedItem("clickedPoints");
+    if (cachedPoints && cachedPoints.length > 1) {
+      var minLat = Infinity, maxLat = -Infinity;
+      var minLng = Infinity, maxLng = -Infinity;
+      cachedPoints.forEach(function(point) {
+        var ptLat = Array.isArray(point) ? point[0] : point.lat;
+        var ptLng = Array.isArray(point) ? point[1] : point.lng;
+        if (ptLat < minLat) minLat = ptLat;
+        if (ptLat > maxLat) maxLat = ptLat;
+        if (ptLng < minLng) minLng = ptLng;
+        if (ptLng > maxLng) maxLng = ptLng;
+      });
+      var centerLat = (minLat + maxLat) / 2;
+      var centerLng = (minLng + maxLng) / 2;
+      mapCenter = [centerLat, centerLng];
+      if (MAP_DEBUG) console.log('[Map] Map center set to bounds center:', centerLat, centerLng);
+    } else if (cachedPoints && cachedPoints.length === 1) {
+      var singlePoint = cachedPoints[0];
+      var singleLat = Array.isArray(singlePoint) ? singlePoint[0] : singlePoint.lat;
+      var singleLng = Array.isArray(singlePoint) ? singlePoint[1] : singlePoint.lng;
+      if (singleLat && singleLng) {
+        mapCenter = [singleLat, singleLng];
+        if (MAP_DEBUG) console.log('[Map] Map center set to single waypoint:', singleLat, singleLng);
+      }
+    }
+  }
+  wpTypes = getCachedItem("wpTypes") || [];
+  wpSourceTypes = getCachedItem("wpSourceTypes") || [];
+  wpDepartureProcedures = getCachedItem("wpDepartureProcedures") || [];
+  wpArrivalProcedures = getCachedItem("wpArrivalProcedures") || [];
+  wpAirways = getCachedItem("wpAirways") || [];
+  wpRunwayNumbers = getCachedItem("wpRunwayNumbers") || [];
+  wpRunwayDesignators = getCachedItem("wpRunwayDesignators") || [];
+
+  // Restore flightplan metadata
+  importedFlightplanMeta = getCachedItem("importedFlightplanMeta") || null;
+  importedOFPData = getCachedItem("importedOFPData") || null;  // Load OFP data for ETA calculation
+
+  var cachedTargetMarker = getCachedItem("targetMarker");
+  if (cachedTargetMarker !== null) {
+    targetMarker = cachedTargetMarker;
+  }
+
+  // Initiales Kartenzentrum = Flugzeugposition (falls verfügbar), sonst Fallback auf 0,0
+  var initialCenter = [pos_lat || 0, pos_lng || 0];
+
+  if (MAP_DEBUG) console.log('[Map] v1.49: Initial map center (always neutral):', initialCenter);
+
+  // Map initialisieren (hier sind wir sicher, dass #map existiert)
+  loadMap(initialCenter[0], initialCenter[1]);
+
+  setTimeout(initKeyboardWatcher, 500);
+
+  // jQuery-Teil nur, wenn vorhanden
+  if (typeof $ === "function") {
+    $("#imageAirplane").css(
+      "transform",
+      "rotate(" + Math.round(-45) + "deg)  scale(" + aircraftScale + ")"
+    );
+    $("#imageAirplane").css("fill", colorLight);
+    $(".leaflet-geosearch-bar").css("top", 0);
+  }
+
+  if (!mapDomListenersBound) {
+    // Buttons/Eingabefelder nur, wenn sie da sind
+    // Note: METAR button (toggle12) has onClick handler in its definition, no need to add here
+
+    var metarSearchButton = document.getElementById("boton");
+    if (!metarSearchButton) {
+      console.warn("[map] #boton nicht gefunden");
+    }
+
+    var ID_Aeropuerto = document.getElementById("aeropuerto");
+    if (ID_Aeropuerto) {
+      ID_Aeropuerto.addEventListener("keypress", function (usuario) {
+        if (usuario.keyCode === 13) {
+          usuario.preventDefault();
+          var btn = metarSearchButton || document.getElementById("boton");
+          if (btn) btn.click();
+        }
+      });
+    } else {
+      console.warn("?? #aeropuerto nicht gefunden");
+    }
+    mapDomListenersBound = true;
+  }
+
+  if (typeof hideWpList === "function") {
+    hideWpList();
+  } else {
+    ["overlay", "banner", "overlayContainer", "overlayList"].forEach(
+      function (id) {
+        var el = document.getElementById(id);
+        if (el) {
+          el.style.visibility = "hidden";
+        } else {
+          console.warn("?? #" + id + " nicht gefunden");
+        }
+      }
+    );
+    wpListOn = false;
+  }
+  mapInitialized = true;
+
+  // Re-initialize panel resize handles after map initialization
+  // This ensures handles work after double-click reload
+  // NOTE: Double RAF statt setTimeout - wartet auf nächsten Render-Cycle
+  if (window.reinitializePanelResizeHandles) {
+    setTimeout(function() {
+      window.reinitializePanelResizeHandles();
+    }, 200);
+  }
+
+  // NOTE: restoreMapState() wird am Ende von initializeMapWithLayers() aufgerufen,
+  // da dort alle UI-Elemente (toggle10, toggle11, etc.) bereits initialisiert sind
+
+  // Check SimBrief ID availability and update button state accordingly
+  checkSimbriefIdAvailable().then(function() {
+    updateSyncButtonState();
+  }).catch(function(e) {
+    console.warn('[SimBrief] Error checking ID:', e);
+  });
+
+  // NO AUTO-LOAD from server - only load from local cache if available
+  // User must manually click Sync button to load from SimBrief
+  window.autoloadCheckInProgress = false;
+  window.initialAutoloadComplete = true;
+
+  // SZENARIO 1: Cache hat Flugplan
+  if (wpNames.length > 0 && !localStorageRestoreCompleted) {
+    localStorageRestoreCompleted = true;
+    transitionToState(FlightplanLoadState.LOADING_CACHE, 'restoring-from-cache');
+
+    if (MAP_DEBUG) console.log('[Init] Scenario 1: Loading flightplan from cache');
+
+    var clickedPoints = getCachedItem("clickedPoints");
+    if (!clickedPoints || clickedPoints.length === 0) {
+      if (MAP_DEBUG) console.warn('[Init] Cache corrupt - wpNames exist but no clickedPoints');
+      transitionToState(FlightplanLoadState.CENTERING_AIRCRAFT, 'cache-corrupt');
+
+      if (window.aircraftPositionInitialized || hasCachedAircraftPosition) {
+        centerMapOnAircraft('cache-corrupt');
+      } else {
+        if (map) {
+          map.setView([pos_lat, pos_lng]);
+          if (MAP_DEBUG) console.log('[Center] Fallback position (cache-corrupt):', pos_lat, pos_lng);
+        }
+        window.centerOnAircraftPending = true;
+        if (MAP_DEBUG) console.log('[Init] Using fallback position, will re-center when simulator sends position (cache-corrupt)');
+      }
+
+      transitionToState(FlightplanLoadState.READY, 'cache-error');
+      return;
+    }
+
+    // Reconstruct flightplan
+    var restoredFlightplan = [];
+    for (var i = 0; i < clickedPoints.length; i++) {
+      var point = clickedPoints[i];
+      restoredFlightplan.push({
+        lat: point.lat !== undefined ? point.lat : point[0],
+        lng: point.lng !== undefined ? point.lng : point[1],
+        altitude: altitudes[i] || "0",
+        name: wpNames[i] || ("WP" + (i + 1)),
+        waypointType: wpTypes[i] || undefined,
+        sourceType: wpSourceTypes[i] || undefined,
+        atbl: atbls[i] ? (atbls[i] === 'A' ? 'AT_OR_ABOVE' : 'AT_OR_BELOW') : undefined,
+        departure_procedure: wpDepartureProcedures[i] || undefined,
+        arrival_procedure: wpArrivalProcedures[i] || undefined,
+        airway: wpAirways[i] || undefined,
+        runway_number: wpRunwayNumbers[i] || undefined,
+        runway_designator: wpRunwayDesignators[i] || undefined
+      });
+    }
+
+    flightplan = restoredFlightplan;
+    if (MAP_DEBUG) console.log('[Init] Cache flightplan restored (' + restoredFlightplan.length + ' waypoints)');
+    transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'cache-flightplan');
+    preCenterMapOnFlightplan(restoredFlightplan, 'cache-flightplan');
+
+    if (map && typeof map.fire === 'function') {
+      scheduleFlightplanRender(restoredFlightplan, 0);
+    } else {
+      var checkMapReady = function() {
+        if (map && typeof map.fire === 'function') {
+          scheduleFlightplanRender(restoredFlightplan, 0);
+        } else {
+          requestAnimationFrame(checkMapReady);
+        }
+      };
+      requestAnimationFrame(checkMapReady);
+    }
+
+    // Start update check interval since we have a flightplan loaded
+    startUpdateCheckInterval();
+    return;
+  }
+
+  // SZENARIO 2: Kein Flugplan - Aircraft zentrieren
+  if (MAP_DEBUG) console.log('[Init] Scenario 2: No flightplan in cache');
+  transitionToState(FlightplanLoadState.CENTERING_AIRCRAFT, 'no-flightplan');
+
+  // Check if server has a flightplan from background sync
+  // If yes: pulse ORANGE to indicate "data ready on server, click sync to load"
+  // If no: just check SimBrief ID for button activation
+  checkServerHasFlightplan().then(function(hasServerFlightplan) {
+    if (hasServerFlightplan) {
+      if (MAP_DEBUG) console.log('[Init] Server has flightplan ready - ORANGE pulse started');
+      // Don't clear server cache - there's a flightplan ready!
+    } else {
+      if (MAP_DEBUG) console.log('[Init] No flightplan on server');
+    }
+  }).catch(function(e) {
+    console.warn('[Init] Error checking server flightplan:', e);
+  });
+
+  // If we have a position (live or cached), center on it
+  if (window.aircraftPositionInitialized || hasCachedAircraftPosition) {
+    centerMapOnAircraft('no-flightplan');
+  } else {
+    // No position yet - center on fallback coordinates immediately (Stuttgart area)
+    if (map) {
+      map.setView([pos_lat, pos_lng]);
+      if (MAP_DEBUG) console.log('[Center] Fallback position (no-flightplan):', pos_lat, pos_lng);
+    }
+    // When simulator sends first position, it will center via setPosition()
+    window.centerOnAircraftPending = true;
+    if (MAP_DEBUG) console.log('[Init] Using fallback position, will re-center when simulator sends position');
+  }
+
+  transitionToState(FlightplanLoadState.READY, 'no-flightplan');
+
+  // Activate wind layer for no-flightplan scenario
+  // Use polling to wait for map initialization
+  var windActivationPollCount = 0;
+  var windActivationPoll = setInterval(function() {
+    windActivationPollCount++;
+    if (windActivationPollCount > 100) { // 10 seconds max
+      clearInterval(windActivationPoll);
+      console.warn('[Wind] Timeout waiting for map initialization');
+      return;
+    }
+
+    // Wait for map and wind layer config to be ready
+    if (window.initialWindLayerConfig && window.initialWindLayerConfig.layer && typeof map !== 'undefined' && map) {
+      clearInterval(windActivationPoll);
+
+      // Check if wind layer should be shown based on config
+      // Don't activate if controller panel is open
+      var shouldActivateWind = window.initialWindLayerConfig.shouldActivate;
+      var windLayer = window.initialWindLayerConfig.layer;
+
+      if (shouldActivateWind && !map.hasLayer(windLayer) && !(typeof moverX !== 'undefined' && moverX)) {
+        windLayer.setOpacity(0);
+        windLayer.addTo(map);
+
+        setTimeout(function() {
+          if (typeof fetchWindData === 'function') {
+            fetchWindData();
+            setTimeout(function() {
+              if (windLayer && map.hasLayer(windLayer)) {
+                windLayer.setOpacity(0.4);
+              }
+            }, 300);
+          }
+        }, 100);
+      }
+    }
+  }, 100);
+}
+
+function calculate_airac_cycle() {
+  const date = new Date();
+  let c_date = new Date(2003, 0, 23);
+  let counter = 0;
+  let last_count = 0;
+  let year = date.getFullYear();
+
+  while (c_date.getTime() < date.getTime()) {
+    if (c_date.getFullYear() === date.getFullYear() - 1) {
+      last_count++;
+    }
+
+    if (c_date.getFullYear() === date.getFullYear()) {
+      counter++;
+    }
+
+    c_date.setDate(c_date.getDate() + 28);
+  }
+
+  if (counter == 0) {
+    year -= 1;
+    counter = last_count;
+  }
+
+  const airac_id = parseFloat(year.toString().substring(2, 4)) * 100 + counter;
+  return airac_id.toString();
+}
+
+// ============================================================================
+// CONTROL ZONES - FIR Boundaries Display Functions
+// ============================================================================
+
+// FIR station names from VATSpy.dat (loaded dynamically)
+var firStationNames = {};
+var firNamesLoaded = false;
+var CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Try to load data from localStorage cache
+ */
+function getFromLocalCache(key) {
+  try {
+    var cached = localStorage.getItem(key);
+    if (cached) {
+      var parsed = JSON.parse(cached);
+      if (parsed.timestamp && (Date.now() - parsed.timestamp) < CACHE_EXPIRY_MS) {
+        if (CZ_DEBUG) console.log('[ControlZones] Cache hit for', key);
+        return parsed.data;
+      }
+      if (CZ_DEBUG) console.log('[ControlZones] Cache expired for', key);
+    }
+  } catch (e) {
+    if (CZ_DEBUG) console.warn('[ControlZones] Cache read error:', e);
+  }
+  return null;
+}
+
+/**
+ * Save data to localStorage cache (skip if data is too large)
+ */
+function saveToLocalCache(key, data) {
+  try {
+    var json = JSON.stringify({ timestamp: Date.now(), data: data });
+    // Skip caching if data > 2MB (localStorage limit is usually 5-10MB total)
+    if (json.length > 2 * 1024 * 1024) {
+      if (CZ_DEBUG) console.log('[ControlZones] Skip caching', key, '- too large:', Math.round(json.length / 1024), 'KB');
+      return;
+    }
+    localStorage.setItem(key, json);
+    if (CZ_DEBUG) console.log('[ControlZones] Cached', key, '-', Math.round(json.length / 1024), 'KB');
+  } catch (e) {
+    // Quota exceeded - try to clear old caches
+    if (CZ_DEBUG) console.warn('[ControlZones] Cache write error, clearing old data:', e.name);
+    try {
+      localStorage.removeItem('vatsimBoundaries');
+      localStorage.removeItem('ivaoBoundaries');
+    } catch (e2) {}
+  }
+}
+
+/**
+ * Loads FIR names from VATSpy.dat via backend
+ */
+function loadVatspyFirNames(callback) {
+  if (firNamesLoaded) {
+    if (callback) callback(firStationNames);
+    return;
+  }
+
+  // Try localStorage first
+  var cached = getFromLocalCache('firNames');
+  if (cached) {
+    firStationNames = cached;
+    firNamesLoaded = true;
+    if (callback) callback(firStationNames);
+    return;
+  }
+
+  fetch('/api/vatspy/firnames')
+    .then(function(response) {
+      if (!response.ok) throw new Error('Failed to fetch VATSpy FIR names');
+      return response.json();
+    })
+    .then(function(data) {
+      firStationNames = data || {};
+      firNamesLoaded = true;
+      saveToLocalCache('firNames', firStationNames);
+      if (CZ_DEBUG) console.log('[ControlZones] VATSpy FIR names loaded:', Object.keys(firStationNames).length, 'entries');
+      if (callback) callback(firStationNames);
+    })
+    .catch(function(err) {
+      if (CZ_DEBUG) console.error('[ControlZones] Error loading VATSpy FIR names:', err);
+      firNamesLoaded = true; // Mark as loaded to prevent retries
+      if (callback) callback({});
+    });
+}
+
+/**
+ * Gets station name for a FIR ID (e.g., "EDGG" -> "Langen Radar")
+ */
+function getStationNameForPrefix(prefix) {
+  if (!prefix) return '';
+  var upperPrefix = prefix.toUpperCase();
+  return firStationNames[upperPrefix] || '';
+}
+
+/**
+ * Loads VATSIM FIR boundaries from the backend
+ */
+var vatsimBoundariesLoading = false;
+var vatsimBoundariesCallbacks = [];
+
+function loadVatsimBoundaries(callback) {
+  if (vatsimBoundariesCache) {
+    if (callback) callback(vatsimBoundariesCache);
+    return;
+  }
+
+  // Try localStorage first
+  var cached = getFromLocalCache('vatsimBoundaries');
+  if (cached) {
+    vatsimBoundariesCache = cached;
+    if (CZ_DEBUG) console.log('[ControlZones] VATSIM boundaries from cache:', cached.features ? cached.features.length : 0, 'features');
+    if (callback) callback(cached);
+    return;
+  }
+
+  // Prevent parallel fetches - queue callbacks
+  if (vatsimBoundariesLoading) {
+    if (callback) vatsimBoundariesCallbacks.push(callback);
+    return;
+  }
+  vatsimBoundariesLoading = true;
+  if (callback) vatsimBoundariesCallbacks.push(callback);
+
+  fetch('/api/boundaries/vatsim')
+    .then(function(response) {
+      if (!response.ok) throw new Error('Failed to fetch VATSIM boundaries');
+      return response.json();
+    })
+    .then(function(data) {
+      vatsimBoundariesCache = data;
+      vatsimBoundariesLoading = false;
+      saveToLocalCache('vatsimBoundaries', data);
+      if (CZ_DEBUG) console.log('[ControlZones] VATSIM boundaries loaded:', data.features ? data.features.length : 0, 'features');
+      // Call all queued callbacks
+      var callbacks = vatsimBoundariesCallbacks.slice();
+      vatsimBoundariesCallbacks = [];
+      callbacks.forEach(function(cb) { cb(data); });
+      // Trigger re-render after first load to ensure offline layer is visible
+      // IMPORTANT: Don't render during flightplan loading to avoid interrupting the process
+      if (controlZonesEnabled && !controlZonesOfflineLayer &&
+          !window.autoloadCheckInProgress && !window.flightplanUISequenceInProgress && !window.flightplanAnimationInProgress) {
+        if (CZ_DEBUG) console.log('[ControlZones] First load complete, triggering re-render');
+        setTimeout(renderControlZones, 100);
+      } else if (controlZonesEnabled && !controlZonesOfflineLayer) {
+        if (CZ_DEBUG) console.log('[ControlZones] First load complete, but flightplan loading in progress - skipping re-render');
+      }
+    })
+    .catch(function(err) {
+      vatsimBoundariesLoading = false;
+      if (CZ_DEBUG) console.error('[ControlZones] Error loading VATSIM boundaries:', err);
+      // Call all queued callbacks with null
+      var callbacks = vatsimBoundariesCallbacks.slice();
+      vatsimBoundariesCallbacks = [];
+      callbacks.forEach(function(cb) { cb(null); });
+    });
+}
+
+/**
+ * Loads VATSIM TRACON/APP boundaries from SimAware TRACON project
+ * These are separate from FIR boundaries and provide APP/DEP sector shapes
+ */
+var vatsimTraconBoundariesCache = null;  // Cache für VATSIM TRACON/APP Boundaries
+var vatsimTraconBoundariesLoading = false;
+var vatsimTraconBoundariesCallbacks = [];
+
+function loadVatsimTraconBoundaries(callback) {
+  if (vatsimTraconBoundariesCache) {
+    if (callback) callback(vatsimTraconBoundariesCache);
+    return;
+  }
+
+  // Try localStorage first
+  var cached = getFromLocalCache('vatsimTraconBoundaries');
+  if (cached) {
+    vatsimTraconBoundariesCache = cached;
+    _cachedVatsimTraconFeatures = cached.features || [];
+    if (CZ_DEBUG) console.log('[ControlZones] VATSIM TRACON boundaries from cache:', _cachedVatsimTraconFeatures.length, 'features');
+    if (callback) callback(cached);
+    return;
+  }
+
+  // Prevent parallel fetches - queue callbacks
+  if (vatsimTraconBoundariesLoading) {
+    if (callback) vatsimTraconBoundariesCallbacks.push(callback);
+    return;
+  }
+  vatsimTraconBoundariesLoading = true;
+  if (callback) vatsimTraconBoundariesCallbacks.push(callback);
+
+  if (CZ_DEBUG) console.log('[CZ] Fetching TRACON from: /api/boundaries/vatsim-tracon');
+  fetch('/api/boundaries/vatsim-tracon')
+    .then(function(response) {
+      if (CZ_DEBUG) console.log('[CZ] TRACON fetch response:', response.status, response.ok);
+      if (!response.ok) throw new Error('Failed to fetch VATSIM TRACON boundaries: ' + response.status);
+      return response.json();
+    })
+    .then(function(data) {
+      if (CZ_DEBUG) console.log('[CZ] TRACON data received:', data ? (data.features ? data.features.length + ' features' : 'no features') : 'null');
+      vatsimTraconBoundariesCache = data;
+      _cachedVatsimTraconFeatures = data.features || [];
+      vatsimTraconBoundariesLoading = false;
+      saveToLocalCache('vatsimTraconBoundaries', data);
+      if (CZ_DEBUG) console.log('[CZ] TRACON boundaries loaded:', _cachedVatsimTraconFeatures.length, 'features');
+      // Call all queued callbacks
+      var callbacks = vatsimTraconBoundariesCallbacks.slice();
+      vatsimTraconBoundariesCallbacks = [];
+      callbacks.forEach(function(cb) { cb(data); });
+    })
+    .catch(function(err) {
+      console.error('[CZ] TRACON fetch ERROR:', err);
+      vatsimTraconBoundariesLoading = false;
+      // Call all queued callbacks with null
+      var callbacks = vatsimTraconBoundariesCallbacks.slice();
+      vatsimTraconBoundariesCallbacks = [];
+      callbacks.forEach(function(cb) { cb(null); });
+    });
+}
+
+/**
+ * Loads IVAO FIR boundaries from the backend
+ */
+var ivaoBoundariesLoading = false;
+var ivaoBoundariesCallbacks = [];
+
+// ===== OFFLINE FIR LAYER (vorberechnet, ~96% kleiner als Full Dataset) =====
+var ivaoOfflineFirCache = null;
+var ivaoOfflineFirLoading = false;
+var ivaoOfflineFirCallbacks = [];
+
+/**
+ * Loads precomputed IVAO Offline FIR boundaries (165 FIRs instead of 4103 features)
+ * This is used for the background FIR boundaries layer when no controllers are online
+ */
+function loadIvaoOfflineFir(callback) {
+  if (ivaoOfflineFirCache) {
+    if (callback) callback(ivaoOfflineFirCache);
+    return;
+  }
+
+  // Prevent parallel fetches
+  if (ivaoOfflineFirLoading) {
+    if (callback) ivaoOfflineFirCallbacks.push(callback);
+    return;
+  }
+  ivaoOfflineFirLoading = true;
+  if (callback) ivaoOfflineFirCallbacks.push(callback);
+
+  fetch('/api/boundaries/ivao-offline')
+    .then(function(response) {
+      if (!response.ok) throw new Error('Failed to fetch IVAO offline FIR layer');
+      return response.json();
+    })
+    .then(function(data) {
+      ivaoOfflineFirCache = data;
+      ivaoOfflineFirLoading = false;
+      if (CZ_DEBUG) console.log('[ControlZones] IVAO Offline FIR loaded:', data && data.features ? data.features.length : 0, 'FIRs');
+      // Call all queued callbacks
+      var callbacks = ivaoOfflineFirCallbacks.slice();
+      ivaoOfflineFirCallbacks = [];
+      callbacks.forEach(function(cb) { cb(data); });
+    })
+    .catch(function(err) {
+      ivaoOfflineFirLoading = false;
+      console.warn('[ControlZones] Could not load IVAO Offline FIR layer:', err.message);
+      // Call all queued callbacks with null
+      var callbacks = ivaoOfflineFirCallbacks.slice();
+      ivaoOfflineFirCallbacks = [];
+      callbacks.forEach(function(cb) { cb(null); });
+    });
+}
+
+function loadIvaoBoundaries(callback) {
+  if (ivaoBoundariesCache) {
+    if (callback) callback(ivaoBoundariesCache);
+    return;
+  }
+
+  // Try localStorage first
+  var cached = getFromLocalCache('ivaoBoundaries');
+  if (cached) {
+    ivaoBoundariesCache = cached;
+    // Invalidate converted GeoJSON cache to ensure name mapping is applied
+    _cachedIvaoGeoJsonFeatures = null;
+    if (CZ_DEBUG) console.log('[ControlZones] IVAO boundaries from cache:', Array.isArray(cached) ? cached.length : 0, 'items');
+    if (callback) callback(cached);
+    return;
+  }
+
+  // Prevent parallel fetches - queue callbacks
+  if (ivaoBoundariesLoading) {
+    if (callback) ivaoBoundariesCallbacks.push(callback);
+    return;
+  }
+  ivaoBoundariesLoading = true;
+  if (callback) ivaoBoundariesCallbacks.push(callback);
+
+  fetch('/api/boundaries/ivao')
+    .then(function(response) {
+      if (!response.ok) throw new Error('Failed to fetch IVAO boundaries');
+      return response.json();
+    })
+    .then(function(data) {
+      ivaoBoundariesCache = data;
+      ivaoBoundariesLoading = false;
+      // Invalidate the converted GeoJSON cache so it gets re-converted with the name mapping
+      _cachedIvaoGeoJsonFeatures = null;
+      saveToLocalCache('ivaoBoundaries', data);
+      if (CZ_DEBUG) console.log('[ControlZones] IVAO boundaries loaded:', Array.isArray(data) ? data.length : (data && data.features ? data.features.length : 0), 'items');
+      // Call all queued callbacks
+      var callbacks = ivaoBoundariesCallbacks.slice();
+      ivaoBoundariesCallbacks = [];
+      callbacks.forEach(function(cb) { cb(data); });
+    })
+    .catch(function(err) {
+      ivaoBoundariesLoading = false;
+      if (CZ_DEBUG) console.error('[ControlZones] Error loading IVAO boundaries:', err);
+      // Call all queued callbacks with null
+      var callbacks = ivaoBoundariesCallbacks.slice();
+      ivaoBoundariesCallbacks = [];
+      callbacks.forEach(function(cb) { cb(null); });
+    });
+}
+
+/**
+ * Gets the controller type from callsign (e.g., EDGG_CTR -> CTR)
+ */
+function getControllerType(callsign) {
+  if (!callsign) return 'DEFAULT';
+  var parts = callsign.split('_');
+  if (parts.length < 2) return 'DEFAULT';
+  var type = parts[parts.length - 1].toUpperCase();
+  if (['CTR', 'APP', 'TWR', 'GND', 'DEL', 'FSS', 'ATIS'].includes(type)) {
+    return type;
+  }
+  return 'DEFAULT';
+}
+
+/**
+ * Gets the FIR prefix from callsign (e.g., EDGG_CTR -> EDGG)
+ */
+function getFirPrefix(callsign) {
+  if (!callsign) return '';
+  var idx = callsign.indexOf('_');
+  var prefix = '';
+  if (idx > 0) {
+    prefix = callsign.substring(0, idx).toUpperCase();
+  } else {
+    prefix = callsign.toUpperCase();
+  }
+  return prefix;
+}
+
+/**
+ * Prüft ob zwei Prefixes denselben Flughafen bezeichnen
+ * Berücksichtigt IATA/ICAO Varianten: JFK ↔ KJFK, YYZ ↔ CYYZ, etc.
+ */
+function prefixesMatch(prefix1, prefix2) {
+  if (!prefix1 || !prefix2) return false;
+  prefix1 = prefix1.toUpperCase();
+  prefix2 = prefix2.toUpperCase();
+
+  // Exakter Match
+  if (prefix1 === prefix2) return true;
+
+  // 3-Letter zu 4-Letter Match (IATA zu ICAO)
+  // USA: JFK ↔ KJFK, LAX ↔ KLAX
+  // Kanada: YYZ ↔ CYYZ, YVR ↔ CYVR
+  if (prefix1.length === 3 && prefix2.length === 4) {
+    // prefix2 könnte K+prefix1 oder C+prefix1 sein
+    if (prefix2.substring(1) === prefix1) return true;
+  }
+  if (prefix2.length === 3 && prefix1.length === 4) {
+    // prefix1 könnte K+prefix2 oder C+prefix2 sein
+    if (prefix1.substring(1) === prefix2) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Lädt das IATA→ICAO Mapping vom Backend
+ * Einmalig beim Start aufrufen
+ */
+function loadIataToIcaoMapping() {
+  if (iataToIcaoLoaded) return;
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'api/openaip/iata-icao-mapping', true);
+  xhr.timeout = 10000;
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === XMLHttpRequest.DONE) {
+      if (xhr.status === 200) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (data.ready && data.mapping) {
+            iataToIcaoCache = data.mapping;
+            iataToIcaoLoaded = true;
+            if (CZ_DEBUG) console.log('[IATA] Loaded ' + data.count + ' IATA→ICAO mappings');
+          }
+        } catch (e) {
+          console.error('[IATA] Parse error:', e);
+        }
+      }
+    }
+  };
+  xhr.send();
+}
+
+/**
+ * Konvertiert IATA zu ICAO mittels Cache
+ * Gibt ICAO zurück oder den Original-Code wenn nicht gefunden
+ */
+function iataToIcao(code) {
+  if (!code) return code;
+  code = code.toUpperCase();
+  // Nur 3-Buchstaben-Codes konvertieren
+  if (code.length === 3 && iataToIcaoCache[code]) {
+    return iataToIcaoCache[code];
+  }
+  return code;
+}
+
+/**
+ * Gets active FIR prefixes from current online controllers
+ */
+function getActiveControllerPrefixes() {
+  var prefixes = {};
+
+  // Check if current panel network matches controlZonesNetwork
+  // vatsim = true means VATSIM panel is active, false means IVAO
+  var panelNetwork = vatsim ? 'VATSIM' : 'IVAO';
+  if (panelNetwork !== controlZonesNetwork) {
+    // Networks don't match - return empty to avoid mixing data
+    if (CZ_DEBUG) console.log('[ControlZones] Network mismatch - Panel:', panelNetwork, 'Zones:', controlZonesNetwork);
+    return prefixes;
+  }
+
+  // WICHTIG: Beide Arrays zusammenführen, um ATIS-Controller nicht zu verlieren!
+  // ATIS-Koordinaten werden asynchron geladen und sind evtl. noch nicht in controllersWithCoordArray
+  // controllers_array enthält ALLE Controller inkl. ATIS von filterAtis()
+  var seenCallsigns = {};
+  var combinedControllers = [];
+
+  // Erst controllersWithCoordArray (hat Koordinaten)
+  for (var j = 0; j < controllersWithCoordArray.length; j++) {
+    var ctrl = controllersWithCoordArray[j];
+    if (!seenCallsigns[ctrl.callsign]) {
+      seenCallsigns[ctrl.callsign] = true;
+      combinedControllers.push(ctrl);
+    }
+  }
+
+  // Dann controllers_array für fehlende Controller (z.B. ATIS ohne Koordinaten)
+  for (var k = 0; k < controllers_array.length; k++) {
+    var ctrl2 = controllers_array[k];
+    if (!seenCallsigns[ctrl2.callsign]) {
+      seenCallsigns[ctrl2.callsign] = true;
+      combinedControllers.push(ctrl2);
+    }
+  }
+
+  for (var i = 0; i < combinedControllers.length; i++) {
+    var controller = combinedControllers[i];
+    var rawPrefix = getFirPrefix(controller.callsign);
+    // Konvertiere IATA zu ICAO für konsistente Labels (JFK → KJFK, YYZ → CYYZ)
+    var prefix = iataToIcao(rawPrefix);
+    var type = getControllerType(controller.callsign);
+
+    if (prefix) {
+      if (!prefixes[prefix]) {
+        prefixes[prefix] = { types: [], callsigns: [], controllers: [] };
+      }
+      if (!prefixes[prefix].types.includes(type)) {
+        prefixes[prefix].types.push(type);
+      }
+      // Avoid duplicate controllers (same callsign)
+      if (!prefixes[prefix].callsigns.includes(controller.callsign)) {
+        prefixes[prefix].callsigns.push(controller.callsign);
+        // Store full controller data for popup (including coordinates for geographic matching)
+        prefixes[prefix].controllers.push({
+          callsign: controller.callsign,
+          name: controller.realname || controller.name || '', // realname for VATSIM, name for IVAO
+          frequency: controller.frequency || controller.freq || '',
+          atis: controller.atis || controller.text_atis || '',
+          type: type,
+          station: controller.station || '', // Radio callname (e.g., "Langen Radar")
+          lat: controller.lat,  // Coordinates for geographic zone matching
+          lng: controller.lng
+        });
+      }
+    }
+  }
+
+  return prefixes;
+}
+
+/**
+ * Async: Findet die ARTCC/FIR-Zone für einen Flughafen-Code via Geo-Lookup
+ * z.B. "SEA" → KSEA-Koordinaten → Point-in-Polygon → "ZSE"
+ * Ergebnisse werden in airportToArtccCache gespeichert
+ */
+function lookupArtccForAirport(airportCode, callback) {
+  if (!airportCode) {
+    if (callback) callback(null);
+    return;
+  }
+
+  // Check cache first
+  if (airportToArtccCache[airportCode]) {
+    if (callback) callback(airportToArtccCache[airportCode]);
+    return;
+  }
+
+  // Für US-Flughäfen: Prefix K hinzufügen (SEA → KSEA)
+  // Für andere: direkt verwenden (z.B. EDDF)
+  var icao = airportCode.length === 3 ? 'K' + airportCode : airportCode;
+
+  // Fetch airport coordinates from OpenAIP
+  fetchAirportFromOpenAIP(icao, function(result) {
+    if (!result || !result.found) {
+      // Fallback: Versuche ohne K-Prefix
+      if (icao.startsWith('K') && icao.length === 4) {
+        fetchAirportFromOpenAIP(airportCode, function(result2) {
+          if (!result2 || !result2.found) {
+            if (callback) callback(null);
+            return;
+          }
+          findArtccForCoordinates(airportCode, result2.lat, result2.lng, callback);
+        });
+        return;
+      }
+      if (callback) callback(null);
+      return;
+    }
+
+    findArtccForCoordinates(airportCode, result.lat, result.lng, callback);
+  });
+}
+
+/**
+ * Helper: Findet die ARTCC/FIR für gegebene Koordinaten via Point-in-Polygon
+ */
+function findArtccForCoordinates(airportCode, lat, lng, callback) {
+  // Point-in-Polygon: Find which ARTCC/FIR contains this airport
+  var boundaries = czCache['VATSIM'];
+  if (!boundaries || !boundaries.features) {
+    if (callback) callback(null);
+    return;
+  }
+
+  for (var i = 0; i < boundaries.features.length; i++) {
+    var feature = boundaries.features[i];
+    var id = feature.properties && feature.properties.id;
+    if (!id) continue;
+
+    // Nur FIR/ARTCC Zones (ohne Position-Suffix wie _CTR, _APP)
+    // Z.B. "ZSE", "EDGG", "LFFF" - aber nicht "EDDF_TWR"
+    if (id.indexOf('_') !== -1) continue;
+
+    var polyCoords = feature.geometry && feature.geometry.coordinates;
+    if (!polyCoords) continue;
+
+    if (isPointInPolygon(lat, lng, polyCoords)) {
+      // Cache the result
+      airportToArtccCache[airportCode] = id;
+      if (CZ_DEBUG) console.log('[CZ] Airport', airportCode, '→ ARTCC', id, '(geo-lookup)');
+      if (callback) callback(id);
+      return;
+    }
+  }
+
+  // Nicht gefunden
+  if (callback) callback(null);
+}
+
+/**
+ * Renders control zones on the map - only shows active zones
+ */
+var controlZonesRenderVersion = 0;
+var controlZonesRenderTimeout = null;
+var lastControlZonesRenderTime = 0;
+var CONTROL_ZONES_RENDER_COOLDOWN_MS = 2000; // Min. 2 Sekunden zwischen Renders
+
+// ============================================================================
+// ONLINE PILOTS LAYER - VATSIM & IVAO Piloten auf der Karte
+// ============================================================================
+var PILOTS_DEBUG = false; // Set to true for verbose pilot logging
+
+// Pilot layer variables
+var pilotsLayer = null;           // Main layer group for pilot markers
+var pilotsMarkersCache = {};      // Cache: callsign -> marker (nur für sichtbare Marker!)
+var pilotsAllDataCache = {};      // Cache: callsign_network -> pilot data (ALLE Piloten)
+// ENTFERNT: pilotsDataCache war redundant - pilotsAllDataCache enthält bereits alle Daten
+var pilotsLastUpdate = 0;         // Timestamp of last update
+var pilotsUpdateInterval = null;  // Auto-update timer
+var pilotsEnabled = false;        // Layer enabled state
+var pilotsNetwork = 'both';       // 'vatsim', 'ivao', or 'both'
+var PILOTS_UPDATE_INTERVAL_MS = 15000; // Update alle 15 Sekunden (VATSIM API regeneriert nur alle 15s)
+var PILOTS_CACHE_FRESH_MS = 15000;    // Cache gilt als "frisch" für 15 Sekunden
+
+// VIEWPORT-CULLING: Nur Piloten im sichtbaren Bereich rendern
+var PILOTS_VIEWPORT_PADDING = 0.3; // 30% Padding um Viewport (für smooth panning)
+var pilotsViewportDebounceTimer = null;
+var PILOTS_VIEWPORT_DEBOUNCE_MS = 100; // Debounce für viewport updates
+
+// Favoriten-System für Piloten (Server-seitig gespeichert)
+var pilotFavorites = {};  // { "vatsim_12345": true, "ivao_67890": true } - gespeichert nach network_id
+var panelMode = 'zones';  // 'zones' oder 'pilots'
+var showOnlyFavorites = false;  // Filter: nur Favoriten anzeigen
+
+// User-IDs für eigenes Flugzeug ausblenden
+var userVatsimCid = '';
+var userIvaoVid = '';
+
+// SVG-Icons für Sterne (Coherent GT kompatibel)
+var STAR_EMPTY_SVG = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" stroke-width="1" fill="none"/></svg>';
+var STAR_FILLED_SVG = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
+
+// User-IDs vom Server laden (für eigenes Flugzeug ausblenden)
+function loadUserIds() {
+  fetch('/api/user-ids')
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+      userVatsimCid = data.vatsimCid || '';
+      userIvaoVid = data.ivaoVid || '';
+      console.log('[UserIDs] Loaded - VATSIM:', userVatsimCid ? 'set' : 'none', 'IVAO:', userIvaoVid ? 'set' : 'none');
+    })
+    .catch(function(err) {
+      console.warn('[UserIDs] Load error:', err);
+    });
+}
+
+// Prüft ob ein Pilot das eigene Flugzeug ist
+function isOwnAircraft(pilotId, network) {
+  if (!pilotId) return false;
+  if (network === 'vatsim' && userVatsimCid && pilotId === userVatsimCid) return true;
+  if (network === 'ivao' && userIvaoVid && pilotId === userIvaoVid) return true;
+  return false;
+}
+
+// Favoriten vom Server laden
+function loadPilotFavorites() {
+  fetch('/api/favorites')
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+      pilotFavorites = data || {};
+      console.log('[Favorites] Loaded from server:', Object.keys(pilotFavorites).length);
+    })
+    .catch(function(err) {
+      console.warn('[Favorites] Load error:', err);
+      pilotFavorites = {};
+    });
+}
+
+// Favoriten auf Server speichern
+function savePilotFavorites() {
+  fetch('/api/favorites', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(pilotFavorites)
+  }).catch(function(err) {
+    console.warn('[Favorites] Save error:', err);
+  });
+}
+
+// Favorit togglen - verwendet network_id als Key (z.B. "vatsim_12345")
+function togglePilotFavorite(pilotId, network) {
+  var favKey = network + '_' + pilotId;
+  if (pilotFavorites[favKey]) {
+    delete pilotFavorites[favKey];
+  } else {
+    pilotFavorites[favKey] = true;
+  }
+  savePilotFavorites();
+  updatePilotMarkerColorById(pilotId, network);
+  if (panelMode === 'pilots') {
+    listPilots();
+  }
+}
+
+// Prüft ob ein Pilot (nach ID) ein Favorit ist
+// callsign parameter für Rückwärtskompatibilität mit alten Favoriten (nur Callsign als Key)
+function isPilotFavorite(pilotId, network, callsign) {
+  // Neues Format: network_id
+  if (pilotId) {
+    var favKey = network + '_' + pilotId;
+    if (pilotFavorites[favKey]) return true;
+  }
+  // Altes Format: nur Callsign (Rückwärtskompatibilität)
+  if (callsign && pilotFavorites[callsign]) return true;
+  return false;
+}
+
+// Marker-Farbe für einen Piloten aktualisieren (nach ID und Network)
+function updatePilotMarkerColorById(pilotId, network) {
+  // Suche den Marker mit dieser ID
+  for (var key in pilotsMarkersCache) {
+    var marker = pilotsMarkersCache[key];
+    if (marker && marker._pilotData && marker._pilotData.id === pilotId && marker._pilotData.network === network) {
+      var data = marker._pilotData;
+      var newIcon = createPilotIcon(
+        marker._lastHeading || 0,
+        data.category,
+        data.network,
+        data.military,
+        data.id,
+        data.callsign
+      );
+      marker.setIcon(newIcon);
+      break;
+    }
+  }
+}
+
+// Toggle Favorit aus dem Popup heraus (aktualisiert auch den Button im Popup)
+function togglePopupFavorite(pilotId, network, buttonElement) {
+  togglePilotFavorite(pilotId, network);
+
+  // Button im Popup aktualisieren
+  if (buttonElement) {
+    var isFavorite = isPilotFavorite(pilotId, network);
+    var starSvg = isFavorite ? STAR_FILLED_SVG : STAR_EMPTY_SVG;
+    var starColor = isFavorite ? '#fbbf24' : '#666';
+    buttonElement.innerHTML = starSvg;
+    buttonElement.style.color = starColor;
+    buttonElement.title = isFavorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen';
+  }
+}
+
+// Suchbegriff für Piloten-Suche (persistent während Session)
+var pilotSearchQuery = '';
+
+// Piloten im aktuellen Viewport listen (oder alle Favoriten wenn Filter aktiv)
+function listPilots() {
+  var list = document.getElementById("controllerList");
+  if (!list) return;
+
+  var listUl = list.querySelector("ul");
+  if (!listUl) return;
+
+  $(listUl).empty();
+
+  var bounds = map.getBounds();
+  var pilotsToShow = [];
+  var onlineFavKeys = {}; // Tracking welche Favoriten online sind
+  var hasSearchQuery = pilotSearchQuery && pilotSearchQuery.trim().length > 0;
+
+  // Wenn Favoriten-Filter aktiv oder Suche aktiv: ALLE Piloten durchgehen
+  // Sonst: nur Piloten im Viewport
+  for (var key in pilotsMarkersCache) {
+    var marker = pilotsMarkersCache[key];
+    if (!marker || !marker.getLatLng) continue;
+
+    var data = marker._pilotData;
+    if (!data) continue;
+
+    var inViewport = bounds.contains(marker.getLatLng());
+    var isFavorite = isPilotFavorite(data.id, data.network, data.callsign);
+
+    // Tracking: Welche Favoriten sind online?
+    if (isFavorite && data.id) {
+      var favKey = data.network + '_' + data.id;
+      onlineFavKeys[favKey] = true;
+    }
+
+    // Filter-Logik:
+    // - Favoriten-Filter aktiv: nur Favoriten anzeigen (egal wo)
+    // - Suche aktiv: ALLE Piloten durchsuchen (Filterung erfolgt später)
+    // - Sonst: nur Piloten im Viewport
+    if (showOnlyFavorites) {
+      if (!isFavorite) continue;
+    } else if (!hasSearchQuery) {
+      // Keine Suche aktiv - nur Viewport
+      if (!inViewport) continue;
+    }
+    // Bei aktiver Suche: ALLE Piloten hinzufügen (Filterung erfolgt später)
+
+    pilotsToShow.push({
+      callsign: data.callsign,
+      id: data.id || '',           // Pilot ID für Favoriten
+      network: data.network,
+      category: data.category,
+      military: data.military,
+      isOnline: true,              // Dieser Pilot ist online
+      aircraft: data.aircraft || '',
+      departure: data.departure || '',
+      arrival: data.arrival || '',
+      name: data.name || '',
+      latlng: marker.getLatLng(),
+      key: key,
+      inViewport: inViewport       // Für UI-Anzeige ob im Sichtbereich
+    });
+  }
+
+  // OFFLINE-FAVORITEN: Wenn Favoriten-Filter aktiv, zeige auch Favoriten die gerade offline sind
+  if (showOnlyFavorites) {
+    for (var favKey in pilotFavorites) {
+      // Prüfe ob dieser Favorit online ist
+      if (onlineFavKeys[favKey]) continue;
+
+      // Favorit ist offline - zur Liste hinzufügen
+      var parts = favKey.split('_');
+      if (parts.length < 2) continue;
+      var network = parts[0];
+      var pilotId = parts.slice(1).join('_'); // Falls ID ein _ enthält
+
+      pilotsToShow.push({
+        callsign: pilotId,           // Zeige ID als Callsign (da wir kein Callsign haben)
+        id: pilotId,
+        network: network,
+        category: '?',               // Unbekannt
+        military: false,
+        isOnline: false,             // OFFLINE
+        aircraft: '',
+        departure: '',
+        arrival: '',
+        name: '',
+        latlng: null,                // Keine Position
+        key: favKey + '_offline',
+        inViewport: false
+      });
+    }
+  }
+
+  // Suchfilter anwenden
+  var query = pilotSearchQuery.toLowerCase().trim();
+  if (query) {
+    pilotsToShow = pilotsToShow.filter(function(p) {
+      return p.callsign.toLowerCase().indexOf(query) !== -1 ||
+             p.aircraft.toLowerCase().indexOf(query) !== -1 ||
+             p.departure.toLowerCase().indexOf(query) !== -1 ||
+             p.arrival.toLowerCase().indexOf(query) !== -1 ||
+             p.name.toLowerCase().indexOf(query) !== -1;
+    });
+  }
+
+  // Sortieren: Online-Favoriten zuerst, dann Offline-Favoriten, dann Rest alphabetisch
+  pilotsToShow.sort(function(a, b) {
+    var aFav = isPilotFavorite(a.id, a.network, a.callsign) ? 1 : 0;
+    var bFav = isPilotFavorite(b.id, b.network, b.callsign) ? 1 : 0;
+    // Online vor Offline
+    var aOnline = a.isOnline ? 1 : 0;
+    var bOnline = b.isOnline ? 1 : 0;
+    if (aOnline !== bOnline) return bOnline - aOnline;  // Online zuerst
+    if (aFav !== bFav) return bFav - aFav;  // Favoriten zuerst
+    return a.callsign.localeCompare(b.callsign);
+  });
+
+  // DocumentFragment für Performance
+  var fragment = document.createDocumentFragment();
+  var tempDiv = document.createElement('div');
+
+  // Suchleiste mit Favoriten-Filter-Button
+  var favFilterClass = showOnlyFavorites ? 'fav-filter-btn active' : 'fav-filter-btn';
+  var favCount = Object.keys(pilotFavorites).length;
+  tempDiv.innerHTML = '<div class="pilot-search-container">' +
+    '<input type="text" id="pilotSearchInput" class="pilot-search-input" ' +
+    'placeholder="Suche: Callsign, Typ, Route..." value="' + (pilotSearchQuery || '') + '">' +
+    '<button id="favFilterBtn" class="' + favFilterClass + '" title="Nur Favoriten (' + favCount + ')">' +
+    STAR_FILLED_SVG + '</button>' +
+    '</div>';
+  while (tempDiv.firstChild) fragment.appendChild(tempDiv.firstChild);
+
+  // Kategorie-Header mit Anzahl
+  var countText = pilotsToShow.length + ' im Sichtbereich';
+  if (showOnlyFavorites) {
+    var onlineCount = pilotsToShow.filter(function(p) { return p.isOnline; }).length;
+    var offlineCount = pilotsToShow.filter(function(p) { return !p.isOnline; }).length;
+    if (offlineCount > 0) {
+      countText = onlineCount + ' online, ' + offlineCount + ' offline';
+    } else {
+      countText = onlineCount + ' Favoriten online';
+    }
+  } else if (query) {
+    // Globale Suche aktiv - zeige Anzahl der Treffer
+    countText = pilotsToShow.length + ' gefunden (global)';
+  }
+  tempDiv.innerHTML = '<div class="kneeboard-panel-category">Piloten (' + countText + ')</div>';
+  while (tempDiv.firstChild) fragment.appendChild(tempDiv.firstChild);
+
+  // Kategorie-Farben
+  var categoryColors = {
+    'J': '#dc2626',  // Super - Rot
+    'H': '#f97316',  // Heavy - Orange
+    'N': '#0ea5e9',  // Narrowbody - Cyan
+    'M': '#22c55e',  // Medium - Grün
+    'L': '#a855f7',  // Light - Lila
+    'R': '#eab308'   // Heli - Gelb
+  };
+
+  // Piloten-Einträge
+  for (var i = 0; i < pilotsToShow.length; i++) {
+    var pilot = pilotsToShow[i];
+    var isFavorite = isPilotFavorite(pilot.id, pilot.network, pilot.callsign);
+    var starClass = isFavorite ? 'favorite-star active' : 'favorite-star';
+    var starSvg = isFavorite ? STAR_FILLED_SVG : STAR_EMPTY_SVG;
+    // Grau für Offline-Piloten, sonst normale Kategorie-Farbe
+    var dotColor = !pilot.isOnline ? '#666' : (pilot.military ? '#6b7c3f' : (categoryColors[pilot.category] || '#0ea5e9'));
+    var networkLabel = pilot.network === 'vatsim' ? 'V' : 'I';
+
+    // Subtitle mit Route wenn vorhanden
+    var subtitle = (pilot.category || '') + ' · ' + networkLabel;
+    if (pilot.departure && pilot.arrival) {
+      subtitle = pilot.departure + '-' + pilot.arrival + ' · ' + networkLabel;
+    }
+    // Zeige an ob Pilot offline oder nicht im Sichtbereich ist
+    if (!pilot.isOnline) {
+      subtitle = networkLabel + ' · OFFLINE';
+    } else if (showOnlyFavorites && !pilot.inViewport) {
+      subtitle += ' (nicht sichtbar)';
+    }
+
+    var offlineClass = !pilot.isOnline ? ' pilot-offline' : '';
+    var html = '<li class="kneeboard-list-item pilot-list-item' + offlineClass + '" data-callsign="' + pilot.callsign + '" data-key="' + pilot.key + '" data-id="' + pilot.id + '" data-network="' + pilot.network + '" data-online="' + (pilot.isOnline ? 'true' : 'false') + '">' +
+      '<span class="kneeboard-list-dot" style="background-color: ' + dotColor + ';"></span>' +
+      '<span class="kneeboard-list-title">' + pilot.callsign + '</span>' +
+      '<span class="kneeboard-list-subtitle">' + subtitle + '</span>' +
+      '<button class="' + starClass + '" data-id="' + pilot.id + '" data-network="' + pilot.network + '">' + starSvg + '</button>' +
+      '</li>';
+
+    tempDiv.innerHTML = html;
+    while (tempDiv.firstChild) fragment.appendChild(tempDiv.firstChild);
+  }
+
+  listUl.appendChild(fragment);
+
+  // Event-Listener für Suchfeld
+  var searchInput = document.getElementById('pilotSearchInput');
+  if (searchInput) {
+    // Fokus und Cursor-Position nur wiederherstellen wenn User gerade tippt
+    if (pilotSearchQuery) {
+      var cursorPos = pilotSearchQuery.length;
+      searchInput.focus();
+      searchInput.setSelectionRange(cursorPos, cursorPos);
+    }
+
+    searchInput.addEventListener('input', function() {
+      pilotSearchQuery = this.value;
+      listPilots();
+    });
+
+    // Suche bei Escape löschen
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        pilotSearchQuery = '';
+        this.value = '';
+        listPilots();
+      }
+    });
+  }
+
+  // Event-Listener für Favoriten-Filter-Button
+  var favFilterBtn = document.getElementById('favFilterBtn');
+  if (favFilterBtn) {
+    favFilterBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      showOnlyFavorites = !showOnlyFavorites;
+      listPilots();
+    });
+  }
+
+  // Event-Listener für Stern-Buttons (verwendet ID statt Callsign)
+  $(listUl).off('click', '.favorite-star').on('click', '.favorite-star', function(e) {
+    e.stopPropagation();
+    var pilotId = $(this).data('id');
+    var network = $(this).data('network');
+    togglePilotFavorite(pilotId, network);
+  });
+
+  // Event-Listener für Piloten-Klick (zentrieren)
+  $(listUl).off('click', '.pilot-list-item').on('click', '.pilot-list-item', function(e) {
+    if ($(e.target).hasClass('favorite-star')) return;
+    // Offline-Piloten können nicht zentriert werden
+    var isOnline = $(this).data('online') === true || $(this).data('online') === 'true';
+    if (!isOnline) {
+      return; // Offline-Pilot - nichts tun
+    }
+    // Panel wieder öffnen wenn versteckt
+    showControllerPanel();
+    var key = $(this).data('key');
+    var marker = pilotsMarkersCache[key];
+    if (marker) {
+      map.setView(marker.getLatLng(), Math.max(map.getZoom(), 8));
+      marker.openPopup();
+    }
+  });
+}
+
+var pilotsLastZoomLevel = -1;     // Last zoom level for icon scaling (for optimization)
+
+// Berechnet den Scale-Level für eine Zoom-Stufe (0-6)
+// Nur wenn sich das Level ändert, müssen Icons aktualisiert werden
+function getZoomScaleLevel(zoom) {
+  if (zoom <= 4) return 0;       // 0.5
+  if (zoom <= 5) return 1;       // 0.6
+  if (zoom <= 6) return 2;       // 0.7
+  if (zoom <= 7) return 3;       // 0.85
+  if (zoom <= 9) return 4;       // 1.0
+  if (zoom <= 11) return 5;      // 1.1
+  return 6;                       // 1.2
+}
+
+// Gibt den scaleFactor für einen Zoom-Wert zurück
+function getZoomScaleFactor(zoom) {
+  if (zoom <= 4) return 0.5;
+  if (zoom <= 5) return 0.6;
+  if (zoom <= 6) return 0.7;
+  if (zoom <= 7) return 0.85;
+  if (zoom >= 12) return 1.2;
+  if (zoom >= 10) return 1.1;
+  return 1.0;
+}
+
+// Aircraft category detection from ICAO type designator
+// H = Heavy (>136t), J = Super (A380, AN-225), L = Light, M = Medium, R = Rotorcraft (Helicopter)
+function getAircraftCategory(aircraftType) {
+  if (!aircraftType) return 'M'; // Default medium
+
+  var type = aircraftType.toUpperCase().trim();
+
+  // Extract clean ICAO code - handle formats like "H/EC35/M", "B738/M", "EC35", etc.
+  var cleanType = type;
+  if (type.indexOf('/') !== -1) {
+    var parts = type.split('/');
+    // Find the actual aircraft code (not weight class indicators like H, M, L)
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i].trim();
+      if (p.length > 1 && p !== 'H' && p !== 'M' && p !== 'L' && p !== 'J') {
+        cleanType = p;
+        break;
+      }
+    }
+  }
+
+  // Helicopters/Rotorcraft (R) - All helicopter types
+  var helicopters = [
+    // Airbus Helicopters (formerly Eurocopter)
+    'EC35', 'EC45', 'EC55', 'EC75', 'EC20', 'EC30', 'EC25', 'EC65', 'EC12', 'EC13', 'EC15',
+    'H125', 'H130', 'H135', 'H145', 'H155', 'H160', 'H175', 'H215', 'H225',
+    'AS32', 'AS50', 'AS55', 'AS65', 'AS35', 'AS3B', 'ASTR', 'A350', 'EC30',
+    'AS50', 'AS55', 'AS65', 'AS35', 'AS3B', 'EC55', 'EC65', 'EC75', 'EC45',
+    'BK17', 'SA34', 'SA36', 'SA65', 'SA32', 'GAZL', 'PUMA', 'S76', 'S92',
+    // Bell
+    'B06', 'B06T', 'B105', 'B117', 'B204', 'B205', 'B206', 'B212', 'B214', 'B222', 'B230',
+    'B407', 'B412', 'B427', 'B429', 'B430', 'B47G', 'B47J', 'B505', 'B525', 'BELL',
+    // Sikorsky
+    'S55', 'S58', 'S61', 'S64', 'S65', 'S70', 'S76', 'S92', 'S300', 'UH60', 'H60',
+    'SIK', 'S61', 'S64', 'S65', 'S70', 'S76', 'S92',
+    // Robinson
+    'R22', 'R44', 'R66',
+    // MD Helicopters
+    'MD52', 'MD50', 'MD60', 'MD90', 'NOTR', 'EXPL', 'MD50', 'MD52', 'MD60', 'MDHI',
+    // AgustaWestland / Leonardo
+    'A109', 'A119', 'A139', 'A149', 'AW09', 'AW39', 'AW69', 'AW89', 'AW10', 'AW13', 'AW18', 'AW19',
+    'EH10', 'W3', 'AW10', 'AW13', 'AW18', 'EH10', 'AGUS',
+    // Military
+    'CH47', 'CH53', 'AH1', 'AH1W', 'AH1Z', 'AH64', 'UH1', 'SH60', 'MH60', 'MH53', 'NH90',
+    'MI8', 'MI17', 'MI24', 'MI26', 'MI28', 'KA27', 'KA50', 'KA52', 'MI8T', 'MI8P',
+    'LYNX', 'MERL', 'PUMA', 'CHIN', 'APAC', 'COUG', 'BLCK',
+    // Generic
+    'HELI', 'UHEL', 'LHEL', 'MHEL', 'H1', 'H2', 'H3', 'H4'
+  ];
+
+  // Direct match
+  if (helicopters.indexOf(cleanType) !== -1) return 'R';
+
+  // Check for helicopter prefixes (EC, AS, S7, etc.)
+  var heliPrefixes = ['EC', 'AS', 'H1', 'H2', 'AW', 'S7', 'S9', 'R2', 'R4', 'R6', 'MI', 'KA', 'CH', 'UH', 'AH', 'MH', 'NH', 'B4'];
+  for (var i = 0; i < heliPrefixes.length; i++) {
+    if (cleanType.indexOf(heliPrefixes[i]) === 0 && cleanType.length <= 5) {
+      // Additional check: make sure it's not a Boeing (B7xx, B3xx) or Airbus (A3xx)
+      if (heliPrefixes[i] === 'B4' && /^B4\d\d/.test(cleanType)) return 'R'; // Bell B4xx helis
+      if (heliPrefixes[i] !== 'B4') return 'R';
+    }
+  }
+
+  if (PILOTS_DEBUG && (cleanType !== type)) {
+    console.log('[Pilots] Aircraft type parsed:', type, '->', cleanType);
+  }
+
+  // Super Heavy (J) - A380, AN-225
+  var superHeavy = ['A388', 'A38F', 'A380', 'A225', 'AN25'];
+  if (superHeavy.indexOf(cleanType) !== -1) return 'J';
+
+  // Heavy (H) - Wide-body aircraft and large cargo
+  var heavy = [
+    // Boeing
+    'B744', 'B748', 'B74F', 'B74S', 'B74R', 'B741', 'B742', 'B743', 'B74D', 'B74Y',
+    'B772', 'B773', 'B77L', 'B77W', 'B77F', 'B778', 'B779',
+    'B788', 'B789', 'B78X',
+    'B762', 'B763', 'B764', 'B76F',
+    // Airbus
+    'A332', 'A333', 'A338', 'A339', 'A33F',
+    'A342', 'A343', 'A345', 'A346',
+    'A359', 'A35K',
+    // Other wide-body
+    'MD11', 'DC10', 'L101', 'IL96', 'IL86',
+    // Cargo
+    'C5', 'C5M', 'C17', 'AN12', 'AN22', 'AN24', 'A400',
+    // Russian
+    'IL76', 'IL62'
+  ];
+  if (heavy.indexOf(cleanType) !== -1) return 'H';
+
+  // Check for generic heavy indicators in type string
+  if (type.indexOf('H/') === 0 || type.indexOf('/H') !== -1) return 'H';
+  if (type.indexOf('J/') === 0 || type.indexOf('/J') !== -1) return 'J';
+
+  // Jets (N) - Narrowbody jets (A320 family, B737 family, etc.)
+  var jets = [
+    // Airbus A320 family
+    'A318', 'A319', 'A320', 'A321', 'A19N', 'A20N', 'A21N',
+    // Airbus A220
+    'BCS1', 'BCS3', 'A220',
+    // Boeing 737 family
+    'B731', 'B732', 'B733', 'B734', 'B735', 'B736', 'B737', 'B738', 'B739',
+    'B37M', 'B38M', 'B39M', 'B3XM',
+    // Boeing 757
+    'B752', 'B753',
+    // Embraer
+    'E170', 'E175', 'E190', 'E195', 'E75L', 'E75S', 'E290', 'E295',
+    // CRJ family
+    'CRJ1', 'CRJ2', 'CRJ7', 'CRJ9', 'CRJX',
+    // Other regional jets
+    'F70', 'F100', 'DC9', 'MD80', 'MD81', 'MD82', 'MD83', 'MD87', 'MD88', 'MD90',
+    'B712', 'B717',
+    // Business jets
+    'C25A', 'C25B', 'C25C', 'C500', 'C510', 'C525', 'C550', 'C560', 'C56X', 'C680', 'C750',
+    'CL30', 'CL35', 'CL60', 'GLEX', 'GL5T', 'GL7T', 'G150', 'G200', 'G280',
+    'G350', 'G450', 'G500', 'G550', 'G600', 'G650', 'GALX',
+    'E35L', 'E50P', 'E55P', 'E545', 'E550',
+    'FA50', 'FA7X', 'FA8X', 'F900', 'F2TH',
+    'LJ31', 'LJ35', 'LJ40', 'LJ45', 'LJ60', 'LJ70', 'LJ75',
+    'H25B', 'H25C', 'HA4T', 'HDJT',
+    'PRM1', 'PC24',
+    // Russian/Ukrainian jets
+    'SU95', 'A148', 'YK42', 'T134', 'T154', 'T204'
+  ];
+  if (jets.indexOf(cleanType) !== -1) return 'N';
+
+  // Light (L) - Small single-engine aircraft
+  var light = [
+    'C150', 'C152', 'C162', 'C172', 'C175', 'C177', 'C180', 'C182', 'C185',
+    'PA18', 'PA22', 'PA24', 'PA28', 'PA32', 'PA34', 'PA38', 'PA44', 'PA46',
+    'DA20', 'DA40', 'DA42', 'SR20', 'SR22', 'P28A', 'P28B', 'P28R', 'P28T',
+    'AA5', 'AA5A', 'AA5B', 'BE23', 'BE33', 'BE35', 'BE36',
+    'C206', 'C207', 'C208', 'C210', 'GLID', 'ULAC'
+  ];
+  if (light.indexOf(cleanType) !== -1) return 'L';
+
+  // Default to Medium (turboprops)
+  return 'M';
+}
+
+// Military aircraft type codes (ICAO designators) - like Webeye uses
+// These are ALWAYS military: fighters, bombers, military transports, military helicopters
+var MILITARY_AIRCRAFT_TYPES = [
+  // Fighter Jets
+  'F16', 'F15', 'F18', 'FA18', 'F14', 'F22', 'F35', 'F4', 'F5', 'F104', 'F111',
+  'EUFI', 'EF2K', 'TFIG',  // Eurofighter Typhoon
+  'RFAL', 'RFA',           // Dassault Rafale
+  'GRIF', 'JAS39', 'J39',  // Gripen
+  'MG29', 'MG31', 'MG21', 'MG23', 'MG25',  // MiG fighters
+  'SU27', 'SU30', 'SU33', 'SU34', 'SU35', 'SU57', 'SU24', 'SU25', // Sukhoi
+  'TOR', 'TORN',           // Panavia Tornado
+  'JAGR', 'JAG',           // SEPECAT Jaguar
+  'HARR', 'AV8', 'AV8B',   // Harrier
+  'A10', 'A4', 'A6', 'A7', // Attack aircraft
+  'HAWK',                   // BAE Hawk (also T1, T2)
+  'M2KC', 'M2KD', 'MIR2',  // Mirage 2000
+  'MIR4', 'MIR5', 'MIR3', 'MIRA', // Mirage III/IV/V
+  'T38', 'T45', 'T50', 'T6', // Military jet trainers
+  'L39', 'L159',           // Aero trainers
+  // Bombers
+  'B52', 'B1', 'B1B', 'B2', 'B2A',
+  'TU22', 'TU95', 'TU160',  // Russian bombers
+  // Military Transports
+  'C17', 'C5', 'C5M', 'C130', 'C30J', 'C160', 'C141', 'C27J', 'C2',
+  'A400', 'A400M',          // Airbus A400M Atlas
+  'AN12', 'AN22', 'AN24', 'AN26', 'AN70', 'AN124', 'AN225', // Antonov
+  'IL76', 'IL78',           // Ilyushin
+  // Tankers
+  'K35R', 'KC10', 'KC46', 'KC30', 'MRTT',
+  // AWACS/Surveillance
+  'E3', 'E3CF', 'E3TF', 'E2', 'E8', 'E6', 'E767',
+  'P3', 'P8', 'P8A',        // Maritime patrol
+  'U2', 'SR71', 'RQ4', 'MQ9', 'MQ1', 'RQ1', // Recon/Drones
+  // Military Helicopters
+  'H64', 'AH64',            // Apache
+  'UH60', 'MH60', 'SH60', 'HH60', // Blackhawk family
+  'CH47', 'H47',            // Chinook
+  'CH53', 'MH53', 'H53',    // Super Stallion
+  'UH1', 'AH1',             // Huey/Cobra
+  'LYNX',                    // Westland Lynx
+  'TIGR', 'EC65',           // Eurocopter Tiger
+  'NH90',                    // NH90
+  'MI24', 'MI28', 'MI35', 'KA50', 'KA52', // Attack helis
+  // Other military
+  'V22', 'MV22', 'CV22',    // V-22 Osprey
+  'PC21', 'PC7', 'PC9'      // Pilatus military trainers
+];
+
+// Detect military aircraft by aircraft type AND callsign (like Webeye does)
+function isMilitaryAircraft(callsign, aircraftType) {
+  // First check by aircraft type (most reliable - this is how Webeye does it)
+  if (aircraftType) {
+    var cleanType = aircraftType.toUpperCase();
+    // Handle FAA format like "H/B738/M" -> extract "B738"
+    if (cleanType.indexOf('/') !== -1) {
+      var parts = cleanType.split('/');
+      cleanType = parts.length >= 2 ? parts[1] : parts[0];
+    }
+    // Remove wake turbulence prefix if present
+    cleanType = cleanType.replace(/^[LMHJ]\//, '');
+
+    for (var i = 0; i < MILITARY_AIRCRAFT_TYPES.length; i++) {
+      if (cleanType === MILITARY_AIRCRAFT_TYPES[i] || cleanType.indexOf(MILITARY_AIRCRAFT_TYPES[i]) === 0) {
+        return true;
+      }
+    }
+  }
+
+  // Then check by callsign pattern
+  if (!callsign) return false;
+  var cs = callsign.toUpperCase();
+
+  // Common military callsign patterns
+  var militaryPrefixes = [
+    // USA
+    'RCH', 'EVAC', 'DOOM', 'DEATH', 'TOPGUN', 'VIPER', 'SNAKE', 'HAWK', 'EAGLE',
+    'ARMY', 'NAVY', 'USAF', 'USMC', 'TANGO',
+    // NATO
+    'NATO', 'OTAN',
+    // Germany
+    'GAF',
+    // UK
+    'RRR', 'ASCOT', 'RAFAIR',
+    // France
+    'FAF', 'CTM', 'COTAM',
+    // Europe misc
+    'IAF', 'BAF', 'CAF', 'PAF', 'TAF', 'SAF', 'NAF', 'MAF', 'HAF', 'DAF', 'POL', 'SWF',
+    // Latin America
+    'FAB', 'FAV', 'FAC', 'FAP', 'FAE', 'FAA', 'FACH', 'FAM', 'FAU',
+    // Other
+    'SPAR', 'SAM', 'EXEC', 'AIR1', 'AIR2', 'FORCE',
+    // Common tactical callsigns
+    'ORCA', 'TIGER', 'PANTHER', 'LION', 'WOLF', 'BEAR', 'RAPTOR', 'THUNDER', 'STORM'
+  ];
+
+  for (var i = 0; i < militaryPrefixes.length; i++) {
+    if (cs.indexOf(militaryPrefixes[i]) === 0) return true;
+  }
+
+  // Check for numeric military callsigns (e.g., DOOM01, RCH123)
+  if (/^[A-Z]{3,5}\d{1,3}$/.test(cs)) {
+    var prefix = cs.replace(/\d+$/, '');
+    for (var j = 0; j < militaryPrefixes.length; j++) {
+      if (prefix === militaryPrefixes[j]) return true;
+    }
+  }
+
+  return false;
+}
+
+// Legacy wrapper for backward compatibility
+function isMilitaryCallsign(callsign) {
+  return isMilitaryAircraft(callsign, null);
+}
+
+// SVG Aircraft Icons - Webeye style (simple filled silhouettes)
+// Colors: Kneeboard cyan for civil, Olive for Military
+// Categories: J=Super, H=Heavy, N=Narrowbody Jet, M=Medium/Turboprop, L=Light/GA, R=Helicopter
+
+// PERFORMANCE: Icon-Cache für schnellere Zoom-Updates
+// Cache-Key: category_military_zoomLevel (Rotation wird per CSS gesetzt)
+var pilotIconCache = {};
+
+function createPilotIcon(heading, category, network, isMilitary, pilotId, callsign) {
+  var baseSize = 24;
+  var color = '#0ea5e9'; // Kneeboard cyan
+
+  // FAVORITEN: Gold-Farbe für Favoriten hat Priorität! (nach ID und Callsign für Rückwärtskompatibilität)
+  var isFavorite = isPilotFavorite(pilotId, network, callsign);
+  if (isFavorite) {
+    color = '#fbbf24';  // Gold/Amber für Favoriten
+  } else if (isMilitary) {
+    color = '#6b7c3f'; // Olive drab
+  }
+
+  // Size by category (base sizes)
+  if (category === 'J') baseSize = 32;      // Super (A380)
+  else if (category === 'H') baseSize = 28; // Heavy (B747, B777)
+  else if (category === 'N') baseSize = 24; // Narrowbody jets (A320, B737)
+  else if (category === 'M') baseSize = 22; // Medium turboprops
+  else if (category === 'L') baseSize = 20; // Light GA
+  else if (category === 'R') baseSize = 24; // Helicopter
+
+  // DEAKTIVIERT: Zoom-abhängige Größenskalierung verursacht "Wandern" beim Zoomen
+  // Icons haben jetzt eine feste Größe für stabiles Verhalten
+  var zoomLevel = 2;  // Fester Wert für Cache-Key
+  var size = baseSize;  // Keine Skalierung mehr
+
+  // PERFORMANCE: Cache-Lookup für SVG-Body (ohne Rotation)
+  // Favoriten haben eigenen Cache-Key wegen unterschiedlicher Farbe
+  var cacheKey = category + '_' + (isMilitary ? '1' : '0') + '_' + (isFavorite ? 'F' : '0') + '_' + zoomLevel;
+  var svgBody = pilotIconCache[cacheKey];
+
+  if (!svgBody) {
+    // SVG-Body erstellen (OHNE Rotation - wird per CSS gesetzt)
+    svgBody = createPilotSvgBody(category, color, size);
+    pilotIconCache[cacheKey] = svgBody;
+    if (PILOTS_DEBUG) console.log('[Pilots] Icon cached:', cacheKey);
+  }
+
+  // Rotation wird per CSS transform gesetzt
+  var svg = '<div style="transform: rotate(' + (heading || 0) + 'deg); width: ' + size + 'px; height: ' + size + 'px;">' + svgBody + '</div>';
+
+  return L.divIcon({
+    html: svg,
+    className: 'pilot-marker pilot-' + network + ' pilot-cat-' + category + (isMilitary ? ' pilot-military' : ''),
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2]
+  });
+}
+
+// Erstellt den SVG-Body OHNE Rotation (für Caching)
+// Klare Flugzeug-Silhouetten von oben
+function createPilotSvgBody(category, color, size) {
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 32 32" style="filter: drop-shadow(0 0 1px #888) drop-shadow(0 0 2px #444);">' +
+    '<g>';
+
+  if (category === 'R') {
+    // Helikopter
+    svg +=
+      '<circle cx="16" cy="8" r="7" fill="none" stroke="' + color + '" stroke-width="1.5" opacity="0.5"/>' +
+      '<line x1="9" y1="8" x2="23" y2="8" stroke="' + color + '" stroke-width="1.5"/>' +
+      '<ellipse cx="16" cy="14" rx="5" ry="4" fill="' + color + '"/>' +
+      '<rect x="14" y="17" width="4" height="10" fill="' + color + '"/>' +
+      '<ellipse cx="16" cy="29" rx="5" ry="2" fill="' + color + '" opacity="0.6"/>';
+  } else if (category === 'L') {
+    // Light GA - Cessna (gerade Flügel oben)
+    svg +=
+      '<ellipse cx="16" cy="5" rx="2" ry="4" fill="' + color + '"/>' +
+      '<rect x="14" y="4" width="4" height="20" fill="' + color + '"/>' +
+      '<rect x="2" y="10" width="28" height="4" fill="' + color + '"/>' +
+      '<rect x="7" y="25" width="18" height="3" fill="' + color + '"/>';
+  } else if (category === 'J') {
+    // Super Heavy (A380) - 4 Triebwerke
+    svg +=
+      '<ellipse cx="16" cy="4" rx="3" ry="3" fill="' + color + '"/>' +
+      '<rect x="13" y="3" width="6" height="22" fill="' + color + '"/>' +
+      '<polygon points="16,9 31,18 31,22 16,14" fill="' + color + '"/>' +
+      '<polygon points="16,9 1,18 1,22 16,14" fill="' + color + '"/>' +
+      '<polygon points="16,24 24,29 24,31 16,26" fill="' + color + '"/>' +
+      '<polygon points="16,24 8,29 8,31 16,26" fill="' + color + '"/>' +
+      '<rect x="4" y="17" width="2" height="4" fill="' + color + '"/>' +
+      '<rect x="9" y="14" width="2" height="4" fill="' + color + '"/>' +
+      '<rect x="21" y="14" width="2" height="4" fill="' + color + '"/>' +
+      '<rect x="26" y="17" width="2" height="4" fill="' + color + '"/>';
+  } else if (category === 'H') {
+    // Heavy (B777) - 2 Triebwerke
+    svg +=
+      '<ellipse cx="16" cy="4" rx="2.5" ry="3" fill="' + color + '"/>' +
+      '<rect x="13.5" y="3" width="5" height="21" fill="' + color + '"/>' +
+      '<polygon points="16,8 30,17 30,21 16,13" fill="' + color + '"/>' +
+      '<polygon points="16,8 2,17 2,21 16,13" fill="' + color + '"/>' +
+      '<polygon points="16,23 23,28 23,30 16,25" fill="' + color + '"/>' +
+      '<polygon points="16,23 9,28 9,30 16,25" fill="' + color + '"/>' +
+      '<rect x="6" y="15" width="3" height="5" fill="' + color + '"/>' +
+      '<rect x="23" y="15" width="3" height="5" fill="' + color + '"/>';
+  } else if (category === 'N') {
+    // Narrowbody (A320, B737) - 2 Triebwerke
+    svg +=
+      '<ellipse cx="16" cy="4" rx="2" ry="3" fill="' + color + '"/>' +
+      '<rect x="14" y="3" width="4" height="20" fill="' + color + '"/>' +
+      '<polygon points="16,8 29,16 29,20 16,12" fill="' + color + '"/>' +
+      '<polygon points="16,8 3,16 3,20 16,12" fill="' + color + '"/>' +
+      '<polygon points="16,22 22,27 22,29 16,24" fill="' + color + '"/>' +
+      '<polygon points="16,22 10,27 10,29 16,24" fill="' + color + '"/>' +
+      '<rect x="7" y="14" width="2.5" height="4" fill="' + color + '"/>' +
+      '<rect x="22.5" y="14" width="2.5" height="4" fill="' + color + '"/>';
+  } else {
+    // Turboprop (ATR) - gerade Flügel, Props
+    svg +=
+      '<ellipse cx="16" cy="5" rx="2" ry="3" fill="' + color + '"/>' +
+      '<rect x="14" y="4" width="4" height="18" fill="' + color + '"/>' +
+      '<rect x="2" y="10" width="28" height="4" fill="' + color + '"/>' +
+      '<rect x="8" y="24" width="16" height="3" fill="' + color + '"/>' +
+      '<circle cx="5" cy="10" r="2.5" fill="' + color + '" opacity="0.5"/>' +
+      '<circle cx="27" cy="10" r="2.5" fill="' + color + '" opacity="0.5"/>';
+  }
+
+  svg += '</g></svg>';
+
+  return svg;  // Gibt nur den SVG-String zurück, kein L.divIcon
+}
+
+// Pilot route layer (displayed when clicking "Show Route" in popup)
+window.pilotRouteLayer = null;
+window.pilotRouteMarkers = null;
+// Hover route layer (temporary route shown on hover)
+window.pilotHoverRouteLayer = null;
+
+// Create popup content for pilot
+function createPilotPopup(pilot, network, isMilitary) {
+  var html = '<div class="pilot-popup">';
+
+  // Determine callsign color based on military status
+  var callsignColor = isMilitary ? '#6b7c3f' : '#0ea5e9'; // Olive for military, Kneeboard cyan for civil
+
+  // Prüfe ob Pilot ein Favorit ist (für Stern am Ende des Popups)
+  var pilotId = pilot.id || '';
+
+  // Header with callsign
+  html += '<div class="pilot-popup-header" style="font-weight:bold;font-size:14px;border-bottom:1px solid #444;padding-bottom:4px;margin-bottom:6px;">';
+  html += '<span style="color:' + callsignColor + ';">' + (pilot.callsign || 'Unknown') + '</span>';
+  if (isMilitary) {
+    html += ' <span style="font-size:9px;padding:1px 4px;border-radius:2px;background:#6b7c3f;color:#fff;">MIL</span>';
+  }
+  if (pilot.aircraft) {
+    var cat = getAircraftCategory(pilot.aircraft);
+    var catLabel = cat === 'J' ? ' (Super)' : cat === 'H' ? ' (Heavy)' : cat === 'L' ? ' (Light)' : '';
+    html += ' <span style="color:#999;font-size:11px;">' + pilot.aircraft + catLabel + '</span>';
+  }
+  html += '</div>';
+
+  // Flight info
+  html += '<div style="font-size:12px;">';
+
+  // Route
+  if (pilot.departure || pilot.arrival) {
+    html += '<div style="margin-bottom:4px;">';
+    html += '<span style="color:#888;">Route:</span> ';
+    html += '<span style="color:#fff;">' + (pilot.departure || '????') + '</span>';
+    html += ' <span style="color:#666;">→</span> ';
+    html += '<span style="color:#fff;">' + (pilot.arrival || '????') + '</span>';
+    html += '</div>';
+  }
+
+  // Altitude & Speed
+  html += '<div style="margin-bottom:2px;">';
+  html += '<span style="color:#888;">Alt:</span> <span style="color:#fff;">' + formatAltitude(pilot.altitude) + '</span>';
+  html += ' &nbsp; <span style="color:#888;">GS:</span> <span style="color:#fff;">' + (pilot.groundspeed || 0) + ' kts</span>';
+  html += '</div>';
+
+  // Heading
+  html += '<div style="margin-bottom:2px;">';
+  html += '<span style="color:#888;">Hdg:</span> <span style="color:#fff;">' + (pilot.heading || 0) + '°</span>';
+  html += '</div>';
+
+  // Network badge, Favorite star, and Show Route button
+  html += '<div style="margin-top:6px;padding-top:4px;border-top:1px solid #333;display:flex;justify-content:space-between;align-items:center;gap:8px;">';
+
+  // Linke Seite: Network Badge
+  html += '<span style="font-size:10px;padding:2px 6px;border-radius:3px;background:' + (network === 'ivao' ? '#166534' : '#92400e') + ';color:#fff;">';
+  html += network.toUpperCase();
+  html += '</span>';
+
+  // Rechte Seite: Buttons Container
+  html += '<div style="display:flex;align-items:center;gap:6px;">';
+
+  // Favoriten-Stern Button (nur wenn pilotId vorhanden)
+  if (pilotId) {
+    var isFavorite = isPilotFavorite(pilotId, network, pilot.callsign);
+    var starSvg = isFavorite ? STAR_FILLED_SVG : STAR_EMPTY_SVG;
+    var starColor = isFavorite ? '#fbbf24' : '#666';
+    html += '<button onclick="togglePopupFavorite(\'' + pilotId + '\', \'' + network + '\', this)" ';
+    html += 'style="background:none;border:none;cursor:pointer;padding:4px;color:' + starColor + ';display:flex;align-items:center;" ';
+    html += 'title="' + (isFavorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen') + '">';
+    html += starSvg;
+    html += '</button>';
+  }
+
+  // Show Route button (only if departure and arrival exist)
+  if (pilot.departure && pilot.arrival) {
+    // Store pilot data in a global variable for the button onclick
+    var pilotDataId = 'pilot_' + pilot.callsign.replace(/[^a-zA-Z0-9]/g, '_') + '_' + network;
+    // Check if route is currently shown for this pilot
+    var isRouteShown = window.currentPilotRouteId === pilotDataId && window.pilotRouteLayer;
+    var btnText = isRouteShown ? 'Hide Route' : 'Show Route';
+    var btnColor = isRouteShown ? '#dc2626' : '#3b82f6';
+    html += '<button onclick="togglePilotRoute(\'' + pilotDataId + '\')" ';
+    html += 'id="btn_' + pilotDataId + '" ';
+    html += 'style="font-size:10px;padding:3px 8px;border-radius:3px;background:' + btnColor + ';color:#fff;border:none;cursor:pointer;">';
+    html += btnText;
+    html += '</button>';
+
+    // Store pilot data globally for later access
+    if (!window.pilotRouteData) window.pilotRouteData = {};
+    window.pilotRouteData[pilotDataId] = {
+      callsign: pilot.callsign,
+      departure: pilot.departure,
+      arrival: pilot.arrival,
+      latitude: pilot.latitude,
+      longitude: pilot.longitude,
+      network: network
+    };
+  }
+  html += '</div>'; // Ende Buttons Container
+  html += '</div>';
+
+  html += '</div></div>';
+  return html;
+}
+
+// Toggle pilot route display
+function togglePilotRoute(pilotDataId) {
+  var btn = document.getElementById('btn_' + pilotDataId);
+  var pilotData = window.pilotRouteData ? window.pilotRouteData[pilotDataId] : null;
+
+  if (!pilotData || !map) return;
+
+  // Check if route is currently shown for this pilot
+  if (window.currentPilotRouteId === pilotDataId && window.pilotRouteLayer) {
+    // Hide route
+    hidePilotRoute();
+    if (btn) {
+      btn.textContent = 'Show Route';
+      btn.style.background = '#3b82f6';
+    }
+  } else {
+    // Show route
+    showPilotRoute(pilotData);
+    window.currentPilotRouteId = pilotDataId;
+    if (btn) {
+      btn.textContent = 'Hide Route';
+      btn.style.background = '#dc2626';
+    }
+  }
+}
+
+// Calculate great circle (geodesic) points between two coordinates
+// Uses proper spherical interpolation (SLERP)
+function getGeodesicPoints(start, end, numPoints) {
+  numPoints = numPoints || 50;
+  var points = [];
+
+  var lat1 = start[0] * Math.PI / 180;
+  var lng1 = start[1] * Math.PI / 180;
+  var lat2 = end[0] * Math.PI / 180;
+  var lng2 = end[1] * Math.PI / 180;
+
+  // Calculate angular distance between points
+  var d = 2 * Math.asin(Math.sqrt(
+    Math.pow(Math.sin((lat2 - lat1) / 2), 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin((lng2 - lng1) / 2), 2)
+  ));
+
+  // If points are very close or same, use linear interpolation
+  if (d < 0.00001) {
+    for (var i = 0; i <= numPoints; i++) {
+      var f = i / numPoints;
+      points.push([
+        start[0] + f * (end[0] - start[0]),
+        start[1] + f * (end[1] - start[1])
+      ]);
+    }
+    return points;
+  }
+
+  for (var i = 0; i <= numPoints; i++) {
+    var f = i / numPoints;
+
+    // Spherical interpolation
+    var A = Math.sin((1 - f) * d) / Math.sin(d);
+    var B = Math.sin(f * d) / Math.sin(d);
+
+    var x = A * Math.cos(lat1) * Math.cos(lng1) + B * Math.cos(lat2) * Math.cos(lng2);
+    var y = A * Math.cos(lat1) * Math.sin(lng1) + B * Math.cos(lat2) * Math.sin(lng2);
+    var z = A * Math.sin(lat1) + B * Math.sin(lat2);
+
+    var lat = Math.atan2(z, Math.sqrt(x * x + y * y)) * 180 / Math.PI;
+    var lng = Math.atan2(y, x) * 180 / Math.PI;
+
+    points.push([lat, lng]);
+  }
+
+  return points;
+}
+
+// Splits a polyline array into segments that don't cross the antimeridian
+// Returns an array of arrays - each inner array is a segment that can be drawn without wrapping issues
+function splitPolylineAtAntimeridian(points) {
+  if (!points || points.length < 2) return [points];
+
+  var segments = [];
+  var currentSegment = [points[0]];
+
+  for (var i = 1; i < points.length; i++) {
+    var prevLng = points[i - 1][1];
+    var currLng = points[i][1];
+
+    // Detect antimeridian crossing: longitude jump > 180 degrees
+    if (Math.abs(currLng - prevLng) > 180) {
+      // Calculate intersection point at antimeridian
+      var lat1 = points[i - 1][0];
+      var lng1 = prevLng;
+      var lat2 = points[i][0];
+      var lng2 = currLng;
+
+      // Normalize longitudes for interpolation
+      if (lng2 > lng1) lng2 -= 360;
+      else lng1 -= 360;
+
+      // Linear interpolation to find latitude at antimeridian
+      var t = (180 - Math.abs(points[i - 1][1])) / (Math.abs(points[i - 1][1]) + Math.abs(points[i][1]));
+      var latAtCrossing = lat1 + t * (lat2 - lat1);
+
+      // Determine which side of antimeridian we're on
+      var crossLng = prevLng > 0 ? 180 : -180;
+
+      // End current segment at antimeridian
+      currentSegment.push([latAtCrossing, crossLng]);
+      segments.push(currentSegment);
+
+      // Start new segment from other side of antimeridian
+      currentSegment = [[latAtCrossing, -crossLng]];
+    }
+
+    currentSegment.push(points[i]);
+  }
+
+  segments.push(currentSegment);
+  return segments;
+}
+
+// Creates a Leaflet polyline or multi-polyline that handles antimeridian crossing
+function createAntimeridianAwarePolyline(points, options) {
+  var segments = splitPolylineAtAntimeridian(points);
+
+  if (segments.length === 1) {
+    // No antimeridian crossing, return simple polyline
+    return L.polyline(segments[0], options);
+  }
+
+  // Multiple segments - create a layer group with all segments
+  var layerGroup = L.layerGroup();
+  for (var i = 0; i < segments.length; i++) {
+    if (segments[i].length >= 2) {
+      layerGroup.addLayer(L.polyline(segments[i], options));
+    }
+  }
+  return layerGroup;
+}
+
+// Show pilot route on map with geodesic (curved) lines
+function showPilotRoute(pilotData) {
+  // First hide any existing route and hover route (immediate)
+  hidePilotRoute();
+  hidePilotHoverRoute(true);
+
+  if (!pilotData || !pilotData.departure || !pilotData.arrival) return;
+
+  // Use theme color (--dark from tabbar) for routes
+  var color = getComputedStyle(document.documentElement).getPropertyValue('--dark').trim() || '#205d8e';
+
+  // Create layer group
+  window.pilotRouteLayer = L.layerGroup();
+  window.pilotRouteMarkers = L.layerGroup();
+
+  // Fetch airport coordinates for departure and arrival
+  fetchAirportCoordinates(pilotData.departure, function(depCoords) {
+    fetchAirportCoordinates(pilotData.arrival, function(arrCoords) {
+      if (!depCoords || !arrCoords) {
+        if (PILOTS_DEBUG) console.log('[Pilots] Could not fetch airport coordinates');
+        return;
+      }
+
+      var depPoint = [depCoords.lat, depCoords.lng];
+      var currentPoint = [pilotData.latitude, pilotData.longitude];
+      var arrPoint = [arrCoords.lat, arrCoords.lng];
+
+      // Berechne geodätische Punkte für gekrümmte Linien
+      var completedGeodesic = getGeodesicPoints(depPoint, currentPoint, 30);
+      var remainingGeodesic = getGeodesicPoints(currentPoint, arrPoint, 30);
+
+      // Geflogener Teil (Abflug bis aktuelle Position) - dicke durchgezogene Linie
+      // Verwendet Antimeridian-aware Polyline für Routen die die Datumsgrenze kreuzen
+      var completedLine = createAntimeridianAwarePolyline(completedGeodesic, {
+        color: color,
+        weight: 4,
+        opacity: 1
+      });
+
+      // Verbleibender Teil (aktuelle Position bis Ankunft) - dicke gestrichelte Linie
+      var remainingLine = createAntimeridianAwarePolyline(remainingGeodesic, {
+        color: color,
+        weight: 3,
+        opacity: 0.9,
+        dashArray: '12, 8'
+      });
+
+      // Departure marker - larger
+      var depMarker = L.circleMarker([depCoords.lat, depCoords.lng], {
+        radius: 10,
+        color: color,
+        fillColor: '#1e293b',
+        fillOpacity: 1,
+        weight: 3
+      }).bindTooltip(pilotData.departure, { permanent: false, direction: 'top' });
+
+      // Arrival marker - larger
+      var arrMarker = L.circleMarker([arrCoords.lat, arrCoords.lng], {
+        radius: 10,
+        color: color,
+        fillColor: color,
+        fillOpacity: 1,
+        weight: 3
+      }).bindTooltip(pilotData.arrival, { permanent: false, direction: 'top' });
+
+      window.pilotRouteLayer.addLayer(completedLine);
+      window.pilotRouteLayer.addLayer(remainingLine);
+      window.pilotRouteMarkers.addLayer(depMarker);
+      window.pilotRouteMarkers.addLayer(arrMarker);
+
+      window.pilotRouteLayer.addTo(map);
+      window.pilotRouteMarkers.addTo(map);
+
+      if (PILOTS_DEBUG) console.log('[Pilots] Geodesic route displayed for', pilotData.callsign);
+    });
+  });
+}
+
+// Hide pilot route
+function hidePilotRoute() {
+  if (window.pilotRouteLayer) {
+    if (map) map.removeLayer(window.pilotRouteLayer);
+    window.pilotRouteLayer = null;
+  }
+  if (window.pilotRouteMarkers) {
+    if (map) map.removeLayer(window.pilotRouteMarkers);
+    window.pilotRouteMarkers = null;
+  }
+  window.currentPilotRouteId = null;
+
+  // Reset all route buttons
+  if (window.pilotRouteData) {
+    Object.keys(window.pilotRouteData).forEach(function(id) {
+      var btn = document.getElementById('btn_' + id);
+      if (btn) {
+        btn.textContent = 'Show Route';
+        btn.style.background = '#3b82f6';
+      }
+    });
+  }
+}
+
+// Hover route request counter to handle race conditions
+window.hoverRouteRequestId = 0;
+window.currentHoverPilotId = null;  // Track currently hovered pilot
+
+// Show hover route (temporary, for mouseover)
+var HOVER_DEBUG = false;
+
+function showPilotHoverRoute(pilotData) {
+  if (HOVER_DEBUG) console.log('[HoverRoute] called:', pilotData && pilotData.callsign, 'DEP:', pilotData && pilotData.departure, 'ARR:', pilotData && pilotData.arrival);
+  if (!pilotData || !pilotData.departure || !pilotData.arrival) {
+    if (HOVER_DEBUG) console.log('[HoverRoute] SKIP - missing dep/arr');
+    return;
+  }
+
+  var pilotDataId = 'pilot_' + pilotData.callsign.replace(/[^a-zA-Z0-9]/g, '_') + '_' + pilotData.network;
+
+  // Don't show hover route for the same pilot that already has permanent route displayed
+  if (window.currentPilotRouteId && window.currentPilotRouteId === pilotDataId) {
+    if (HOVER_DEBUG) console.log('[HoverRoute] SKIP - permanent route shown');
+    return;
+  }
+
+  // WICHTIG: Wenn wir bereits eine Hover-Route für diesen Piloten laden/anzeigen, nicht neu starten!
+  // Das verhindert das Abbrechen durch wiederholte mouseover-Events
+  if (window.currentHoverPilotId === pilotDataId && window.pilotHoverRouteLayer) {
+    // Cancel any pending hide timeout (from setLatLng-triggered mouseout)
+    if (window.hoverHideTimeout) {
+      clearTimeout(window.hoverHideTimeout);
+      window.hoverHideTimeout = null;
+    }
+    return;
+  }
+
+  // Hide any existing hover route (nur wenn anderer Pilot) - immediate
+  hidePilotHoverRoute(true);
+
+  // Merke aktuell gehoverten Piloten
+  window.currentHoverPilotId = pilotDataId;
+
+  // Increment request ID to track this specific hover request
+  window.hoverRouteRequestId++;
+  var thisRequestId = window.hoverRouteRequestId;
+
+  // Use theme color (--dark from tabbar) for hover routes
+  var hoverColor = getComputedStyle(document.documentElement).getPropertyValue('--dark').trim() || '#205d8e';
+
+  // Create hover layer group and add to map immediately
+  // This ensures the layer exists when async data arrives
+  window.pilotHoverRouteLayer = L.layerGroup().addTo(map);
+
+  // Fetch airport coordinates (using batch endpoint for efficiency)
+  if (HOVER_DEBUG) console.log('[HoverRoute] Fetching coords for DEP:', pilotData.departure, 'ARR:', pilotData.arrival);
+  fetchAirportCoordinatesBatch(pilotData.departure, pilotData.arrival, function(depCoords, arrCoords) {
+    if (HOVER_DEBUG) console.log('[HoverRoute] DEP coords:', depCoords, 'ARR coords:', arrCoords);
+    // Check if this request is still current (not superseded by newer hover)
+    if (thisRequestId !== window.hoverRouteRequestId) {
+      if (HOVER_DEBUG) console.log('[HoverRoute] SKIP - request superseded');
+      return;
+    }
+    if (!window.pilotHoverRouteLayer) {
+      if (HOVER_DEBUG) console.log('[HoverRoute] SKIP - layer gone');
+      return;
+    }
+
+    if (!depCoords || !arrCoords) {
+      if (HOVER_DEBUG) console.log('[HoverRoute] SKIP - coords missing:', depCoords, arrCoords);
+      return;
+    }
+
+    var depPoint = [depCoords.lat, depCoords.lng];
+    var currentPoint = [pilotData.latitude, pilotData.longitude];
+    var arrPoint = [arrCoords.lat, arrCoords.lng];
+
+    // Berechne geodätische Punkte
+    var completedGeodesic = getGeodesicPoints(depPoint, currentPoint, 30);
+    var remainingGeodesic = getGeodesicPoints(currentPoint, arrPoint, 30);
+
+    // Geflogener Teil - dicke durchgezogene Linie
+    // Verwendet Antimeridian-aware Polyline für Routen die die Datumsgrenze kreuzen
+    var completedLine = createAntimeridianAwarePolyline(completedGeodesic, {
+      color: hoverColor,
+      weight: 3,
+      opacity: 1
+    });
+
+    // Verbleibender Teil - dicke gestrichelte Linie
+    var remainingLine = createAntimeridianAwarePolyline(remainingGeodesic, {
+      color: hoverColor,
+      weight: 3,
+      opacity: 0.8,
+      dashArray: '10, 6'
+    });
+
+    // Markers for departure and arrival
+    var depMarker = L.circleMarker([depCoords.lat, depCoords.lng], {
+      radius: 8,
+      color: hoverColor,
+      fillColor: '#1e293b',
+      fillOpacity: 1,
+      weight: 3,
+      opacity: 1
+    });
+
+    var arrMarker = L.circleMarker([arrCoords.lat, arrCoords.lng], {
+      radius: 8,
+      color: hoverColor,
+      fillColor: hoverColor,
+      fillOpacity: 1,
+      weight: 3,
+      opacity: 1
+    });
+
+    // Add to hover layer (final check that this request is still current)
+    if (window.pilotHoverRouteLayer && thisRequestId === window.hoverRouteRequestId) {
+      if (HOVER_DEBUG) console.log('[HoverRoute] Adding layers to map');
+      window.pilotHoverRouteLayer.addLayer(completedLine);
+      window.pilotHoverRouteLayer.addLayer(remainingLine);
+      window.pilotHoverRouteLayer.addLayer(depMarker);
+      window.pilotHoverRouteLayer.addLayer(arrMarker);
+      // Layer is already on map, no need to add again
+    }
+  });
+}
+
+// Hide hover route - with small delay to handle setLatLng-triggered mouseout/mouseover pairs
+function hidePilotHoverRoute(immediate) {
+  if (HOVER_DEBUG) console.log('[HoverRoute] HIDE called, immediate:', !!immediate);
+
+  // Clear any pending hide timeout
+  if (window.hoverHideTimeout) {
+    clearTimeout(window.hoverHideTimeout);
+    window.hoverHideTimeout = null;
+  }
+
+  if (immediate) {
+    // Immediate removal (for zoom, drag, or explicit hide)
+    window.currentHoverPilotId = null;
+    if (window.pilotHoverRouteLayer && map) {
+      if (HOVER_DEBUG) console.log('[HoverRoute] Removing layer from map');
+      map.removeLayer(window.pilotHoverRouteLayer);
+      window.pilotHoverRouteLayer = null;
+    }
+  } else {
+    // Delayed removal - allows cancellation if mouseover fires again quickly
+    // This handles setLatLng-triggered mouseout/mouseover pairs
+    window.hoverHideTimeout = setTimeout(function() {
+      window.currentHoverPilotId = null;
+      if (window.pilotHoverRouteLayer && map) {
+        if (HOVER_DEBUG) console.log('[HoverRoute] Removing layer from map (delayed)');
+        map.removeLayer(window.pilotHoverRouteLayer);
+        window.pilotHoverRouteLayer = null;
+      }
+    }, 100); // 100ms delay
+  }
+}
+
+// Airport coordinates cache
+if (!window.airportCoordsCache) window.airportCoordsCache = {};
+
+// PERFORMANCE-OPTIMIERUNG: ICAO-Index für O(1) Lookup statt O(n) Array-Durchsuchung
+// Wird beim Laden der Airports befüllt (siehe buildAirportIcaoIndex)
+if (!window.airportIcaoIndex) window.airportIcaoIndex = {};
+
+// Baut den ICAO-Index aus dem airports Array
+// Muss aufgerufen werden nachdem airports geladen wurden!
+function buildAirportIcaoIndex() {
+  window.airportIcaoIndex = {};
+  if (typeof airports !== 'undefined' && airports && airports.length > 0) {
+    for (var i = 0; i < airports.length; i++) {
+      var apt = airports[i];
+      if (apt && apt.properties && apt.properties.icaoCode && apt.geometry && apt.geometry.coordinates) {
+        var icao = apt.properties.icaoCode.toUpperCase();
+        window.airportIcaoIndex[icao] = {
+          lat: apt.geometry.coordinates[1],
+          lng: apt.geometry.coordinates[0]
+        };
+      }
+    }
+    console.log('[Airports] ICAO-Index erstellt mit', Object.keys(window.airportIcaoIndex).length, 'Einträgen');
+  } else {
+    console.warn('[Airports] ICAO-Index LEER - airports nicht verfügbar:', typeof airports, airports ? airports.length : 'null');
+  }
+}
+
+// Fetch airport coordinates - OPTIMIERT: Nutzt ICAO-Index für O(1) Lookup, dann OpenAIP API
+function fetchAirportCoordinates(icao, callback) {
+  if (!icao) {
+    callback(null);
+    return;
+  }
+
+  icao = icao.toUpperCase().trim();
+
+  // Check cache first (bereits gefundene Koordinaten)
+  if (window.airportCoordsCache[icao]) {
+    callback(window.airportCoordsCache[icao]);
+    return;
+  }
+
+  // OPTIMIERUNG: Nutze ICAO-Index für O(1) Lookup statt O(n) Array-Durchsuchung
+  // Das beschleunigt den Hover von mehreren Sekunden auf instant!
+  if (window.airportIcaoIndex && window.airportIcaoIndex[icao]) {
+    var coords = window.airportIcaoIndex[icao];
+    window.airportCoordsCache[icao] = coords;
+    if (HOVER_DEBUG) console.log('[HoverRoute] Found in ICAO-Index:', icao, coords);
+    callback(coords);
+    return;
+  }
+
+  if (HOVER_DEBUG) console.log('[HoverRoute] NOT in ICAO-Index:', icao, '- Index size:', Object.keys(window.airportIcaoIndex || {}).length, '- trying OpenAIP API...');
+  // Not found in local data - use OpenAIP API to fetch by ICAO code
+  fetchAirportFromOpenAIP(icao, callback);
+}
+
+// Fetch airport coordinates from OpenAIP API by ICAO code
+function fetchAirportFromOpenAIP(icao, callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'api/openaip/airport-by-icao/' + encodeURIComponent(icao), true);
+  xhr.timeout = 5000;
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === XMLHttpRequest.DONE) {
+      if (xhr.status === 200) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (data && data.found && data.lat && data.lng) {
+            var coords = { lat: data.lat, lng: data.lng };
+            window.airportCoordsCache[icao] = coords;
+            if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP found:', icao, coords);
+            callback(coords);
+          } else {
+            if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP not found:', icao, '- trying Nominatim...');
+            fetchAirportFromNominatim(icao, callback);
+          }
+        } catch (e) {
+          if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP parse error:', e);
+          fetchAirportFromNominatim(icao, callback);
+        }
+      } else {
+        if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP error status:', xhr.status);
+        fetchAirportFromNominatim(icao, callback);
+      }
+    }
+  };
+  xhr.onerror = function() {
+    if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP network error');
+    fetchAirportFromNominatim(icao, callback);
+  };
+  xhr.ontimeout = function() {
+    if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP timeout');
+    fetchAirportFromNominatim(icao, callback);
+  };
+  xhr.send();
+}
+
+// Batch fetch DEP and ARR airport coordinates from OpenAIP API in one request
+function fetchAirportCoordinatesBatch(depIcao, arrIcao, callback) {
+  depIcao = depIcao ? depIcao.toUpperCase().trim() : null;
+  arrIcao = arrIcao ? arrIcao.toUpperCase().trim() : null;
+
+  // Check cache first
+  var depFromCache = (depIcao && window.airportCoordsCache[depIcao]) || null;
+  var arrFromCache = (arrIcao && window.airportCoordsCache[arrIcao]) || null;
+
+  // Also check ICAO index
+  if (!depFromCache && depIcao && window.airportIcaoIndex && window.airportIcaoIndex[depIcao]) {
+    depFromCache = window.airportIcaoIndex[depIcao];
+    window.airportCoordsCache[depIcao] = depFromCache;
+  }
+  if (!arrFromCache && arrIcao && window.airportIcaoIndex && window.airportIcaoIndex[arrIcao]) {
+    arrFromCache = window.airportIcaoIndex[arrIcao];
+    window.airportCoordsCache[arrIcao] = arrFromCache;
+  }
+
+  // If both are cached, return immediately
+  if (depFromCache && arrFromCache) {
+    if (HOVER_DEBUG) console.log('[HoverRoute] Batch: both from cache');
+    callback(depFromCache, arrFromCache);
+    return;
+  }
+
+  // Build query params for uncached items
+  var params = [];
+  if (depIcao && !depFromCache) params.push('dep=' + encodeURIComponent(depIcao));
+  if (arrIcao && !arrFromCache) params.push('arr=' + encodeURIComponent(arrIcao));
+
+  if (params.length === 0) {
+    // All cached
+    callback(depFromCache || null, arrFromCache || null);
+    return;
+  }
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'api/openaip/airports-batch?' + params.join('&'), true);
+  xhr.timeout = 5000;
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === XMLHttpRequest.DONE) {
+      if (xhr.status === 200) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+
+          // Check if airport database is still loading
+          if (data.loading) {
+            if (HOVER_DEBUG) console.log('[HoverRoute] Airport database still loading...');
+            callback(depFromCache || null, arrFromCache || null);
+            return;
+          }
+
+          var depCoords = depFromCache || null;
+          var arrCoords = arrFromCache || null;
+
+          if (data.dep && data.dep.found) {
+            depCoords = { lat: data.dep.lat, lng: data.dep.lng };
+            window.airportCoordsCache[depIcao] = depCoords;
+            if (HOVER_DEBUG) console.log('[HoverRoute] Batch DEP found:', depIcao, depCoords);
+          } else if (depIcao && !depFromCache) {
+            if (HOVER_DEBUG) console.log('[HoverRoute] Batch DEP not found in OpenAIP:', depIcao, '- trying Nominatim...');
+          }
+          if (data.arr && data.arr.found) {
+            arrCoords = { lat: data.arr.lat, lng: data.arr.lng };
+            window.airportCoordsCache[arrIcao] = arrCoords;
+            if (HOVER_DEBUG) console.log('[HoverRoute] Batch ARR found:', arrIcao, arrCoords);
+          } else if (arrIcao && !arrFromCache) {
+            if (HOVER_DEBUG) console.log('[HoverRoute] Batch ARR not found in OpenAIP:', arrIcao, '- trying Nominatim...');
+          }
+
+          // If either is missing, try Nominatim fallback
+          var needsDepFallback = !depCoords && depIcao;
+          var needsArrFallback = !arrCoords && arrIcao;
+
+          if (!needsDepFallback && !needsArrFallback) {
+            callback(depCoords, arrCoords);
+          } else {
+            // Use Nominatim for missing airports
+            var pending = 0;
+            if (needsDepFallback) pending++;
+            if (needsArrFallback) pending++;
+
+            function checkComplete() {
+              pending--;
+              if (pending <= 0) {
+                callback(depCoords, arrCoords);
+              }
+            }
+
+            if (needsDepFallback) {
+              fetchAirportFromNominatim(depIcao, function(coords) {
+                if (coords) depCoords = coords;
+                checkComplete();
+              });
+            }
+            if (needsArrFallback) {
+              fetchAirportFromNominatim(arrIcao, function(coords) {
+                if (coords) arrCoords = coords;
+                checkComplete();
+              });
+            }
+          }
+        } catch (e) {
+          if (HOVER_DEBUG) console.log('[HoverRoute] Batch parse error:', e);
+          callback(depFromCache || null, arrFromCache || null);
+        }
+      } else {
+        if (HOVER_DEBUG) console.log('[HoverRoute] Batch error status:', xhr.status);
+        callback(depFromCache || null, arrFromCache || null);
+      }
+    }
+  };
+  xhr.onerror = function() {
+    if (HOVER_DEBUG) console.log('[HoverRoute] Batch network error');
+    callback(depFromCache || null, arrFromCache || null);
+  };
+  xhr.ontimeout = function() {
+    if (HOVER_DEBUG) console.log('[HoverRoute] Batch timeout');
+    callback(depFromCache || null, arrFromCache || null);
+  };
+  xhr.send();
+}
+
+// Use Nominatim geocoding to get airport coordinates
+function fetchAirportFromNominatim(icao, callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'api/nominatim/search?q=' + encodeURIComponent(icao + ' airport') + '&format=json&limit=1', true);
+  xhr.timeout = 5000;
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === XMLHttpRequest.DONE) {
+      if (xhr.status === 200) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (data && data.length > 0 && data[0].lat && data[0].lon) {
+            var coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+            window.airportCoordsCache[icao] = coords;
+            callback(coords);
+          } else {
+            callback(null);
+          }
+        } catch (e) {
+          callback(null);
+        }
+      } else {
+        callback(null);
+      }
+    }
+  };
+  xhr.onerror = function() {
+    callback(null);
+  };
+  xhr.ontimeout = function() {
+    callback(null);
+  };
+  xhr.send();
+}
+
+// Format altitude with FL or feet
+function formatAltitude(alt) {
+  if (!alt && alt !== 0) return '---';
+  var altitude = parseInt(alt);
+  if (altitude >= 18000) {
+    return 'FL' + Math.round(altitude / 100);
+  }
+  return altitude.toLocaleString() + ' ft';
+}
+
+// ===== HYBRID-ANSATZ: Server liefert vorverarbeitete Piloten-Daten =====
+// Der Server berechnet category und military bereits, Client muss nur noch rendern
+
+// Fetch pilots from VATSIM (HYBRID: Server-seitig vorverarbeitet)
+function fetchVatsimPilots(callback) {
+  if (PILOTS_DEBUG) console.log('[Pilots] Fetching VATSIM pilots via HYBRID endpoint...');
+
+  // Nutze neuen Server-Endpoint mit vorverarbeiteten Daten
+  postRequest('api/pilots/vatsim', function(response) {
+    if (PILOTS_DEBUG) console.log('[Pilots] VATSIM response received, length:', response ? response.length : 0);
+    try {
+      // Server liefert bereits fertiges Array mit category und military
+      var pilots = JSON.parse(response);
+      if (PILOTS_DEBUG) console.log('[Pilots] VATSIM (HYBRID): ' + pilots.length + ' pilots fetched (vorverarbeitet)');
+      callback(pilots);
+    } catch (e) {
+      console.warn('[Pilots] VATSIM parse error:', e);
+      callback([]);
+    }
+  });
+}
+
+// Fetch pilots from IVAO (HYBRID: Server-seitig vorverarbeitet)
+function fetchIvaoPilots(callback) {
+  if (PILOTS_DEBUG) console.log('[Pilots] Fetching IVAO pilots via HYBRID endpoint...');
+
+  // Nutze neuen Server-Endpoint mit vorverarbeiteten Daten
+  postRequest('api/pilots/ivao', function(response) {
+    if (PILOTS_DEBUG) console.log('[Pilots] IVAO response received, length:', response ? response.length : 0);
+    try {
+      // Server liefert bereits fertiges Array mit category und military
+      var pilots = JSON.parse(response);
+      if (PILOTS_DEBUG) console.log('[Pilots] IVAO (HYBRID): ' + pilots.length + ' pilots fetched (vorverarbeitet)');
+      callback(pilots);
+    } catch (e) {
+      console.warn('[Pilots] IVAO parse error:', e);
+      callback([]);
+    }
+  });
+}
+
+// PERFORMANCE: Debounce für updatePilotsLayer
+var pilotsUpdateDebounceTimer = null;
+var pilotsLastUpdateTime = 0;
+var PILOTS_UPDATE_DEBOUNCE_MS = 500; // Min 500ms zwischen Updates
+
+// Update pilots on map (mit Debounce)
+function updatePilotsLayer() {
+  if (PILOTS_DEBUG) console.log('[Pilots] updatePilotsLayer called - enabled:', pilotsEnabled, 'layer:', !!pilotsLayer, 'map:', !!map, 'network:', pilotsNetwork);
+  if (!pilotsEnabled || !pilotsLayer || !map) return;
+
+  // DEBOUNCE: Verhindere mehrfache schnelle Aufrufe
+  var now = Date.now();
+  if (now - pilotsLastUpdateTime < PILOTS_UPDATE_DEBOUNCE_MS) {
+    if (PILOTS_DEBUG) console.log('[Pilots] Update SKIPPED - debounce (' + (now - pilotsLastUpdateTime) + 'ms since last)');
+    return;
+  }
+  pilotsLastUpdateTime = now;
+
+  if (PILOTS_DEBUG) console.log('[Pilots] Updating pilots layer...');
+
+  // Shared state object für beide Callbacks (verhindert Race Condition)
+  var state = {
+    fetchCount: 0,
+    expectedFetches: 0,
+    vatsimPilots: [],
+    ivaoPilots: []
+  };
+
+  function tryRender() {
+    state.fetchCount++;
+    if (state.fetchCount === state.expectedFetches) {
+      // Kombiniere alle Piloten erst am Ende
+      var allPilots = state.vatsimPilots.concat(state.ivaoPilots);
+      if (PILOTS_DEBUG) console.log('[Pilots] Rendering total:', allPilots.length, '(VATSIM:', state.vatsimPilots.length, ', IVAO:', state.ivaoPilots.length + ')');
+      renderPilots(allPilots);
+    }
+  }
+
+  if (pilotsNetwork === 'vatsim' || pilotsNetwork === 'both') {
+    state.expectedFetches++;
+    fetchVatsimPilots(function(pilots) {
+      pilots.forEach(function(p) { p._network = 'vatsim'; });
+      state.vatsimPilots = pilots;
+      tryRender();
+    });
+  }
+
+  if (pilotsNetwork === 'ivao' || pilotsNetwork === 'both') {
+    state.expectedFetches++;
+    fetchIvaoPilots(function(pilots) {
+      pilots.forEach(function(p) { p._network = 'ivao'; });
+      state.ivaoPilots = pilots;
+      tryRender();
+    });
+  }
+
+  if (state.expectedFetches === 0) {
+    renderPilots([]);
+  }
+
+  pilotsLastUpdate = Date.now();
+}
+
+// Batch load configuration (nicht mehr verwendet - direkte Hinzufügung ist stabiler)
+// var PILOTS_BATCH_SIZE = 100;
+// var PILOTS_BATCH_DELAY = 50;
+// var pilotsBatchTimeout = null;
+
+// Hilfsfunktion: Erstellt einen einzelnen Pilot-Marker mit allen Events
+function createPilotMarker(pilot, category, military) {
+  var icon = createPilotIcon(pilot.heading, category, pilot._network, military, pilot.id, pilot.callsign);
+
+  var marker = L.marker([pilot.latitude, pilot.longitude], {
+    icon: icon,
+    title: pilot.callsign,
+    pane: 'pilotsPane' // Use custom pane for higher z-index
+  });
+
+  // Use a function to regenerate popup content on each open (for dynamic button state)
+  marker.bindPopup(function() {
+    return createPilotPopup(pilot, pilot._network, military);
+  }, {
+    className: 'pilot-popup-container',
+    maxWidth: 300
+  });
+
+  // Panel wieder öffnen wenn Controller-Modus aktiv aber Panel versteckt
+  marker.on('click', function() {
+    showControllerPanel();
+  });
+
+  // HOVER-VERBESSERUNG: Bei Hover den Marker hervorheben (z-Index erhöhen)
+  // Das hilft bei überlappenden Markern, den gehoverten sichtbar zu machen
+  marker.on('mouseover', function(e) {
+    // Z-Index des Markers temporär erhöhen
+    if (e.target._icon) {
+      e.target._icon.style.zIndex = 10000;
+      e.target._icon.style.transform += ' scale(1.15)';
+      e.target._icon.style.transition = 'transform 0.1s ease-out';
+    }
+  });
+
+  marker.on('mouseout', function(e) {
+    // Z-Index zurücksetzen
+    if (e.target._icon) {
+      e.target._icon.style.zIndex = '';
+      e.target._icon.style.transform = e.target._icon.style.transform.replace(' scale(1.15)', '');
+    }
+  });
+
+  // Add hover events to show route preview (only if pilot has departure and arrival)
+  if (pilot.departure && pilot.arrival) {
+    marker.on('mouseover', function() {
+      // WICHTIG: Hole aktuelle Position vom Marker, NICHT aus dem Closure!
+      // Der Closure-Wert (pilot.latitude/longitude) wird nie aktualisiert,
+      // aber marker.getLatLng() gibt immer die aktuelle Position zurück.
+      var currentPos = marker.getLatLng();
+      showPilotHoverRoute({
+        callsign: pilot.callsign,
+        departure: pilot.departure,
+        arrival: pilot.arrival,
+        latitude: currentPos.lat,
+        longitude: currentPos.lng,
+        network: pilot._network
+      });
+    });
+    marker.on('mouseout', function() {
+      // Only hide if no permanent route is shown
+      if (!window.pilotRouteLayer) {
+        hidePilotHoverRoute();
+      }
+    });
+  }
+
+  // Speichere Pilot-Daten am Marker für spätere Updates
+  marker._pilotData = {
+    callsign: pilot.callsign,
+    id: pilot.id || '',           // Pilot ID für Favoriten (VATSIM CID / IVAO userId)
+    network: pilot._network,
+    category: category,
+    military: military,
+    aircraft: pilot.aircraft || '',
+    departure: pilot.departure || '',
+    arrival: pilot.arrival || '',
+    name: pilot.name || pilot.realname || ''
+  };
+
+  return marker;
+}
+
+// VIEWPORT-CULLING: Prüft ob Koordinaten im erweiterten Viewport liegen
+function isInExtendedViewport(lat, lng, bounds, padding) {
+  if (!bounds) return true;
+  var latPad = (bounds.getNorth() - bounds.getSouth()) * padding;
+  var lngPad = (bounds.getEast() - bounds.getWest()) * padding;
+  return lat >= bounds.getSouth() - latPad && lat <= bounds.getNorth() + latPad &&
+         lng >= bounds.getWest() - lngPad && lng <= bounds.getEast() + lngPad;
+}
+
+// VIEWPORT-UPDATE: Wird bei Pan/Zoom aufgerufen (debounced)
+function updatePilotsViewport() {
+  if (!pilotsEnabled || !pilotsLayer || !map) return;
+
+  // Debounce: Nur alle 100ms updaten
+  if (pilotsViewportDebounceTimer) {
+    clearTimeout(pilotsViewportDebounceTimer);
+  }
+  pilotsViewportDebounceTimer = setTimeout(function() {
+    renderPilotsInViewport();
+  }, PILOTS_VIEWPORT_DEBOUNCE_MS);
+}
+
+// Rendert nur Piloten im aktuellen Viewport
+function renderPilotsInViewport() {
+  if (!pilotsLayer || !map) return;
+
+  var bounds = map.getBounds();
+  var visibleCount = 0;
+  var hiddenCount = 0;
+  var addedCount = 0;
+  var removedCount = 0;
+  var filteredCount = 0;
+
+  // 1. Alle gecachten Piloten durchgehen
+  for (var key in pilotsAllDataCache) {
+    var pilot = pilotsAllDataCache[key];
+
+    // NETZWERK-FILTER: Nur Piloten des aktuell ausgewählten Netzwerks anzeigen
+    var matchesNetwork = (pilotsNetwork === 'both') ||
+                         (pilotsNetwork === 'vatsim' && pilot._network === 'vatsim') ||
+                         (pilotsNetwork === 'ivao' && pilot._network === 'ivao');
+
+    if (!matchesNetwork) {
+      // Pilot gehört nicht zum ausgewählten Netzwerk - Marker entfernen falls vorhanden
+      var existingMarker = pilotsMarkersCache[key];
+      if (existingMarker) {
+        pilotsLayer.removeLayer(existingMarker);
+        delete pilotsMarkersCache[key];
+        removedCount++;
+      }
+      filteredCount++;
+      continue;
+    }
+
+    var inViewport = isInExtendedViewport(pilot.latitude, pilot.longitude, bounds, PILOTS_VIEWPORT_PADDING);
+    var existingMarker = pilotsMarkersCache[key];
+
+    if (inViewport) {
+      visibleCount++;
+      if (!existingMarker) {
+        // Pilot ist im Viewport aber hat noch keinen Marker -> erstellen
+        var category = pilot.category || getAircraftCategory(pilot.aircraft);
+        var military = pilot.military !== undefined ? pilot.military : isMilitaryAircraft(pilot.callsign, pilot.aircraft);
+        var marker = createPilotMarker(pilot, category, military);
+        marker._lastHeading = pilot.heading;
+        marker._pilotData = {
+          callsign: pilot.callsign,
+          id: pilot.id || '',
+          network: pilot._network,
+          category: category,
+          military: military,
+          aircraft: pilot.aircraft || '',
+          departure: pilot.departure || '',
+          arrival: pilot.arrival || '',
+          name: pilot.name || pilot.realname || ''
+        };
+        pilotsMarkersCache[key] = marker;
+        pilotsLayer.addLayer(marker);
+        addedCount++;
+      } else {
+        // Marker existiert - nur Position updaten
+        existingMarker.setLatLng([pilot.latitude, pilot.longitude]);
+      }
+    } else {
+      hiddenCount++;
+      if (existingMarker) {
+        // Pilot ist außerhalb des Viewports -> Marker entfernen
+        pilotsLayer.removeLayer(existingMarker);
+        delete pilotsMarkersCache[key];
+        removedCount++;
+      }
+    }
+  }
+
+  if (PILOTS_DEBUG) {
+    console.log('[Pilots] Viewport update - Visible:', visibleCount, 'Hidden:', hiddenCount,
+                'Added:', addedCount, 'Removed:', removedCount,
+                'Markers on map:', Object.keys(pilotsMarkersCache).length);
+  }
+}
+
+// INKREMENTELLES UPDATE: Speichert alle Piloten-Daten und rendert nur sichtbare
+function renderPilots(pilots) {
+  if (!pilotsLayer || !map) return;
+
+  if (PILOTS_DEBUG) console.log('[Pilots] Received ' + pilots.length + ' pilots from server');
+
+  // EIGENES FLUGZEUG AUSBLENDEN
+  var filteredPilots = pilots.filter(function(p) {
+    if (isOwnAircraft(p.id, p._network)) {
+      if (PILOTS_DEBUG) console.log('[Pilots] Eigenes Flugzeug ausgeblendet:', p.callsign, p._network, p.id);
+      return false;
+    }
+    return true;
+  });
+  pilots = filteredPilots;
+
+  // 1. Aktualisiere den Daten-Cache (ALLE Piloten)
+  var newDataMap = {};
+  pilots.forEach(function(p) {
+    var key = p.callsign + '_' + p._network;
+    // Category und Military vorberechnen
+    p.category = p.category || getAircraftCategory(p.aircraft);
+    p.military = p.military !== undefined ? p.military : isMilitaryAircraft(p.callsign, p.aircraft);
+    newDataMap[key] = p;
+  });
+
+  // 2. Entferne Piloten aus dem Cache die nicht mehr existieren
+  for (var key in pilotsAllDataCache) {
+    if (!newDataMap[key]) {
+      delete pilotsAllDataCache[key];
+      // Marker auch entfernen falls vorhanden
+      if (pilotsMarkersCache[key]) {
+        pilotsLayer.removeLayer(pilotsMarkersCache[key]);
+        delete pilotsMarkersCache[key];
+      }
+    }
+  }
+
+  // 3. Aktualisiere/Füge Piloten zum Cache hinzu
+  var bounds = map.getBounds();
+  var stats = { visible: 0, hidden: 0, updated: 0, added: 0 };
+
+  for (var key in newDataMap) {
+    var pilot = newDataMap[key];
+    var existingData = pilotsAllDataCache[key];
+    var existingMarker = pilotsMarkersCache[key];
+    var inViewport = isInExtendedViewport(pilot.latitude, pilot.longitude, bounds, PILOTS_VIEWPORT_PADDING);
+
+    // Daten immer aktualisieren
+    pilotsAllDataCache[key] = pilot;
+
+    if (inViewport) {
+      stats.visible++;
+
+      if (existingMarker) {
+        // Update Position
+        existingMarker.setLatLng([pilot.latitude, pilot.longitude]);
+
+        // Icon nur bei signifikanter Heading-Änderung updaten
+        if (!existingData || Math.abs((pilot.heading || 0) - (existingMarker._lastHeading || 0)) > 5) {
+          var icon = createPilotIcon(pilot.heading, pilot.category, pilot._network, pilot.military, pilot.id, pilot.callsign);
+          existingMarker.setIcon(icon);
+          existingMarker._lastHeading = pilot.heading;
+        }
+
+        // Daten am Marker aktualisieren
+        existingMarker._pilotData = {
+          callsign: pilot.callsign,
+          id: pilot.id || '',
+          network: pilot._network,
+          category: pilot.category,
+          military: pilot.military,
+          aircraft: pilot.aircraft || '',
+          departure: pilot.departure || '',
+          arrival: pilot.arrival || '',
+          name: pilot.name || pilot.realname || ''
+        };
+        stats.updated++;
+      } else {
+        // Neuer Marker
+        var marker = createPilotMarker(pilot, pilot.category, pilot.military);
+        marker._lastHeading = pilot.heading;
+        marker._pilotData = {
+          callsign: pilot.callsign,
+          id: pilot.id || '',
+          network: pilot._network,
+          category: pilot.category,
+          military: pilot.military,
+          aircraft: pilot.aircraft || '',
+          departure: pilot.departure || '',
+          arrival: pilot.arrival || '',
+          name: pilot.name || pilot.realname || ''
+        };
+        pilotsMarkersCache[key] = marker;
+        pilotsLayer.addLayer(marker);
+        stats.added++;
+      }
+    } else {
+      stats.hidden++;
+      // Marker entfernen wenn außerhalb des Viewports
+      if (existingMarker) {
+        pilotsLayer.removeLayer(existingMarker);
+        delete pilotsMarkersCache[key];
+      }
+    }
+  }
+
+  // Stelle sicher dass pilotsLayer auf der Karte ist
+  if (!map.hasLayer(pilotsLayer)) {
+    map.addLayer(pilotsLayer);
+  }
+
+  if (PILOTS_DEBUG) {
+    console.log('[Pilots] Render complete - Total:', Object.keys(pilotsAllDataCache).length,
+                'Visible:', stats.visible, 'Hidden:', stats.hidden,
+                'Updated:', stats.updated, 'Added:', stats.added,
+                'Markers on map:', Object.keys(pilotsMarkersCache).length);
+  }
+}
+
+// Start/stop auto-update
+function startPilotsAutoUpdate() {
+  if (pilotsUpdateInterval) {
+    clearInterval(pilotsUpdateInterval);
+    pilotsUpdateInterval = null;
+  }
+  pilotsUpdateInterval = setInterval(updatePilotsLayer, PILOTS_UPDATE_INTERVAL_MS);
+  if (PILOTS_DEBUG) console.log('[Pilots] Auto-update started (' + (PILOTS_UPDATE_INTERVAL_MS / 1000) + 's interval)');
+}
+
+function stopPilotsAutoUpdate() {
+  if (pilotsUpdateInterval) {
+    clearInterval(pilotsUpdateInterval);
+    pilotsUpdateInterval = null;
+    if (PILOTS_DEBUG) console.log('[Pilots] Auto-update stopped');
+  }
+}
+
+// Enable/disable pilots layer
+function setPilotsEnabled(enabled) {
+  pilotsEnabled = enabled;
+  if (enabled) {
+    var cacheAge = Date.now() - pilotsLastUpdate;
+    var hasCachedData = Object.keys(pilotsAllDataCache).length > 0;
+
+    // Wenn bereits gecachte Daten vorhanden sind, sofort anzeigen (schneller Switch!)
+    if (hasCachedData) {
+      if (PILOTS_DEBUG) console.log('[Pilots] Using cached data for instant display:', Object.keys(pilotsAllDataCache).length, 'pilots');
+      renderPilotsInViewport();
+    }
+
+    // NUR neu laden wenn Cache alt oder leer ist
+    if (!hasCachedData || cacheAge >= PILOTS_CACHE_FRESH_MS) {
+      if (PILOTS_DEBUG) console.log('[Pilots] Cache stale or empty (' + (cacheAge/1000).toFixed(1) + 's), fetching new data');
+      updatePilotsLayer();
+    } else {
+      if (PILOTS_DEBUG) console.log('[Pilots] Cache fresh (' + (cacheAge/1000).toFixed(1) + 's < ' + (PILOTS_CACHE_FRESH_MS/1000) + 's), skipping fetch');
+    }
+    startPilotsAutoUpdate();
+  } else {
+    stopPilotsAutoUpdate();
+    if (pilotsLayer) {
+      pilotsLayer.clearLayers();
+      pilotsMarkersCache = {}; // Marker-Cache leeren bei Deaktivierung
+      // WICHTIG: pilotsAllDataCache NICHT leeren!
+      // Der Daten-Cache bleibt erhalten für schnelles Wechseln zwischen Networks
+      // Nur bei komplettem App-Reset sollte der Cache geleert werden
+    }
+  }
+}
+
+// Set which network(s) to show
+function setPilotsNetwork(network) {
+  var oldNetwork = pilotsNetwork;
+  pilotsNetwork = network; // 'vatsim', 'ivao', or 'both'
+
+  // Clear old markers when switching networks (but keep data cache for fast switching!)
+  if (oldNetwork !== network && pilotsLayer) {
+    pilotsLayer.clearLayers();
+    pilotsMarkersCache = {}; // Marker-Cache leeren bei Netzwerk-Wechsel
+    // WICHTIG: pilotsAllDataCache NICHT leeren! Das ermöglicht schnelles Wechseln zwischen Networks
+    // Die Daten werden einfach gefiltert basierend auf dem aktuellen Network
+    if (PILOTS_DEBUG) console.log('[Pilots] Cleared markers for network switch:', oldNetwork, '->', network);
+  }
+
+  if (pilotsEnabled) {
+    updatePilotsLayer();
+  }
+}
+
+// ZOOM-ABHÄNGIGE ICON-AKTUALISIERUNG
+// Aktualisiert alle Piloten-Icons für den aktuellen Zoom-Level
+// OPTIMIERT: Nur wenn sich das Scale-Level wirklich ändert
+function updatePilotIconsForZoom() {
+  if (!pilotsLayer || !map) return;
+
+  var currentZoom = map.getZoom();
+  var currentScaleLevel = getZoomScaleLevel(currentZoom);
+
+  // PERFORMANCE: Nur aktualisieren wenn sich das Scale-Level geändert hat
+  if (currentScaleLevel === pilotsLastZoomLevel) {
+    if (PILOTS_DEBUG) console.log('[Pilots] Zoom-Update SKIPPED - Scale-Level unchanged (' + currentScaleLevel + ')');
+    return;
+  }
+
+  pilotsLastZoomLevel = currentScaleLevel;
+  var markerCount = Object.keys(pilotsMarkersCache).length;
+
+  if (PILOTS_DEBUG) console.log('[Pilots] Zoom-Update: Scale-Level changed to ' + currentScaleLevel + ', updating ' + markerCount + ' icons...');
+
+  // PERFORMANCE: Immer requestAnimationFrame verwenden für flüssigeres Zoomen
+  requestAnimationFrame(function() {
+    updatePilotIconsBatched();
+  });
+}
+
+// Batched Icon-Update für bessere Performance bei vielen Markern
+// Mit Viewport-Culling haben wir typischerweise nur 50-200 Marker statt 2000+
+function updatePilotIconsBatched() {
+  var keys = Object.keys(pilotsMarkersCache);
+  var totalMarkers = keys.length;
+
+  // Bei wenigen Markern direkt alles in einem Frame updaten
+  if (totalMarkers <= 200) {
+    for (var i = 0; i < totalMarkers; i++) {
+      var marker = pilotsMarkersCache[keys[i]];
+      if (marker && marker._pilotData) {
+        var data = marker._pilotData;
+        var newIcon = createPilotIcon(
+          marker._lastHeading || 0,
+          data.category,
+          data.network,
+          data.military,
+          data.id,
+          data.callsign
+        );
+        marker.setIcon(newIcon);
+      }
+    }
+    if (PILOTS_DEBUG) console.log('[Pilots] Zoom-Update complete: ' + totalMarkers + ' Icons (single batch)');
+    return;
+  }
+
+  // Fallback für sehr viele Marker: Batched update
+  var index = 0;
+  var batchSize = 200;  // 200 Marker pro Frame
+  var updatedTotal = 0;
+
+  function processBatch() {
+    var endIndex = Math.min(index + batchSize, keys.length);
+
+    for (var i = index; i < endIndex; i++) {
+      var marker = pilotsMarkersCache[keys[i]];
+      if (marker && marker._pilotData) {
+        var data = marker._pilotData;
+        var newIcon = createPilotIcon(
+          marker._lastHeading || 0,
+          data.category,
+          data.network,
+          data.military,
+          data.id,
+          data.callsign
+        );
+        marker.setIcon(newIcon);
+        updatedTotal++;
+      }
+    }
+
+    index = endIndex;
+
+    if (index < keys.length) {
+      requestAnimationFrame(processBatch);
+    } else {
+      if (PILOTS_DEBUG) console.log('[Pilots] Batched Zoom-Update complete: ' + updatedTotal + ' Icons');
+    }
+  }
+
+  requestAnimationFrame(processBatch);
+}
+
+// ============================================================================
+// END ONLINE PILOTS LAYER
+// ============================================================================
+
+// OLD renderControlZones replaced - now uses new czRender system
+// This is just a wrapper for backward compatibility
+function renderControlZones_OLD(forceRender) {
+  if (CZ_DEBUG) console.log('[CZ] renderControlZones_OLD called - redirecting to czRenderDebounced');
+  czRenderDebounced();
+}
+
+// OLD renderControlZonesImmediate - DISABLED, use czRender instead
+function renderControlZonesImmediate(forceRender) {
+  if (CZ_DEBUG) console.log('[CZ] renderControlZonesImmediate called - redirecting to czRenderDebounced');
+  czRenderDebounced();
+}
+
+/**
+ * Helper function to render control zones with loaded data
+ * Creates two layers: offline (all boundaries, faint gray) and active (matching controllers, blue)
+ * @param {number} currentVersion - Render version for cancellation check
+ * @param {Object} traconData - Optional TRACON boundaries data (VATSIM only)
+ */
+function renderControlZonesWithData(boundariesData, activePrefixes, activePrefixList, currentVersion, traconData) {
+    if (!boundariesData) {
+      console.error('[ControlZones] No boundaries data available');
+      return;
+    }
+
+    // Set flag to prevent map events during rendering
+    window.controlZonesRendering = true;
+
+    // Temporarily disable Leaflet animations to speed up rendering
+    var originalAnimate = map.options.zoomAnimation;
+    var originalPan = map.options.fadeAnimation;
+
+    try {
+      map.options.zoomAnimation = false;
+      map.options.fadeAnimation = false;
+
+      // Handle both VATSIM GeoJSON and IVAO JSON formats
+      var features = [];
+
+    if (boundariesData.features) {
+      // GeoJSON format (VATSIM)
+      features = boundariesData.features.slice(); // Clone to avoid mutation
+      if (CZ_DEBUG) console.log('[ControlZones] Using GeoJSON features format, count:', features.length);
+
+      // Add TRACON features for VATSIM (APP/DEP sectors from SimAware TRACON project)
+      if (controlZonesNetwork === 'VATSIM' && traconData && traconData.features) {
+        var traconFeatures = traconData.features;
+        if (CZ_DEBUG) console.log('[CZ] Adding TRACON features:', traconFeatures.length);
+
+        // Convert TRACON features to our format
+        // TRACON format: { prefix: ["EGLL"], suffix: "APP", id: "EGLL", name: "Heathrow Director" }
+        traconFeatures.forEach(function(traconFeature) {
+          if (!traconFeature.properties || !traconFeature.geometry) return;
+
+          var props = traconFeature.properties;
+          // TRACON uses "prefix" (array or string) and "suffix" (string like "APP" or "DEP")
+          var prefixes = props.prefix || [];
+          // Normalize prefix to array (TRACON data may have string or array)
+          if (typeof prefixes === 'string') {
+            prefixes = [prefixes];
+          }
+          if (!Array.isArray(prefixes)) {
+            prefixes = [];
+          }
+          var suffix = (props.suffix || 'APP').toUpperCase();
+          var featureId = props.id || (prefixes[0] || 'UNKN');
+
+          // Create a feature for each prefix
+          prefixes.forEach(function(prefix) {
+            var normalizedFeature = {
+              type: 'Feature',
+              geometry: traconFeature.geometry,
+              properties: {
+                id: prefix + '_' + suffix, // e.g., "EGLL_APP"
+                prefix: prefix,
+                position: suffix, // APP, DEP
+                name: props.name || props.id || prefix,
+                isTracon: true // Mark as TRACON feature
+              }
+            };
+            features.push(normalizedFeature);
+          });
+        });
+        if (CZ_DEBUG) console.log('[CZ] Total features after TRACON merge:', features.length);
+      } else if (CZ_DEBUG) {
+        console.log('[CZ] NO TRACON data for VATSIM! traconData:', traconData);
+      }
+
+      // Cache VATSIM features AFTER TRACON merge for viewport-based controller filtering
+      if (controlZonesNetwork === 'VATSIM') {
+        _cachedVatsimBoundaryFeatures = features;
+        if (CZ_DEBUG) console.log('[ControlZones] Cached VATSIM features (incl. TRACON):', features.length);
+      }
+    } else if (Array.isArray(boundariesData)) {
+      // IVAO array format - convert to GeoJSON-like structure (FALLBACK)
+      // NOTE: Server now converts to GeoJSON, so this path should rarely be used
+      // Use cache to avoid re-conversion on every render
+      if (_cachedIvaoGeoJsonFeatures && _cachedIvaoGeoJsonFeatures.length > 0) {
+        features = _cachedIvaoGeoJsonFeatures;
+        if (CZ_DEBUG) console.log('[ControlZones] Using cached IVAO GeoJSON features:', features.length);
+      } else {
+        // Structure from server: { airport_id, position, middle_identifier, name, map_region }
+        // Server already applies name-to-ICAO mapping, so we just use the data directly
+        if (CZ_DEBUG) console.log('[ControlZones] Converting IVAO array format:', boundariesData.length, 'items');
+
+        features = boundariesData.map(function(item) {
+          // Get fields (server has already mapped names to ICAO codes)
+          var airportId = (item.airport_id || '').toUpperCase();
+          var position = (item.position || '').toUpperCase();
+          var middleId = (item.middle_identifier || '').toUpperCase();
+
+          // Construct feature ID like LittleNavMap: {airport_id}[_{middle_id}]_{position}
+          var fullCallsign;
+          if (middleId && position) {
+            // Sectored zone: EDGG_N_CTR
+            fullCallsign = airportId + '_' + middleId + '_' + position;
+          } else if (position) {
+            // Standard zone: EDGG_CTR
+            fullCallsign = airportId + '_' + position;
+          } else {
+            // No position: just prefix
+            fullCallsign = airportId;
+          }
+
+          // Convert map_region [{lat, lng}, ...] to GeoJSON coordinates [[lng, lat], ...]
+          var coordinates = [];
+          if (item.map_region && Array.isArray(item.map_region)) {
+            var ring = item.map_region.map(function(point) {
+              return [point.lng, point.lat]; // GeoJSON uses [lng, lat] order
+            });
+            // Close the polygon if not already closed
+            if (ring.length > 0) {
+              var first = ring[0];
+              var last = ring[ring.length - 1];
+              if (first[0] !== last[0] || first[1] !== last[1]) {
+                ring.push([first[0], first[1]]);
+              }
+            }
+            coordinates = [ring]; // GeoJSON Polygon: array of rings
+          }
+
+          return {
+            type: 'Feature',
+            properties: {
+              id: fullCallsign,
+              name: item.name || fullCallsign,
+              prefix: airportId,
+              position: position,
+              sectorId: middleId || null,  // Sector ID (e.g., "N" for EDGG_N_CTR)
+              airspaceType: (item.type || '').toUpperCase()  // FIR or TMA
+            },
+            geometry: {
+              type: 'Polygon',
+              coordinates: coordinates
+            }
+          };
+        }).filter(function(feature) {
+          // Filter out features without valid geometry or ID
+          return feature.properties.id &&
+                 feature.geometry.coordinates.length > 0 &&
+                 feature.geometry.coordinates[0].length > 2;
+        });
+
+        // Cache the converted features
+        _cachedIvaoGeoJsonFeatures = features;
+        if (CZ_DEBUG) console.log('[ControlZones] IVAO features converted and cached:', features.length);
+      }
+    } else if (typeof boundariesData === 'object' && boundariesData !== null) {
+      // Maybe IVAO has a different root structure - check for common keys
+      if (CZ_DEBUG) console.log('[ControlZones] Object format detected, keys:', Object.keys(boundariesData));
+
+      // Check if it has a different array property (e.g., "boundaries", "firs", "positions")
+      var possibleArrayKeys = ['boundaries', 'firs', 'positions', 'atcs', 'sectors', 'airspaces', 'data'];
+      for (var k = 0; k < possibleArrayKeys.length; k++) {
+        var key = possibleArrayKeys[k];
+        if (boundariesData[key] && Array.isArray(boundariesData[key])) {
+          if (CZ_DEBUG) console.log('[ControlZones] Found array at key:', key, 'length:', boundariesData[key].length);
+          features = boundariesData[key].map(function(item) {
+            // Log first item structure for debugging
+            if (CZ_DEBUG && features.length === 0) {
+              console.log('[ControlZones] First item keys:', Object.keys(item));
+            }
+            return {
+              type: 'Feature',
+              properties: {
+                id: item.id || item.icao || item.callsign || item.ident || item.composePosition,
+                name: item.name || item.id || item.ident || item.composePosition,
+                prefix: item.prefix || item.icao || item.ident || (item.composePosition ? item.composePosition.substring(0, 4) : '') || (item.id ? item.id.substring(0, 4) : '')
+              },
+              geometry: item.geometry || {
+                type: 'Polygon',
+                coordinates: item.coordinates || item.polygon || item.boundary || []
+              }
+            };
+          });
+          break;
+        }
+      }
+    }
+
+    if (features.length === 0) {
+      if (CZ_DEBUG) {
+        try {
+          console.warn('[ControlZones] Could not parse boundaries data, structure:', JSON.stringify(boundariesData).substring(0, 1000));
+        } catch (e) {
+          console.warn('[ControlZones] Could not parse boundaries data (stringify failed)');
+        }
+      }
+
+      // Clear rendering flag before returning
+      window.controlZonesRendering = false;
+      if (CZ_DEBUG) console.log('[ControlZones] Rendering flag cleared (no features to render)');
+      return;
+    }
+
+    // All valid features for offline layer
+    var allFeatures = features.filter(function(feature) {
+      return feature.properties && feature.geometry && feature.geometry.coordinates;
+    });
+
+    // KEIN Viewport-Filter mehr - alle Zonen werden geladen
+    // Leaflet handhabt das Rendern effizient, nur sichtbare werden gezeichnet
+    // Das vermeidet das Problem dass Zonen beim Herauszoomen fehlen
+    var visibleFeatures = allFeatures;
+    if (CZ_DEBUG) console.log('[ControlZones] Rendering all', allFeatures.length, 'features (no viewport filter)');
+
+    // Single-pass filtering: categorize features as active or offline (optimization)
+    // Pre-build lookup Sets for O(1) lookups instead of O(n) loop
+    var activePrefixSet = {};
+    var activeCallsignSet = {};  // Full callsigns for exact matching (e.g., "EDDS_APP")
+
+    for (var pi = 0; pi < activePrefixList.length; pi++) {
+      var prefix = activePrefixList[pi];
+      activePrefixSet[prefix] = true;
+
+      // Add all full callsigns for this prefix to the set
+      var prefixData = activePrefixes[prefix];
+      if (prefixData && prefixData.callsigns) {
+        for (var ci = 0; ci < prefixData.callsigns.length; ci++) {
+          activeCallsignSet[prefixData.callsigns[ci].toUpperCase()] = true;
+        }
+      }
+    }
+
+    // DEBUG: Zeige alle aktiven Callsigns (nur wenn CZ_DEBUG aktiv)
+    if (CZ_DEBUG) console.log('[CZ] Aktive Callsigns:', Object.keys(activeCallsignSet).join(', '));
+
+    var activeFeatures = [];
+    var offlineFeaturesRaw = [];
+
+    // Helper: Point-in-Polygon using ray casting algorithm
+    // coords = GeoJSON polygon coordinates [[lng, lat], ...]
+    // OPTIMIERT: Mit Bounding-Box Pre-Check für schnelles Early-Exit
+    function isPointInPolygon(lat, lng, coords, featureBbox) {
+      if (!coords || !coords[0] || coords[0].length < 3) return false;
+
+      // PERFORMANCE: Schneller Bounding-Box Check zuerst (O(1) statt O(n))
+      // Wenn der Punkt außerhalb der Bounding-Box liegt, kann er nicht im Polygon sein
+      if (featureBbox) {
+        if (lat < featureBbox.minLat || lat > featureBbox.maxLat ||
+            lng < featureBbox.minLng || lng > featureBbox.maxLng) {
+          return false;
+        }
+      }
+
+      var ring = coords[0]; // Outer ring
+      var inside = false;
+      for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        var xi = ring[i][0], yi = ring[i][1];
+        var xj = ring[j][0], yj = ring[j][1];
+        if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+          inside = !inside;
+        }
+      }
+      return inside;
+    }
+
+    // Build controller coordinate lookup for geographic matching
+    var controllerCoords = {};
+    for (var prefix in activePrefixes) {
+      var prefixData = activePrefixes[prefix];
+      if (prefixData && prefixData.controllers) {
+        prefixData.controllers.forEach(function(ctrl) {
+          if (ctrl.lat && ctrl.lng && ctrl.callsign) {
+            controllerCoords[ctrl.callsign.toUpperCase()] = { lat: ctrl.lat, lng: ctrl.lng, type: ctrl.type };
+          }
+        });
+      }
+    }
+
+    // WICHTIG: Iteriere nur über sichtbare Features (Viewport-gefiltert)
+    // Das reduziert die Arbeit von hunderten auf dutzende Features
+
+    // DEDUPLIZIERUNG: IVAO-Daten haben Duplikate (z.B. EDDL_APP: 4x, LSZH_APP: 5x)
+    // Nur das ERSTE Polygon pro Zone-ID rendern
+    var processedZoneIds = {};
+
+    for (var fi = 0; fi < visibleFeatures.length; fi++) {
+      var feature = visibleFeatures[fi];
+      var props = feature.properties;
+      var featureId = (props.id || '').toUpperCase();
+
+      // Überspringe Duplikate - nur erstes Polygon pro ID
+      if (processedZoneIds[featureId]) {
+        continue;
+      }
+      processedZoneIds[featureId] = true;
+      var featurePrefix = (props.prefix || '').toUpperCase();
+      var featureBbox = feature._bbox; // Gecachte Bounding-Box für isPointInPolygon
+
+      // Webeye-Style zone matching with GEOGRAPHIC check for CTR sectors
+      var isActive = false;
+      var featurePosition = (props.position || '').toUpperCase();
+
+      // Rule 1: Exact callsign match (Zone-ID == Controller callsign)
+      // Example: Zone "EDDS_APP" matches controller "EDDS_APP"
+      if (activeCallsignSet[featureId]) {
+        isActive = true;
+      }
+
+      // Rule 1a: ICAO-basierte Zonen mit Sektor (z.B. SBBS_WE_CTR)
+      // Diese haben ICAO-Code direkt in der Zone-ID
+      if (!isActive && featurePosition === 'CTR') {
+        var featureParts = featureId.split('_');
+        var firstPart = featureParts[0];
+        var isIcaoZone = firstPart.length === 4 && firstPart.indexOf(' ') === -1;
+
+        if (isIcaoZone && featureParts.length >= 2) {
+          var zoneIcao = firstPart;
+          var zoneSectorId = featureParts.length === 3 ? featureParts[1] : null;
+
+          for (var callsign in activeCallsignSet) {
+            var ctrlParts = callsign.split('_');
+            var ctrlPrefix = ctrlParts[0];
+            var ctrlSuffix = ctrlParts[ctrlParts.length - 1];
+
+            if (ctrlSuffix !== 'CTR' && ctrlSuffix !== 'FSS') continue;
+            if (ctrlPrefix !== zoneIcao) continue;
+
+            var ctrlSectorId = ctrlParts.length === 3 ? ctrlParts[1] : null;
+
+            if (zoneSectorId) {
+              // Sektorierte Zone - nur exakter Sektor-Match
+              if (ctrlSectorId === zoneSectorId) {
+                isActive = true;
+                break;
+              }
+            } else {
+              // Haupt-Zone - jeder passende Controller aktiviert sie
+              isActive = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // Rule 1b: Matching for CTR/FSS zones without ICAO prefix via ICAO Mapping
+      // Zones like "CANARIAS CONTROL_CTR" or "MADRID CONTROL_R1_CTR" don't have standard ICAO codes
+      // We use the global ivaoZoneNameToIcao mapping
+      var matchedControllerPrefix = null;
+      if (!isActive && featurePosition === 'CTR') {
+        var featureParts = featureId.split('_');
+        var firstPart = featureParts[0];
+        var isNonIcaoZone = firstPart.length > 4 || firstPart.indexOf(' ') !== -1;
+
+        if (isNonIcaoZone) {
+          var expectedIcao = ivaoZoneNameToIcao[firstPart];
+
+          if (expectedIcao) {
+            // Determine if this is a sector zone (3 parts: NAME_SECTOR_CTR) or main zone (2 parts: NAME_CTR)
+            var isSectorZone = featureParts.length === 3;
+            var zoneSectorId = isSectorZone ? featureParts[1] : null;
+
+            // Find matching controller
+            for (var callsign in activeCallsignSet) {
+              var ctrlParts = callsign.split('_');
+              var ctrlPrefix = ctrlParts[0];
+              var ctrlSuffix = ctrlParts[ctrlParts.length - 1];
+
+              // Must be CTR/FSS controller with matching ICAO
+              if (ctrlSuffix !== 'CTR' && ctrlSuffix !== 'FSS') continue;
+              if (ctrlPrefix !== expectedIcao) continue;
+
+              // Sector matching: BOTH zone and controller sector must match exactly
+              var isSectoredController = ctrlParts.length === 3;
+              var ctrlSectorId = isSectoredController ? ctrlParts[1] : null;
+
+              if (isSectorZone) {
+                // Zone has sector - controller must have SAME sector
+                // e.g., ANKARA CONTROL_M12_CTR only matches LTAA_M12_CTR
+                if (!isSectoredController || ctrlSectorId !== zoneSectorId) continue;
+              } else {
+                // Zone has NO sector (Haupt-Zone)
+                // NUR aktivieren wenn ein UNSEKTORIERTER Controller online ist
+                // Sektorierte Controller aktivieren NUR ihre spezifische Sektor-Zone
+                if (isSectoredController) continue;
+              }
+
+              // Match found!
+              isActive = true;
+              matchedControllerPrefix = ctrlPrefix;
+              break;
+            }
+          }
+        }
+      }
+      // Store matched prefix in feature properties for label creation
+      if (matchedControllerPrefix) {
+        feature.properties._matchedPrefix = matchedControllerPrefix;
+      }
+
+      // Rule 2: CTR Zone - use GEOGRAPHIC matching!
+      // Zone is active only if a CTR/FSS controller's coordinates are INSIDE this polygon
+      var zoneName = (props.name || '').toLowerCase();
+      var isMilitaryZone = zoneName.indexOf('military') !== -1 ||
+                          zoneName.indexOf('militar') !== -1 ||  // Spanish/Portuguese
+                          zoneName.indexOf('mil ') !== -1 ||     // "Dutch MIL" etc.
+                          zoneName.indexOf('_mil') !== -1;       // Zone IDs like EFIN_MIL
+
+      // Rule 2a: MILITARY CTR Zones - only activate if a MIL controller is online
+      // Military zones are shown in GREEN and only when explicitly staffed by military ATC
+      if (!isActive && featurePosition === 'CTR' && isMilitaryZone) {
+        var zoneIcao = featureId.split('_')[0];
+        var polyCoords = feature.geometry && feature.geometry.coordinates;
+
+        for (var callsign in activeCallsignSet) {
+          // Military controller detection: callsign contains MIL (e.g., EHAA_MIL, EDWW_MIL_CTR)
+          var callsignUpper = callsign.toUpperCase();
+          var isMilController = callsignUpper.indexOf('_MIL') !== -1 || callsignUpper.indexOf('MIL_') !== -1;
+
+          if (isMilController) {
+            var parts = callsign.split('_');
+            var ctrlPrefix = parts[0];
+
+            // Must be same FIR (prefix)
+            if (ctrlPrefix === zoneIcao) {
+              // Check if controller coordinates are inside this military zone
+              var ctrlCoord = controllerCoords[callsign];
+              if (ctrlCoord && ctrlCoord.lat && ctrlCoord.lng && polyCoords) {
+                // OPTIMIERT: Übergebe Bounding-Box für schnellen Early-Exit
+                var inPoly = isPointInPolygon(ctrlCoord.lat, ctrlCoord.lng, polyCoords, featureBbox);
+                if (inPoly) {
+                  isActive = true;
+                  // Mark as military for green color
+                  feature.properties.isMilitary = true;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Rule 2b: Regular CTR Zones (non-military)
+      //
+      // MATCHING-LOGIK für CTR-Zonen:
+      // 1. Exaktes Callsign-Match: Controller EFIN_H_CTR → Zone EFIN_H_CTR ✓ (sektoriert)
+      // 2. Prefix-Match NUR für unsektorierte Zonen: Controller EDGG_CTR → Zone EDGG_CTR ✓
+      // 3. Country-Code Match: Controller ESAA_N_CTR (ES) → Zone ESOS_CTR ✓
+      //    (Nur für Länder mit EINER CTR-Zone!)
+      // singleCtrZoneCountries ist global definiert (Zeile ~2819)
+
+      if (!isActive && featurePosition === 'CTR' && !isMilitaryZone) {
+        var zoneIcao = featureId.split('_')[0].split('-')[0];  // Handle "ESMM-5" -> "ESMM"
+
+        // Prüfe ob es eine sektorierte Zone ist (z.B. EFIN_H_CTR, EFIN_HJ_CTR, ESAA_N_CTR)
+        // Format: 4 Buchstaben + _ + Buchstaben/Zahlen + _CTR
+        var isSectoredZone = featureId.match(/^[A-Z]{4}_[A-Z0-9]+_CTR$/);
+
+        for (var callsign in activeCallsignSet) {
+          var parts = callsign.split('_');
+          var ctrlPrefix = parts[0];
+          var ctrlSuffix = parts[parts.length - 1];
+
+          // Nur CTR/FSS Controller berücksichtigen
+          if (ctrlSuffix !== 'CTR' && ctrlSuffix !== 'FSS') continue;
+
+          // Prüfe ob der CONTROLLER sektoriert ist (z.B. LTAA_M12_CTR hat Sektor "M12")
+          // Format: PREFIX_SEKTOR_CTR (3 Teile) vs PREFIX_CTR (2 Teile)
+          var isSectoredController = parts.length > 2 && (ctrlSuffix === 'CTR' || ctrlSuffix === 'FSS');
+
+          // FÜR SEKTORIERTE ZONEN: Nur exaktes Callsign-Match!
+          // z.B. EFIN_H_CTR Zone zeigt NUR wenn EFIN_H_CTR Controller online ist
+          if (isSectoredZone) {
+            // Exaktes Match bereits oben in Rule 1 geprüft (activeCallsignSet[featureId])
+            // Hier nur weiter zur Country-Code Prüfung für FIR-Level Fallback
+            continue;
+          }
+
+          // Methode 1: Prefix-Match NUR für unsektorierte Zonen (z.B. EDGG_CTR)
+          if (ctrlPrefix === zoneIcao) {
+            // WICHTIG: Sektorierte Controller (z.B. LTAA_M12_CTR) aktivieren NICHT die Haupt-Zone!
+            // Sie aktivieren nur ihre spezifische Sektor-Zone (via Rule 1 oben)
+            if (isSectoredController) {
+              // Sektorierter Controller aktiviert NICHT die Haupt-Zone (z.B. LTAA_CTR)
+              continue;
+            }
+            isActive = true;
+            break;
+          }
+
+          // Methode 2: Country-Code Match für Länder mit einer CTR-Zone
+          // z.B. ESAA_N_CTR (Ländercode: ES) → ESOS_CTR (einzige ES-Zone)
+          // NUR für unsektorierte Controller!
+          if (!isSectoredController) {
+            var ctrlCountryCode = ctrlPrefix.substring(0, 2);
+            var expectedZone = singleCtrZoneCountries[ctrlCountryCode];
+            if (expectedZone && expectedZone === zoneIcao) {
+              isActive = true;
+              if (CZ_DEBUG) console.log('[CZ] CTR Zone', featureId, 'aktiviert durch', callsign, '(Country-Match:', ctrlCountryCode, '→', expectedZone + ')');
+              break;
+            }
+          }
+
+          // Methode 3: Geografisches Matching für Flughafen-basierte Controller
+          // z.B. SEA_16_CTR → KSEA (47.45°N) → liegt in ZSE
+          // Prüfe Cache synchron (async Lookup erfolgt in filterControllers)
+          var cachedArtcc = airportToArtccCache[ctrlPrefix];
+          if (cachedArtcc && cachedArtcc === zoneIcao) {
+            isActive = true;
+            if (CZ_DEBUG) console.log('[CZ] CTR Zone', featureId, 'aktiviert durch', callsign, '(Airport-ARTCC-Match:', ctrlPrefix, '→', cachedArtcc + ')');
+            break;
+          }
+        }
+      }
+
+      // Rule 3: FIR-Zone without position (e.g., "EDGG" boundary for IVAO, "ESMM" for VATSIM)
+      // FIRs are ONLY activated by CTR/FSS controllers - NOT by TWR/APP/GND/DEL!
+      // Prefix-Match ist ausreichend - keine Geo-Prüfung nötig
+      // Skip military zones (they need explicit military controller)
+      // WICHTIG: Sub-Sektoren (ESMM-5, ESMM-K) überspringen - nur Haupt-FIR (ESMM) anzeigen!
+      if (!isActive && !featurePosition && !isMilitaryZone) {
+        // Skip sub-sectors (IDs mit Bindestrich wie ESMM-5, ESMM-K, EDWW-A)
+        // Diese werden NICHT einzeln angezeigt - nur die Haupt-FIR
+        if (featureId.indexOf('-') !== -1) {
+          continue;  // Sub-Sektor überspringen, weiter zum nächsten Feature
+        }
+
+        for (var callsign in activeCallsignSet) {
+          var parts = callsign.split('_');
+          var ctrlPrefix = parts[0];
+          var ctrlSuffix = parts[parts.length - 1];
+
+          // IMPORTANT: FIRs are ONLY activated by CTR/FSS controllers!
+          // TWR/APP/GND/DEL do NOT activate FIR boundaries
+          if (ctrlSuffix !== 'CTR' && ctrlSuffix !== 'FSS') continue;
+
+          // Controller prefix MUST match FIR ID exactly
+          // Example: ESMM_2_CTR activates ESMM (only the main FIR)
+          if (ctrlPrefix !== featureId) continue;
+
+          // Prefix-Match ist ausreichend für FIR-Aktivierung
+          isActive = true;
+          if (CZ_DEBUG) console.log('[ControlZones] FIR', featureId, 'activated by', callsign, '(prefix match)');
+          break;
+        }
+      }
+
+      // Rule 4: APP/TWR/GND/DEL Zone with position
+      // Zone "EDDS_APP" is active if "EDDS_APP" is online (exact match)
+      // Zone "EDDL_LG_APP" is active only if "EDDL_LG_APP" is online (sector must match)
+      // APP and DEP zones can be activated by both APP and DEP controllers
+      if (!isActive && featurePosition && featurePosition !== 'CTR') {
+        var zoneParts = featureId.split('_');
+        var zoneIcao = zoneParts[0];
+        var zoneSector = zoneParts.length === 3 ? zoneParts[1] : null; // z.B. "LG" bei EDDL_LG_APP
+
+        for (var callsign in activeCallsignSet) {
+          var parts = callsign.split('_');
+          var prefix = parts[0];
+          var suffix = parts[parts.length - 1];
+          var ctrlSector = parts.length === 3 ? parts[1] : null; // z.B. "LG" bei EDDL_LG_APP
+
+          // ICAO must exactly match
+          if (prefix !== zoneIcao) continue;
+
+          // Suffix must match position, OR APP/DEP can cross-match
+          var positionMatches = suffix === featurePosition;
+          var appDepCrossMatch = (featurePosition === 'APP' || featurePosition === 'DEP') &&
+                                 (suffix === 'APP' || suffix === 'DEP');
+
+          if (positionMatches || appDepCrossMatch) {
+            // Sektor-Prüfung: Wenn Zone einen Sektor hat, muss Controller denselben Sektor haben
+            if (zoneSector) {
+              // Sektorierte Zone (z.B. EDDL_LG_APP) - nur exakter Sektor-Match
+              if (ctrlSector === zoneSector) {
+                isActive = true;
+                break;
+              }
+              // Unsektorierter Controller (z.B. EDDL_APP) aktiviert KEINE sektorierten Zonen
+            } else {
+              // Unsektorierte Zone (z.B. EDDL_APP) - wird von jedem passenden Controller aktiviert
+              isActive = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (isActive) {
+        activeFeatures.push(feature);
+      } else {
+        offlineFeaturesRaw.push(feature);
+      }
+    }
+
+    // Sort active features by zone type: larger zones first (CTR/FIR), smaller zones last (TWR/GND/DEL)
+    // This ensures smaller zones are rendered on top and can be clicked
+    var zoneTypeOrder = { 'CTR': 0, 'FSS': 1, 'APP': 2, 'TWR': 3, 'GND': 4, 'DEL': 5 };
+    activeFeatures.sort(function(a, b) {
+      var posA = (a.properties.position || '').toUpperCase();
+      var posB = (b.properties.position || '').toUpperCase();
+      // If no position, check if it's a FIR (no underscore in ID = large zone)
+      if (!posA) {
+        var idA = (a.properties.id || '').toUpperCase();
+        posA = (idA.indexOf('_') === -1) ? 'CTR' : 'APP';
+      }
+      if (!posB) {
+        var idB = (b.properties.id || '').toUpperCase();
+        posB = (idB.indexOf('_') === -1) ? 'CTR' : 'APP';
+      }
+      var orderA = zoneTypeOrder[posA] !== undefined ? zoneTypeOrder[posA] : 2;
+      var orderB = zoneTypeOrder[posB] !== undefined ? zoneTypeOrder[posB] : 2;
+      return orderA - orderB;  // Smaller order = rendered first (below)
+    });
+
+    if (CZ_DEBUG) console.log('[ControlZones] Active zones:', activeFeatures.length, 'of', allFeatures.length, 'total boundaries');
+
+    // Only re-render offline layer if it doesn't exist yet
+    // This prevents flickering and multiple redraws during zoom
+    var shouldRenderOffline = !controlZonesOfflineLayer || !map.hasLayer(controlZonesOfflineLayer);
+
+    if (shouldRenderOffline) {
+      // Remove existing offline layer if present
+      if (controlZonesOfflineLayer && map) {
+        map.removeLayer(controlZonesOfflineLayer);
+        controlZonesOfflineLayer = null;
+      }
+
+      // ===== OPTIMIERT: Verwende vorberechneten Offline-FIR-Layer =====
+      // Statt 4103 Features zur Laufzeit zu filtern, laden wir 165 vorberechnete FIRs
+      // Das reduziert CPU-Last und Speicherverbrauch um ~96%
+
+      // Build set of active FIR prefixes to exclude from offline layer
+      var activeFirPrefixes = {};
+      for (var prefix in activePrefixes) {
+        activeFirPrefixes[prefix.toUpperCase()] = true;
+      }
+
+      // Use precomputed offline FIR layer if available
+      var offlineFeatures = [];
+      if (ivaoOfflineFirCache && ivaoOfflineFirCache.features) {
+        // Filter out FIRs where controllers are online
+        offlineFeatures = ivaoOfflineFirCache.features.filter(function(feature) {
+          var firPrefix = (feature.properties.prefix || '').toUpperCase();
+          return !activeFirPrefixes[firPrefix];
+        });
+        if (CZ_DEBUG) console.log('[ControlZones] Using precomputed offline FIR layer:', ivaoOfflineFirCache.features.length, 'total,', offlineFeatures.length, 'displayed (excluding', Object.keys(activeFirPrefixes).length, 'active FIRs)');
+      } else {
+        // Fallback: Load offline layer async (first render might be empty)
+        loadIvaoOfflineFir(function(data) {
+          if (data && data.features && data.features.length > 0) {
+            // Trigger re-render with loaded data
+            if (CZ_DEBUG) console.log('[ControlZones] Offline FIR layer loaded async, triggering re-render');
+            controlZonesOfflineLayer = null; // Force re-render
+            czRenderDebounced();
+          }
+        });
+        if (CZ_DEBUG) console.log('[ControlZones] Offline FIR layer not yet loaded, loading async...');
+      }
+
+    if (offlineFeatures.length > 0) {
+      // Cache leeren bei jedem Render (verhindert alte fehlerhafte Daten)
+      czValidatedPolygonCache = {};
+
+      // Pre-create style object once (optimization: avoid recreation)
+      // Dezente aber sichtbare Darstellung für Offline-Zonen/FIR-Grenzen
+      var offlineStyle = {
+        color: '#9ca3af',         // Mittelgrau - Randfarbe
+        weight: 1,
+        opacity: 0.5,
+        fillColor: '#e5e7eb',     // Hellgrau - Füllfarbe
+        fillOpacity: 0.08,        // 8% Füllung - sichtbar aber dezent
+        pane: 'controlZonesPane'
+      };
+
+      controlZonesOfflineLayer = L.layerGroup();
+      controlZonesOfflineLayer.addTo(map);
+
+      // Batch render 20 features at a time for faster rendering
+      var BATCH_SIZE = 20;
+      var batchIndex = 0;
+
+      function renderOfflineBatch() {
+        // Abort if layer was destroyed (e.g., network switch during batch render)
+        if (!controlZonesOfflineLayer) {
+          if (CZ_DEBUG) console.log('[ControlZones] Batch render aborted - layer destroyed');
+          return;
+        }
+
+        var end = Math.min(batchIndex + BATCH_SIZE, offlineFeatures.length);
+
+        // Batch multiple features into single GeoJSON object
+        var batchFeatures = offlineFeatures.slice(batchIndex, end);
+
+        // Validiere und repariere alle Features vor dem Rendern (verhindert Linien-Artefakte)
+        // OPTIMIERT: Cache für bereits validierte Polygone
+        var validatedFeatures = [];
+        for (var i = 0; i < batchFeatures.length; i++) {
+          var feature = batchFeatures[i];
+          var featureId = (feature.properties && feature.properties.id) || '';
+          var validated;
+          if (featureId && czValidatedPolygonCache[featureId]) {
+            validated = czValidatedPolygonCache[featureId];
+          } else {
+            validated = validateAndFixPolygon(feature);
+            if (validated && featureId) {
+              czValidatedPolygonCache[featureId] = validated;
+            }
+          }
+          if (validated) {
+            validatedFeatures.push(validated);
+          }
+        }
+
+        if (validatedFeatures.length > 0) {
+          var batchOptions = {
+            style: offlineStyle,
+            interactive: false
+            // KEIN Canvas-Renderer für Offline-Zonen - verursacht Rendering-Probleme
+          };
+          // Rendere jedes Feature einzeln statt als Batch (verhindert Linien zwischen Polygonen)
+          for (var j = 0; j < validatedFeatures.length; j++) {
+            var singleGeoJson = L.geoJSON(validatedFeatures[j], batchOptions);
+            controlZonesOfflineLayer.addLayer(singleGeoJson);
+          }
+        }
+
+        batchIndex = end;
+
+        if (batchIndex < offlineFeatures.length) {
+          requestAnimationFrame(renderOfflineBatch);
+        } else {
+          if (CZ_DEBUG) console.log('[ControlZones] Added offline layer:', offlineFeatures.length, 'zones (batched)');
+        }
+      }
+
+      renderOfflineBatch();
+    }
+    } else {
+      if (CZ_DEBUG) console.log('[ControlZones] Skipping offline layer re-render - already exists');
+    }
+
+    // Sammle kleinere Zonen für CTR-Label-Positionierung (vermeidet Überlappung)
+    var smallerZonesMap = {}; // { icaoPrefix: [feature, ...] }
+    for (var szIdx = 0; szIdx < activeFeatures.length; szIdx++) {
+      var szFeature = activeFeatures[szIdx];
+      var szPos = (szFeature.properties.position || '').toUpperCase();
+      if (szPos === 'TWR' || szPos === 'APP' || szPos === 'GND' || szPos === 'DEL') {
+        var szId = (szFeature.properties.prefix || szFeature.properties.id || '').toUpperCase();
+        var szPrefix = szId.split('_')[0];
+        if (szPrefix) {
+          if (!smallerZonesMap[szPrefix]) smallerZonesMap[szPrefix] = [];
+          smallerZonesMap[szPrefix].push(szFeature);
+        }
+      }
+    }
+    if (CZ_DEBUG) console.log('[ControlZones] Smaller zones map:', Object.keys(smallerZonesMap).length, 'prefixes');
+
+    // Create active zones layer - colored by controller type
+    if (activeFeatures.length > 0) {
+      // Helper to get the highest priority controller type for a zone
+      // Priority: CTR > APP > TWR > GND > DEL (highest coverage first)
+      function getZoneControllerType(featureId, featurePrefix) {
+        var types = [];
+        var fid = (featureId || '').toUpperCase();
+        var fpre = (featurePrefix || '').toUpperCase();
+
+        // Find all controller types for this zone
+        for (var prefix in activePrefixes) {
+          if (fid === prefix || fpre === prefix || fid.indexOf(prefix) === 0 || (fid.indexOf('_') > -1 && fid.split('_')[0] === prefix)) {
+            var prefixData = activePrefixes[prefix];
+            if (prefixData && prefixData.types) {
+              types = types.concat(prefixData.types);
+            }
+          }
+        }
+
+        // Also check if featureId itself indicates a type (e.g., "EDDS_APP")
+        if (fid.indexOf('_') > -1) {
+          var suffix = fid.split('_').pop();
+          if (['CTR', 'APP', 'TWR', 'GND', 'DEL', 'FSS'].indexOf(suffix) > -1) {
+            types.push(suffix);
+          }
+        }
+
+        // Return highest priority type
+        var priorityOrder = ['CTR', 'FSS', 'APP', 'TWR', 'GND', 'DEL'];
+        for (var i = 0; i < priorityOrder.length; i++) {
+          if (types.indexOf(priorityOrder[i]) > -1) {
+            return priorityOrder[i];
+          }
+        }
+        return 'DEFAULT';
+      }
+
+      // Style function that returns color based on ZONE type (not controller type)
+      function getActiveStyle(feature) {
+        var featureId = (feature.properties.id || '').toUpperCase();
+        var featurePosition = (feature.properties.position || '').toUpperCase();
+
+        // Determine zone type for coloring
+        var zoneType;
+
+        // Check if this is a military zone (marked during activation)
+        if (feature.properties.isMilitary) {
+          zoneType = 'MIL';
+        }
+        // Use the zone's position property (APP, TWR, GND, DEL, CTR)
+        else if (featurePosition && ['CTR', 'APP', 'TWR', 'GND', 'DEL', 'FSS'].indexOf(featurePosition) > -1) {
+          zoneType = featurePosition;
+        }
+        // Try to extract from featureId (e.g., "EDDS_APP" -> "APP")
+        else if (featureId.indexOf('_') > -1) {
+          var suffix = featureId.split('_').pop();
+          if (['CTR', 'APP', 'TWR', 'GND', 'DEL', 'FSS'].indexOf(suffix) > -1) {
+            zoneType = suffix;
+          } else {
+            zoneType = 'DEFAULT';
+          }
+        } else {
+          zoneType = 'CTR'; // FIR-level zones without position are CTR
+        }
+
+        var color = controlZonesSettings.colors[zoneType] || controlZonesSettings.colors.DEFAULT;
+
+        // Debug: log zone type and color
+        if (CZ_DEBUG) console.log('[ControlZones] Zone:', featureId, 'Position:', featurePosition, 'Type:', zoneType, 'Color:', color);
+
+        return {
+          color: color,
+          weight: 2,
+          opacity: 0.7,
+          fillColor: color,
+          fillOpacity: controlZonesSettings.opacity * 0.6,
+          lineCap: 'round',
+          lineJoin: 'round',
+          pane: 'controlZonesPane'
+        };
+      }
+
+      // Create layer group for batched online zones
+      controlZonesLayer = L.layerGroup();
+      controlZonesLayer.addTo(map);
+
+      // Batch render online zones for faster rendering
+      var ONLINE_BATCH_SIZE = 20;
+      var onlineBatchIndex = 0;
+      var addedLabels = {}; // Track labels across batches
+
+      // Helper: Decode Unicode escape sequences (\u00fc -> ü)
+      function decodeUnicodeEscapes(str) {
+        if (!str || typeof str !== 'string') return str;
+        return str.replace(/\\u([0-9a-fA-F]{4})/g, function(match, hex) {
+          return String.fromCharCode(parseInt(hex, 16));
+        });
+      }
+
+      // Helper function to check if a point is within bounds
+      function isPointInBounds(lat, lng, bounds) {
+        if (!bounds || !lat || !lng) return false;
+        var sw = bounds.getSouthWest();
+        var ne = bounds.getNorthEast();
+        return lat >= sw.lat && lat <= ne.lat && lng >= sw.lng && lng <= ne.lng;
+      }
+
+      // Dynamic popup for zone clicks - like Webeye: show ALL layers at click point
+      function createDynamicZonePopup(feature, layer, clickLatLng) {
+        // Check if panel network matches zones network
+        var panelNetwork = vatsim ? 'VATSIM' : 'IVAO';
+        if (panelNetwork !== controlZonesNetwork) {
+          var popupHtml = '<div class="control-zone-popup">';
+          popupHtml += '<div class="cz-header">Control Zones</div>';
+          popupHtml += '<div class="cz-no-data">Wechsle zum ' + controlZonesNetwork + ' Panel für Controller-Daten</div>';
+          popupHtml += '</div>';
+          return popupHtml;
+        }
+
+        // Collect ALL zones that contain the click point
+        var zonesAtPoint = [];
+        if (controlZonesLayer && clickLatLng) {
+          controlZonesLayer.eachLayer(function(zoneLayer) {
+            // Check GeoJSON layers
+            if (zoneLayer.eachLayer) {
+              zoneLayer.eachLayer(function(subLayer) {
+                if (subLayer.getBounds && subLayer.feature) {
+                  try {
+                    var bounds = subLayer.getBounds();
+                    if (bounds.contains(clickLatLng)) {
+                      zonesAtPoint.push(subLayer.feature);
+                    }
+                  } catch(e) {}
+                }
+              });
+            }
+          });
+        }
+
+        // If no zones found via bounds check, use the clicked feature
+        if (zonesAtPoint.length === 0 && feature) {
+          zonesAtPoint.push(feature);
+        }
+
+        // Webeye-Style: Collect ALL unique ICAOs from zones at click point
+        // Then show ALL controllers for those ICAOs
+        var icaosAtPoint = [];
+        zonesAtPoint.forEach(function(zoneFeature) {
+          var zoneId = (zoneFeature.properties.id || zoneFeature.properties.prefix || '').toUpperCase();
+          var zoneIcao = zoneId.indexOf('_') > -1 ? zoneId.split('_')[0] : zoneId;
+          if (zoneIcao && icaosAtPoint.indexOf(zoneIcao) === -1) {
+            icaosAtPoint.push(zoneIcao);
+          }
+        });
+
+        // Use getActiveControllerPrefixes() - the same source as labels!
+        var currentPrefixes = getActiveControllerPrefixes();
+        var foundControllers = [];
+
+        // For each ICAO at click point, get ALL controllers
+        icaosAtPoint.forEach(function(icao) {
+          // Normalisiere Zone-ICAO zu ICAO (falls IATA)
+          var normalizedIcao = iataToIcao(icao);
+
+          // Check all prefixes for controllers matching this ICAO
+          // Prefixes sind bereits ICAO-normalisiert (in getActiveControllerPrefixes)
+          for (var prefix in currentPrefixes) {
+            // Direkter Match auf normalisierten ICAO, oder flexibler Match
+            if (prefix === normalizedIcao || prefixesMatch(prefix, normalizedIcao)) {
+              var prefixData = currentPrefixes[prefix];
+              prefixData.controllers.forEach(function(ctrl) {
+                // Avoid duplicates
+                var isDuplicate = foundControllers.some(function(c) {
+                  return c.callsign === ctrl.callsign;
+                });
+                if (!isDuplicate) {
+                  foundControllers.push({
+                    callsign: ctrl.callsign,
+                    frequency: ctrl.frequency || '',
+                    atis: ctrl.atis || '',
+                    type: ctrl.type
+                  });
+                }
+              });
+            }
+          }
+        });
+
+        // Sort by type priority: CTR first, then APP, TWR, GND, DEL, ATIS last
+        var typeOrder = { 'CTR': 0, 'FSS': 1, 'APP': 2, 'TWR': 3, 'GND': 4, 'DEL': 5, 'ATIS': 6 };
+        foundControllers.sort(function(a, b) {
+          return (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+        });
+
+        // Build popup HTML - header shows ICAOs at click point
+        var popupHtml = '<div class="control-zone-popup">';
+        var headerText = icaosAtPoint.length > 0 ? icaosAtPoint.join(', ') : 'Control Zones';
+        popupHtml += '<div class="cz-header">' + headerText + '</div>';
+
+        // Return null if no controllers found - don't show empty popup
+        if (foundControllers.length === 0) {
+          return null;
+        }
+
+        foundControllers.forEach(function(ctrl) {
+          var freq = ctrl.frequency;
+          if (freq) {
+            var freqNum = parseFloat(freq);
+            if (!isNaN(freqNum)) freq = freqNum.toFixed(3);
+          }
+
+          var typeClass = 'cz-type-' + (ctrl.type || 'CTR').toLowerCase();
+
+          popupHtml += '<div class="cz-controller">';
+          popupHtml += '<div class="cz-controller-header">';
+          popupHtml += '<span class="cz-callsign ' + typeClass + '">' + ctrl.callsign + '</span>';
+          popupHtml += '</div>';
+
+          if (freq) {
+            popupHtml += '<div class="cz-freq-row">';
+            popupHtml += '<span class="cz-freq">' + freq + '</span>';
+            popupHtml += '<div class="cz-com-buttons">';
+            popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, false)" title="COM1 Standby">C1 STBY</button>';
+            popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, true)" title="COM1 Active">C1 ACT</button>';
+            popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, false)" title="COM2 Standby">C2 STBY</button>';
+            popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, true)" title="COM2 Active">C2 ACT</button>';
+            popupHtml += '</div>';
+            popupHtml += '</div>';
+          }
+
+          if (ctrl.atis && ctrl.atis.length > 0) {
+            var atisText = Array.isArray(ctrl.atis) ? ctrl.atis.join('\n') : ctrl.atis;
+            popupHtml += '<div class="cz-atis">' + atisText + '</div>';
+          }
+
+          popupHtml += '</div>';
+        });
+
+        popupHtml += '</div>';
+        return popupHtml;
+      }
+
+      // Helper function to create popup content for a feature
+      // layer parameter is optional - if provided, enables geographic matching
+      // showAllStations: false = only this station, true = all stations in FIR (for label click)
+      function createPopupContent(feature, layer, showAllStations) {
+        var name = decodeUnicodeEscapes(feature.properties.name || feature.properties.id || 'Unknown');
+        var featureId = (feature.properties.id || feature.properties.prefix || '').toUpperCase();
+        var featurePosition = (feature.properties.position || '').toUpperCase();
+
+        // DEBUG: Log clicked zone info
+        console.log('[CZ Popup] Clicked zone - featureId:', featureId, 'name:', name, 'position:', featurePosition);
+
+        // Determine ICAO code from featureId (e.g., "EDDF_APP" -> "EDDF", "EDGG" -> "EDGG")
+        var icaoCode = featureId.indexOf('_') > -1 ? featureId.split('_')[0] : featureId;
+
+        // Get bounds for geographic matching (if layer is provided)
+        var zoneBounds = layer && layer.getBounds ? layer.getBounds() : null;
+        // Determine if this is a CTR/FIR zone (use geographic matching for these)
+        var isExplicitCtr = featurePosition === 'CTR' || featureId.indexOf('_CTR') > -1;
+        var isVatsimFir = !featurePosition && featureId.indexOf('_') === -1 && icaoCode.length >= 3;
+        var isCtrZone = isExplicitCtr || isVatsimFir;
+
+        var allControllers = [];
+        var allTypes = [];
+
+        if (showAllStations && zoneBounds) {
+          // Label click: Show ALL controllers within the FIR bounds
+          for (var prefix in activePrefixes) {
+            var prefixData = activePrefixes[prefix];
+            if (!prefixData || !prefixData.controllers) continue;
+
+            prefixData.controllers.forEach(function(ctrl) {
+              var isDuplicate = allControllers.some(function(c) {
+                return c.callsign === ctrl.callsign;
+              });
+              if (isDuplicate) return;
+
+              // Geographic matching: controller coords within zone bounds
+              if (ctrl.lat && ctrl.lng && isPointInBounds(ctrl.lat, ctrl.lng, zoneBounds)) {
+                allControllers.push(ctrl);
+                if (ctrl.type && allTypes.indexOf(ctrl.type) === -1) {
+                  allTypes.push(ctrl.type);
+                }
+              }
+            });
+          }
+        } else {
+          // Zone click: Only show controller(s) for THIS specific station
+          // For IVAO: featureId is "EDDS_APP", so match exact callsign
+          // For VATSIM: featureId is "EDGG" (FIR), so match all controllers with that prefix
+          var isIvaoNetwork = controlZonesNetwork === 'IVAO';
+
+          // Ermittle erwartetes ICAO über Mapping (für Zonen wie "ROMA RADAR" → "LIRR")
+          var expectedIcaoForZone = ivaoZoneNameToIcao[icaoCode] || icaoCode;
+
+          for (var prefix in activePrefixes) {
+            var prefixData = activePrefixes[prefix];
+            if (!prefixData || !prefixData.controllers) continue;
+
+            // Only match exact prefix or exact featureId (mit ICAO-Mapping)
+            var isMatch = (prefix === icaoCode) ||
+                          (prefix === expectedIcaoForZone) ||  // ICAO-Mapping match
+                          (prefix === featureId) ||
+                          (featureId.indexOf(prefix + '_') === 0) ||
+                          (prefix.indexOf(icaoCode) === 0 && icaoCode.length >= 4);
+
+            if (isMatch) {
+              prefixData.controllers.forEach(function(ctrl) {
+                var isDuplicate = allControllers.some(function(c) {
+                  return c.callsign === ctrl.callsign;
+                });
+                if (isDuplicate) return;
+
+                var ctrlCallsign = (ctrl.callsign || '').toUpperCase();
+                var ctrlParts = ctrlCallsign.split('_');
+                var ctrlIcao = ctrlParts[0];
+                var ctrlSuffix = ctrlParts[ctrlParts.length - 1];
+                var ctrlSectorId = ctrlParts.length === 3 ? ctrlParts[1] : null;
+
+                // Parse featureId - kann Leerzeichen enthalten (z.B. "ROMA RADAR_EW_CTR")
+                var featureParts = featureId.split('_');
+                var featureBaseName = featureParts[0]; // z.B. "ROMA RADAR" oder "LIRR"
+                var featureSectorId = featureParts.length === 3 ? featureParts[1] : null; // z.B. "EW"
+                var isSectoredZone = featureParts.length === 3; // z.B. ROMA RADAR_EW_CTR
+                var isMainCtrZone = featureParts.length === 2 && featurePosition === 'CTR'; // z.B. ROMA RADAR_CTR
+
+                // Ermittle erwarteten ICAO-Code über Mapping
+                var expectedIcao = ivaoZoneNameToIcao[featureBaseName] || featureBaseName;
+
+                if (isSectoredZone) {
+                  // Sektor-Zone (z.B. ROMA RADAR_EW_CTR): Nur Controller mit EXAKT gleichem Sektor
+                  // Erwartetes Callsign: LIRR_EW_CTR (aus Mapping + Sektor + Position)
+                  if (ctrlIcao !== expectedIcao) {
+                    return; // Skip - falsches ICAO
+                  }
+                  if (ctrlSectorId !== featureSectorId) {
+                    return; // Skip - falscher Sektor (z.B. SU statt EW)
+                  }
+                  if (ctrlSuffix !== 'CTR' && ctrlSuffix !== 'FSS') {
+                    return; // Skip - kein CTR/FSS
+                  }
+                } else if (isMainCtrZone) {
+                  // Haupt-CTR-Zone (z.B. ROMA RADAR_CTR): Zeige ALLE CTR-Controller mit passendem ICAO
+                  // Das inkludiert sowohl LIRR_CTR als auch LIRR_EW_CTR, LIRR_SU_CTR etc.
+                  if (ctrlSuffix !== 'CTR' && ctrlSuffix !== 'FSS') {
+                    return; // Skip non-CTR controllers
+                  }
+                  if (ctrlIcao !== expectedIcao) {
+                    return; // Skip - wrong ICAO
+                  }
+                } else if (isIvaoNetwork && featurePosition) {
+                  // For other non-sectored IVAO zones (APP, TWR, etc.): match by position type
+                  // e.g., featureId="EDDS_APP" should show EDDS_APP controller
+                  if (ctrlCallsign !== featureId && ctrl.type !== featurePosition) {
+                    return; // Skip this controller
+                  }
+                }
+
+                allControllers.push(ctrl);
+                if (ctrl.type && allTypes.indexOf(ctrl.type) === -1) {
+                  allTypes.push(ctrl.type);
+                }
+              });
+            }
+          }
+        }
+
+        // Sort by type priority: CTR, FSS, APP, TWR, GND, DEL, ATIS
+        var typeOrder = { 'CTR': 0, 'FSS': 1, 'APP': 2, 'TWR': 3, 'GND': 4, 'DEL': 5, 'ATIS': 6 };
+        allControllers.sort(function(a, b) {
+          return (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+        });
+
+        // Create a matchedControllerData-like object with all collected controllers
+        var matchedControllerData = allControllers.length > 0 ? {
+          controllers: allControllers,
+          types: allTypes
+        } : null;
+
+        var popupContent = '<div class="control-zone-popup">';
+        popupContent += '<div class="cz-header">' + name + '</div>';
+
+        if (matchedControllerData && matchedControllerData.controllers.length > 0) {
+          // For IVAO: use boundary name (e.g., "Langen Radar") as station name
+          // For VATSIM: extract station name from first line of ATIS
+          // Check if name looks like a readable station name (contains space or lowercase)
+          var isReadableName = name && (name.indexOf(' ') > -1 || /[a-z]/.test(name));
+          var boundaryName = isReadableName ? name : '';
+
+          matchedControllerData.controllers.forEach(function(ctrl, index) {
+            var rawFreq = ctrl.frequency ? ctrl.frequency : '';
+            // Format frequency to always show 3 decimal places (e.g., "125.350" instead of "125.35")
+            var freq = rawFreq;
+            if (rawFreq) {
+              var freqNum = parseFloat(rawFreq);
+              if (!isNaN(freqNum)) {
+                freq = freqNum.toFixed(3);
+              }
+            }
+
+            // Get station name:
+            // - IVAO: Use boundary name from IVAO data (e.g., "Langen Radar")
+            // - VATSIM: Use VATSpy FIR names (loaded from VATSpy.dat)
+            var displayName = '';
+
+            if (ctrl.callsign) {
+              var callsignPrefix = ctrl.callsign.split('_')[0];
+              // Always use VATSpy data for consistent station names
+              displayName = getStationNameForPrefix(callsignPrefix);
+              // Fallback to boundary name for IVAO if VATSpy has no entry
+              if (!displayName && controlZonesNetwork === 'IVAO') {
+                displayName = boundaryName;
+              }
+            }
+
+            var typeClass = 'cz-type-' + (ctrl.type || 'CTR').toLowerCase();
+
+            popupContent += '<div class="cz-controller">';
+            popupContent += '<div class="cz-controller-header">';
+            popupContent += '<span class="cz-callsign ' + typeClass + '">' + ctrl.callsign + '</span>';
+            // Show station name from boundary data or ATIS
+            if (displayName) {
+              popupContent += '<span class="cz-station">' + displayName + '</span>';
+            }
+            popupContent += '</div>';
+
+            if (freq) {
+              popupContent += '<div class="cz-freq-row">';
+              popupContent += '<span class="cz-freq">' + freq + '</span>';
+              popupContent += '<div class="cz-com-buttons">';
+              popupContent += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, false)" title="COM1 Standby">C1 STBY</button>';
+              popupContent += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, true)" title="COM1 Active">C1 ACT</button>';
+              popupContent += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, false)" title="COM2 Standby">C2 STBY</button>';
+              popupContent += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, true)" title="COM2 Active">C2 ACT</button>';
+              popupContent += '</div>';
+              popupContent += '</div>';
+            }
+
+            // Show ATIS if available for this controller
+            if (ctrl.atis && ctrl.atis.length > 0) {
+              var atisText = Array.isArray(ctrl.atis) ? ctrl.atis.join('\n') : ctrl.atis;
+              popupContent += '<div class="cz-atis">' + atisText + '</div>';
+            }
+
+            popupContent += '</div>';
+          });
+        }
+        popupContent += '</div>';
+        return popupContent;
+      }
+
+      function renderOnlineBatch() {
+        // Check if render version changed (new render requested)
+        if (controlZonesRenderVersion !== currentVersion) {
+          if (CZ_DEBUG) console.log('[ControlZones] Online batch render cancelled - version changed');
+          return;
+        }
+
+        var end = Math.min(onlineBatchIndex + ONLINE_BATCH_SIZE, activeFeatures.length);
+
+        // Batch multiple features into single GeoJSON object
+        var batchFeatures = activeFeatures.slice(onlineBatchIndex, end);
+        if (batchFeatures.length > 0) {
+          var batchGeoJson = L.geoJSON({
+            type: 'FeatureCollection',
+            features: batchFeatures
+          }, {
+            style: getActiveStyle,  // Use dynamic style based on controller type
+            interactive: true,
+            onEachFeature: function(feature, layer) {
+              // Zone click: generate popup dynamically showing ALL zones at click point
+              // Only show popup if there are controllers with data
+              layer.on('click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                // Panel wieder öffnen wenn Controller-Modus aktiv aber Panel versteckt
+                showControllerPanel();
+                var popupContent = createDynamicZonePopup(feature, layer, e.latlng);
+                // Don't show popup if no controllers found (returns null)
+                if (popupContent) {
+                  L.popup({ maxWidth: 450, maxHeight: 400, className: 'control-zone-popup-container' })
+                    .setLatLng(e.latlng)
+                    .setContent(popupContent)
+                    .openOn(map);
+                }
+              });
+
+              // Add ICAO label for each zone
+              var featureId = (feature.properties.id || feature.properties.prefix || '').toUpperCase();
+              var featurePrefix = (feature.properties.prefix || '').toUpperCase();
+              var featurePosition = (feature.properties.position || '').toUpperCase();
+
+              // Cache bounds and calculate center - use polygon centroid for better placement in concave shapes
+              if (layer.getBounds) {
+                layer._cachedBounds = layer.getBounds();
+                if (layer._cachedBounds && layer._cachedBounds.isValid()) {
+                  // Für CTR/FSS-Zonen: Vermeide Label-Position innerhalb kleinerer Zonen (TWR/APP/GND/DEL)
+                  var isCtrZone = (featurePosition === 'CTR' || featurePosition === 'FSS');
+                  var zoneIcao = featureId.indexOf('_') > -1 ? featureId.split('_')[0] : featureId;
+                  var excludeZones = (isCtrZone && smallerZonesMap[zoneIcao]) ? smallerZonesMap[zoneIcao] : [];
+
+                  if (isCtrZone && excludeZones.length > 0) {
+                    // CTR-Zone mit kleineren Zonen: Vermeide Überlappung
+                    var centroid = getPolygonCentroidAvoidingZones(feature, excludeZones);
+                    layer._cachedCenter = centroid || layer._cachedBounds.getCenter();
+                  } else {
+                    // Normale Zone: Einfacher Centroid
+                    var centroid = getPolygonCentroid(feature);
+                    if (centroid) {
+                      layer._cachedCenter = centroid;
+                    } else {
+                      layer._cachedCenter = layer._cachedBounds.getCenter();
+                    }
+                  }
+                }
+              }
+
+              // Determine the ICAO code for this feature
+              // For IVAO: featureId might be "EDDF_APP" -> icaoCode = "EDDF"
+              // For VATSIM: featureId might be "EDGG" -> icaoCode = "EDGG"
+              // For Non-ICAO zones: use _matchedPrefix from geographic matching
+              var icaoCode = feature.properties._matchedPrefix || null;
+              if (!icaoCode) {
+                icaoCode = featureId.indexOf('_') > -1 ? featureId.split('_')[0] : featureId;
+                // Check if this is a valid ICAO code (4 letters, no spaces)
+                if (icaoCode.length > 4 || icaoCode.indexOf(' ') !== -1) {
+                  icaoCode = null;  // Invalid, will use _matchedPrefix or skip
+                }
+              }
+              if (!icaoCode && featurePrefix) {
+                icaoCode = featurePrefix;
+              }
+
+              // Extract sector ID if present (e.g., "ANKARA CONTROL_M12_CTR" -> "M12")
+              var sectorId = null;
+              var featureParts = featureId.split('_');
+              if (featureParts.length >= 3 && featurePosition) {
+                // Has sector: NAME_SECTOR_POSITION
+                sectorId = featureParts[featureParts.length - 2];
+              }
+
+              // APP/DEP-Zonen: Nur eigenen Marker wenn KEIN TWR/GND/DEL online ist
+              var skipAppLabel = false;
+              if (featurePosition === 'APP' || featurePosition === 'DEP') {
+                var appIcao = icaoCode;
+                var currentPrefixes = getActiveControllerPrefixes();
+                if (currentPrefixes && currentPrefixes[appIcao]) {
+                  var prefixData = currentPrefixes[appIcao];
+                  if (prefixData.controllers) {
+                    for (var ci = 0; ci < prefixData.controllers.length; ci++) {
+                      var ctrl = prefixData.controllers[ci];
+                      var ctrlType = ctrl.type || getControllerType(ctrl.callsign);
+                      if (ctrlType === 'TWR' || ctrlType === 'GND' || ctrlType === 'DEL') {
+                        skipAppLabel = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+
+              // CTR-Sektoren: Kombiniere zu einem Marker pro ICAO
+              // Sammle alle aktiven Sektoren für dasselbe Center
+              var skipCtrSectorLabel = false;
+              if (featurePosition === 'CTR' && sectorId && icaoCode) {
+                // Dies ist eine Sektor-Zone - prüfe ob wir bereits einen kombinierten Marker haben
+                var ctrCombinedKey = icaoCode + '_CTR_COMBINED';
+                if (!addedLabels[ctrCombinedKey]) {
+                  // Erster Sektor für dieses Center - erstelle kombinierten Marker
+                  addedLabels[ctrCombinedKey] = {
+                    icaoCode: icaoCode,
+                    sectors: [sectorId],
+                    center: layer._cachedCenter,
+                    feature: feature
+                  };
+                } else {
+                  // Weiterer Sektor - füge zum bestehenden hinzu
+                  if (addedLabels[ctrCombinedKey].sectors.indexOf(sectorId) === -1) {
+                    addedLabels[ctrCombinedKey].sectors.push(sectorId);
+                  }
+                }
+                skipCtrSectorLabel = true; // Kein eigener Marker für einzelne Sektoren
+              }
+
+              // Create unique label key
+              var labelKey = featureId;
+
+              // Only create label if we have a valid ICAO code and center
+              if (skipAppLabel || skipCtrSectorLabel) {
+                // Marker wird übersprungen oder später als kombinierter CTR-Marker erstellt
+              }
+              else if (icaoCode && !addedLabels[labelKey] && layer._cachedCenter) {
+                addedLabels[labelKey] = true;
+
+                // Get the station type for this zone
+                var zoneType = featurePosition || 'CTR';
+
+                // Create label HTML - show ICAO code, optional sector, and type dot
+                var labelHtml = '<div class="cz-label-container">';
+
+                // Main label text
+                if (sectorId) {
+                  // Sector zone: show "ICAO-SECTOR"
+                  labelHtml += '<span class="cz-icao">' + icaoCode + '-' + sectorId + '</span>';
+                } else {
+                  // Main zone: just ICAO
+                  labelHtml += '<span class="cz-icao">' + icaoCode + '</span>';
+                }
+
+                // Add type dot
+                var color = controlZonesSettings.colors[zoneType] || controlZonesSettings.colors.DEFAULT;
+                labelHtml += '<div class="cz-station-dots">';
+                labelHtml += '<span class="cz-dot" style="background-color:' + color + '" title="' + zoneType + '"></span>';
+                labelHtml += '</div>';
+
+                labelHtml += '</div>';
+
+                // Store label info for later creation
+                var center = layer._cachedCenter;
+                if (center) {
+                  // Store for batch label creation after GeoJSON is added
+                  layer._labelData = {
+                    html: labelHtml,
+                    icaoCode: icaoCode,
+                    feature: feature,
+                    center: center,
+                    onlineTypes: [zoneType],  // Store zone type for TWR circle
+                    sectorId: sectorId
+                  };
+                }
+              }
+            }
+          });
+          controlZonesLayer.addLayer(batchGeoJson);
+
+          // Create labels AFTER adding GeoJSON to map - iterate through layers
+          batchGeoJson.eachLayer(function(layer) {
+            if (layer._labelData) {
+              var labelData = layer._labelData;
+
+              // Create label as DivIcon marker
+              var labelIcon = L.divIcon({
+                className: 'cz-label-marker',
+                html: '<div class="cz-icao-label-enhanced cz-label-clickable">' + labelData.html + '</div>',
+                iconSize: [80, 40],
+                iconAnchor: [40, 20]
+              });
+
+              // Create marker with bouncing disabled - use labels pane (above circles)
+              var labelMarker = L.marker(labelData.center, {
+                icon: labelIcon,
+                interactive: true,
+                keyboard: false,
+                pane: 'controlZonesLabelsPane'
+              });
+
+              // Override _setPos to use original Leaflet behavior (bypass bouncing plugin)
+              var originalSetPos = L.Marker.prototype._setPos;
+              labelMarker._setPos = function(pos) {
+                // Call Leaflet's original _setPos directly, not the bouncing-modified version
+                L.DomUtil.setPosition(this._icon, pos);
+                if (this._shadow) {
+                  L.DomUtil.setPosition(this._shadow, pos);
+                }
+                this._zIndex = pos.y + this.options.zIndexOffset;
+                this._resetZIndex();
+              };
+
+              // Disable bouncing completely
+              delete labelMarker._bouncingMotion;
+              labelMarker.isRealMarker = function() { return false; };
+
+              // Store reference for click handling
+              labelMarker._labelData = labelData;
+              labelMarker._zoneLayer = layer;
+
+              // Add click handler - shows ALL controllers for this ICAO code
+              labelMarker.on('click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                var ld = this._labelData;
+                var icao = ld.icaoCode.toUpperCase();
+
+                // Check if panel network matches zones network
+                var panelNetwork = vatsim ? 'VATSIM' : 'IVAO';
+                if (panelNetwork !== controlZonesNetwork) {
+                  var mismatchHtml = '<div class="control-zone-popup">';
+                  mismatchHtml += '<div class="cz-header">' + icao + '</div>';
+                  mismatchHtml += '<div class="cz-no-data">Wechsle zum ' + controlZonesNetwork + ' Panel für Controller-Daten</div>';
+                  mismatchHtml += '</div>';
+                  L.popup({ maxWidth: 450, maxHeight: 400, className: 'control-zone-popup-container' })
+                    .setLatLng(ld.center)
+                    .setContent(mismatchHtml)
+                    .openOn(map);
+                  return;
+                }
+
+                // Get ALL controllers for this ICAO - use same source as labels
+                var currentPrefixes = getActiveControllerPrefixes();
+                var foundControllers = [];
+
+                // Normalisiere Label-ICAO zu ICAO (falls IATA)
+                var normalizedIcao = iataToIcao(icao);
+
+                for (var prefix in currentPrefixes) {
+                  // Prefixes sind bereits ICAO-normalisiert (in getActiveControllerPrefixes)
+                  // Direkter Match oder flexibler Match
+                  if (prefix !== normalizedIcao && !prefixesMatch(prefix, normalizedIcao)) continue;
+
+                  var prefixData = currentPrefixes[prefix];
+                  if (!prefixData || !prefixData.controllers) continue;
+
+                  prefixData.controllers.forEach(function(ctrl) {
+                    if (!ctrl.callsign) return;
+                    var ctrlType = ctrl.type || getControllerType(ctrl.callsign);
+
+                    // Avoid duplicates
+                    var isDuplicate = foundControllers.some(function(c) {
+                      return c.callsign === ctrl.callsign;
+                    });
+                    if (!isDuplicate) {
+                      foundControllers.push({
+                        callsign: ctrl.callsign,
+                        frequency: ctrl.frequency || '',
+                        atis: ctrl.atis || '',
+                        type: ctrlType
+                      });
+                    }
+                  });
+                }
+
+                // Sort by type priority: CTR, FSS, APP, TWR, GND, DEL, ATIS
+                var typeOrder = { 'CTR': 0, 'FSS': 1, 'APP': 2, 'TWR': 3, 'GND': 4, 'DEL': 5, 'ATIS': 6 };
+                foundControllers.sort(function(a, b) {
+                  return (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+                });
+
+                // Build dynamic header based on found controller types
+                var foundTypes = [];
+                var typeNames = { 'CTR': 'Center', 'FSS': 'Flight Service', 'APP': 'Approach', 'TWR': 'Tower', 'GND': 'Ground', 'DEL': 'Delivery', 'ATIS': 'ATIS' };
+                foundControllers.forEach(function(ctrl) {
+                  if (foundTypes.indexOf(ctrl.type) === -1) {
+                    foundTypes.push(ctrl.type);
+                  }
+                });
+                var headerTypes = foundTypes.map(function(t) { return typeNames[t] || t; }).join('/');
+                if (!headerTypes) headerTypes = 'Keine Controller online';
+
+                var popupHtml = '<div class="control-zone-popup">';
+                popupHtml += '<div class="cz-header">' + icao + ' - ' + headerTypes + '</div>';
+
+                foundControllers.forEach(function(ctrl) {
+                  var freq = ctrl.frequency;
+                  if (freq) {
+                    var freqNum = parseFloat(freq);
+                    if (!isNaN(freqNum)) freq = freqNum.toFixed(3);
+                  }
+
+                  var typeClass = 'cz-type-' + (ctrl.type || 'TWR').toLowerCase();
+
+                  popupHtml += '<div class="cz-controller">';
+                  popupHtml += '<div class="cz-controller-header">';
+                  popupHtml += '<span class="cz-callsign ' + typeClass + '">' + ctrl.callsign + '</span>';
+                  popupHtml += '</div>';
+
+                  if (freq) {
+                    popupHtml += '<div class="cz-freq-row">';
+                    popupHtml += '<span class="cz-freq">' + freq + '</span>';
+                    popupHtml += '<div class="cz-com-buttons">';
+                    popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, false)" title="COM1 Standby">C1 STBY</button>';
+                    popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, true)" title="COM1 Active">C1 ACT</button>';
+                    popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, false)" title="COM2 Standby">C2 STBY</button>';
+                    popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, true)" title="COM2 Active">C2 ACT</button>';
+                    popupHtml += '</div>';
+                    popupHtml += '</div>';
+                  }
+
+                  if (ctrl.atis && ctrl.atis.length > 0) {
+                    var atisText = Array.isArray(ctrl.atis) ? ctrl.atis.join('\n') : ctrl.atis;
+                    popupHtml += '<div class="cz-atis">' + atisText + '</div>';
+                  }
+
+                  popupHtml += '</div>';
+                });
+
+                popupHtml += '</div>';
+
+                L.popup({ maxWidth: 450, maxHeight: 400, className: 'control-zone-popup-container' })
+                  .setLatLng(ld.center)
+                  .setContent(popupHtml)
+                  .openOn(map);
+              });
+
+              controlZonesLayer.addLayer(labelMarker);
+
+              // Draw circles for TWR/GND/DEL controllers - uses global CZ_CIRCLE_SIZES
+              // Draw ALL online circles concentrically (largest first, smallest on top)
+
+              // Find all online circle types for this station
+              var onlineCircleTypes = CZ_CIRCLE_SIZES.filter(function(circleConfig) {
+                return labelData.onlineTypes && labelData.onlineTypes.indexOf(circleConfig.type) !== -1;
+              });
+
+              // Sort by radius descending (largest first = drawn first = below smaller circles)
+              onlineCircleTypes.sort(function(a, b) { return b.radius - a.radius; });
+
+              // Draw concentric circles for all online types
+              // Each circle gets the same click handler showing all TWR/GND/DEL controllers
+              onlineCircleTypes.forEach(function(circleConfig, index) {
+                var circleColor = controlZonesSettings.colors[circleConfig.type] || '#ef4444';
+
+                var circle = L.circle(labelData.center, {
+                  radius: circleConfig.radius,
+                  color: circleColor,
+                  weight: 2,
+                  opacity: 0.7,
+                  fillColor: circleColor,
+                  fillOpacity: controlZonesSettings.opacity * 0.6,
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                  pane: 'controlZonesCirclesPane',  // Above other zones
+                  interactive: true  // Clickable
+                });
+
+                // Store data for click handler
+                circle._circleData = {
+                  icaoCode: labelData.icaoCode,
+                  center: labelData.center
+                };
+
+                // Click handler creates popup dynamically using getActiveControllerPrefixes()
+                circle.on('click', function(e) {
+                  L.DomEvent.stopPropagation(e);
+                  var circleData = this._circleData;
+                  var icao = circleData.icaoCode.toUpperCase();
+
+                  // Get APP/TWR/GND/DEL/ATIS controllers using getActiveControllerPrefixes() für aktuelle Daten
+                  var currentPrefixes = getActiveControllerPrefixes();
+                  var localTypes = ['APP', 'TWR', 'GND', 'DEL', 'ATIS'];
+                  var foundControllers = [];
+
+                  console.log('[CZ Popup] Circle clicked for ICAO:', icao);
+                  console.log('[CZ Popup] currentPrefixes keys:', Object.keys(currentPrefixes || {}));
+                  console.log('[CZ Popup] prefixData for', icao, ':', currentPrefixes ? currentPrefixes[icao] : 'none');
+
+                  // Hole Controller für diesen ICAO-Code
+                  if (currentPrefixes && currentPrefixes[icao]) {
+                    var prefixData = currentPrefixes[icao];
+                    if (prefixData.controllers) {
+                      console.log('[CZ Popup] Controllers for', icao, ':', prefixData.controllers.length);
+                      prefixData.controllers.forEach(function(ctrl) {
+                        if (!ctrl.callsign) return;
+                        var ctrlType = ctrl.type || getControllerType(ctrl.callsign);
+                        console.log('[CZ Popup] Found controller:', ctrl.callsign, 'type:', ctrlType);
+
+                        // APP/TWR/GND/DEL (lokale Controller)
+                        if (localTypes.indexOf(ctrlType) === -1) return;
+
+                        foundControllers.push({
+                          callsign: ctrl.callsign,
+                          frequency: ctrl.frequency || '',
+                          atis: ctrl.atis || '',
+                          type: ctrlType
+                        });
+                      });
+                    }
+                  }
+                  console.log('[CZ Popup] foundControllers:', foundControllers.length);
+
+                  // Sort: APP, TWR, GND, DEL, ATIS (APP zuerst da es der größte Bereich ist)
+                  var typeOrder = { 'APP': 0, 'TWR': 1, 'GND': 2, 'DEL': 3, 'ATIS': 4 };
+                  foundControllers.sort(function(a, b) {
+                    return (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+                  });
+
+                  // Build dynamic header based on found controller types
+                  var foundTypes = [];
+                  var typeNames = { 'APP': 'Approach', 'TWR': 'Tower', 'GND': 'Ground', 'DEL': 'Delivery', 'ATIS': 'ATIS' };
+                  foundControllers.forEach(function(ctrl) {
+                    if (foundTypes.indexOf(ctrl.type) === -1) {
+                      foundTypes.push(ctrl.type);
+                    }
+                  });
+                  var headerTypes = foundTypes.map(function(t) { return typeNames[t] || t; }).join('/');
+                  if (!headerTypes) headerTypes = 'Keine Controller online';
+
+                  var popupHtml = '<div class="control-zone-popup">';
+                  popupHtml += '<div class="cz-header">' + icao + ' - ' + headerTypes + '</div>';
+
+                  foundControllers.forEach(function(ctrl) {
+                    var freq = ctrl.frequency;
+                    if (freq) {
+                      var freqNum = parseFloat(freq);
+                      if (!isNaN(freqNum)) freq = freqNum.toFixed(3);
+                    }
+
+                    var typeClass = 'cz-type-' + (ctrl.type || 'TWR').toLowerCase();
+
+                    popupHtml += '<div class="cz-controller">';
+                    popupHtml += '<div class="cz-controller-header">';
+                    popupHtml += '<span class="cz-callsign ' + typeClass + '">' + ctrl.callsign + '</span>';
+                    popupHtml += '</div>';
+
+                    if (freq) {
+                      popupHtml += '<div class="cz-freq-row">';
+                      popupHtml += '<span class="cz-freq">' + freq + '</span>';
+                      popupHtml += '<div class="cz-com-buttons">';
+                      popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, false)" title="COM1 Standby">C1 STBY</button>';
+                      popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, true)" title="COM1 Active">C1 ACT</button>';
+                      popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, false)" title="COM2 Standby">C2 STBY</button>';
+                      popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, true)" title="COM2 Active">C2 ACT</button>';
+                      popupHtml += '</div>';
+                      popupHtml += '</div>';
+                    }
+
+                    if (ctrl.atis && ctrl.atis.length > 0) {
+                      var atisText = Array.isArray(ctrl.atis) ? ctrl.atis.join('\n') : ctrl.atis;
+                      popupHtml += '<div class="cz-atis">' + atisText + '</div>';
+                    }
+
+                    popupHtml += '</div>';
+                  });
+
+                  popupHtml += '</div>';
+
+                  L.popup({ maxWidth: 450, maxHeight: 400, className: 'control-zone-popup-container' })
+                    .setLatLng(circleData.center)
+                    .setContent(popupHtml)
+                    .openOn(map);
+                });
+
+                controlZonesLayer.addLayer(circle);
+                if (CZ_DEBUG) console.log('[ControlZones] Added circle for:', labelData.icaoCode, 'type:', circleConfig.type, 'radius:', circleConfig.radius);
+              });
+            }
+          });
+        }
+
+        onlineBatchIndex = end;
+
+        if (onlineBatchIndex < activeFeatures.length) {
+          // Continue with next batch using RAF for smoother rendering
+          requestAnimationFrame(renderOnlineBatch);
+        } else {
+          if (CZ_DEBUG) console.log('[ControlZones] Added online layer:', activeFeatures.length, 'zones with', Object.keys(addedLabels).length, 'labels');
+
+          // Erstelle kombinierte CTR-Sektor-Marker für Center mit mehreren Sektoren
+          for (var combinedKey in addedLabels) {
+            if (combinedKey.indexOf('_CTR_COMBINED') === -1) continue;
+
+            var combinedData = addedLabels[combinedKey];
+            if (!combinedData || !combinedData.icaoCode || !combinedData.center || !combinedData.sectors) continue;
+
+            var ctrIcao = combinedData.icaoCode;
+            var ctrSectors = combinedData.sectors;
+            var ctrCenter = combinedData.center;
+
+            if (CZ_DEBUG) console.log('[ControlZones] Creating combined CTR marker for', ctrIcao, 'with sectors:', ctrSectors);
+
+            // HTML für kombinierten Marker: ICAO + ein Punkt pro Sektor
+            var combinedHtml = '<div class="cz-label-container">';
+            combinedHtml += '<span class="cz-icao">' + ctrIcao + '</span>';
+            combinedHtml += '<div class="cz-station-dots">';
+
+            // Ein Punkt für jeden aktiven Sektor
+            var ctrColor = controlZonesSettings.colors['CTR'] || controlZonesSettings.colors.DEFAULT;
+            ctrSectors.forEach(function(sector) {
+              combinedHtml += '<span class="cz-dot" style="background-color:' + ctrColor + '" title="CTR ' + sector + '"></span>';
+            });
+
+            combinedHtml += '</div>';
+            combinedHtml += '</div>';
+
+            // Marker erstellen
+            var combinedIcon = L.divIcon({
+              className: 'cz-label-marker',
+              html: '<div class="cz-icao-label-enhanced cz-label-clickable">' + combinedHtml + '</div>',
+              iconSize: [80, 40],
+              iconAnchor: [40, 20]
+            });
+
+            var combinedMarker = L.marker(ctrCenter, {
+              icon: combinedIcon,
+              interactive: true,
+              keyboard: false,
+              pane: 'controlZonesLabelsPane'
+            });
+
+            // Bouncing deaktivieren
+            combinedMarker._setPos = function(pos) {
+              L.DomUtil.setPosition(this._icon, pos);
+              if (this._shadow) {
+                L.DomUtil.setPosition(this._shadow, pos);
+              }
+              this._zIndex = pos.y + this.options.zIndexOffset;
+              this._resetZIndex();
+            };
+            delete combinedMarker._bouncingMotion;
+            combinedMarker.isRealMarker = function() { return false; };
+
+            // Daten für Click-Handler speichern
+            combinedMarker._combinedCtrData = {
+              icaoCode: ctrIcao,
+              sectors: ctrSectors,
+              center: ctrCenter
+            };
+
+            // Click-Handler: Zeigt alle CTR-Controller für dieses Center
+            combinedMarker.on('click', function(e) {
+              L.DomEvent.stopPropagation(e);
+              var markerData = this._combinedCtrData;
+              var icao = markerData.icaoCode.toUpperCase();
+              var markerSectors = markerData.sectors;
+
+              // Hole aktuelle CTR-Controller
+              var currentPrefixes = getActiveControllerPrefixes();
+              var foundControllers = [];
+
+              for (var prefix in currentPrefixes) {
+                var prefixData = currentPrefixes[prefix];
+                if (!prefixData || !prefixData.controllers) continue;
+
+                prefixData.controllers.forEach(function(ctrl) {
+                  if (!ctrl.callsign) return;
+                  var callsignUpper = ctrl.callsign.toUpperCase();
+                  var ctrlParts = callsignUpper.split('_');
+                  var ctrlPrefix = ctrlParts[0];
+                  var ctrlType = ctrl.type || getControllerType(ctrl.callsign);
+
+                  // Nur CTR/FSS für dieses Center
+                  if (ctrlPrefix !== icao) return;
+                  if (ctrlType !== 'CTR' && ctrlType !== 'FSS') return;
+
+                  // Duplikate vermeiden
+                  var isDuplicate = foundControllers.some(function(c) {
+                    return c.callsign === ctrl.callsign;
+                  });
+                  if (!isDuplicate) {
+                    // Sektor aus Callsign extrahieren (z.B. SBBS_WE_CTR -> WE, EDGG_W1_CTR -> W1)
+                    var ctrlSector = ctrlParts.length >= 3 ? ctrlParts[1] : null;
+                    foundControllers.push({
+                      callsign: ctrl.callsign,
+                      frequency: ctrl.frequency || '',
+                      atis: ctrl.atis || '',
+                      type: ctrlType,
+                      sector: ctrlSector
+                    });
+                  }
+                });
+              }
+
+              // Sortieren nach Sektor
+              foundControllers.sort(function(a, b) {
+                return (a.sector || '').localeCompare(b.sector || '');
+              });
+
+              // Popup erstellen
+              var sectorList = markerSectors.join(', ');
+              var popupHtml = '<div class="control-zone-popup">';
+              popupHtml += '<div class="cz-header">' + icao + ' Center (' + sectorList + ')</div>';
+
+              if (foundControllers.length === 0) {
+                popupHtml += '<div class="cz-no-data">Keine Controller online</div>';
+              } else {
+                foundControllers.forEach(function(ctrl) {
+                  var freq = ctrl.frequency;
+                  if (freq) {
+                    var freqNum = parseFloat(freq);
+                    if (!isNaN(freqNum)) freq = freqNum.toFixed(3);
+                  }
+
+                  var typeClass = 'cz-type-' + (ctrl.type || 'CTR').toLowerCase();
+
+                  popupHtml += '<div class="cz-controller">';
+                  popupHtml += '<div class="cz-controller-header">';
+                  popupHtml += '<span class="cz-callsign ' + typeClass + '">' + ctrl.callsign + '</span>';
+                  popupHtml += '</div>';
+
+                  if (freq) {
+                    popupHtml += '<div class="cz-freq-row">';
+                    popupHtml += '<span class="cz-freq">' + freq + '</span>';
+                    popupHtml += '<div class="cz-com-buttons">';
+                    popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, false)" title="COM1 Standby">C1 STBY</button>';
+                    popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, true)" title="COM1 Active">C1 ACT</button>';
+                    popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, false)" title="COM2 Standby">C2 STBY</button>';
+                    popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, true)" title="COM2 Active">C2 ACT</button>';
+                    popupHtml += '</div>';
+                    popupHtml += '</div>';
+                  }
+
+                  if (ctrl.atis && ctrl.atis.length > 0) {
+                    var atisText = Array.isArray(ctrl.atis) ? ctrl.atis.join('\n') : ctrl.atis;
+                    popupHtml += '<div class="cz-atis">' + atisText + '</div>';
+                  }
+
+                  popupHtml += '</div>';
+                });
+              }
+
+              popupHtml += '</div>';
+
+              L.popup({ maxWidth: 450, maxHeight: 400, className: 'control-zone-popup-container' })
+                .setLatLng(markerData.center)
+                .setContent(popupHtml)
+                .openOn(map);
+            });
+
+            controlZonesLayer.addLayer(combinedMarker);
+          }
+
+          // After zone rendering is complete, add standalone TWR/GND/DEL circles
+          renderStandaloneTwrGndDelCircles(addedLabels);
+
+          // Trigger controller list update now that zones are fully loaded
+          // Use flag to prevent recursive rendering
+          if (typeof checkInRange === 'function' && controllersWithCoordArray && controllersWithCoordArray.length > 0) {
+            window._controlZonesJustLoaded = true;
+            setTimeout(function() {
+              checkInRange(controllersWithCoordArray);
+              window._controlZonesJustLoaded = false;
+            }, 50);
+          }
+        }
+      }
+
+      // Start batch rendering
+      renderOnlineBatch();
+    } else {
+      // No active zone features, but still check for standalone TWR/GND/DEL controllers
+      renderStandaloneTwrGndDelCircles({});
+    } // end if (activeFeatures.length > 0)
+
+    } catch (error) {
+      console.error('[ControlZones] Error during rendering:', error);
+    } finally {
+      // Restore original animation settings
+      map.options.zoomAnimation = originalAnimate;
+      map.options.fadeAnimation = originalPan;
+
+      // Clear rendering flag
+      window.controlZonesRendering = false;
+      if (CZ_DEBUG) console.log('[ControlZones] Rendering complete');
+    }
+}
+
+/**
+ * Renders standalone TWR/GND/DEL circles for controllers that don't have a zone polygon
+ * @param {Object} addedLabels - Object tracking which ICAO codes already have labels
+ */
+function renderStandaloneTwrGndDelCircles(addedLabels) {
+  if (!controlZonesLayer || !map) return;
+
+  // Get all online TWR/GND/DEL controllers
+  var sourceArray = controllersWithCoordArray && controllersWithCoordArray.length > 0
+    ? controllersWithCoordArray
+    : (controllers_array || []);
+
+  if (!sourceArray || sourceArray.length === 0) {
+    if (CZ_DEBUG) console.log('[ControlZones] No controllers for standalone circles');
+    return;
+  }
+
+  // Group controllers by ICAO prefix
+  var controllersByIcao = {};
+  var localTypes = ['TWR', 'GND', 'DEL', 'ATIS'];
+
+  sourceArray.forEach(function(ctrl) {
+    if (!ctrl.callsign) return;
+    var callsignUpper = ctrl.callsign.toUpperCase();
+    var parts = callsignUpper.split('_');
+    var icaoPrefix = parts[0];
+    var ctrlType = getControllerType(ctrl.callsign);
+
+    // Only TWR/GND/DEL
+    if (localTypes.indexOf(ctrlType) === -1) return;
+
+    // Skip if this ICAO already has a label from zone rendering
+    if (addedLabels[icaoPrefix]) return;
+
+    // Need coordinates
+    var lat = ctrl.latitude || ctrl.lat;
+    var lng = ctrl.longitude || ctrl.lng || ctrl.lon;
+    if (!lat || !lng) return;
+
+    if (!controllersByIcao[icaoPrefix]) {
+      controllersByIcao[icaoPrefix] = {
+        icao: icaoPrefix,
+        lat: parseFloat(lat),
+        lng: parseFloat(lng),
+        types: [],
+        controllers: []
+      };
+    }
+
+    if (controllersByIcao[icaoPrefix].types.indexOf(ctrlType) === -1) {
+      controllersByIcao[icaoPrefix].types.push(ctrlType);
+    }
+
+    controllersByIcao[icaoPrefix].controllers.push({
+      callsign: ctrl.callsign,
+      frequency: ctrl.frequency || ctrl.freq || '',
+      atis: ctrl.atis || ctrl.text_atis || '',
+      type: ctrlType
+    });
+  });
+
+  var standaloneCount = Object.keys(controllersByIcao).length;
+  if (standaloneCount === 0) {
+    if (CZ_DEBUG) console.log('[ControlZones] No standalone TWR/GND/DEL controllers found');
+    return;
+  }
+
+  if (CZ_DEBUG) console.log('[ControlZones] Adding', standaloneCount, 'standalone TWR/GND/DEL circles');
+
+  // Render circles and labels for each standalone station (uses global CZ_CIRCLE_SIZES)
+  for (var icao in controllersByIcao) {
+    var stationData = controllersByIcao[icao];
+    var center = [stationData.lat, stationData.lng];
+
+    // Filter to only online types
+    var onlineCircleTypes = CZ_CIRCLE_SIZES.filter(function(ct) {
+      return stationData.types.indexOf(ct.type) !== -1;
+    });
+
+    // Sort by radius descending (largest first)
+    onlineCircleTypes.sort(function(a, b) { return b.radius - a.radius; });
+
+    // Draw concentric circles
+    onlineCircleTypes.forEach(function(circleConfig) {
+      var circleColor = controlZonesSettings.colors[circleConfig.type] || '#ef4444';
+
+      var circle = L.circle(center, {
+        radius: circleConfig.radius,
+        color: circleColor,
+        weight: 2,
+        opacity: 0.7,
+        fillColor: circleColor,
+        fillOpacity: controlZonesSettings.opacity * 0.6,
+        lineCap: 'round',
+        lineJoin: 'round',
+        pane: 'controlZonesCirclesPane',
+        interactive: true
+      });
+
+      // Store data for click handler
+      circle._circleData = {
+        icaoCode: icao,
+        center: center
+      };
+
+      // Click handler - shows all APP/TWR/GND/DEL controllers for this ICAO
+      // APP wird auch eingeschlossen (inkl. sektorierter APP wie EDDL_LG_APP)
+      circle.on('click', function(e) {
+        L.DomEvent.stopPropagation(e);
+        var circleData = this._circleData;
+        var clickIcao = circleData.icaoCode;
+
+        // Nutze getActiveControllerPrefixes() für aktuelle Daten
+        var currentPrefixes = getActiveControllerPrefixes();
+        var localTypes = ['APP', 'TWR', 'GND', 'DEL', 'ATIS'];
+        var allLocalControllers = [];
+
+        // Hole alle lokalen Controller für diesen ICAO-Code
+        if (currentPrefixes && currentPrefixes[clickIcao]) {
+          var prefixData = currentPrefixes[clickIcao];
+          if (prefixData.controllers) {
+            prefixData.controllers.forEach(function(ctrl) {
+              if (!ctrl.callsign) return;
+              var ctrlType = ctrl.type || getControllerType(ctrl.callsign);
+
+              // APP/TWR/GND/DEL/ATIS (lokale Controller)
+              if (localTypes.indexOf(ctrlType) === -1) return;
+
+              allLocalControllers.push({
+                callsign: ctrl.callsign,
+                frequency: ctrl.frequency || '',
+                atis: ctrl.atis || '',
+                type: ctrlType
+              });
+            });
+          }
+        }
+
+        // Sort controllers: APP, TWR, GND, DEL, ATIS
+        var typeOrder = { 'APP': 0, 'TWR': 1, 'GND': 2, 'DEL': 3, 'ATIS': 4 };
+        var sortedControllers = allLocalControllers.sort(function(a, b) {
+          return (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+        });
+
+        // Sammle alle Typen für Header
+        var allTypes = [];
+        sortedControllers.forEach(function(c) {
+          if (allTypes.indexOf(c.type) === -1) allTypes.push(c.type);
+        });
+
+        // Build header
+        var typeNames = { 'APP': 'Approach', 'TWR': 'Tower', 'GND': 'Ground', 'DEL': 'Delivery' };
+        var headerTypes = allTypes.map(function(t) { return typeNames[t] || t; }).join('/');
+
+        var popupHtml = '<div class="control-zone-popup">';
+        popupHtml += '<div class="cz-header">' + clickIcao + ' - ' + headerTypes + '</div>';
+
+        sortedControllers.forEach(function(ctrl) {
+          var freq = ctrl.frequency;
+          if (freq) {
+            var freqNum = parseFloat(freq);
+            if (!isNaN(freqNum)) freq = freqNum.toFixed(3);
+          }
+
+          var typeClass = 'cz-type-' + (ctrl.type || 'TWR').toLowerCase();
+
+          popupHtml += '<div class="cz-controller">';
+          popupHtml += '<div class="cz-controller-header">';
+          popupHtml += '<span class="cz-callsign ' + typeClass + '">' + ctrl.callsign + '</span>';
+          popupHtml += '</div>';
+
+          if (freq) {
+            popupHtml += '<div class="cz-freq-row">';
+            popupHtml += '<span class="cz-freq">' + freq + '</span>';
+            popupHtml += '<div class="cz-com-buttons">';
+            popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, false)" title="COM1 Standby">C1 STBY</button>';
+            popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, true)" title="COM1 Active">C1 ACT</button>';
+            popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, false)" title="COM2 Standby">C2 STBY</button>';
+            popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, true)" title="COM2 Active">C2 ACT</button>';
+            popupHtml += '</div>';
+            popupHtml += '</div>';
+          }
+
+          if (ctrl.atis && ctrl.atis.length > 0) {
+            var atisText = Array.isArray(ctrl.atis) ? ctrl.atis.join('\n') : ctrl.atis;
+            popupHtml += '<div class="cz-atis">' + atisText + '</div>';
+          }
+
+          popupHtml += '</div>';
+        });
+
+        popupHtml += '</div>';
+
+        L.popup({ maxWidth: 450, maxHeight: 400, className: 'control-zone-popup-container' })
+          .setLatLng(circleData.center)
+          .setContent(popupHtml)
+          .openOn(map);
+      });
+
+      controlZonesLayer.addLayer(circle);
+    });
+
+    // Create label with colored dots for online types - same format as zone labels
+    // Hole auch APP-Typen für diesen ICAO
+    var allTypesForLabel = stationData.types.slice();
+    var currentPrefixesForLabel = getActiveControllerPrefixes();
+    if (currentPrefixesForLabel && currentPrefixesForLabel[icao]) {
+      var prefixDataForLabel = currentPrefixesForLabel[icao];
+      if (prefixDataForLabel.types) {
+        prefixDataForLabel.types.forEach(function(t) {
+          if (allTypesForLabel.indexOf(t) === -1) {
+            allTypesForLabel.push(t);
+          }
+        });
+      }
+    }
+
+    var labelHtml = '<div class="cz-label-container">';
+    labelHtml += '<span class="cz-icao">' + icao + '</span>';
+
+    if (allTypesForLabel.length > 0) {
+      labelHtml += '<div class="cz-station-dots">';
+      // Sort types by priority for consistent display (same order as zone labels)
+      var typeOrder = ['CTR', 'FSS', 'APP', 'TWR', 'GND', 'DEL'];
+      var sortedTypes = allTypesForLabel.slice().sort(function(a, b) {
+        return typeOrder.indexOf(a) - typeOrder.indexOf(b);
+      });
+      sortedTypes.forEach(function(type) {
+        var color = controlZonesSettings.colors[type] || controlZonesSettings.colors.DEFAULT;
+        labelHtml += '<span class="cz-dot" style="background-color:' + color + '" title="' + type + '"></span>';
+      });
+      labelHtml += '</div>';
+    }
+    labelHtml += '</div>';
+
+    var labelIcon = L.divIcon({
+      className: 'cz-label-marker',
+      html: '<div class="cz-icao-label-enhanced cz-label-clickable">' + labelHtml + '</div>',
+      iconSize: [80, 40],
+      iconAnchor: [40, 20]
+    });
+
+    var labelMarker = L.marker(center, {
+      icon: labelIcon,
+      interactive: true,
+      keyboard: false,
+      pane: 'controlZonesLabelsPane'
+    });
+
+    // Store data for click handler
+    labelMarker._labelData = {
+      icaoCode: icao,
+      center: center,
+      onlineTypes: stationData.types
+    };
+
+    // Click handler for label - hole APP/TWR/GND/DEL dynamisch
+    labelMarker.on('click', function(e) {
+      L.DomEvent.stopPropagation(e);
+      var ld = this._labelData;
+      var clickIcao = ld.icaoCode;
+
+      // Nutze getActiveControllerPrefixes() für aktuelle Daten inkl. APP und ATIS
+      var currentPrefixes = getActiveControllerPrefixes();
+      var localTypes = ['APP', 'TWR', 'GND', 'DEL', 'ATIS'];
+      var allLocalControllers = [];
+
+      if (currentPrefixes && currentPrefixes[clickIcao]) {
+        var prefixData = currentPrefixes[clickIcao];
+        if (prefixData.controllers) {
+          prefixData.controllers.forEach(function(ctrl) {
+            if (!ctrl.callsign) return;
+            var ctrlType = ctrl.type || getControllerType(ctrl.callsign);
+
+            // APP/TWR/GND/DEL/ATIS (lokale Controller)
+            if (localTypes.indexOf(ctrlType) === -1) return;
+
+            allLocalControllers.push({
+              callsign: ctrl.callsign,
+              frequency: ctrl.frequency || '',
+              atis: ctrl.atis || '',
+              type: ctrlType
+            });
+          });
+        }
+      }
+
+      if (allLocalControllers.length === 0) return;
+
+      // Sort controllers: APP, TWR, GND, DEL, ATIS
+      var typeOrder = { 'APP': 0, 'TWR': 1, 'GND': 2, 'DEL': 3, 'ATIS': 4 };
+      var sortedControllers = allLocalControllers.sort(function(a, b) {
+        return (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+      });
+
+      // Sammle alle Typen für Header
+      var allTypes = [];
+      sortedControllers.forEach(function(c) {
+        if (allTypes.indexOf(c.type) === -1) allTypes.push(c.type);
+      });
+
+      // Build header
+      var typeNames = { 'APP': 'Approach', 'TWR': 'Tower', 'GND': 'Ground', 'DEL': 'Delivery' };
+      var headerTypes = allTypes.map(function(t) { return typeNames[t] || t; }).join('/');
+
+      var popupHtml = '<div class="control-zone-popup">';
+      popupHtml += '<div class="cz-header">' + clickIcao + ' - ' + headerTypes + '</div>';
+
+      sortedControllers.forEach(function(ctrl) {
+        var freq = ctrl.frequency;
+        if (freq) {
+          var freqNum = parseFloat(freq);
+          if (!isNaN(freqNum)) freq = freqNum.toFixed(3);
+        }
+
+        var typeClass = 'cz-type-' + (ctrl.type || 'TWR').toLowerCase();
+
+        popupHtml += '<div class="cz-controller">';
+        popupHtml += '<div class="cz-controller-header">';
+        popupHtml += '<span class="cz-callsign ' + typeClass + '">' + ctrl.callsign + '</span>';
+        popupHtml += '</div>';
+
+        if (freq) {
+          popupHtml += '<div class="cz-freq-row">';
+          popupHtml += '<span class="cz-freq">' + freq + '</span>';
+          popupHtml += '<div class="cz-com-buttons">';
+          popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, false)" title="COM1 Standby">C1 STBY</button>';
+          popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 1, true)" title="COM1 Active">C1 ACT</button>';
+          popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, false)" title="COM2 Standby">C2 STBY</button>';
+          popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + ctrl.callsign + '\', 2, true)" title="COM2 Active">C2 ACT</button>';
+          popupHtml += '</div>';
+          popupHtml += '</div>';
+        }
+
+        if (ctrl.atis && ctrl.atis.length > 0) {
+          var atisText = Array.isArray(ctrl.atis) ? ctrl.atis.join('\n') : ctrl.atis;
+          popupHtml += '<div class="cz-atis">' + atisText + '</div>';
+        }
+
+        popupHtml += '</div>';
+      });
+
+      popupHtml += '</div>';
+
+      L.popup({ maxWidth: 450, maxHeight: 400, className: 'control-zone-popup-container' })
+        .setLatLng(ld.center)
+        .setContent(popupHtml)
+        .openOn(map);
+    });
+
+    controlZonesLayer.addLayer(labelMarker);
+
+    if (CZ_DEBUG) console.log('[ControlZones] Added standalone circle+label for:', icao, 'types:', stationData.types.join(','));
+  }
+}
+
+/**
+ * Sets COM frequency from Control Zone popup
+ * @param {string} frequency - Frequency in MHz (e.g., "125.325")
+ * @param {string} callsign - Controller callsign
+ * @param {number} comIndex - 1 for COM1, 2 for COM2
+ * @param {boolean} isActive - true for Active, false for Standby
+ */
+function setControlZoneFrequency(frequency, callsign, comIndex, isActive) {
+  var frequencyMHz = parseFloat(frequency);
+  if (isNaN(frequencyMHz)) {
+    if (CZ_DEBUG) console.warn('[ControlZones] Invalid frequency:', frequency);
+    return;
+  }
+
+  // Convert MHz to Hz for SimConnect (e.g., 119.925 -> 119925000)
+  var frequencyHz = Math.round(frequencyMHz * 1000000);
+  var radioType = isActive ? 'ACTIVE' : 'STBY';
+
+  // Create message payload
+  var payload = {
+    radio: 'COM' + comIndex + '_' + radioType,
+    frequencyMHz: frequencyMHz,
+    frequencyHz: frequencyHz,
+    callsign: callsign
+  };
+
+  var message = 'setFrequency:' + JSON.stringify(payload);
+  if (CZ_DEBUG) console.log('[ControlZones] Setting COM' + comIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyMHz + ' MHz (' + callsign + ')');
+
+  // Send to MSFS EFB
+  if (typeof postMessageToBridge === 'function') {
+    postMessageToBridge(message);
+  } else {
+    if (CZ_DEBUG) console.warn('[ControlZones] postMessageToBridge not available');
+  }
+
+  // Close popup after setting frequency
+  if (map) {
+    map.closePopup();
+  }
+}
+
+// ============================================================================
+
+/**
+ * Sets the control zones enabled state (On/Off from layer control)
+ */
+// Track if wind layer was active before control zones were enabled
+var windLayerStateBeforeControlZones = null;
+
+// OLD setControlZonesEnabled - replaced by wrapper in new CZ system
+function setControlZonesEnabled_OLD(enabled) {
+  if (CZ_DEBUG) console.log('[CZ] setControlZonesEnabled_OLD called - use czSetEnabled instead');
+  czSetEnabled(enabled);
+}
+
+/**
+ * Updates the Layer Control UI for Wind layer
+ */
+function updateWindLayerControlUI(enabled) {
+  if (!LayerControl || !LayerControl._form) return;
+
+  var inputs = LayerControl._form.getElementsByTagName('input');
+  for (var i = 0; i < inputs.length; i++) {
+    var input = inputs[i];
+    if (!LayerControl._getLayer) continue;
+    var layerObj = LayerControl._getLayer(input.layerId);
+    if (!layerObj || !layerObj.group) continue;
+    if (layerObj.group.name === 'Wind') {
+      // Find the OpenWeatherMap option
+      var span = input.parentElement ? input.parentElement.querySelector('span') : null;
+      if (span && span.textContent.trim() === 'OpenWeatherMap') {
+        input.checked = enabled;
+      } else if (span && span.textContent.trim() === 'Off') {
+        input.checked = !enabled;
+      }
+    }
+  }
+}
+
+/**
+ * Updates the Layer Control UI to reflect the Control Zones enabled state
+ */
+function updateControlZonesLayerUI(enabled) {
+  if (!LayerControl || !LayerControl._form || typeof LayerControl._getLayer !== 'function') {
+    return;
+  }
+
+  var targetLayerKey = enabled ? 'Control Zones_On' : 'Control Zones_Off';
+  var removeLayerKey = enabled ? 'Control Zones_Off' : 'Control Zones_On';
+  var targetLayer = layerRegistry[targetLayerKey];
+  var removeLayer = layerRegistry[removeLayerKey];
+
+  if (!targetLayer || !removeLayer) {
+    if (CZ_DEBUG) console.warn('[ControlZones] Layers not found in registry');
+    return;
+  }
+
+  // Update actual map layers
+  if (map) {
+    if (map.hasLayer(removeLayer)) {
+      map.removeLayer(removeLayer);
+    }
+    if (!map.hasLayer(targetLayer)) {
+      map.addLayer(targetLayer);
+    }
+  }
+
+  // Update LayerControl UI checkboxes
+  var inputs = LayerControl._form.getElementsByTagName('input');
+  for (var i = 0; i < inputs.length; i++) {
+    var input = inputs[i];
+    var layerObj = LayerControl._getLayer(input.layerId);
+    if (!layerObj || !layerObj.group) continue;
+    if (layerObj.group.name === 'Control Zones' && layerObj.overlay) {
+      input.checked = layerObj.layer === targetLayer;
+    }
+  }
+}
+
+/**
+ * OLD setControlZonesNetwork - replaced by wrapper in new CZ system
+ */
+function setControlZonesNetwork_OLD(network) {
+  if (CZ_DEBUG) console.log('[CZ] setControlZonesNetwork_OLD called - use czSetNetwork instead');
+  czSetNetwork(network);
+}
+
+// Helper function to update the Layer Control UI for Online Pilots
+function updatePilotsLayerControlUI(selectedName) {
+  // Find the layer control container
+  var layerControl = document.querySelector('.leaflet-control-layers');
+  if (!layerControl) return;
+
+  // Find all group containers
+  var groups = layerControl.querySelectorAll('.leaflet-control-layers-group');
+
+  for (var g = 0; g < groups.length; g++) {
+    var group = groups[g];
+    var groupNameSpan = group.querySelector('.leaflet-control-layers-group-name');
+    if (!groupNameSpan) continue;
+
+    var groupText = groupNameSpan.textContent.trim();
+    if (groupText !== 'Online Pilots') continue;
+
+    // Found the Online Pilots group - update its radio/checkbox inputs
+    var inputs = group.querySelectorAll('input.leaflet-control-layers-selector');
+    for (var i = 0; i < inputs.length; i++) {
+      var input = inputs[i];
+      var label = input.parentElement;
+      if (!label) continue;
+
+      // Find the span that contains the layer name (not the group name)
+      var spans = label.querySelectorAll('span');
+      var layerName = null;
+      for (var s = 0; s < spans.length; s++) {
+        if (!spans[s].classList.contains('leaflet-control-layers-group-name')) {
+          layerName = spans[s].textContent.trim();
+          break;
+        }
+      }
+      if (!layerName) continue;
+
+      input.checked = (layerName === selectedName);
+    }
+    break; // Found the group, no need to continue
+  }
+}
+
+/**
+ * Initialize control zones from config
+ */
+function initControlZones(config) {
+  if (config && config.controlZoneSettings) {
+    if (config.controlZoneSettings.opacity !== undefined) {
+      controlZonesSettings.opacity = config.controlZoneSettings.opacity;
+    }
+    if (config.controlZoneSettings.colors) {
+      Object.assign(controlZonesSettings.colors, config.controlZoneSettings.colors);
+    }
+  }
+
+  // Control zones enabled state is now controlled exclusively by the Radio button (IVAO/VATSIM/Off)
+  // Don't restore from localStorage here - the panel restore logic will handle it
+  // This prevents mismatch between button state and control zones visibility
+  controlZonesEnabled = false; // Default to off, panel restore will enable if needed
+
+  // Restore network from localStorage (this is fine, it's just which network to show when enabled)
+  var savedNetwork = null;
+  try {
+    savedNetwork = localStorage.getItem('controlZonesNetwork');
+  } catch (e) {}
+
+  if (savedNetwork && ['VATSIM', 'IVAO'].includes(savedNetwork)) {
+    controlZonesNetwork = savedNetwork;
+  }
+
+  if (CZ_DEBUG) console.log('[ControlZones] Initialized - Enabled:', controlZonesEnabled, ', Network:', controlZonesNetwork);
+
+  // DISABLED: Re-render on moveend was causing thread blocking that sent events to simulator
+  // Leaflet GeoJSON layers automatically update on zoom/pan, no need to re-render
+  // The viewport culling is done during initial render (see IVAO viewport filter in renderControlZonesWithData)
+  //
+  // if (map) {
+  //   var lastRenderBounds = null;
+  //   map.on('moveend', function() {
+  //     if (!controlZonesEnabled || !controlZonesOfflineLayer) return;
+  //     var currentBounds = map.getBounds();
+  //     if (lastRenderBounds && lastRenderBounds.contains(currentBounds)) return;
+  //     var pad = 0.5;
+  //     lastRenderBounds = currentBounds.pad(pad);
+  //     if (controlZonesOfflineLayer) {
+  //       map.removeLayer(controlZonesOfflineLayer);
+  //       controlZonesOfflineLayer = null;
+  //     }
+  //     renderControlZones();
+  //   });
+  // }
+}
+
+// Network attribution tracking for Leaflet map
+var _currentNetworkAttribution = null;
+
+// Updates the Leaflet map attribution with VATSIM or IVAO data source
+function updateNetworkAttribution(isVatsim) {
+  if (!map || !map.attributionControl) return;
+
+  // Remove previous network attribution if exists
+  if (_currentNetworkAttribution) {
+    map.attributionControl.removeAttribution(_currentNetworkAttribution);
+  }
+
+  // Add new network attribution
+  if (isVatsim) {
+    _currentNetworkAttribution = '<a href="https://vatsim.net" target="_blank">VATSIM</a> Data';
+  } else {
+    _currentNetworkAttribution = '<a href="https://ivao.aero" target="_blank">IVAO</a> Data';
+  }
+  map.attributionControl.addAttribution(_currentNetworkAttribution);
+}
+
+// Removes the network attribution (VATSIM/IVAO) from the map
+function clearNetworkAttribution() {
+  if (!map || !map.attributionControl) return;
+
+  if (_currentNetworkAttribution) {
+    map.attributionControl.removeAttribution(_currentNetworkAttribution);
+    _currentNetworkAttribution = null;
+  }
+}
+
+// OPTIMIERUNG: Flags für synchronisierten Datenladen
+var _vatsimControllersReady = false;
+var _vatsimTransceiversReady = false;
+var _vatsimControllerData = null;
+var _vatsimDataFetching = false;  // Idempotenz-Flag: verhindert parallele Polls
+
+function getVatsimData() {
+  // Idempotenz: Skip wenn bereits ein Fetch läuft
+  if (_vatsimDataFetching) {
+    console.log('[Controller] Skipping getVatsimData - already fetching');
+    return;
+  }
+  _vatsimDataFetching = true;
+
+  if (controllerInterval) {
+    clearInterval(controllerInterval);
+    controllerInterval = null;
+  }
+  controllers_array = [];
+  controllersWithCoordArray = [];
+
+  if (vatsim == true && airportsPanel == false) {
+    // Reset sync flags
+    _vatsimControllersReady = false;
+    _vatsimTransceiversReady = false;
+    _vatsimControllerData = null;
+
+    // Lade beide parallel, aber verarbeite erst wenn BEIDE fertig sind
+    getTransceivers(); // Transceivers ZUERST starten (werden für Koordinaten benötigt)
+    getControllers();
+  } else {
+    getIVAO();
+  }
+}
+
+// Global variables for layers (will be populated from config)
+var layerRegistry = {};
+var openAip = null;
+var openAip_off = null;
+
+// Load map layers from configuration file
+function loadMapLayersFromConfig(callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', getOpenAipProxyRoot() + '/getMapLayers', true);
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      try {
+        var config = JSON.parse(xhr.responseText);
+        callback(null, config);
+      } catch (e) {
+        console.error('Error parsing map layers config:', e);
+        callback(e, null);
+      }
+    } else {
+      console.error('Error loading map layers config:', xhr.status);
+      callback(new Error('Failed to load config'), null);
+    }
+  };
+  xhr.onerror = function() {
+    callback(new Error('Network error'), null);
+  };
+  xhr.send();
+}
+
+// Create layers from configuration
+function createLayersFromConfig(config) {
+  var southWest = new L.LatLng(-90, -180);
+  var northEast = new L.LatLng(90, 180);
+  var maxExtent = new L.LatLngBounds(southWest, northEast);
+
+  var baseMaps = {};
+  var groupedOverlays = {};
+
+  // Coherent GT tile layer optimizations (defaults only, don't override layer config)
+  var gtTileOptimizations = window.isCoherentGT ? {
+    keepBuffer: 6,           // Increased buffer for slower GT rendering (default: 2-4)
+    updateInterval: 300      // Slower update interval in GT (default: 200ms)
+  } : {};
+
+  // Create base layers
+  if (config.baseLayers) {
+    config.baseLayers.forEach(function(layerConfig) {
+      var url = layerConfig.url
+        .replace('{{OPENAIP_PROXY}}', getOpenAipProxyRoot())
+        .replace('{{DFS_PROXY}}', getDfsProxyRoot());
+      // Apply GT optimizations as defaults, layer config takes priority
+      var options = Object.assign({}, gtTileOptimizations, layerConfig.options);
+      if (options.bounds === undefined) {
+        options.bounds = maxExtent;
+      }
+      // Add error handling for failed tiles
+      if (!options.errorTileUrl) {
+        options.errorTileUrl = '';
+      }
+
+      var layer = L.tileLayer(url, options);
+
+      // Add tile load error handler with retry
+      layer.on('tileerror', function(e) {
+        var tile = e.tile;
+        var retryCount = tile._retryCount || 0;  // Increased from 3 to 5 retries
+
+        if (retryCount < 5) {
+          tile._retryCount = retryCount + 1;
+
+          // Force reload by modifying URL to bypass cache
+          setTimeout(function() {
+            var baseSrc = tile.src.split('?')[0].split('#')[0];
+            var hasQuery = tile.src.indexOf('?') !== -1;
+            var separator = hasQuery ? '&' : '?';
+            tile.src = baseSrc + (hasQuery ? tile.src.substring(tile.src.indexOf('?')) : '') + separator + '_r=' + retryCount + '_' + Date.now();
+          }, 300 * (retryCount + 1)); // Faster retries: 300ms, 600ms, 900ms, 1200ms, 1500ms
+        }
+      });
+
+      baseMaps[layerConfig.name] = layer;
+      layerRegistry[layerConfig.name] = layer;
+    });
+  }
+
+  // Create overlay groups
+  if (config.overlayGroups) {
+    config.overlayGroups.forEach(function(group) {
+      var groupLayers = {};
+      group.layers.forEach(function(layerConfig) {
+        var layer;
+
+        // Check if this is an OWM plugin layer
+        if (layerConfig.type === 'owmLayer') {
+          // Create OWM plugin layer
+          if (typeof L.OWM !== 'undefined') {
+            var owmOptions = Object.assign({}, layerConfig.options);
+
+            // Use global owmApiKey if not specified in layer options
+            if (!owmOptions.appId && owmApiKey) {
+              owmOptions.appId = owmApiKey;
+            }
+
+            switch(layerConfig.owmType) {
+              case 'clouds':
+                layer = L.OWM.clouds(owmOptions);
+                break;
+              case 'precipitation':
+                layer = L.OWM.precipitation(owmOptions);
+                break;
+              case 'temperature':
+                layer = L.OWM.temperature(owmOptions);
+                break;
+              case 'pressure':
+                layer = L.OWM.pressure(owmOptions);
+                break;
+              case 'wind':
+                layer = L.OWM.wind(owmOptions);
+                break;
+              default:
+                console.error('[Map] Unknown OWM layer type:', layerConfig.owmType);
+                layer = L.tileLayer("http://", {});
+            }
+          } else {
+            console.warn('[Map] OWM plugin not available for layer:', layerConfig.name);
+            layer = L.tileLayer("http://", {});
+          }
+        } else if (layerConfig.type === 'controlZones') {
+          // Control Zones layer - handled separately via event handlers
+          layer = L.tileLayer("http://", {});
+        } else {
+          // Standard tile layer (existing logic)
+          var url = (layerConfig.url || "http://")
+            .replace('{{OPENAIP_PROXY}}', getOpenAipProxyRoot())
+            .replace('{{DFS_PROXY}}', getDfsProxyRoot());
+          // Apply GT optimizations as defaults, layer config takes priority
+          var options = url !== "http://"
+            ? Object.assign({}, gtTileOptimizations, layerConfig.options)
+            : Object.assign({}, layerConfig.options);
+          if (options.bounds === undefined && url !== "http://") {
+            options.bounds = maxExtent;
+          }
+
+          // Add error handling for failed tiles
+          if (!options.errorTileUrl) {
+            options.errorTileUrl = '';
+          }
+
+          layer = L.tileLayer(url, options);
+
+          // Add tile load error handler with retry (only for real tile layers, not dummy layers)
+          if (url !== "http://") {
+            layer.on('tileerror', function(e) {
+              var tile = e.tile;
+              var retryCount = tile._retryCount || 0;
+              if (retryCount < 3) {
+                tile._retryCount = retryCount + 1;
+                setTimeout(function() {
+                  tile.src = tile.src;
+                }, 1000 * (retryCount + 1)); // Exponential backoff
+              }
+            });
+          }
+        }
+
+        groupLayers[layerConfig.name] = layer;
+
+        // Store special layers globally for compatibility
+        var layerKey = group.groupName + '_' + layerConfig.name;
+        layerRegistry[layerKey] = layer;
+
+        // Set global references for special layers
+        if (group.groupName === 'OpenAip' && layerConfig.name === 'On') {
+          openAip = layer;
+          // Add rate limiting for OpenAIP tiles
+          var requestQueue = [];
+          var isProcessing = false;
+          var requestDelay = 100; // 100ms between requests
+
+          layer.on('tileloadstart', function(e) {
+            requestQueue.push(e.tile);
+            if (!isProcessing) {
+              processQueue();
+            }
+          });
+
+          function processQueue() {
+            if (requestQueue.length === 0) {
+              isProcessing = false;
+              return;
+            }
+            isProcessing = true;
+            requestQueue.shift(); // Remove processed tile
+            setTimeout(processQueue, requestDelay);
+          }
+        } else if (group.groupName === 'OpenAip' && layerConfig.name === 'Off') {
+          openAip_off = layer;
+        }
+      });
+      groupedOverlays[group.groupName] = groupLayers;
+    });
+  }
+
+  return {
+    baseMaps: baseMaps,
+    groupedOverlays: groupedOverlays
+  };
+}
+
+function loadMap(lat, lon) {
+  // Load layer configuration and initialize map
+  loadMapLayersFromConfig(function(error, config) {
+    if (error) {
+      console.error('Failed to load map layer configuration, using fallback');
+      // Fallback to minimal configuration
+      initializeMapWithLayers({
+        baseMaps: {
+          Streets: L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+          })
+        },
+        groupedOverlays: {}
+      });
+      return;
+    }
+
+    // Load aircraft scale from config
+    if (config.aircraftScale !== undefined && config.aircraftScale !== null) {
+      aircraftScale = parseFloat(config.aircraftScale);
+      if (isNaN(aircraftScale) || aircraftScale < 0.1 || aircraftScale > 5.0) {
+        aircraftScale = 1.0;
+      }
+      if (MAP_DEBUG) console.log('Aircraft scale loaded from config:', aircraftScale);
+    }
+
+    // Load wind settings from config
+    if (config.windSettings) {
+      if (config.windSettings.gridSize !== undefined) {
+        windSettings.gridSize = parseInt(config.windSettings.gridSize) || 5;
+      }
+      if (config.windSettings.maxSpeedForColor !== undefined) {
+        windSettings.maxSpeedForColor = parseInt(config.windSettings.maxSpeedForColor) || 50;
+      }
+      if (config.windSettings.arrowSize !== undefined) {
+        windSettings.arrowSize = parseInt(config.windSettings.arrowSize) || 24;
+      }
+      if (MAP_DEBUG) console.log('Wind settings loaded from config:', windSettings);
+    }
+
+    // Load map settings from config
+    if (config.mapSettings) {
+      if (config.mapSettings.defaultZoom !== undefined) {
+        mapSettings.defaultZoom = parseInt(config.mapSettings.defaultZoom) || 9;
+      }
+      if (config.mapSettings.smoothSensitivity !== undefined) {
+        mapSettings.smoothSensitivity = parseFloat(config.mapSettings.smoothSensitivity) || 1.5;
+      }
+      if (MAP_DEBUG) if (MAP_DEBUG) console.log('Map settings loaded from config:', mapSettings);
+    }
+
+    // Load default base layer from config
+    if (config.defaultBaseLayer) {
+      defaultBaseLayer = config.defaultBaseLayer;
+      if (MAP_DEBUG) console.log('Default base layer loaded from config:', defaultBaseLayer);
+    }
+
+    // Load default overlays from config
+    if (config.defaultOverlays) {
+      defaultOverlays = config.defaultOverlays;
+      if (MAP_DEBUG) console.log('Default overlays loaded from config:', defaultOverlays);
+    }
+
+    // Load scale control settings from config
+    if (config.scaleControl) {
+      if (config.scaleControl.metric !== undefined) {
+        scaleControl.metric = config.scaleControl.metric;
+      }
+      if (config.scaleControl.imperial !== undefined) {
+        scaleControl.imperial = config.scaleControl.imperial;
+      }
+      if (config.scaleControl.nautic !== undefined) {
+        scaleControl.nautic = config.scaleControl.nautic;
+      }
+      if (MAP_DEBUG) console.log('Scale control loaded from config:', scaleControl);
+    }
+
+    // Load OpenWeatherMap API key from config (optional)
+    if (config.owmApiKey) {
+      owmApiKey = config.owmApiKey;
+      if (MAP_DEBUG) console.log('OWM API key loaded from config');
+    }
+
+    var layers = createLayersFromConfig(config);
+    // Initialize Control Zones with config
+    initControlZones(config);
+    initializeMapWithLayers(layers);
+  });
+}
+
+function initializeMapWithLayers(layers) {
+  var southWest = new L.LatLng(-90, -180);
+  var northEast = new L.LatLng(90, 180);
+  var maxExtent = new L.LatLngBounds(southWest, northEast);
+
+  var baseMaps = layers.baseMaps;
+  var groupedOverlays = layers.groupedOverlays;
+
+  // Get the first base layer for initial display
+  var firstBaseLayer = Object.values(baseMaps)[0];
+
+  // Store references for backward compatibility
+  var aircraft = layerRegistry['Aircraft_On'] || L.tileLayer("http://", {});
+  var aircraft_off = layerRegistry['Aircraft_Off'] || L.tileLayer("http://", {});
+  var flightpath = layerRegistry['Flightpath_On'] || L.tileLayer("http://", {});
+  var flightpath_off = layerRegistry['Flightpath_Off'] || L.tileLayer("http://", {});
+  var flightpath_reset = layerRegistry['Flightpath_Reset'] || L.tileLayer("http://", {});
+  var faaDfsOff = layerRegistry['Sectionals_Off'] || L.tileLayer("http://", {});
+
+  // Elevation Profile Dummy Layers for Layer Control
+  elevationProfileLayer = L.tileLayer("http://", {});
+  elevationProfileOffLayer = L.tileLayer("http://", {});
+
+  // Add Elevation Profile to groupedOverlays
+  groupedOverlays['Elevation Profile'] = {
+    'On': elevationProfileLayer,
+    'Off': elevationProfileOffLayer
+  };
+
+  // Wind Layer using RainViewer wind tiles (free, no API key)
+  // GT optimizations applied inline since gtTileOptimizations is scoped to createLayersFromConfig
+  var windGtOpts = window.isCoherentGT ? { keepBuffer: 6, updateInterval: 300 } : {};
+  windTileLayer = L.tileLayer('https://tilecache.rainviewer.com/v2/radar/nowcast/{z}/{x}/{y}/2/1_1.png', Object.assign({
+    opacity: 0.5,
+    attribution: '© RainViewer',
+    minZoom: 3,
+    maxZoom: 12,
+    maxNativeZoom: 12
+  }, windGtOpts));
+  windOffLayer = L.tileLayer("http://", {});
+
+  // OpenWeatherMap Wind Layer (free tier available)
+  owmWindLayer = L.tileLayer('https://tile.openweathermap.org/map/wind_new/{z}/{x}/{y}.png?appid=9de243494c0b295cca9337e1e96b00e2', Object.assign({
+    opacity: 0.4,  // Transparenter für bessere Kartenlesbarkeit
+    attribution: '© OpenWeatherMap',
+    minZoom: 3,
+    maxZoom: 12,
+    maxNativeZoom: 12
+  }, windGtOpts));
+
+  groupedOverlays['Wind'] = {
+    'OpenWeatherMap (10m / Boden)': owmWindLayer,
+    'Off': windOffLayer
+  };
+
+  // Control Zones Layer (FIR Boundaries) - On/Off only, network controlled by IVAO/VATSIM button
+  var controlZonesOnLayer = L.tileLayer("http://", {});
+  var controlZonesOffLayer = L.tileLayer("http://", {});
+
+  // Register in layerRegistry for global access
+  layerRegistry['Control Zones_On'] = controlZonesOnLayer;
+  layerRegistry['Control Zones_Off'] = controlZonesOffLayer;
+
+  groupedOverlays['Control Zones'] = {
+    'On': controlZonesOnLayer,
+    'Off': controlZonesOffLayer
+  };
+
+  // Online Pilots Layer - VATSIM & IVAO
+  var pilotsOnLayer = L.layerGroup(); // Will hold all pilot markers
+  var pilotsVatsimLayer = L.layerGroup(); // VATSIM only
+  var pilotsIvaoLayer = L.layerGroup(); // IVAO only
+  var pilotsOffLayer = L.tileLayer("http://", {}); // Empty layer for "Off"
+
+  // Register in layerRegistry for global access
+  layerRegistry['Online Pilots_Both'] = pilotsOnLayer;
+  layerRegistry['Online Pilots_VATSIM'] = pilotsVatsimLayer;
+  layerRegistry['Online Pilots_IVAO'] = pilotsIvaoLayer;
+  layerRegistry['Online Pilots_Off'] = pilotsOffLayer;
+
+  // Store reference to main layer
+  pilotsLayer = pilotsOnLayer;
+
+  // WICHTIG: 'Off' muss ZUERST stehen, damit es bei der LayerControl-Initialisierung
+  // als erstes geprüft wird und checked bekommt (wenn es auf der Map ist)
+  groupedOverlays['Online Pilots'] = {
+    'Off': pilotsOffLayer,
+    'Both': pilotsOnLayer,
+    'VATSIM': pilotsVatsimLayer,
+    'IVAO': pilotsIvaoLayer
+  };
+
+  // Initialize wind markers layer (now using global variables)
+  // NOTE: Keep windDataCache, lastWindFetchTime, and lastWindFetchBounds to preserve cache across reloads
+  windMarkersLayer = L.layerGroup();
+  windFetchTimeout = null;
+  // Note: Wind utility functions (fetchWindData, getWindColor, createWindBarb, updateWindDisplay, setupWindEventHandlers)
+  // are now defined globally and will be called after map initialization
+
+  var openAipWasActive = false;
+
+  function setOpenAipSelection(enableMainLayer) {
+    if (!map) {
+      return;
+    }
+
+    var targetLayer = enableMainLayer ? openAip : openAip_off;
+    var layerToRemove = enableMainLayer ? openAip_off : openAip;
+
+    if (map.hasLayer(layerToRemove)) {
+      map.removeLayer(layerToRemove);
+    }
+    if (!map.hasLayer(targetLayer)) {
+      map.addLayer(targetLayer);
+    }
+
+    if (
+      LayerControl &&
+      LayerControl._form &&
+      typeof LayerControl._getLayer === "function"
+    ) {
+      var inputs = LayerControl._form.getElementsByTagName("input");
+      for (var i = 0; i < inputs.length; i++) {
+        var input = inputs[i];
+        var layerObj = LayerControl._getLayer(input.layerId);
+        if (!layerObj || !layerObj.group) continue;
+        if (layerObj.group.name === "OpenAip" && layerObj.overlay) {
+          input.checked = layerObj.layer === targetLayer;
+        }
+      }
+    }
+  }
+
+  // Extract exclusive groups from overlay groups
+  var exclusiveGroups = Object.keys(groupedOverlays);
+
+  var options = {
+    exclusiveGroups: exclusiveGroups,
+    groupCheckboxes: true,
+  };
+
+  // Map INITIALISIEREN � nur mit Basemap; OpenAIP-Layer NICHT als Basemap-Gruppe
+  // Prevent double initialization
+  if (map) {
+    if (MAP_DEBUG) console.log('[Map] Map already initialized, skipping');
+    return;
+  }
+  // Get configured base layer or fall back to first
+  var initialBaseLayer = baseMaps[defaultBaseLayer] || firstBaseLayer;
+
+  // Coherent GT (MSFS) performance optimizations
+  // SVG renderer is kept for correct polyline rendering (Canvas causes zoom artifacts)
+  var useCoherentGTOptimizations = window.isCoherentGT === true;
+  if (useCoherentGTOptimizations && MAP_DEBUG) {
+    console.log('[Map] Coherent GT detected - applying performance optimizations (keeping SVG renderer)');
+  }
+
+  map = L.map("map", {
+    center: mapCenter,
+    zoomControl: false,                                     // Disable +/- zoom buttons
+    minZoom: 2,                                             // Wie WebEye: Erlaubt Herauszoomen für globale Ansicht
+    maxZoom: 18,                                            // Consistent max zoom across all base layers
+    zoom: mapSettings.defaultZoom,                          // Default-Zoom aus Config
+    edgeBufferTiles: useCoherentGTOptimizations ? 3 : 2,  // More buffer for slower tile loading in GT
+    layers: [initialBaseLayer], // base layer from config
+    bounds: maxExtent,
+    // Wie WebEye: Keine Begrenzung, freies Pannen um die Welt
+    worldCopyJump: true,                                   // Nahtloses Pannen um die Welt (wie WebEye)
+    zoomAnimation: true,                                   // Keep zoom animation for smooth tile transitions
+    fadeAnimation: !useCoherentGTOptimizations,           // Disable fade in GT for performance
+    renderer: L.svg(),                                    // Keep SVG renderer - Canvas causes polyline zoom issues
+    scrollWheelZoom: useCoherentGTOptimizations,          // Use default scroll zoom in GT (smoother polyline handling)
+    smoothWheelZoom: !useCoherentGTOptimizations,         // Disable smooth wheel zoom in GT (causes polyline drift)
+    smoothSensitivity: mapSettings.smoothSensitivity,       // zoom sensitivity from config
+    markerZoomAnimation: !useCoherentGTOptimizations,     // Disable marker animations in GT
+    zoomAnimationThreshold: useCoherentGTOptimizations ? 1 : 4,  // Lower threshold in GT
+    contextmenu: true,
+  });
+
+  // Canvas-Renderer für Offline-Zonen (bessere Performance als SVG bei vielen Polygonen)
+  czCanvasRenderer = L.canvas({ padding: 0.5 });
+
+  // Custom pane for control zones - below overlayPane (400) so markers stay on top
+  map.createPane('controlZonesPane');
+  map.getPane('controlZonesPane').style.zIndex = 350;
+
+  // Pane for TWR/GND/DEL circles - above control zones and overlayPane but below labels
+  map.createPane('controlZonesCirclesPane');
+  map.getPane('controlZonesCirclesPane').style.zIndex = 550;
+  map.getPane('controlZonesCirclesPane').style.pointerEvents = 'auto';
+
+  // Pane for control zone labels - above circles
+  map.createPane('controlZonesLabelsPane');
+  map.getPane('controlZonesLabelsPane').style.zIndex = 620;
+  map.getPane('controlZonesLabelsPane').style.pointerEvents = 'auto';
+
+  // Pane for online pilots - above everything else
+  map.createPane('pilotsPane');
+  map.getPane('pilotsPane').style.zIndex = 650;
+  map.getPane('pilotsPane').style.pointerEvents = 'auto';
+
+  bindWindowResizeInvalidation();
+
+  // Start SimConnect polling now that map is initialized
+  startSimConnectPolling();
+
+  // Block events from reaching simulator while allowing Leaflet to process them
+  // CRITICAL: Initialize BEFORE layers load to prevent simulator input during loading
+  var mapContainer = map.getContainer();
+  if (mapContainer) {
+    // Block wheel: only stopPropagation in BUBBLING phase (after Leaflet processes zoom)
+    mapContainer.addEventListener('wheel', function(e) {
+      e.stopPropagation();
+    }, { passive: true, capture: false });
+
+    // Block contextmenu completely (capture + preventDefault)
+    mapContainer.addEventListener('contextmenu', function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }, { passive: false, capture: true });
+
+    if (MAP_DEBUG) console.log('[Map] Event blocking initialized - wheel (bubbling) and contextmenu (capture)');
+  }
+
+  // Window-level wheel blocking for safety (bubbling phase only)
+  window.addEventListener('wheel', function(e) {
+    e.stopPropagation();
+  }, { passive: true, capture: false });
+
+  // Activate default overlays from config
+  Object.keys(defaultOverlays).forEach(function(groupName) {
+    var layerName = defaultOverlays[groupName];
+
+    // Special handling for Online Pilots - skip here, handled separately below
+    if (groupName === 'Online Pilots') {
+      if (MAP_DEBUG) console.log('[Map] Skipping Online Pilots in default overlays init - handled separately');
+      return;
+    }
+
+    // For all other groups, add the configured layer
+    if (groupedOverlays[groupName] && groupedOverlays[groupName][layerName]) {
+      groupedOverlays[groupName][layerName].addTo(map);
+      if (MAP_DEBUG) console.log('[Map] Added default overlay:', groupName, '=', layerName);
+    }
+  });
+
+  // Fallback for overlays not in config (backward compatibility)
+  if (!defaultOverlays['OpenAip'] && openAip) {
+    openAip.addTo(map);
+  }
+  if (!defaultOverlays['Aircraft'] && aircraft) {
+    aircraft.addTo(map);
+  }
+  if (!defaultOverlays['Flightpath'] && flightpath_off) {
+    flightpath_off.addTo(map);
+  }
+  if (!defaultOverlays['Sectionals'] && faaDfsOff) {
+    faaDfsOff.addTo(map);
+  }
+
+  // Add scale control with settings from config
+  if (typeof L.control.scalenautic === 'function') {
+    L.control.scalenautic({
+      maxWidth: 100,
+      metric: scaleControl.metric,
+      imperial: scaleControl.imperial,
+      nautic: scaleControl.nautic
+    }).addTo(map);
+  } else {
+    L.control.scale({ maxWidth: 100 }).addTo(map);
+  }
+
+  // Setup wind event handlers now that map is initialized
+  if (typeof setupWindEventHandlers === 'function') {
+    setupWindEventHandlers();
+  }
+
+  // Store initial wind layer configuration for later activation
+  // Wind layer will be activated after elevation profile animation when loading flightplan
+  window.initialWindLayerConfig = {
+    shouldActivate: defaultOverlays['Wind'] && defaultOverlays['Wind'] !== 'Off' && owmWindLayer,
+    layer: owmWindLayer,
+    markersLayer: windMarkersLayer
+  };
+
+  // Wind layer activation is now handled by onFlightplanAnimationComplete()
+  // This ensures wind layer is only shown AFTER flightplan loading/centering is complete
+  // or when there is no flightplan to load
+  if (WIND_DEBUG) console.log('[Wind] Wind layer will be activated after flightplan load completes (via onFlightplanAnimationComplete)');
+
+  // Activate wind layer when no flight plan exists (via mapInitialized event or activateWindLayerWhenReady flag)
+  function activateWindLayerForNoFlightplan() {
+    if (typeof map === 'undefined' || !map || !window.initialWindLayerConfig) {
+      if (WIND_DEBUG) console.log('[Wind] mapInitialized event: Not ready yet, skipping wind layer activation');
+      return;
+    }
+
+    // ONLY activate if explicitly requested from no-flightplan scenario
+    // Do NOT use shouldActivate from config here - that would activate before we know if there's a flightplan
+    if (!window.activateWindLayerWhenReady) {
+      return;
+    }
+
+    // Check if wind layer should be shown based on config
+    var shouldActivateWind = window.initialWindLayerConfig && window.initialWindLayerConfig.shouldActivate;
+
+    if (shouldActivateWind && window.initialWindLayerConfig.layer) {
+      // Clear the flag
+      window.activateWindLayerWhenReady = false;
+      var windLayer = window.initialWindLayerConfig.layer;
+
+      // Don't activate wind layer if controller panel is open
+      if (typeof moverX !== 'undefined' && moverX) {
+        if (WIND_DEBUG) console.log('[Wind] mapInitialized event: Skipping wind layer - controller panel is open');
+        return;
+      }
+
+      if (!map.hasLayer(windLayer)) {
+        if (WIND_DEBUG) console.log('[Wind] mapInitialized event: Activating wind layer for no-flightplan scenario');
+        windLayer.setOpacity(0);
+        windLayer.addTo(map);
+
+        // Smooth fade-in
+        setTimeout(function() {
+          if (typeof fetchWindData === 'function') {
+            fetchWindData();
+            setTimeout(function() {
+              if (windLayer && map.hasLayer(windLayer)) {
+                windLayer.setOpacity(0.4);
+                if (WIND_DEBUG) console.log('[Wind] Wind layer faded in');
+              }
+            }, 300);
+          }
+        }, 100);
+      }
+
+      window.windLayerWasActiveBeforeAnimation = false;
+    }
+  }
+
+  // Register event listener for map initialization
+  window.addEventListener('mapInitialized', activateWindLayerForNoFlightplan);
+
+  // Emit mapInitialized event to trigger wind layer activation for no-flightplan scenarios
+  window.dispatchEvent(new Event('mapInitialized'));
+
+  // Fallback: If no flightplan is loaded within 3 seconds, activate wind layer directly
+  setTimeout(function() {
+    // Only activate if no flightplan animation is in progress and wind layer not already added
+    // Also skip if controller panel is open
+    if (!window.flightplanAnimationInProgress && !window.flightplanUISequenceInProgress && !(typeof moverX !== 'undefined' && moverX)) {
+      var shouldActivateWind = window.initialWindLayerConfig && window.initialWindLayerConfig.shouldActivate;
+      var windLayer = window.initialWindLayerConfig && window.initialWindLayerConfig.layer;
+
+      if (shouldActivateWind && windLayer && typeof map !== 'undefined' && map && !map.hasLayer(windLayer)) {
+        if (WIND_DEBUG) console.log('[Wind] No-flightplan fallback: Activating wind layer after timeout');
+        windLayer.setOpacity(0);
+        windLayer.addTo(map);
+
+        setTimeout(function() {
+          if (typeof fetchWindData === 'function') {
+            fetchWindData();
+            setTimeout(function() {
+              if (windLayer && map.hasLayer(windLayer)) {
+                windLayer.setOpacity(0.4);
+                if (WIND_DEBUG) console.log('[Wind] Wind layer faded in (no-flightplan fallback)');
+              }
+            }, 300);
+          }
+        }, 100);
+      }
+    }
+  }, 3000);
+
+  // ============================================================================
+  // LEAFLET PLUGINS INITIALIZATION
+  // ============================================================================
+
+  // Mouse position (coordinates display)
+  if (typeof L.control.mousePosition === 'function') {
+    L.control.mousePosition({
+      position: 'bottomright',
+      separator: ' | ',
+      emptyString: 'Koordinaten',
+      lngFirst: false,
+      numDigits: 5,
+      prefix: '',
+      lngFormatter: function(lng) {
+        var dir = lng < 0 ? 'W' : 'E';
+        return Math.abs(lng).toFixed(5) + DEGREE_SYMBOL + ' ' + dir;
+      },
+      latFormatter: function(lat) {
+        var dir = lat < 0 ? 'S' : 'N';
+        return Math.abs(lat).toFixed(5) + DEGREE_SYMBOL + ' ' + dir;
+      }
+    }).addTo(map);
+  }
+
+  // Polyline Measure (distance measurement with nautical miles)
+  var polylineMeasureControl = null;
+  if (typeof L.control.polylineMeasure === 'function') {
+    polylineMeasureControl = L.control.polylineMeasure({
+      position: 'topleft',
+      unit: 'nauticalmiles',
+      showBearings: true,
+      bearingTextIn: 'In',
+      bearingTextOut: 'Out',
+      tooltipTextFinish: 'Klick zum <b>Beenden</b>',
+      tooltipTextDelete: 'SHIFT-Klick zum <b>Löschen</b>',
+      tooltipTextMove: 'Klick zum <b>Verschieben</b>',
+      tooltipTextResume: '<br>CTRL-Klick zum <b>Fortsetzen</b>',
+      tooltipTextAdd: 'CTRL-Klick zum <b>Hinzufügen</b>',
+      clearMeasurementsOnStop: false,
+      showClearControl: true,
+      showUnitControl: true,
+      measureControlLabel: ''
+    }).addTo(map);
+
+    // Hide only the toggle button of polyline measure control (we use easyButton instead)
+    // The clear and unit controls will be shown/hidden based on measure state
+    var pmContainer = polylineMeasureControl.getContainer();
+    if (pmContainer) {
+      var toggleBtn = pmContainer.querySelector('a');
+      if (toggleBtn) {
+        toggleBtn.style.display = 'none';
+      }
+      pmContainer.style.display = 'none';
+    }
+  }
+
+  // MEASURE easyButton - toggles polyline measure
+  // Helper function to activate measure mode
+  function activateMeasureMode(btn, map) {
+    if (!polylineMeasureControl) return;
+
+    // Only toggle if not already measuring
+    if (!polylineMeasureControl._measuring) {
+      polylineMeasureControl._toggleMeasure();
+    }
+    btn.state('measure-on');
+    var pmContainer = polylineMeasureControl.getContainer();
+    if (pmContainer) {
+      pmContainer.style.display = 'block';
+    }
+
+    // Hide wind layer when measure tool is activated
+    windLayerStateBeforeMeasure = map.hasLayer(owmWindLayer);
+    if (windLayerStateBeforeMeasure && owmWindLayer) {
+      map.removeLayer(owmWindLayer);
+      if (windMarkersLayer && map.hasLayer(windMarkersLayer)) {
+        map.removeLayer(windMarkersLayer);
+      }
+    }
+
+    // Hide elevation profile when measure tool is activated
+    elevationProfileStateBeforeMeasure = elevationProfileVisible;
+    if (elevationProfileVisible) {
+      hideElevationProfile();
+      setTimeout(function() {
+        if (map) map.invalidateSize({ pan: false });
+      }, 100);
+    }
+    // Auto-save map UI state
+    scheduleMapStateSave();
+  }
+
+  // Helper function to deactivate measure mode
+  function deactivateMeasureMode(btn, map) {
+    if (!polylineMeasureControl) return;
+
+    // Only toggle if currently measuring
+    if (polylineMeasureControl._measuring) {
+      polylineMeasureControl._toggleMeasure();
+    }
+
+    // Only show red button if there are actual measurement paths
+    if (polylineMeasureControl._arrPolylines && polylineMeasureControl._arrPolylines.length > 0) {
+      btn.state('measure-off-with-path');
+    } else {
+      btn.state('measure-off');
+    }
+
+    var pmContainer = polylineMeasureControl.getContainer();
+    if (pmContainer) {
+      pmContainer.style.display = 'none';
+    }
+
+    // Restore wind layer if it was active before measure started (but not if controller mode is active)
+    if (windLayerStateBeforeMeasure === true && owmWindLayer && !map.hasLayer(owmWindLayer) && !moverX) {
+      map.addLayer(owmWindLayer);
+    }
+    windLayerStateBeforeMeasure = null;
+
+    // Restore elevation profile if it was visible before measure started
+    if (elevationProfileStateBeforeMeasure === true) {
+      var wpLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
+      if (wpLayers.length >= 2) {
+        showElevationProfile();
+      }
+    }
+    elevationProfileStateBeforeMeasure = null;
+    // Auto-save map UI state
+    scheduleMapStateSave();
+  }
+
+  var measureButton = L.easyButton({
+    id: 'measureButton',
+    position: 'topleft',
+    states: [{
+      stateName: 'measure-off',
+      icon: btnIcon('ruler', 'MEASURE'),
+      title: 'Measure distance',
+      onClick: function(btn, map) {
+        activateMeasureMode(btn, map);
+      }
+    }, {
+      stateName: 'measure-on',
+      icon: btnIcon('ruler', 'MEASURE', {color: '#007bff'}),
+      title: 'Stop measuring',
+      onClick: function(btn, map) {
+        deactivateMeasureMode(btn, map);
+      }
+    }, {
+      stateName: 'measure-off-with-path',
+      icon: btnIcon('ruler', 'MEASURE', {color: '#ff6b6b'}),
+      title: 'Measure distance',
+      onClick: function(btn, map) {
+        activateMeasureMode(btn, map);
+      }
+    }]
+  }).addTo(map);
+
+  // Change clear button color to red when a path is created
+  if (polylineMeasureControl) {
+    var pmContainer = polylineMeasureControl.getContainer();
+    var clearBtn = pmContainer ? pmContainer.querySelector('.polyline-measure-clearControl') : null;
+
+    if (clearBtn) {
+      // Listen for when a measurement is added/finished
+      map.on('polylinemeasure:finish', function() {
+        clearBtn.style.backgroundColor = '#ff6b6b';
+      });
+
+      // Reset color when measurements are cleared
+      map.on('polylinemeasure:clear', function() {
+        clearBtn.style.backgroundColor = '';
+        // Properly stop measuring if it's active (this will clean up event handlers)
+        if (polylineMeasureControl._measuring) {
+          polylineMeasureControl._toggleMeasure();
+        }
+        // Reset measure button to normal state
+        measureButton.state('measure-off');
+        // Hide the measure container
+        var pmContainer = polylineMeasureControl.getContainer();
+        if (pmContainer) {
+          pmContainer.style.display = 'none';
+        }
+
+        // Restore wind layer if it was active before measure started (but not if controller mode is active)
+        if (windLayerStateBeforeMeasure === true && owmWindLayer && !map.hasLayer(owmWindLayer) && !moverX) {
+          map.addLayer(owmWindLayer);
+        }
+        windLayerStateBeforeMeasure = null;
+
+        // Restore elevation profile if it was visible before measure started
+        if (elevationProfileStateBeforeMeasure === true) {
+          var wpLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
+          if (wpLayers.length >= 2) {
+            showElevationProfile();
+          }
+        }
+        elevationProfileStateBeforeMeasure = null;
+      });
+    }
+  }
+
+  // ============================================================================
+
+  GeoSearchControl = window.GeoSearch.GeoSearchControl;
+  AlgoliaProvider = window.GeoSearch.AlgoliaProvider;
+  provider = new GeoSearch.OpenStreetMapProvider();
+
+  //  Define search controls (hidden, controlled by easyButton)
+  searchControl = new GeoSearchControl({
+    provider: provider,
+    autoComplete: true,
+    autoCompleteDelay: 250,
+    style: "bar",
+    id: "search",
+    position: "topleft",
+    showMarker: true,
+    showPopup: true,
+    popupFormat: ({ query, result }) => createGeoSearchTeleportPopupHtml(result.label, altitude, heading, speed),
+    resultFormat: ({ result }) => (result && result.label ? result.label : ""),
+    autoClose: true,
+    keepResult: false,
+    retainZoomLevel: true,
+    animateZoom: true,
+    updateMap: true,
+    marker: {
+      draggable: true,
+    },
+  });
+
+  // Add searchbar to the map
+  map.addControl(searchControl);
+
+  // Hide the search bar initially
+  var searchContainer = searchControl.getContainer ? searchControl.getContainer() : document.querySelector('.leaflet-control-geosearch');
+  if (searchContainer) {
+    searchContainer.style.display = 'none';
+  }
+
+  // SEARCH easyButton - toggles search bar visibility
+  var searchButtonActive = false;
+  var searchButton = L.easyButton({
+    id: 'searchButton',
+    position: 'topleft',
+    states: [{
+      stateName: 'search-closed',
+      icon: btnIcon('search', 'SEARCH'),
+      title: 'Open search',
+      onClick: function(btn, map) {
+        var container = searchControl.getContainer ? searchControl.getContainer() : document.querySelector('.leaflet-control-geosearch');
+        if (container) {
+          container.style.display = 'block';
+          container.classList.add('active');
+          var form = container.querySelector('form');
+          if (!form) {
+            form = document.querySelector('.leaflet-control-geosearch form');
+          }
+          var searchBtn = document.querySelector('#searchButton');
+          if (searchBtn && form) {
+            var rect = searchBtn.getBoundingClientRect();
+            form.style.position = 'fixed';
+            form.style.top = rect.top + 'px';
+            form.style.left = (rect.right) + 'px';
+            form.style.height = rect.height + 'px';
+            form.style.display = 'block';
+
+            var positionResults = function() {
+              var results = container.querySelector('.results');
+              if (results) {
+                results.style.position = 'fixed';
+                results.style.top = (rect.top + rect.height) + 'px';
+                results.style.left = (rect.right) + 'px';
+                results.style.width = '250px';
+                results.style.minWidth = '250px';
+                results.style.maxWidth = '250px';
+              }
+            };
+
+            setTimeout(positionResults, 50);
+
+            var observer = new MutationObserver(function() {
+              setTimeout(positionResults, 10);
+            });
+            observer.observe(container, { childList: true, subtree: true });
+          }
+          var input = form ? form.querySelector('input') : null;
+          if (input) {
+            input.focus();
+          }
+        }
+        searchButtonActive = true;
+        btn.state('search-open');
+      }
+    }, {
+      stateName: 'search-open',
+      icon: btnIcon('search', 'SEARCH', {color: '#007bff'}),
+      title: 'Close search',
+      onClick: function(btn, map) {
+        var container = searchControl.getContainer ? searchControl.getContainer() : document.querySelector('.leaflet-control-geosearch');
+        if (container) {
+          container.classList.remove('active');
+          var form = container.querySelector('form');
+          if (!form) {
+            form = document.querySelector('.leaflet-control-geosearch form');
+          }
+          if (form) {
+            form.style.display = 'none';
+          }
+        }
+        searchButtonActive = false;
+        btn.state('search-closed');
+        Keyboard.close();
+      }
+    }]
+  }).addTo(map);
+
+  var openAipWasActive = false; // Track the state of OpenAIP layer
+
+  map.on("geosearch/showlocation", function (e) {
+    if (!e || !e.location) {
+      return;
+    }
+    closeSearchUi({ clearResults: true, clearMarkers: false });
+    disableFollow();
+    geosearchLat = e.location.x;
+    geosearchLng = e.location.y;
+    var targetLatLng = L.latLng(e.location.y, e.location.x);
+    map.setView([targetLatLng.lat, targetLatLng.lng], map.getZoom());
+    if (isAirportSearchResult(e.location)) {
+      // Close geosearch popup and marker for airport results
+      map.closePopup();
+      if (searchControl && searchControl.markers && typeof searchControl.markers.clearLayers === "function") {
+        searchControl.markers.clearLayers();
+      }
+      scheduleAirportPopup(targetLatLng);
+      if (searchControl) {
+        searchControl._keepResultActive = true;
+        setTimeout(function () {
+          if (searchControl) {
+            searchControl._keepResultActive = false;
+          }
+        }, 2000);
+      }
+    }
+  });
+
+  function isAirportSearchResult(location) {
+    if (!location) {
+      return false;
+    }
+    var raw = location.raw || {};
+    var type = raw.type ? String(raw.type).toLowerCase() : "";
+    var category = raw.category ? String(raw.category).toLowerCase() : "";
+    var label = (location.label || raw.display_name || "").toLowerCase();
+    if (category === "aeroway") {
+      return true;
+    }
+    if (
+      type.indexOf("aerodrome") !== -1 ||
+      type.indexOf("airport") !== -1 ||
+      type.indexOf("airfield") !== -1
+    ) {
+      return true;
+    }
+    if (
+      label.indexOf("airport") !== -1 ||
+      label.indexOf("aerodrome") !== -1 ||
+      label.indexOf("flugplatz") !== -1 ||
+      label.indexOf("flughafen") !== -1
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  function scheduleAirportPopup(latlng) {
+    if (!latlng) {
+      return;
+    }
+    pendingAirportFocus = {
+      latlng: latlng,
+      attempts: 0,
+    };
+    attemptPendingAirportPopup();
+  }
+
+  function attemptPendingAirportPopup() {
+    if (!pendingAirportFocus || !pendingAirportFocus.latlng) {
+      return;
+    }
+    if (!airportMarkers || typeof airportMarkers.eachLayer !== "function") {
+      return retryPendingAirportPopup();
+    }
+    if (
+      !map.hasLayer(airportMarkers) &&
+      typeof airportMarkers.addTo === "function"
+    ) {
+      airportMarkers.addTo(map);
+    }
+    var layer = findNearestAirportLayer(pendingAirportFocus.latlng, 25000);
+    if (layer) {
+      var focusLatLng =
+        typeof layer.getLatLng === "function"
+          ? layer.getLatLng()
+          : pendingAirportFocus.latlng;
+      map.setView(focusLatLng, Math.max(map.getZoom(), 11));
+      setTimeout(function () {
+        if (typeof layer.openPopup === "function") {
+          programmaticPopupTimestamp = Date.now();
+          layer.openPopup();
+        }
+      }, 300);
+      pendingAirportFocus = null;
+      return;
+    }
+    retryPendingAirportPopup();
+  }
+
+  function retryPendingAirportPopup() {
+    if (!pendingAirportFocus) {
+      return;
+    }
+    pendingAirportFocus.attempts =
+      (pendingAirportFocus.attempts || 0) + 1;
+    if (pendingAirportFocus.attempts > 10) {
+      pendingAirportFocus = null;
+      return;
+    }
+    setTimeout(attemptPendingAirportPopup, 500);
+  }
+
+  function findNearestAirportLayer(latlng, maxDistanceMeters) {
+    if (
+      !latlng ||
+      !airportMarkers ||
+      typeof airportMarkers.eachLayer !== "function"
+    ) {
+      return null;
+    }
+    var bestLayer = null;
+    var bestDistance =
+      typeof maxDistanceMeters === "number" ? maxDistanceMeters : 25000;
+    airportMarkers.eachLayer(function (layer) {
+      if (typeof layer.getLatLng !== "function") {
+        return;
+      }
+      var distance = layer.getLatLng().distanceTo(latlng);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestLayer = layer;
+      }
+    });
+    return bestLayer;
+  }
+
+  function disableFollow() {
+    polylinepoints = [];
+    if (polyline && map.hasLayer(polyline)) {
+      map.removeLayer(polyline);
+    }
+    polyline = L.polyline(polylinepoints, {
+      color: '#ff0000',
+      weight: 3,
+      opacity: 0.7,
+      smoothFactor: 1
+    });
+    follow = false;
+    toggle.enable();
+  }
+
+  polyline = L.polyline(polylinepoints, {
+    color: '#ff0000',
+    weight: 3,
+    opacity: 0.7,
+    smoothFactor: 1
+  });
+
+  map.on("contextmenu", function (e) {
+    if (e && e.originalEvent) {
+      L.DomEvent.preventDefault(e.originalEvent);
+    }
+
+    // Only process synthetic events from long-press, ignore real right-clicks (EFB compatibility)
+    var isSynthetic = e && e.synthetic === true;
+    if (!isSynthetic) {
+      skipNextMapClick = false;  // Defensive reset
+      return;
+    }
+
+    var eventLatLng = e && e.latlng ? e.latlng : null;
+    if (
+      !eventLatLng &&
+      map &&
+      typeof map.mouseEventToLatLng === "function" &&
+      e &&
+      e.originalEvent
+    ) {
+      eventLatLng = map.mouseEventToLatLng(e.originalEvent);
+      e.latlng = eventLatLng;
+    }
+    if (!eventLatLng) {
+      skipNextMapClick = false;  // Defensive reset
+      return;
+    }
+    // Don't skip midpoint insert events (from middle markers or polyline clicks)
+    var isMidpointInsert = e && e.midpointInsert === true;
+    if (skipNextMapClick === true && !isMidpointInsert) {
+      skipNextMapClick = false;
+      return;
+    }
+    skipNextMapClick = false;
+    var useExisting = isSynthetic && nextWaypointUseExisting === true;
+    var insertIndex = null;
+    if (
+      typeof nextWaypointInsertIndex === "number" &&
+      nextWaypointInsertIndex >= 0
+    ) {
+      insertIndex = nextWaypointInsertIndex;
+    }
+    nextWaypointInsertIndex = null;
+    nextWaypointUseExisting = false;
+    if (insertIndex === null || insertIndex < 0) {
+      insertIndex = markerId;
+    }
+    if (insertIndex > wpNames.length) {
+      insertIndex = wpNames.length;
+    }
+    // BUGFIX: NUR den Button-State prüfen, NICHT waypointmode!
+    // waypointmode wird von teleport() Funktion gesetzt, aber das ist ZU SPÄT
+    // (contextmenu fired VOR dem teleport() Aufruf)
+    //
+    // Button States (ACHTUNG VERKEHRT HERUM!):
+    // State "teleport" zeigt "TELEPORT" Icon → User ist im ROUTE-Modus (kann zu Teleport wechseln)
+    // State "add-markers" zeigt "ROUTE" Icon → User ist im TELEPORT-Modus (kann zu Route wechseln)
+    var toggle4State = (typeof toggle4 !== 'undefined' && toggle4) ? toggle4.state() : null;
+    var isInTeleportMode = (toggle4State === 'add-markers');
+
+    console.log('[contextmenu] toggle4State:', toggle4State, 'isInTeleportMode:', isInTeleportMode);
+
+    if (isInTeleportMode) {
+      if (newMarker && map.hasLayer(newMarker)) {
+        map.removeLayer(newMarker);
+      } else {
+        newMarker = new L.marker(e.latlng).addTo(map);
+        newMarker
+          .bindPopup(
+            createTeleportPopupHtml(e.latlng.lat, e.latlng.lng, altitude, heading, speed),
+            {
+              autoClose: false,
+              closeOnClick: false,
+              closeOnEscapeKey: true
+            }
+          )
+          .openPopup();
+        // WICHTIG: Timestamp setzen um zu verhindern dass Popup sofort wieder geschlossen wird
+        programmaticPopupTimestamp = Date.now();
+        var slides = document.getElementsByClassName(
+          "leaflet-popup-close-button"
+        );
+        for (var i = 0; i < slides.length; i++) {
+          slides[i].innerHTML = "<span>x</font>";
+        }
+      }
+      follow = false;
+      toggle.enable();
+      WpBlocked = false;
+    } else {
+      if (WpBlocked == false) {
+        var marker;
+        deleted = false;
+        wpListOn = true;
+        var overlayEl = document.getElementById("overlay");
+        if (overlayEl) {
+          overlayEl.style.display = "flex";
+          overlayEl.style.visibility = "visible";
+        }
+        document.getElementById("banner").style.visibility = "visible";
+        document.getElementById("overlayContainer").style.visibility = "visible";
+        document.getElementById("overlayList").style.display = "";
+        document.getElementById("overlayList").style.visibility = "visible";
+        document.getElementById("overlayListSum").style.display = "";
+        document.getElementById("overlayListSum").style.visibility = "visible";
+        wpListMinimized = false;
+        var wpMinBtn = document.getElementById("wpListMinimize");
+        if (wpMinBtn) wpMinBtn.innerHTML = "_";
+        $(".leaflet-geosearch-bar").css("top", 72);
+        var forcedName =
+          isSynthetic && typeof e.setName === "string" ? e.setName : "";
+        var forcedType =
+          isSynthetic && typeof e.setType === "string" ? e.setType : "User";
+        var forcedAltitude =
+          isSynthetic && typeof e.setAltitude !== "undefined"
+            ? e.setAltitude
+            : (isMidpointInsert && insertIndex > 0 && altitudes[insertIndex - 1])
+            ? altitudes[insertIndex - 1]
+            : null; // null means we need to fetch ground elevation
+        var forcedAtbl =
+          isSynthetic && typeof e.setAtbl !== "undefined" ? e.setAtbl : "";
+        var forcedSourceType =
+          isSynthetic && typeof e.setSourceType === "string"
+            ? e.setSourceType
+            : "";
+        var forcedDepartureProc =
+          isSynthetic && typeof e.setDepartureProcedure === "string"
+            ? e.setDepartureProcedure
+            : "";
+        var forcedArrivalProc =
+          isSynthetic && typeof e.setArrivalProcedure === "string"
+            ? e.setArrivalProcedure
+            : "";
+        var forcedAirway =
+          isSynthetic && typeof e.setAirway === "string" ? e.setAirway : "";
+        var forcedRunwayNumber =
+          isSynthetic && typeof e.setRunwayNumber === "string"
+            ? e.setRunwayNumber
+            : "";
+        var forcedRunwayDesignator =
+          isSynthetic && typeof e.setRunwayDesignator === "string"
+            ? e.setRunwayDesignator
+            : "";
+
+        // If forcedAltitude is null, we need to fetch ground elevation
+        var needsElevationFetch = (forcedAltitude === null);
+        var initialAltitude = forcedAltitude !== null ? forcedAltitude : "1000"; // Default 1000 ft for non-airports
+
+        if (!useExisting) {
+          shiftWaypointLayerIdsFrom(insertIndex);
+          wpNames.splice(insertIndex, 0, forcedName);
+          wpTypes.splice(insertIndex, 0, forcedType);
+          altitudes.splice(insertIndex, 0, initialAltitude);
+          atbls.splice(insertIndex, 0, forcedAtbl);
+          wpSourceTypes.splice(insertIndex, 0, forcedSourceType);
+          wpDepartureProcedures.splice(insertIndex, 0, forcedDepartureProc);
+          wpArrivalProcedures.splice(insertIndex, 0, forcedArrivalProc);
+          wpAirways.splice(insertIndex, 0, forcedAirway);
+          wpRunwayNumbers.splice(insertIndex, 0, forcedRunwayNumber);
+          wpRunwayDesignators.splice(insertIndex, 0, forcedRunwayDesignator);
+          normalizeWaypointNames();
+        } else if (insertIndex > wpNames.length - 1) {
+          wpNames.splice(insertIndex, 0, forcedName);
+          wpTypes.splice(insertIndex, 0, forcedType);
+          altitudes.splice(insertIndex, 0, initialAltitude);
+          atbls.splice(insertIndex, 0, forcedAtbl);
+          wpSourceTypes.splice(insertIndex, 0, forcedSourceType);
+          wpDepartureProcedures.splice(insertIndex, 0, forcedDepartureProc);
+          wpArrivalProcedures.splice(insertIndex, 0, forcedArrivalProc);
+          wpAirways.splice(insertIndex, 0, forcedAirway);
+          wpRunwayNumbers.splice(insertIndex, 0, forcedRunwayNumber);
+          wpRunwayDesignators.splice(insertIndex, 0, forcedRunwayDesignator);
+          normalizeWaypointNames();
+        }
+
+        // Skip elevation fetch for synthetic events from appendWaypoint
+        // (appendWaypoint already handles elevation fetching)
+        if (needsElevationFetch && !useExisting) {
+          var elevInsertIndex = insertIndex;
+          console.log('[contextmenu] Fetching ground elevation for waypoint at:', e.latlng.lat, e.latlng.lng);
+          getGroundElevationForPoint(e.latlng.lat, e.latlng.lng).then(function(groundElevMeters) {
+            // Non-airport waypoints: ground elevation + 1000 ft
+            var altitudeFeet = groundElevMeters !== null ? Math.round(groundElevMeters * 3.28084) + 1000 : 1000;
+            console.log('[contextmenu] Ground elevation received:', groundElevMeters, 'm ->', altitudeFeet, 'ft');
+            altitudes[elevInsertIndex] = String(altitudeFeet);
+            console.log('[contextmenu] Updated altitudes array:', JSON.stringify(altitudes));
+            // Update UI - redraw waypoint list to show correct altitude in info row
+            drawLines();
+            scheduleNavlogSync();
+          }).catch(function(err) {
+            console.error('[contextmenu] Error fetching elevation:', err);
+            // Set fallback altitude: 1000 ft
+            altitudes[elevInsertIndex] = "1000";
+            drawLines();
+          });
+        }
+
+        markerId = insertIndex;
+
+        geojsonFeature = {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Point",
+            coordinates: [e.latlng.lat, e.latlng.lng],
+          },
+          id: markerId,
+          mytype: "waypoint",
+        };
+
+        if (insertIndex == 0) {
+          wp1_lat = e.latlng.lat;
+          wp1_lng = e.latlng.lng;
+        }
+
+        const svgIcon = createWaypointIcon(false);
+        const svgIcon2 = createWaypointIcon(true);
+
+        var newWaypointName = wpNames[markerId];
+        var newWaypointType = wpTypes[markerId];
+        var newWaypointId = markerId;
+
+        markers = L.layerGroup();
+        markers = L.geoJson(geojsonFeature, {
+          pointToLayer: function (feature, latlng) {
+            marker = L.marker(e.latlng, {
+              alt: 0,
+              name: newWaypointName,
+              type: newWaypointType,
+              sourceType: forcedSourceType,
+              departureProcedure: forcedDepartureProc,
+              arrivalProcedure: forcedArrivalProc,
+              airway: forcedAirway,
+              runwayNumber: forcedRunwayNumber,
+              runwayDesignator: forcedRunwayDesignator,
+              myId: newWaypointId,
+              coord: e.latlng,
+              riseOnHover: false,
+              draggable: true,
+              icon: svgIcon,
+              zIndexOffset: 1000,
+            });
+            return marker;
+          },
+        }).addTo(map);
+
+        marker.on("dragend", function (e) {
+          var dragid = this.options.myId;
+          var lat = marker.getLatLng().lat;
+          var lng = marker.getLatLng().lng;
+
+          if (dragid == 0) {
+            wp1_lat = lat;
+            wp1_lng = lng;
+          }
+
+          // Update middle markers immediately
+          pLineGroup.eachLayer(function (layer) {
+            createMiddleMarkers(layer);
+          });
+
+          // Delay line redraw to ensure marker position is fully updated
+          setTimeout(function () {
+            drawLines();
+            scheduleNavlogSync();
+          }, 50);
+        });
+
+        var type = marker.options.type;
+        if (type == "reportingPoint") {
+          type = "MRP";
+        }
+
+        marker.bindTooltip(type + " " + marker.options.name, {
+          permanent: false,
+          direction: "right",
+        });
+
+        coordinates.splice(insertIndex, 0, e.latlng);
+
+        const popup = L.popup({
+          autoClose: true,
+          closeOnClick: true,
+        });
+        popup.setContent(
+          createWaypointPopupHtml('0', marker.options.type, e.latlng.lat, e.latlng.lng, 0)
+        );
+
+        marker.bindPopup(popup);
+        marker.off('click');  // Remove Leaflet's automatic click handler
+        marker.on("popupopen", onPopupOpen);
+        marker.on("click", function (e) {
+          // Prevent Leaflet's default popup behavior
+          L.DomEvent.stopPropagation(e);
+          L.DomEvent.preventDefault(e);
+
+          id = this.options.myId;
+          startlineShow = true;
+          // Nicht einblenden wenn Controller Modus aktiv
+          if (!wpListOn && !moverX) {
+            showWpList();
+          }
+          // Elevation Profile einblenden wenn geschlossen
+          // Aber nicht wenn Controller Modus aktiv
+          if (!elevationProfileVisible && !window.flightplanAnimationInProgress && !window.flightplanUISequenceInProgress && !moverX) {
+            var wpLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
+            if (wpLayers.length >= 2) {
+              showElevationProfile();
+            }
+          }
+          // Skip toggle if this was a recent programmatic open
+          var timeDiff = Date.now() - programmaticPopupTimestamp;
+          if (timeDiff < 100) {
+            return;
+          }
+          // Toggle popup - if already open, close it; otherwise open it
+          if (this.isPopupOpen()) {
+            this.closePopup();
+          } else {
+            this.openPopup();
+          }
+        });
+
+        marker.on("mouseout", function (e) {});
+
+        // Bounce animation for new waypoint
+        if (typeof marker.bounce === 'function') {
+          marker.bounce(3); // Bounce 3 times
+        }
+
+        var points = getJSON("clickedPoints");
+        follow = false;
+        toggle.enable();
+        //map.closePopup();
+        normalizeWaypointNames();
+        reindexWaypointLayers();
+        getMarkerId();
+        coordinatesArray = [];
+        coordinatesArrayDEP = [];
+        coordinatesArrayARR = [];
+        drawLines();
+        id = marker.options.myId;
+        if (document.getElementById("keyboard")) {
+          var x = document.getElementById("keyboard");
+          x.style.display = "none";
+        }
+        pendingFirstActivation = true;
+        scheduleNavlogSync();
+      }
+    }
+  });
+
+  // Long-press handler for map (EFB compatibility - adds waypoints)
+  var mapLongPressTimer = null;
+  var mapLongPressLatLng = null;
+
+  map.on("mousedown", function (e) {
+    if (e.originalEvent.button !== 0) return; // Only left mouse button
+    mapLongPressLatLng = e.latlng;
+    if (mapLongPressTimer) {
+      clearTimeout(mapLongPressTimer);
+    }
+    mapLongPressTimer = setTimeout(function () {
+      if (mapLongPressLatLng) {
+        map.fire("contextmenu", {
+          latlng: mapLongPressLatLng,
+          originalEvent: e.originalEvent,
+          synthetic: true
+        });
+      }
+      mapLongPressTimer = null;
+      mapLongPressLatLng = null;
+    }, longPressDelay);
+  });
+
+  map.on("mouseup mousemove", function (e) {
+    if (e.type === "mousemove" && mapLongPressLatLng) {
+      var dx = Math.abs(e.latlng.lat - mapLongPressLatLng.lat);
+      var dy = Math.abs(e.latlng.lng - mapLongPressLatLng.lng);
+      // Cancel if moved more than ~10 pixels worth of degrees
+      if (dx > 0.0001 || dy > 0.0001) {
+        if (mapLongPressTimer) {
+          clearTimeout(mapLongPressTimer);
+          mapLongPressTimer = null;
+        }
+        mapLongPressLatLng = null;
+      }
+    } else if (e.type === "mouseup") {
+      if (mapLongPressTimer) {
+        clearTimeout(mapLongPressTimer);
+        mapLongPressTimer = null;
+      }
+      mapLongPressLatLng = null;
+    }
+  });
+
+  // Touch support for map long-press
+  var mapTouchTimer = null;
+  var mapTouchLatLng = null;
+  var mapTouchStartPos = null;
+
+  map.getContainer().addEventListener("touchstart", function (e) {
+    if (e.touches.length !== 1) return;
+    var touch = e.touches[0];
+    mapTouchStartPos = { x: touch.clientX, y: touch.clientY };
+    var point = L.point(touch.clientX - map.getContainer().getBoundingClientRect().left,
+                        touch.clientY - map.getContainer().getBoundingClientRect().top);
+    mapTouchLatLng = map.containerPointToLatLng(point);
+
+    if (mapTouchTimer) {
+      clearTimeout(mapTouchTimer);
+    }
+    mapTouchTimer = setTimeout(function () {
+      if (mapTouchLatLng) {
+        map.fire("contextmenu", {
+          latlng: mapTouchLatLng,
+          originalEvent: e,
+          synthetic: true
+        });
+      }
+      mapTouchTimer = null;
+      mapTouchLatLng = null;
+      mapTouchStartPos = null;
+    }, longPressDelay);
+  }, { passive: true });
+
+  map.getContainer().addEventListener("touchend", function () {
+    if (mapTouchTimer) {
+      clearTimeout(mapTouchTimer);
+      mapTouchTimer = null;
+    }
+    mapTouchLatLng = null;
+    mapTouchStartPos = null;
+  }, { passive: true });
+
+  map.getContainer().addEventListener("touchcancel", function () {
+    if (mapTouchTimer) {
+      clearTimeout(mapTouchTimer);
+      mapTouchTimer = null;
+    }
+    mapTouchLatLng = null;
+    mapTouchStartPos = null;
+  }, { passive: true });
+
+  map.getContainer().addEventListener("touchmove", function (e) {
+    if (mapTouchTimer && e.touches.length > 0 && mapTouchStartPos) {
+      var touch = e.touches[0];
+      var dx = Math.abs(touch.clientX - mapTouchStartPos.x);
+      var dy = Math.abs(touch.clientY - mapTouchStartPos.y);
+      if (dx > longPressMoveThreshold || dy > longPressMoveThreshold) {
+        clearTimeout(mapTouchTimer);
+        mapTouchTimer = null;
+        mapTouchLatLng = null;
+        mapTouchStartPos = null;
+      }
+    }
+  }, { passive: true });
+
+  // Function to handle delete as well as other events on marker popup open
+  function onPopupOpen() {
+    var tempMarker = this;
+    activeWP = this.options.myId;
+    var currentWP = activeWP;  // Local copy for closure to prevent race condition
+
+    // Update popup content with correct values BEFORE it renders
+    var popup = this.getPopup();
+    if (popup) {
+      var name = wpNames[currentWP] || '';
+      var alt = altitudes[currentWP] || 0;
+      var latlng = this.getLatLng();
+      var type = this.options.type || 'USER WAYPOINT';
+      popup.setContent(createWaypointPopupHtml(name, type, latlng.lat, latlng.lng, alt));
+    }
+
+    // Still bind event handlers after DOM is ready
+    setTimeout(function() {
+      if (activeWP === currentWP) {
+        loadName();
+        loadAltitude();
+      }
+    }, 50);
+
+    $(".marker-delete-button:visible").click(function () {
+      if (tempMarker && map && map.hasLayer(tempMarker)) {
+        map.removeLayer(tempMarker);
+      }
+      clearAllPolylineLayers();
+      resetCoordinateArrays();
+      $(tempMarker).parent("li").remove();
+      removeWaypointMetadata(tempMarker.options.myId);
+      var waypointLayers = getWaypointLayersSorted();
+      if (waypointLayers.length === 0) {
+        removeAllMarkersAndClearServer();  // Use new combined function
+      } else {
+        startLineGroup.clearLayers();
+        startlineShow = false;
+        normalizeWaypointNames();
+        reindexWaypointLayers();
+      }
+      localStorage.removeItem("targetMarker");
+      $(".target").css("color", "");
+      getMarkerId();
+      drawLines();
+      scheduleNavlogSync();
+    });
+  }
+
+  function loadAltitude() {
+    var $input = $("#WPaltitudeInput");
+    if ($input.length > 0) {
+      // Always set the value from altitudes array, even if 0 or empty
+      var altValue = altitudes[activeWP];
+      if (typeof altValue !== "undefined") {
+        $input.val(altValue);
+      }
+      $input
+        .off("input.wpalt")
+        .on("input.wpalt", function () {
+          setWPaltitude2();
+        });
+      $input
+        .off("change.wpalt")
+        .on("change.wpalt", function () {
+          setWPaltitude2();
+        });
+    }
+  }
+
+  function loadName() {
+    var $input = $("#WPnameInput");
+    if ($input.length > 0) {
+      var nameValue = wpNames[activeWP];
+      if (typeof nameValue !== "undefined" && nameValue !== "") {
+        $input.val(nameValue);
+      }
+
+      $input
+        .off("focus.wpname")
+        .on("focus.wpname", function (e) {
+          id = e.id;
+          textstart = "";
+          textend = "";
+          document.getElementById("keyb").style.visibility = "visible";
+          Keyboard.open(this.value, (currentValue) => {
+            this.value = currentValue;
+          });
+        });
+
+      $input
+        .off("click.wpname")
+        .on("click.wpname", function (e) {
+          document.getElementById("keyb").style.visibility = "visible";
+          Keyboard.open(this.value, (currentValue) => {
+            this.value = currentValue;
+          });
+          var text = this.value;
+          textstart = text.slice(0, this.selectionStart);
+          textend = text.slice(this.selectionEnd, this.value.length);
+          Keyboard.properties.value = textstart;
+          getCursorpos();
+        });
+
+      $input
+        .off("change.wpname")
+        .on("change.wpname", function (e) {
+          setWPname();
+        });
+
+      $input
+        .off("input.wpname")
+        .on("input.wpname", function (e) {
+          setWPname();
+        });
+
+      $input
+        .off("blur.wpname")
+        .on("blur.wpname", function () {
+          if (pendingFirstActivation) {
+            pendingFirstActivation = false;
+            activateNearestWaypoint();
+          }
+        });
+
+      $input
+        .off("select.wpname")
+        .on("select.wpname", function (e) {
+          Keyboard.open(this.value, (currentValue) => {
+            this.value = currentValue;
+          });
+          var text = this.value;
+          textstart = text.slice(0, this.selectionStart);
+          textend = text.slice(this.selectionEnd, this.value.length);
+          Keyboard.properties.value = textstart;
+        });
+    }
+  }
+
+  pLineGroup = new L.FeatureGroup();
+  pLineGroupDEP = new L.FeatureGroup();
+  pLineGroupARR = new L.FeatureGroup();
+  startLineGroup = new L.FeatureGroup();
+
+  // v1.46: middleMarkers auf Map-Objekt speichern - überlebt JS-Reset in Coherent!
+  // Wenn map._middleMarkers existiert (von vor dem Reload), wiederverwenden und leeren
+  if (map._middleMarkers) {
+    if (MAP_DEBUG) console.log('[Map] v1.46: Wiederverwendung von map._middleMarkers (Coherent-Reload erkannt)');
+    middleMarkers = map._middleMarkers;
+    middleMarkers.clearLayers();  // Alte Marker löschen!
+  } else {
+    if (MAP_DEBUG) console.log('[Map] v1.46: Neue middleMarkers FeatureGroup erstellt');
+    middleMarkers = new L.FeatureGroup();
+    map._middleMarkers = middleMarkers;
+    middleMarkers.addTo(map);
+  }
+
+  pLineGroup.addTo(map);
+  pLineGroupDEP.addTo(map);
+  pLineGroupARR.addTo(map);
+
+function getRunwayDataWithFallback(icao, runwayId, callback) {
+  if (!icao || !runwayId) {
+    callback(null);
+    return;
+  }
+
+  fetch(`/api/navigraph/runway/${icao}/${runwayId}`)
+    .then(response => {
+      if (response.ok) {
+        return response.json();
+      } else if (response.status === 404) {
+        if (RUNWAY) console.log(`[Runway] Navigraph runway ${runwayId} at ${icao} not found, trying openAIP`);
+        return fetch(`/api/openaip/runway/${icao}/${runwayId}`).then(r => 
+          r.ok ? r.json() : null
+        );
+      }
+      throw new Error(`HTTP ${response.status}`);
+    })
+    .then(data => callback(data))
+    .catch(error => {
+      if (RUNWAY) console.log(`[Runway] Error fetching runway data for ${runwayId} at ${icao}:`, error.message);
+      callback(null);
+    });
+}
+
+/**
+ * Builds coordinate arrays for main route, DEP, and ARR segments
+ * @returns {Object} Coordinate data and waypoint layers
+ * @returns {Array<Array<number>>} return.coordinatesArray - Main route coordinates
+ * @returns {Array<Array<number>>} return.coordinatesArrayDEP - Departure route coordinates
+ * @returns {Array<Array<number>>} return.coordinatesArrayARR - Arrival route coordinates
+ * @returns {Array} return.waypointLayers - Sorted waypoint layers
+ * @returns {number} return.waypointCount - Total number of waypoints
+ */
+function buildCoordinateArrays() {
+  var coordsArray = [];
+  var coordsArrayDEP = [];
+  var coordsArrayARR = [];
+  var coordsArrayRWY = [];
+
+  var waypointLayers = getWaypointLayersSorted();
+
+  console.log('[buildCoords] ========== BUILD STARTING ==========');
+  console.log('[buildCoords] waypointLayers.length:', waypointLayers.length);
+  console.log('[buildCoords] departureRunwayData:', departureRunwayData);
+  console.log('[buildCoords] arrivalRunwayData:', arrivalRunwayData);
+
+  function pushUnique(arr, coord) {
+    if (!coord || coord.length < 2) return;
+    var lat = parseFloat(coord[0]);
+    var lon = parseFloat(coord[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    if (arr.length > 0) {
+      var last = arr[arr.length - 1];
+      if (Math.abs(last[0] - lat) < 1e-6 && Math.abs(last[1] - lon) < 1e-6) return;
+    }
+    arr.push([lat, lon]);
+  }
+
+  var origin = importedOFPData && (importedOFPData.Origin || importedOFPData.origin);
+  var destination = importedOFPData && (importedOFPData.Destination || importedOFPData.destination);
+
+  if (origin && !departureRunwayData) {
+    console.log('[buildCoords] ✗ NO RUNWAY DATA - Using airport center');
+    var airportLat = origin?.Airport_latitude || origin?.airport_latitude || origin?.Latitude || origin?.latitude;
+    var airportLon = origin?.Airport_longitude || origin?.airport_longitude || origin?.Longitude || origin?.longitude;
+    if (airportLat && airportLon) {
+      pushUnique(coordsArray, [parseFloat(airportLat), parseFloat(airportLon)]);
+      pushUnique(coordsArrayDEP, [parseFloat(airportLat), parseFloat(airportLon)]);
+    }
+  }
+
+  waypointLayers.forEach(function (layer, index) {
+    var coords;
+    if (typeof layer.getLatLng === 'function') {
+      var latlng = layer.getLatLng();
+      coords = [latlng.lat, latlng.lng];
+      if (layer.feature && layer.feature.geometry) {
+        layer.feature.geometry.coordinates = coords;
+      }
+    } else {
+      coords = layer.feature.geometry.coordinates;
+    }
+    var type = layer.options.type || "";
+    var isFirstWaypoint = (index === 0);
+    var isLastWaypoint = (index === waypointLayers.length - 1);
+
+    if (isLastWaypoint && arrivalRunwayData) {
+      if (MAP_DEBUG) console.log('[buildCoords] Skipping last waypoint (airport) - using runway data instead');
+    } else {
+      pushUnique(coordsArray, coords);
+    }
+
+    if (type.startsWith("DEP")) {
+      if (coordsArrayDEP.length < 5) console.log('[buildCoords] Adding DEP waypoint #' + coordsArrayDEP.length + ':', coords, 'type:', type);
+      pushUnique(coordsArrayDEP, coords);
+    } else if (type.startsWith("ARR")) {
+      if (isLastWaypoint && arrivalRunwayData) {
+      } else {
+        pushUnique(coordsArrayARR, coords);
+      }
+    }
+  });
+  
+  console.log('[buildCoords] Final coordsArrayDEP (count=' + coordsArrayDEP.length + '):', JSON.stringify(coordsArrayDEP));
+
+  if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
+    console.log('[buildCoords] ✓ ARR RUNWAY: Adding THRESHOLD only (landing point):', arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon);
+    pushUnique(coordsArrayARR, [arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon]);
+    pushUnique(coordsArray, [arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon]);
+  } else if (destination) {
+    var destLat = destination?.Airport_latitude || destination?.airport_latitude || destination?.Latitude || destination?.latitude;
+    var destLon = destination?.Airport_longitude || destination?.airport_longitude || destination?.Longitude || destination?.longitude;
+    if (destLat && destLon) {
+      pushUnique(coordsArrayARR, [parseFloat(destLat), parseFloat(destLon)]);
+      pushUnique(coordsArray, [parseFloat(destLat), parseFloat(destLon)]);
+    }
+  }
+
+  console.log('[buildCoords] ========== BUILD COMPLETE ==========');
+  console.log('[buildCoords] coordsArray:', coordsArray.length, 'coords');
+  console.log('[buildCoords] coordsArrayDEP:', coordsArrayDEP.length, 'coords');
+  console.log('[buildCoords] coordsArrayARR:', coordsArrayARR.length, 'coords');
+
+  return {
+    coordinatesArray: coordsArray,
+    coordinatesArrayDEP: coordsArrayDEP,
+    coordinatesArrayARR: coordsArrayARR,
+    coordinatesArrayRWY: coordsArrayRWY,
+    waypointLayers: waypointLayers,
+    waypointCount: waypointLayers.length
+  };
+}
+
+/**
+ * Sets up event handlers for waypoint interactions and restores saved state
+ * Handles click, long-press, delete, and state restoration
+ * @param {Array} waypointLayers - Array of waypoint layers
+ */
+function setupWaypointEventHandlers(waypointLayers) {
+  $(".target").on("click", function (event) {
+    // Don't handle click if it's on the delete button
+    if ($(event.target).hasClass("waypoint-delete-btn")) {
+      return;
+    }
+    // Don't handle click if long press was just triggered
+    if (longPressTriggered) {
+      return;
+    }
+    // Use $(this).attr('id') instead of event.target.id to get the correct list item ID
+    const clickedId = $(this).attr('id');
+
+    if (startlineShow == false || targetMarker != clickedId) {
+      // Reset all waypoints to black first
+      $(".target").css("color", "");
+      // Then set clicked one to red
+      $(this).css("color", "red");
+
+      targetMarker = clickedId;
+      startlineShow = true;
+      limitStartlineDistance = false;  // Keine Begrenzung bei manueller Aktivierung
+      localStorage.setItem("targetMarker", clickedId);
+      secondclick = false;
+
+      if (!map.hasLayer(startLineGroup)) {
+        map.addLayer(startLineGroup);
+      }
+
+      // Redraw elevation profile to show aircraft position
+      if (elevationProfileVisible && cachedElevationData.groundElevations) {
+        redrawElevationCanvas();
+      }
+
+      $(".leaflet-geosearch-bar").css("top", 72);
+      markerFunction(clickedId);
+    } else {
+      $(this).css("color", "");
+
+      if (map.hasLayer(startLineGroup)) {
+        map.removeLayer(startLineGroup);
+      }
+
+      startlineShow = false;
+      localStorage.setItem("targetMarker", -2);
+      $(".leaflet-geosearch-bar").css("top", -2);
+      targetMarker = -2;
+
+      // Redraw elevation profile to hide aircraft position
+      if (elevationProfileVisible && cachedElevationData.groundElevations) {
+        redrawElevationCanvas();
+      }
+
+      if (ActiveMarker !== undefined) {
+        ActiveMarker.setIcon(createWaypointIcon(false));
+        ActiveMarker.dragging.disable();
+        ActiveMarker = undefined;
+      }
+    }
+    //map.closePopup();
+  });
+  // Add click handlers for delete buttons
+  $("#overlayList .waypoint-delete-btn").off("click").on("click", function (event) {
+    event.stopPropagation();
+    event.preventDefault();
+    var waypointId = $(this).attr("data-waypoint-id");
+    if (waypointId) {
+      removeWaypointById(waypointId);
+    }
+  });
+
+  // Long-press support to open waypoint popup (EFB compatibility - no right-click)
+  $("#overlayList > ul > li.target")
+    .off("contextmenu mousedown mouseup mouseleave touchstart touchend touchcancel touchmove")
+    .on("contextmenu", function (event) {
+      event.preventDefault();
+      // Right-click disabled for EFB compatibility - use long-press instead
+    })
+    .on("mousedown touchstart", function (event) {
+      // Don't trigger long press if clicking on delete button
+      if ($(event.target).hasClass("waypoint-delete-btn")) {
+        return;
+      }
+
+      var self = this;
+      var clientX, clientY;
+      if (event.type === "touchstart") {
+        var touch = event.originalEvent.touches[0];
+        clientX = touch.clientX;
+        clientY = touch.clientY;
+      } else {
+        clientX = event.clientX;
+        clientY = event.clientY;
+      }
+      longPressStartX = clientX;
+      longPressStartY = clientY;
+      longPressTarget = self;
+
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+      }
+      longPressTimer = setTimeout(function () {
+        // Mark that long press was triggered to prevent click event
+        longPressTriggered = true;
+
+        // Check if waypoint has frequency - show context menu if so
+        var navFrequency = self.getAttribute("data-navfrequency");
+        if (navFrequency) {
+          var wpName = self.getAttribute("data-wpname") || 'NAV';
+          var freqMode = self.getAttribute("data-navfrequencymode") || 'nav';
+          if (MAP_DEBUG) console.log('[Frequency] Waypoint long press - showing context menu for:', wpName, navFrequency, 'mode:', freqMode);
+          showFrequencyContextMenu(longPressStartX, longPressStartY, navFrequency, wpName, freqMode, true);
+        }
+
+        // Find waypoint layer and open its popup (only if not already open)
+        var waypointId = self.getAttribute("data-layer-id");
+        if (waypointId) {
+          var layer = getWaypointLayerById(waypointId);
+          if (layer) {
+            // Only open if popup is not already open
+            if (!layer.isPopupOpen || !layer.isPopupOpen()) {
+              // Center map on waypoint and open popup
+              var latlng = layer.getLatLng ? layer.getLatLng() : layer._latlng;
+              if (latlng) {
+                map.setView(latlng, Math.max(map.getZoom(), 11));
+              }
+              // Open popup after a short delay
+              setTimeout(function() {
+                if (typeof layer.openPopup === 'function') {
+                  programmaticPopupTimestamp = Date.now();
+                  layer.openPopup();
+                }
+              }, 300);
+            }
+          }
+        }
+        longPressTimer = null;
+        longPressTarget = null;
+      }, longPressDelay);
+    })
+    .on("mouseup mouseleave touchend touchcancel", function (event) {
+      safeCleanupTimer('longPressTimer');
+      longPressTarget = null;
+
+      // Clear the flag after a short delay to allow click event to be blocked
+      if (longPressTriggered) {
+        setTimeout(function() {
+          longPressTriggered = false;
+        }, 100);
+      }
+    })
+    .on("touchmove", function (event) {
+      if (longPressTimer && event.originalEvent.touches.length > 0) {
+        var touch = event.originalEvent.touches[0];
+        var dx = Math.abs(touch.clientX - longPressStartX);
+        var dy = Math.abs(touch.clientY - longPressStartY);
+        if (dx > longPressMoveThreshold || dy > longPressMoveThreshold) {
+          safeCleanupTimer('longPressTimer');
+          longPressTarget = null;
+        }
+      }
+    });
+
+  if (
+    pendingFirstActivation &&
+    (!document.activeElement || document.activeElement.id !== "WPnameInput")
+  ) {
+    pendingFirstActivation = false;
+    activateNearestWaypoint();
+  }
+
+  // Update elevation profile if visible
+  if (elevationProfileVisible) {
+    updateElevationProfile();
+  }
+
+  // Restore active waypoint state after page reload
+  // Use setTimeout to ensure DOM and event listeners are fully ready
+  setTimeout(function() {
+    var savedTargetMarker = localStorage.getItem("targetMarker");
+    if (savedTargetMarker !== null && savedTargetMarker !== "-2") {
+      var savedTarget = parseInt(savedTargetMarker);
+      if (!isNaN(savedTarget) && savedTarget >= 0 && savedTarget < waypointLayers.length) {
+        targetMarker = savedTarget;
+        startlineShow = true;
+
+        // Restore visual state - color the active waypoint red
+        $(".target").css("color", "");
+        var activeWaypoint = document.getElementById(savedTarget.toString());
+        if (activeWaypoint) {
+          activeWaypoint.style.color = "red";
+        }
+
+        // Add start line layer to map
+        if (!map.hasLayer(startLineGroup)) {
+          map.addLayer(startLineGroup);
+        }
+
+        // WICHTIG: Hole myId aus dem Layer statt Array-Index zu verwenden
+        var targetLayer = waypointLayers[savedTarget];
+        var targetMyId = targetLayer && targetLayer.options ? targetLayer.options.myId : savedTarget;
+
+        // Recalculate and display the line - markerFunction erwartet myId
+        markerFunction(targetMyId);
+
+        // Redraw elevation profile to show aircraft position
+        if (elevationProfileVisible && cachedElevationData.groundElevations) {
+          redrawElevationCanvas();
+        }
+      }
+    }
+  }, 100);
+}
+
+/**
+ * Builds and updates waypoint list UI with bearing, altitude, and distance info
+ * @param {Array} waypointLayers - Array of waypoint layers
+ * @param {Array} coordinatesArray - Array of coordinate pairs
+ */
+function updateWaypointList(waypointLayers, coordinatesArray) {
+  var overlayListUl = document.querySelector("#overlayList > ul");
+  var overlayListHtml = [];
+  var totalWaypoints = waypointLayers.length;
+
+  console.log('[updateWaypointList] totalWaypoints:', totalWaypoints, 'overlayListUl found:', !!overlayListUl);
+  if (!overlayListUl) {
+    console.warn('[updateWaypointList] DOM element #overlayList > ul NOT FOUND!');
+    // Try alternative selector
+    overlayListUl = document.getElementById('overlayContent');
+    console.log('[updateWaypointList] Fallback to #overlayContent:', !!overlayListUl);
+  }
+
+  waypointLayers.forEach(function (layer, index) {
+    // Debug: Log first 3 waypoints
+    if (index < 3) {
+      console.log('[updateWaypointList] Waypoint', index, ':', layer.options.name, 'type:', layer.options.type, 'myId:', layer.options.myId);
+    }
+    // Build the waypoint type label
+    var type = layer.options.type || "";
+    if (type == "reportingPoint") {
+      type = "MRP";
+    }
+    var typeLabelHtml = type
+      ? '<span class="flightplan-type-label">' + type + "</span>"
+      : "";
+    var typeLabelSeparator = typeLabelHtml ? " " : "";
+
+    // Check if there's a next waypoint (for info row)
+    var hasNextWaypoint = index < totalWaypoints - 1;
+    var infoRowHtml = "";
+
+    if (hasNextWaypoint) {
+      var currCoords = coordinatesArray[index];
+      var nextCoords = coordinatesArray[index + 1];
+      var nextAltitude = altitudes[index + 1];
+      var nextAtbl = atbls[index + 1] || "";
+
+      // Calculate bearing and distance TO next waypoint
+      var bearing = 0;
+      var segmentDistance = 0;
+      if (currCoords && nextCoords) {
+        bearing = calculateBearing(
+          currCoords[0],
+          currCoords[1],
+          nextCoords[0],
+          nextCoords[1]
+        );
+        segmentDistance = calculateDistance(
+          currCoords[0],
+          currCoords[1],
+          nextCoords[0],
+          nextCoords[1],
+          "N"
+        );
+      }
+
+      // Format bearing with leading zeros
+      var bearingStr = "";
+      if (Math.round(bearing) < 10) {
+        bearingStr = "00" + Math.round(bearing);
+      } else if (Math.round(bearing) < 100) {
+        bearingStr = "0" + Math.round(bearing);
+      } else {
+        bearingStr = "" + Math.round(bearing);
+      }
+
+      // Build altitude string
+      var altitudeStr = "";
+      if (nextAltitude !== undefined && nextAltitude !== null && nextAltitude !== "" && nextAltitude !== "null") {
+        var altValue = parseFloat(nextAltitude);
+        if (!isNaN(altValue)) {
+          altitudeStr = " - " + altValue.toFixed(0) + " ft";
+          if (nextAtbl) {
+            altitudeStr += " " + nextAtbl;
+          }
+        }
+      }
+
+      // Build distance string
+      var distanceStr = parseFloat(segmentDistance).toFixed(0) + " nm";
+
+      infoRowHtml = '<div class="waypoint-info-row">' +
+        '<p style="color:var(--light)">' + bearingStr + DEGREE_SYMBOL + altitudeStr + '</p>' +
+        '<span style="color:var(--light);"> - </span>' +
+        '<a style="">' + distanceStr + '</a>' +
+        '</div>';
+    }
+
+    // Extract frequency for VOR/TACAN/NDB navaids
+    var navFreqAttr = '';
+    var rawType = layer.options.type || '';
+    var freqInfo = extractNavaidFrequencyInfo(rawType);
+    if (freqInfo !== null) {
+      navFreqAttr = ' data-navfrequency="' + freqInfo.frequency + '" data-navfrequencymode="' + freqInfo.mode + '" data-wpname="' + escapeHtml(layer.options.name || '') + '"';
+    }
+
+    // Build complete list item
+    overlayListHtml.push(
+      '<li href="#" class="target" id="' +
+        index +
+        '" data-layer-id="' +
+        layer.options.myId +
+        '"' + navFreqAttr + '>' +
+        '<span class="waypoint-content">' +
+        layer.options.name +
+        "<br>" +
+        typeLabelHtml +
+        typeLabelSeparator +
+        '<button class="waypoint-delete-btn" data-waypoint-id="' +
+        layer.options.myId +
+        '" title="Delete waypoint">&times;</button>' +
+        '</span>' +
+        infoRowHtml +
+        '<a href="#" class="" id="' +
+        index +
+        ' "></a></li>'
+    );
+  });
+  wpi2 = waypointLayers.length;
+
+  console.log('[updateWaypointList] Built', overlayListHtml.length, 'list items');
+
+  // Single DOM update - much faster than multiple appends
+  if (overlayListUl && overlayListHtml.length > 0) {
+    overlayListUl.innerHTML = overlayListHtml.join('');
+    console.log('[updateWaypointList] DOM updated with', overlayListUl.children.length, 'children');
+  } else {
+    console.warn('[updateWaypointList] DOM NOT updated! overlayListUl:', !!overlayListUl, 'overlayListHtml.length:', overlayListHtml.length);
+  }
+
+  // Hide and reset waypoint list if no waypoints
+  if (waypointLayers.length < 1) {
+    if (overlayListUl) {
+      overlayListUl.innerHTML = '';
+    }
+    hideWpList();
+  }
+
+  // Cache DOM elements for batch update
+  var startEl = document.getElementById("start");
+  var targetEl = document.getElementById("target");
+  var depEl = document.getElementById("dep");
+  var arrEl = document.getElementById("arr");
+  var depArrTable = document.getElementById("depArrTable");
+  var overlayEl = document.getElementById("overlay");
+
+  // Determine values first
+  var startText = wpNames[0] || "START";
+  var targetText = (wpNames.length > 1 && wpNames[wpNames.length - 1]) ? wpNames[wpNames.length - 1] : "DEST";
+
+  // Helper function to strip frequency from type (e.g., "DVOR-DME 116.850 MHz" -> "DVOR-DME")
+  function stripFrequency(typeStr) {
+    if (!typeStr) return typeStr;
+    // Replace &nbsp; with regular space first, then remove frequency pattern
+    var normalized = typeStr.replace(/&nbsp;/g, ' ');
+    return normalized.replace(/\s+\d+(\.\d+)?\s*(MHz|kHz)?$/i, '').trim();
+  }
+
+  // Helper function to remove DEP/ARR prefix from type
+  function stripDepArr(typeStr) {
+    if (!typeStr) return typeStr;
+    return typeStr.replace(/^(DEP|ARR)\s+/i, '').trim();
+  }
+
+  var depText = wpTypes[0] ? (wpTypes[0] === "reportingPoint" ? "MRP" : stripDepArr(stripFrequency(wpTypes[0]))) : "DEP";
+  var arrText = wpTypes[1] ? (wpTypes[wpTypes.length - 1] === "reportingPoint" ? "MRP" : stripDepArr(stripFrequency(wpTypes[wpTypes.length - 1]))) : "ARR";
+
+  // Check for explicit DEP/ARR in wpTypes
+  if (wpTypes && wpTypes.length) {
+    for (var i = wpTypes.length - 1; i >= 0; i--) {
+      if (!wpTypes[i]) continue;
+      var splitted = wpTypes[i].split(" ");
+      if (splitted[0] === "ARR" && splitted[1]) {
+        arrText = splitted[1];
+        break;
+      }
+    }
+    for (var i = 0; i < wpTypes.length; i++) {
+      if (!wpTypes[i]) continue;
+      var splitted = wpTypes[i].split(" ");
+      if (splitted[0] === "DEP" && splitted[1]) {
+        depText = splitted[1];
+        break;
+      }
+    }
+  }
+
+  // Batch DOM updates
+  if (startEl) startEl.innerHTML = startText;
+  if (targetEl) targetEl.innerHTML = targetText;
+  if (depEl) depEl.innerHTML = depText;
+  if (arrEl) arrEl.innerHTML = arrText;
+  if (depArrTable) depArrTable.style.display = "";
+  if (wpListMinimized && overlayEl) {
+    overlayEl.style.minHeight = "8%";
+  }
+}
+
+/**
+ * Creates and manages polylines for route visualization with outlines
+ * Handles main route, departure, and arrival polylines with proper layering
+ * @param {Object} coordinateData - Coordinate data from buildCoordinateArrays()
+ */
+function createPolylines(coordinateData) {
+  var coordinatesArray = coordinateData.coordinatesArray;
+  var coordinatesArrayDEP = coordinateData.coordinatesArrayDEP;
+  var coordinatesArrayARR = coordinateData.coordinatesArrayARR;
+  var coordinatesArrayRWY = coordinateData.coordinatesArrayRWY || [];
+  var waypointCount = coordinateData.waypointCount;
+
+  // Main line options with increased weight
+  // interactive: false - Klicks nur über Middle Markers, nicht auf der Linie selbst
+  var mainLineOptions = {
+    color: "rgb(41,129,202)",
+    weight: 5,
+    smoothFactor: 0,
+    noClip: true,
+    interactive: false,  // Deaktiviert Klick-Toleranz - Middle Markers übernehmen
+  };
+  var depLineOptions = {
+    color: "rgb(70,195,51)",
+    weight: 5,
+    smoothFactor: 0,
+    noClip: true,
+  };
+  var arrLineOptions = {
+    color: "rgb(255,198,0)",
+    weight: 5,
+    smoothFactor: 0,
+    noClip: true,
+  };
+
+  // Create main polylines
+  pline = L.polyline(coordinatesArray, mainLineOptions);
+  plineDEP = L.polyline(coordinatesArrayDEP, depLineOptions);
+  plineARR = L.polyline(coordinatesArrayARR, arrLineOptions);
+
+  if (waypointCount == 0) {
+    startLineGroup.clearLayers();
+    map.removeLayer(startLineGroup);
+  }
+
+  // pline.on("click", onMainPolylineClick);  // Deaktiviert - Middle Markers übernehmen
+
+  if (map.hasLayer(middleMarkers)) {
+    map.removeLayer(middleMarkers);
+  }
+
+  clearAllPolylineLayers();
+
+  // Add main layers
+  pLineGroup.addLayer(pline);
+  pLineGroupDEP.addLayer(plineDEP);
+  pLineGroupARR.addLayer(plineARR);
+
+  safeCleanupTimer('startlineInterval');
+  if (waypointCount > 0) {
+    startlineInterval = setInterval(line, 100);
+  }
+
+  if (waypointCount > 0 && startlineShow == true) {
+    if (!map.hasLayer(startLineGroup)) {
+      startLineGroup.addTo(map);
+    }
+  } else {
+    if (map.hasLayer(startLineGroup)) {
+      map.removeLayer(startLineGroup);
+    }
+  }
+  pLineGroup.eachLayer(function (layer) {
+    createMiddleMarkers(layer);
+  });
+}
+
+function drawLines() {
+  normalizeWaypointNames();
+  savePoints();
+    wpi = 0;
+    wpi2 = 0;
+    var overlayListUl = document.querySelector("#overlayList > ul");
+    if (overlayListUl) {
+      overlayListUl.innerHTML = '';
+    }
+    $("#overlayListSum").empty();
+    headings = [];
+    if (window.localStorage.getItem("altitudes")) {
+      altitudes = JSON.parse(window.localStorage.getItem("altitudes"));
+    }
+    if (window.localStorage.getItem("distances")) {
+      distances = JSON.parse(window.localStorage.getItem("distances"));
+    }
+    if (window.localStorage.getItem("wpNames")) {
+      wpNames = JSON.parse(window.localStorage.getItem("wpNames"));
+    }
+    if (window.localStorage.getItem("wpTypes")) {
+      wpTypes = JSON.parse(window.localStorage.getItem("wpTypes"));
+    }
+
+    // Build coordinate arrays for route visualization
+    var coordinateData = buildCoordinateArrays();
+    coordinatesArray = coordinateData.coordinatesArray;
+    coordinatesArrayDEP = coordinateData.coordinatesArrayDEP;
+    coordinatesArrayARR = coordinateData.coordinatesArrayARR;
+    var waypointLayers = coordinateData.waypointLayers;
+    wpi = coordinateData.waypointCount;
+
+    console.log('[drawLines] waypointLayers.length:', waypointLayers.length, 'coordinatesArray.length:', coordinatesArray.length);
+
+    // Create and configure all route polylines
+    createPolylines(coordinateData);
+
+    // Build and update waypoint list UI
+    updateWaypointList(waypointLayers, coordinatesArray);
+    console.log('[drawLines] updateWaypointList completed');
+
+    // Setup event handlers and restore state
+    setupWaypointEventHandlers(waypointLayers);
+
+    // Update elevation profile if layer is active and we have 2+ waypoints
+    if (elevationProfileLayer && map && map.hasLayer(elevationProfileLayer) && waypointLayers.length >= 2) {
+      updateElevationProfile();
+    }
+  }
+
+  function markerFunction(id) {
+    // Elevation Profile einblenden wenn geschlossen (nur wenn keine Animation läuft)
+    // Bei laufender Animation wird showElevationProfile() automatisch von onFlightplanAnimationComplete() aufgerufen
+    if (!elevationProfileVisible && !window.flightplanAnimationInProgress && !window.flightplanUISequenceInProgress) {
+      var wpLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
+      if (wpLayers.length >= 2) {
+        showElevationProfile();
+      }
+    }
+
+    // Get sorted waypoint layers to find the index
+    var waypointLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
+    var targetIndex = -1;
+
+    map.eachLayer(function (layer) {
+      if (layer.options && layer.options.myId == id) {
+        const svgIconNormal = createWaypointIcon(false);
+        const svgIconActive = createWaypointIcon(true);
+
+        if (ActiveMarker && ActiveMarker !== layer) {
+          if (typeof ActiveMarker.setIcon === 'function') {
+            ActiveMarker.setIcon(svgIconNormal);
+          }
+        }
+
+        ActiveMarker = layer;
+        if (typeof ActiveMarker.setIcon === 'function') {
+          ActiveMarker.setIcon(svgIconActive);
+        }
+        if (ActiveMarker.dragging) {
+          ActiveMarker.dragging.enable();
+        }
+
+        // Find the index of this layer in the sorted waypoint layers
+        for (var i = 0; i < waypointLayers.length; i++) {
+          if (waypointLayers[i] === layer) {
+            targetIndex = i;
+            break;
+          }
+        }
+
+        layer.openTooltip();
+        setTimeout(() => layer.closeTooltip(), 5000);
+      } else if (layer.options && layer.options.myId !== id) {
+        layer.closeTooltip();
+      }
+    });
+
+    // Update targetMarker and redraw elevation profile
+    if (targetIndex !== -1) {
+      targetMarker = targetIndex;
+      // Redraw elevation profile to show the new active marker
+      if (typeof redrawElevationCanvas === 'function') {
+        redrawElevationCanvas();
+      }
+    }
+  }
+
+  function getWaypointLayerById(id) {
+    var numericId = parseInt(id, 10);
+    var foundLayer = null;
+    map.eachLayer(function (layer) {
+      if (layer.options && layer.options.myId == numericId) {
+        foundLayer = layer;
+      }
+    });
+    return foundLayer;
+  }
+
+  function deleteWaypointLayer(layer) {
+    if (!layer) {
+      return;
+    }
+    map.removeLayer(layer);
+    clearAllPolylineLayers();
+    resetCoordinateArrays();
+    removeWaypointMetadata(layer.options.myId);
+
+    var remainingLayers = getWaypointLayersSorted();
+    if (!remainingLayers.length) {
+      removeAllMarkersAndClearServer();  // Use new combined function
+    } else {
+      startLineGroup.clearLayers();
+      startlineShow = false;
+      normalizeWaypointNames();
+      reindexWaypointLayers();
+    }
+    $("#overlayList > ul > li.target").css("color", "");
+    localStorage.removeItem("targetMarker");
+    getMarkerId();
+    drawLines();
+    scheduleNavlogSync();
+  }
+
+  function removeWaypointById(id) {
+    var layer = getWaypointLayerById(id);
+    if (layer) {
+      deleteWaypointLayer(layer);
+    }
+  }
+
+
+  function activateNearestWaypoint() {
+    var layers = getWaypointLayersSorted();
+    if (!layers || layers.length === 0) {
+      pendingFirstActivation = false;
+      startlineShow = false;
+      targetMarker = -1;
+      localStorage.setItem("targetMarker", -1);
+      if (startlineInterval) {
+        clearInterval(startlineInterval);
+        startlineInterval = null;
+      }
+      if (map && map.hasLayer && map.hasLayer(startLineGroup)) {
+        map.removeLayer(startLineGroup);
+      }
+      $(".target").css("color", "");
+
+      // Redraw elevation profile to hide aircraft position
+      if (elevationProfileVisible && cachedElevationData.groundElevations) {
+        redrawElevationCanvas();
+      }
+      return;
+    }
+
+    // Find nearest waypoint to aircraft position
+    var nearestIndex = 0;
+    var nearestDistance = Infinity;
+
+    // Prüfe ob echte Flugzeugposition bekannt ist (nicht nur Fallback-Werte)
+    var hasRealAircraftPosition = window.aircraftPositionInitialized || hasCachedAircraftPosition;
+
+    // Wenn keine echte Position bekannt ist, nicht automatisch aktivieren
+    if (!hasRealAircraftPosition) {
+      if (MAP_DEBUG) console.log('[Map] No real aircraft position - not activating any waypoint');
+      pendingFirstActivation = false;
+      startlineShow = false;
+      targetMarker = -1;
+      localStorage.setItem("targetMarker", -1);
+      $(".target").css("color", "");
+      if (map && map.hasLayer && map.hasLayer(startLineGroup)) {
+        map.removeLayer(startLineGroup);
+      }
+      return;
+    }
+
+    // Calculate distance to each waypoint
+    layers.forEach(function(layer, index) {
+      var wpLatLng = layer.getLatLng();
+      var distance = calculateDistance(
+        pos_lat,
+        pos_lng,
+        wpLatLng.lat,
+        wpLatLng.lng,
+        "nm"
+      );
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+
+    if (MAP_DEBUG) console.log('[Map] Nearest waypoint: index', nearestIndex, 'at', nearestDistance.toFixed(2), 'nm from aircraft');
+
+    // Nicht aktivieren wenn nächster Waypoint > 20nm entfernt ist
+    var maxActivationDistanceNm = 20;
+    if (nearestDistance > maxActivationDistanceNm) {
+      if (MAP_DEBUG) console.log('[Map] Nearest waypoint too far (' + nearestDistance.toFixed(2) + 'nm > ' + maxActivationDistanceNm + 'nm) - not activating');
+      pendingFirstActivation = false;
+      startlineShow = false;
+      targetMarker = -1;
+      localStorage.setItem("targetMarker", -1);
+      $(".target").css("color", "");
+      if (map && map.hasLayer && map.hasLayer(startLineGroup)) {
+        map.removeLayer(startLineGroup);
+      }
+      // Redraw elevation profile to hide aircraft position
+      if (elevationProfileVisible && cachedElevationData.groundElevations) {
+        redrawElevationCanvas();
+      }
+      return;
+    }
+
+    // Activate the nearest waypoint
+    pendingFirstActivation = false;
+    startlineShow = true;
+    limitStartlineDistance = false;  // Keine Begrenzung nötig da Waypoint <= 20nm
+
+    // WICHTIG: Verwende myId statt Array-Index für Konsistenz
+    var nearestLayer = layers[nearestIndex];
+    var nearestMyId = nearestLayer && nearestLayer.options ? nearestLayer.options.myId : nearestIndex;
+
+    targetMarker = nearestIndex;  // Elevation Profile verwendet Array-Index
+    localStorage.setItem("targetMarker", nearestIndex);
+    $(".target").css("color", "");
+
+    // Update waypoint list UI - highlight active waypoint in red
+    var targetElement = document.querySelector("#overlayList > ul > li:nth-child(" + (nearestIndex + 1) + ")");
+    if (targetElement) {
+      targetElement.style.color = "red";
+    }
+
+    // Activate marker visually (change to red circle, enable dragging)
+    // markerFunction erwartet myId, nicht Array-Index
+    markerFunction(nearestMyId);
+
+    // Redraw elevation profile to show aircraft position
+    if (elevationProfileVisible && cachedElevationData.groundElevations) {
+      redrawElevationCanvas();
+    }
+  }
+
+  function line() {
+    var nwp1_lat;
+    var nwp1_lng;
+    var target = localStorage.getItem("targetMarker");
+    if (coordinatesArray) {
+      var nlat = pos_lat;
+      var nlng = pos_lng;
+      var i = 0;
+      if (coordinatesArray[target]) {
+        if (target <= coordinatesArray.length) {
+          nwp1_lat = coordinatesArray[target][0];
+          nwp1_lng = coordinatesArray[target][1];
+          var p2 = new L.LatLng(nwp1_lat, nwp1_lng);
+
+          // Begrenze Startlinie auf 20nm nur bei Flugplan-Laden
+          var lineEndLat = nlat;
+          var lineEndLng = nlng;
+          if (limitStartlineDistance) {
+            var maxDistanceNm = 20;
+            var distanceNm = calculateDistance(nlat, nlng, nwp1_lat, nwp1_lng, "nm");
+            if (distanceNm > maxDistanceNm) {
+              var ratio = maxDistanceNm / distanceNm;
+              lineEndLat = nwp1_lat + (nlat - nwp1_lat) * ratio;
+              lineEndLng = nwp1_lng + (nlng - nwp1_lng) * ratio;
+            }
+          }
+          var pos2 = new L.LatLng(lineEndLat, lineEndLng);
+          var coordinates2 = [p2, pos2];
+        } else {
+          startlineShow = false;
+        }
+
+        if (startlineShow == true) {
+          startLineGroup.clearLayers();
+          // Add main line
+          startLineGroup.addLayer(
+            L.polyline(coordinates2, { color: "#ff2e63", weight: 5 })
+          );
+        }
+      }
+
+      var listItems = document.querySelectorAll("#overlayList > ul > li");
+      var targetIndex = startlineShow ? parseInt(target, 10) : -1;
+      for (var i = 0; i < listItems.length; i++) {
+        listItems[i].style.color = (i === targetIndex) ? "red" : "";
+      }
+
+      var distance2 = 0;
+      var planeHeading = 0;
+      var alt1 = 0;
+      var alt = parseFloat(altitude).toFixed(0);
+      var vel = parseFloat(speed).toFixed(0);
+      var times = "";
+
+      if (startlineShow == true && nwp1_lat !== undefined && nwp1_lng !== undefined && nlat !== undefined && nlng !== undefined) {
+        distance2 = calculateDistance(nlat, nlng, nwp1_lat, nwp1_lng, "nm");
+        planeHeading = calculateBearing(nlat, nlng, nwp1_lat, nwp1_lng);
+      }
+      if (altitudes[target] && startlineShow == true) {
+        alt1 = parseFloat(altitudes[target]);
+      }
+
+      if (distance2 > 0 && vel > 0) {
+        times = convertNumToTime(((distance2 / vel) * 60).toFixed(2));
+      }
+
+      // Leg-Distanz berechnen (Distanz zwischen vorherigem und aktuellem Wegpunkt)
+      var legDistanceNm = '';
+      if (target > 0 && coordinatesArray && coordinatesArray.length > target) {
+        var prevWp = coordinatesArray[target - 1];
+        var currWp = coordinatesArray[target];
+        if (prevWp && currWp) {
+          legDistanceNm = calculateDistance(prevWp[0], prevWp[1], currWp[0], currWp[1], "nm").toFixed(1);
+        }
+      }
+
+      if (planeHeading != 0 && startlineShow == true) {
+        $("#overlay2").html(
+          '<table class="overlay2Table" style="text-align: center;"><tr><td>IAS:&nbsp;' +
+            vel +
+            "kts  &nbsp;I&nbsp;&nbsp;HEAD:&nbsp;" +
+            heading.toFixed(0) +
+            DEGREE_SYMBOL + " / " +
+            planeHeading.toFixed(0) +
+            DEGREE_SYMBOL + "  &nbsp;I&nbsp;&nbsp;DIST:&nbsp;" +
+            distance2.toFixed(2) +
+            "nm" + (legDistanceNm ? "&nbsp;/ " + legDistanceNm + "nm" : "") +
+            (times ? "&nbsp;(" + times + ")" : "") +
+            "  I&nbsp;&nbsp;ALT:&nbsp;" +
+            alt +
+            "ft / " +
+            alt1.toFixed(0) +
+            "ft</td></tr></table>"
+        );
+      } else {
+        $("#overlay2").html(
+          '<table class="overlay2Table" style="text-align: center;"><tr><td>IAS:&nbsp;' +
+            vel +
+            "kts  &nbsp;I&nbsp;&nbsp;HEAD:&nbsp;" +
+            heading.toFixed(0) +
+            DEGREE_SYMBOL + "  I&nbsp;&nbsp;ALT:&nbsp;" +
+            alt +
+            "ft</td></tr></table>"
+        );
+      }
+
+      if (startlineShow == true && nwp1_lat !== undefined && nwp1_lng !== undefined) {
+        distance = calculateDistance(nlat, nlng, nwp1_lat, nwp1_lng, "K");
+      }
+      if (distance <= 5) {
+        if (startlineShow == true) {
+          targetMarker++;
+          localStorage.setItem("targetMarker", targetMarker);
+          if (
+            targetMarker == coordinatesArray.length &&
+            coordinatesArray.length > 1
+          ) {
+            targetMarker = 0;
+            localStorage.setItem("targetMarker", targetMarker);
+            startlineShow = false;
+            if (map.hasLayer(startLineGroup)) {
+              startLineGroup.clearLayers();
+              map.removeLayer(startLineGroup);
+            }
+          } else {
+            // Update the waypoint list highlighting and marker for the new target
+            // WICHTIG: Hole myId aus dem Layer statt Array-Index zu verwenden
+            var layers = getWaypointLayersSorted();
+            var nextLayer = layers[targetMarker];
+            var nextMyId = nextLayer && nextLayer.options ? nextLayer.options.myId : targetMarker;
+            markerFunction(nextMyId);
+          }
+        }
+      }
+    }
+  }
+
+  function convertNumToTime(number) {
+    var sign = number >= 0 ? 1 : -1;
+    number = number * sign;
+    var minutes = Math.floor(number);
+    var decpart = number - minutes;
+    var min = 1 / 60;
+    decpart = min * Math.round(decpart / min);
+    var secunde = Math.floor(decpart * 60) + "";
+    if (secunde.length < 2) {
+      secunde = "0" + secunde;
+    }
+    var hours = Math.floor(minutes / 60);
+    sign = sign == 1 ? "" : "-";
+    minutes = minutes - hours * 60;
+    var time = "";
+    if (hours > 0 && minutes > 0 && secunde > 0) {
+      time =
+        sign +
+        hours +
+        "hour.&nbsp;" +
+        minutes +
+        "min.&nbsp;" +
+        secunde +
+        "sec.";
+    } else if (hours < 1 && minutes > 0 && secunde > 0) {
+      time = sign + minutes + "min.&nbsp;" + secunde + "sec.";
+    } else if (hours < 1 && minutes < 1 && secunde > 0) {
+      time = sign + secunde + "sec.";
+    }
+    return time;
+  }
+
+  // Converts from degrees to radians.
+  function toRadians(degrees) {
+    return (degrees * Math.PI) / 180;
+  }
+
+  // Converts from radians to degrees.
+  function toDegrees(radians) {
+    return (radians * 180) / Math.PI;
+  }
+
+  function calculateBearing(startLat, startLng, destLat, destLng) {
+    var start_latitude = toRadians(startLat);
+    var start_longitude = toRadians(startLng);
+    var stop_latitude = toRadians(destLat);
+    var stop_longitude = toRadians(destLng);
+    var y =
+      Math.sin(stop_longitude - start_longitude) * Math.cos(stop_latitude);
+    var x =
+      Math.cos(start_latitude) * Math.sin(stop_latitude) -
+      Math.sin(start_latitude) *
+        Math.cos(stop_latitude) *
+        Math.cos(stop_longitude - start_longitude);
+    var brng = Math.atan2(y, x);
+    var brng = toDegrees(brng);
+    var heading = (brng + 360) % 360;
+    headings.push(heading);
+    return heading;
+  }
+
+  toggle12 = L.easyButton({
+    id: "getMetar",
+    class: "getMetar",
+    position: "topleft",
+    type: "replace",
+    leafletClasses: true,
+    states: [
+      {
+        stateName: "get-center",
+        title: "METAR",
+        icon: btnIcon('cloud', 'METAR'),
+        onClick: function() {
+          myFunction();
+        }
+      },
+    ],
+  }).addTo(map);
+
+  toggle = L.easyButton({
+    states: [
+      {
+        stateName: "follow-aircraft",
+        icon: btnIcon('track', 'FOLLOW'),
+        title: "Follow aircraft",
+        onClick: function () {
+          follow = true;
+          toggle.disable();
+          // Center on aircraft position when follow mode is activated
+          if (typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+            map.setView(new L.LatLng(pos_lat, pos_lng));
+            console.log("Centered on aircraft at:", pos_lat, pos_lng);
+          }
+          if (newMarker && map.hasLayer(newMarker)) {
+            map.removeLayer(newMarker);
+            newMarker = null;
+          }
+        }
+      }
+    ]
+  }).addTo(map);
+
+  zoomLevel = map.getZoom();
+
+  if (window.localStorage.getItem("zoomLevel")) {
+    zoomLevel = window.localStorage.getItem("zoomLevel");
+    map.setZoom(zoomLevel);
+  }
+
+  // Only load cached points if no autoload is in progress (prevents double loading)
+  if (!window.flightplanAnimationInProgress && !window.autoloadCheckInProgress) {
+    loadPoints();
+  }
+
+
+  map.on("dragstart", function (e) {
+    toggle.enable();
+    follow = false;
+  });
+
+  map.on("popupclose", function (e) {
+    // Clear auto-close timer when popup closes manually
+    if (timerRegistry.timeouts['popupAutoClose']) {
+      clearTimeout(timerRegistry.timeouts['popupAutoClose']);
+      delete timerRegistry.timeouts['popupAutoClose'];
+    }
+
+    // Close waypoint insert menu when popup closes
+    if (waypointInsertMenuOpen) {
+      hideWaypointInsertMenu();
+    }
+
+    // Close frequency context menu when popup closes
+    if (frequencyContextMenuOpen) {
+      hideFrequencyContextMenu();
+    }
+
+    if (newMarker && map.hasLayer(newMarker)) {
+      map.removeLayer(newMarker);
+      newMarker = null;
+    }
+    if (waypointmode == false) {
+      // Restore follow state from before popup opened
+      // Don't force follow=true, respect user's manual pan
+      follow = followBeforePopup;
+      if (follow) {
+        toggle.disable();
+      } else {
+        toggle.enable();
+      }
+    }
+    toggle4.enable();
+  });
+
+  // Auto-close popups after timeout when not hovered
+  map.on("popupopen", function (e) {
+    followBeforePopup = follow; // Save current follow state before popup opens
+    var POPUP_AUTO_CLOSE_DELAY = 5000; // 5 seconds
+
+    // Clear any existing timer
+    if (timerRegistry.timeouts['popupAutoClose']) {
+      clearTimeout(timerRegistry.timeouts['popupAutoClose']);
+      delete timerRegistry.timeouts['popupAutoClose'];
+    }
+
+    var popup = e.popup;
+    var popupElement = popup._container;
+    if (!popupElement) return;
+
+    // Timer functions
+    function startPopupTimer() {
+      createTrackedTimeout(function() {
+        if (map.hasLayer(popup)) {
+          map.closePopup();
+        }
+      }, POPUP_AUTO_CLOSE_DELAY, 'popupAutoClose');
+    }
+
+    function cancelPopupTimer() {
+      if (timerRegistry.timeouts['popupAutoClose']) {
+        clearTimeout(timerRegistry.timeouts['popupAutoClose']);
+        delete timerRegistry.timeouts['popupAutoClose'];
+      }
+    }
+
+    // Start initial timer
+    startPopupTimer();
+
+    // Attach hover listeners
+    L.DomEvent.on(popupElement, 'mouseenter', cancelPopupTimer);
+    L.DomEvent.on(popupElement, 'mouseleave', startPopupTimer);
+
+    // Cleanup on close
+    popup.on('remove', function() {
+      L.DomEvent.off(popupElement, 'mouseenter', cancelPopupTimer);
+      L.DomEvent.off(popupElement, 'mouseleave', startPopupTimer);
+      cancelPopupTimer();
+    });
+  });
+
+  map.on("overlayadd", function (e) {
+    // DFS and OpenAIP are mutually exclusive
+    if (e.group.name === "Sectionals" && e.name === "DFS") {
+      openAipWasActive = map.hasLayer(openAip);
+      if (openAipWasActive) {
+        setOpenAipSelection(false);
+      }
+      return;
+    }
+    if (e.group.name === "OpenAip" && e.name === "On") {
+      // If OpenAIP is turned on, hide DFS
+      var dfsLayer = layerRegistry['Sectionals_DFS'];
+      if (dfsLayer && map.hasLayer(dfsLayer)) {
+        // Switch to Off for Sectionals
+        var dfsOffLayer = layerRegistry['Sectionals_Off'];
+        if (dfsOffLayer) {
+          map.removeLayer(dfsLayer);
+          map.addLayer(dfsOffLayer);
+          // Update the layer control UI
+          if (LayerControl && LayerControl._form && typeof LayerControl._getLayer === "function") {
+            var inputs = LayerControl._form.getElementsByTagName("input");
+            for (var i = 0; i < inputs.length; i++) {
+              var input = inputs[i];
+              var layerObj = LayerControl._getLayer(input.layerId);
+              if (!layerObj || !layerObj.group) continue;
+              if (layerObj.group.name === "Sectionals") {
+                input.checked = layerObj.layer === dfsOffLayer;
+              }
+            }
+          }
+        }
+      }
+      return;
+    }
+    if (e.group.name === "Flightpath") {
+      if (e.name === "On") {
+        if (map.hasLayer(aircraft)) {
+          if (!map.hasLayer(polyline)) {
+            map.addLayer(polyline);
+            showPath = true;
+          }
+        }
+      }
+      if (e.name === "Off") {
+        if (map.hasLayer(polyline)) {
+          map.removeLayer(polyline);
+          showPath = false;
+        }
+      }
+      if (e.name === "Reset") {
+        if (map.hasLayer(aircraft)) {
+          flightpathReset();
+        }
+      }
+    }
+    if (e.group.name === "Elevation Profile") {
+      if (e.name === "On") {
+        showElevationProfile();
+      }
+      if (e.name === "Off") {
+        hideElevationProfile();
+      }
+    }
+    if (e.group.name === "Aircraft") {
+      if (e.name === "On") {
+        var imgAirplane = document.getElementById("imageAirplane");
+        imgAirplane.style.visibility = "visible";
+        var pos = new L.LatLng(pos_lat, pos_lng);
+        airplane.setLatLng(pos).update();
+        $("#imageAirplane").css(
+          "transform",
+          "rotate(" + Math.round(-45) + "deg)  scale(" + aircraftScale + ")"
+        );
+        $("#imageAirplane").css("fill", colorLight);
+
+        if (map.hasLayer(flightpath)) {
+          if (!map.hasLayer(polyline)) {
+            map.addLayer(polyline);
+          }
+        }
+
+        if (wpi > 0 && startlineShow == true) {
+          if (!map.hasLayer(startLineGroup)) {
+            map.addLayer(startLineGroup);
+          }
+        }
+
+        if (wpi > 0 && wpListOn) {
+          showWpList();
+        }
+      }
+      if (e.name === "Off") {
+        var imgAirplane = document.getElementById("imageAirplane");
+        imgAirplane.style.visibility = "hidden";
+
+        if (map.hasLayer(polyline)) {
+          map.removeLayer(polyline);
+        }
+
+        if (map.hasLayer(startLineGroup)) {
+          map.removeLayer(startLineGroup);
+        }
+        hideWpList();
+      }
+    }
+    // Control Zones layer handling (On/Off only)
+    // When user changes via Layer Control, sync the radio button state
+    // ABER NUR wenn das Controller Panel auch sichtbar ist!
+    if (e.group && e.group.name === "Control Zones") {
+      var controllerEl = document.getElementById('controllerContainer');
+      var panelVisible = controllerEl && controllerEl.style.visibility !== 'hidden';
+
+      if (e.name === "On") {
+        setControlZonesEnabled(true);
+        // Sync radio button - ONLY if controller panel is visible
+        if (panelVisible && typeof toggle10 !== 'undefined') {
+          toggle10.state(controlZonesNetwork === 'IVAO' ? 'ivao' : 'vatsim');
+        }
+      } else if (e.name === "Off") {
+        setControlZonesEnabled(false);
+        // Sync radio button to off state - ONLY if controller panel is visible
+        if (panelVisible && typeof toggle10 !== 'undefined') {
+          toggle10.state('radio');
+        }
+      }
+    }
+    // WICHTIG: Kein globaler Schalter mehr für Hotspots,
+    // damit Hotspots NICHT alle OpenAIP-Layer beeinflussen.
+  });
+
+  map.on("overlayremove", function (e) {
+    if (e.group.name === "Sectionals" && e.name === "DFS") {
+      if (openAipWasActive) {
+        setOpenAipSelection(true);
+        openAipWasActive = false;
+      }
+    }
+    // Handle Control Zones layer removal
+    if (e.group && e.group.name === "Control Zones") {
+      if (e.name === "On") {
+        setControlZonesEnabled(false);
+        // Sync radio button to off state
+        var controllerEl = document.getElementById('controllerContainer');
+        var panelVisible = controllerEl && controllerEl.style.visibility !== 'hidden';
+        if (panelVisible && typeof toggle10 !== 'undefined') {
+          toggle10.state('radio');
+        }
+      }
+    }
+    // Handle Online Pilots layer removal - with defensive checks to prevent interference
+    if (e.group && e.group.name === "Online Pilots") {
+      // CRITICAL FIX: Verify this is actually a pilots layer, not interference from other groups
+      var isPilotsLayer = (
+        e.layer === layerRegistry['Online Pilots_Both'] ||
+        e.layer === layerRegistry['Online Pilots_VATSIM'] ||
+        e.layer === layerRegistry['Online Pilots_IVAO'] ||
+        e.layer === layerRegistry['Online Pilots_Off']
+      );
+
+      if (isPilotsLayer) {
+        setPilotsEnabled(false);
+        // Clear any displayed pilot route
+        if (window.pilotRouteLayer && map.hasLayer(window.pilotRouteLayer)) {
+          map.removeLayer(window.pilotRouteLayer);
+        }
+      }
+    }
+  });
+
+  // Handle Online Pilots layer addition
+  map.on("overlayadd", function(e) {
+    if (e.group && e.group.name === "Online Pilots" && e.name !== "Off") {
+      // Only allow pilots if controller panel is visible
+      var controllerEl = document.getElementById('controllerContainer');
+      var panelVisible = controllerEl && controllerEl.style.visibility !== 'hidden';
+
+      if (!panelVisible) {
+        // Panel not visible - don't enable pilots, revert to "Off"
+        if (PILOTS_DEBUG) console.log('[Pilots] Layer selection blocked - controller panel not active');
+
+        // Remove the layer that was just added
+        if (e.layer && map.hasLayer(e.layer)) {
+          map.removeLayer(e.layer);
+        }
+
+        // Select "Off" in the LayerControl
+        var offLayer = layerRegistry['Online Pilots_Off'];
+        if (offLayer && typeof LayerControl !== 'undefined' && LayerControl._form) {
+          var inputs = LayerControl._form.getElementsByTagName('input');
+          for (var i = 0; i < inputs.length; i++) {
+            var input = inputs[i];
+            var layerObj = LayerControl._getLayer(input.layerId);
+            if (!layerObj || !layerObj.group) continue;
+            if (layerObj.group.name === 'Online Pilots' && layerObj.overlay) {
+              input.checked = layerObj.layer === offLayer;
+            }
+          }
+        }
+        return;
+      }
+
+      // Determine which network(s) to show
+      if (e.name === "Both") {
+        pilotsLayer = layerRegistry['Online Pilots_Both'];
+        setPilotsNetwork('both');
+      } else if (e.name === "VATSIM") {
+        pilotsLayer = layerRegistry['Online Pilots_VATSIM'];
+        setPilotsNetwork('vatsim');
+      } else if (e.name === "IVAO") {
+        pilotsLayer = layerRegistry['Online Pilots_IVAO'];
+        setPilotsNetwork('ivao');
+      }
+      setPilotsEnabled(true);
+    }
+  });
+
+  function flightpathReset() {
+    // Reset last position tracking
+    lastLat = undefined;
+    lastLng = undefined;
+
+    // Hide and reset elevation profile
+    hideElevationProfile();
+    cachedElevationData.groundElevations = null;
+    cachedElevationData.waypointData = null;
+    cachedElevationData.distances = null;
+
+    if (showPath == true) {
+      if (map.hasLayer(polyline)) {
+        map.removeLayer(polyline);
+      }
+      polylinepoints = [];
+      polyline = L.polyline(polylinepoints, {
+        color: '#ff0000',
+        weight: 3,
+        opacity: 0.7,
+        smoothFactor: 1
+      });
+      if (showPath == true) {
+        map.addLayer(polyline);
+      }
+      setTimeout(function () {
+        if (map.hasLayer(flightpath_reset)) {
+          map.removeLayer(flightpath_reset);
+        }
+        if (!map.hasLayer(flightpath)) {
+          map.addLayer(flightpath);
+        }
+      }, 100);
+    } else if (showPath == false) {
+      if (map.hasLayer(polyline)) {
+        map.removeLayer(polyline);
+      }
+      polylinepoints = [];
+      setTimeout(function () {
+        if (map.hasLayer(flightpath_reset)) {
+          map.removeLayer(flightpath_reset);
+        }
+        if (!map.hasLayer(flightpath_off)) {
+          map.addLayer(flightpath_off);
+        }
+      }, 100);
+    }
+  }
+
+  var waypointDataRefreshTimeout = null;
+  var skipNextMoveendRefresh = false;
+  var geometryRefreshDebounceTimer = null;
+  var waypointIconDebounceTimer = null;  // Debounce for updateAllWaypointIcons
+  function scheduleWaypointDataRefresh(delayMs) {
+    if (!map) {
+      return;
+    }
+    if (waypointDataRefreshTimeout) {
+      clearTimeout(waypointDataRefreshTimeout);
+    }
+    var delay =
+      typeof delayMs === "number" && delayMs > 0 ? delayMs : 0;
+    waypointDataRefreshTimeout = setTimeout(function () {
+      waypointDataRefreshTimeout = null;
+      if (!map || typeof map.getZoom !== "function") {
+        return;
+      }
+      var currentZoom = map.getZoom();
+      if (currentZoom > 0) {
+        getWPData();
+      }
+    }, delay);
+  }
+
+  function cancelWaypointDataRefresh() {
+    if (waypointDataRefreshTimeout) {
+      clearTimeout(waypointDataRefreshTimeout);
+      waypointDataRefreshTimeout = null;
+    }
+    safeCleanupTimer('controllerInterval');
+    safeCleanupTimer('startlineInterval');
+  }
+
+  map.on("zoomend", function () {
+    zoomLevel = map.getZoom();
+    window.localStorage.setItem("zoomLevel", zoomLevel);
+
+    // Update waypoint icon sizes based on zoom level (debounced for performance)
+    if (waypointIconDebounceTimer) {
+      clearTimeout(waypointIconDebounceTimer);
+    }
+    waypointIconDebounceTimer = setTimeout(function() {
+      waypointIconDebounceTimer = null;
+      updateAllWaypointIcons();
+    }, 300);
+
+    // DEAKTIVIERT: Zoom-abhängige Icon-Größen verursachen "Wandern" beim Zoomen
+    // Icons behalten jetzt eine feste Größe für stabiles Zoom-Verhalten
+    // if (pilotsEnabled && pilotsLayer && Object.keys(pilotsMarkersCache).length > 0) {
+    //   if (window._pilotsZoomUpdateTimer) {
+    //     clearTimeout(window._pilotsZoomUpdateTimer);
+    //   }
+    //   window._pilotsZoomUpdateTimer = setTimeout(function() {
+    //     window._pilotsZoomUpdateTimer = null;
+    //     updatePilotIconsForZoom();
+    //   }, 300);
+    // }
+
+    if (zoomLevel > 0) {
+      if (toggle11) toggle11.enable();
+      scheduleWaypointDataRefresh(500);  // Increased from 200ms for better performance
+    } else {
+      if (toggle11) toggle11.disable();
+      cancelWaypointDataRefresh();
+      airportsPanel = false;
+      if (
+        panelState == "airports" ||
+        panelState == "navaids" ||
+        panelState == "reportingPoints"
+      ) {
+        var controllerOverlay = document.getElementById("controllerContainer");
+        controllerOverlay.style.visibility = "hidden";
+        var list = document.getElementById("controllerList");
+        list.style.visibility = "hidden";
+        panelState = "";
+      }
+
+      if (map.hasLayer(navaidMarkers)) {
+        map.removeLayer(navaidMarkers);
+      }
+
+      if (map.hasLayer(airportMarkers)) {
+        map.removeLayer(airportMarkers);
+      }
+
+      if (map.hasLayer(reportingPointMarkers)) {
+        map.removeLayer(reportingPointMarkers);
+      }
+    }
+    skipNextMoveendRefresh = true;
+    // Debounce geometry refresh on zoom (increased to 500ms for performance)
+    if (geometryRefreshDebounceTimer) {
+      clearTimeout(geometryRefreshDebounceTimer);
+    }
+    geometryRefreshDebounceTimer = setTimeout(function() {
+      geometryRefreshDebounceTimer = null;
+      scheduleRouteGeometryRefresh();
+    }, 500);
+  });
+
+  map.on("moveend", function (e) {
+    if (skipNextMoveendRefresh) {
+      skipNextMoveendRefresh = false;
+    } else {
+      zoomLevel = map.getZoom();
+      if (zoomLevel > 0) {
+        if (toggle11) toggle11.enable();
+        scheduleWaypointDataRefresh(500);
+      } else {
+        cancelWaypointDataRefresh();
+      }
+    }
+    // Debounce geometry refresh on move (increased to 500ms for performance)
+    if (geometryRefreshDebounceTimer) {
+      clearTimeout(geometryRefreshDebounceTimer);
+    }
+    geometryRefreshDebounceTimer = setTimeout(function() {
+      geometryRefreshDebounceTimer = null;
+      scheduleRouteGeometryRefresh();
+    }, 500);
+    // Piloten-Liste bei Kartenbewegung aktualisieren (wenn Piloten-Modus aktiv)
+    if (panelMode === 'pilots' && panelState) {
+      listPilots();
+    }
+    // VIEWPORT-CULLING: Bei Pan/Zoom Piloten-Marker aktualisieren
+    if (pilotsEnabled) {
+      updatePilotsViewport();
+    }
+    // Auto-save map UI state
+    scheduleMapStateSave();
+  });
+
+  // WICHTIG: Set "Off" layers BEFORE creating LayerControl
+  // The GroupedLayers plugin checks map.hasLayer() during initialization (_update -> _addItem)
+  // So the Off layers must already be on the map when the control is created
+
+  // Online Pilots: Add Off layer to map
+  var defaultPilotsOffLayer = layerRegistry['Online Pilots_Off'];
+  if (defaultPilotsOffLayer) {
+    if (!map.hasLayer(defaultPilotsOffLayer)) {
+      map.addLayer(defaultPilotsOffLayer);
+    }
+    console.log('[Map] Online Pilots Off layer on map:', map.hasLayer(defaultPilotsOffLayer));
+  } else {
+    console.error('[Map] Online Pilots Off layer NOT FOUND in registry!');
+  }
+
+  // Wind: Only add Off layer if config says Off, otherwise activate configured layer
+  if (defaultOverlays['Wind'] === 'Off') {
+    if (windOffLayer && !map.hasLayer(windOffLayer)) {
+      map.addLayer(windOffLayer);
+    }
+    console.log('[Map] Wind Off layer on map:', windOffLayer ? map.hasLayer(windOffLayer) : false);
+  } else if (defaultOverlays['Wind'] && defaultOverlays['Wind'] !== 'Off') {
+    var configuredWindLayer = groupedOverlays['Wind'] && groupedOverlays['Wind'][defaultOverlays['Wind']];
+    if (configuredWindLayer && !map.hasLayer(configuredWindLayer)) {
+      map.addLayer(configuredWindLayer);
+      console.log('[Map] Wind layer activated:', defaultOverlays['Wind']);
+    }
+  }
+
+  // Weather: Only add Off layer if config says Off
+  var weatherOffLayer = groupedOverlays['Weather'] && groupedOverlays['Weather']['Off'];
+  if (defaultOverlays['Weather'] === 'Off') {
+    if (weatherOffLayer && !map.hasLayer(weatherOffLayer)) {
+      map.addLayer(weatherOffLayer);
+    }
+    console.log('[Map] Weather Off layer on map');
+  } else if (defaultOverlays['Weather'] && defaultOverlays['Weather'] !== 'Off' && defaultOverlays['Weather'] !== 'On') {
+    // Weather configured to specific layer (Clouds, Precipitation, etc.)
+    var configuredWeatherLayer = groupedOverlays['Weather'] && groupedOverlays['Weather'][defaultOverlays['Weather']];
+    if (configuredWeatherLayer && !map.hasLayer(configuredWeatherLayer)) {
+      map.addLayer(configuredWeatherLayer);
+      console.log('[Map] Weather layer activated:', defaultOverlays['Weather']);
+    }
+  }
+  // Note: Weather "On" is ignored as it's not a valid layer name
+
+  console.log('[Map] Creating LayerControl now...');
+  if (typeof L.control.groupedLayers === 'function') {
+    LayerControl = L.control
+      .groupedLayers(baseMaps, groupedOverlays, options)
+      .addTo(map);
+    console.log('[Map] LayerControl created');
+  } else {
+    console.error('[Map] L.control.groupedLayers not available - plugin not loaded');
+    // Fallback: use standard layers control
+    LayerControl = L.control.layers(baseMaps, {}).addTo(map);
+    console.log('[Map] Fallback LayerControl created');
+  }
+
+  // FINAL FIX: Set Off layers and update UI after a delay to ensure all init is complete
+  // This runs AFTER all layer add/remove events from initialization have settled
+  setTimeout(function() {
+    console.log('[Map] Final Off-layer setup starting...');
+
+    // Ensure Off layers are on the map
+    var pilotsOff = layerRegistry['Online Pilots_Off'];
+    var windOff = windOffLayer;
+    var weatherOff = groupedOverlays['Weather'] && groupedOverlays['Weather']['Off'];
+
+    // Add Off layers only if config says Off
+    if (defaultOverlays['Online Pilots'] === 'Off' && pilotsOff && !map.hasLayer(pilotsOff)) {
+      map.addLayer(pilotsOff);
+    }
+    if (defaultOverlays['Wind'] === 'Off' && windOff && !map.hasLayer(windOff)) {
+      map.addLayer(windOff);
+    }
+    if (defaultOverlays['Weather'] === 'Off' && weatherOff && !map.hasLayer(weatherOff)) {
+      map.addLayer(weatherOff);
+    }
+
+    // Directly update the radio buttons in the DOM
+    if (LayerControl && LayerControl._form) {
+      var inputs = LayerControl._form.querySelectorAll('input.leaflet-control-layers-selector');
+      inputs.forEach(function(input) {
+        var layerObj = LayerControl._getLayer(input.layerId);
+        if (!layerObj || !layerObj.group) return;
+
+        var groupName = layerObj.group.name;
+        var layerName = layerObj.name;
+
+        // For exclusive groups (radio buttons), check based on map.hasLayer
+        if (layerObj.group.exclusive) {
+          input.checked = map.hasLayer(layerObj.layer);
+        }
+      });
+    }
+
+    console.log('[Map] Final Off-layer setup complete');
+    console.log('[Map] Online Pilots Off on map:', pilotsOff ? map.hasLayer(pilotsOff) : 'N/A');
+    console.log('[Map] Wind Off on map:', windOff ? map.hasLayer(windOff) : 'N/A');
+    console.log('[Map] Weather Off on map:', weatherOff ? map.hasLayer(weatherOff) : 'N/A');
+  }, 500);
+
+  // Prevent wheel events in layer control from zooming the map
+  if (LayerControl._container) {
+    L.DomEvent.disableScrollPropagation(LayerControl._container);
+  }
+  if (LayerControl._form) {
+    L.DomEvent.disableScrollPropagation(LayerControl._form);
+  }
+
+  // Override _expand to prevent size changes when elevation profile is toggled
+  (function() {
+    var originalExpand = LayerControl._expand;
+    LayerControl._expand = function() {
+      // Call original to add the expanded class
+      originalExpand.call(this);
+
+      // Remove height/maxHeight constraints set by original expand
+      if (this._form) {
+        this._form.style.height = '';
+        this._form.style.maxHeight = '';
+      }
+    };
+  })();
+
+  // Hide/show panels when layer control is opened/closed (for browsers that don't support :has() CSS selector)
+  if (LayerControl._container) {
+    var panelStates = {};
+
+    var hidePanels = function() {
+      if (MAP_DEBUG) console.log('[Map] Hiding panels - layer control opened');
+      var overlayEl = document.getElementById('overlay');
+      var overlayContainerEl = document.getElementById('overlayContainer');
+      var overlayListEl = document.getElementById('overlayList');
+      var controllerEl = document.getElementById('controllerContainer');
+      var metarEl = document.getElementById('metarContainer');
+      var elevationEl = document.getElementById('elevationProfileSection');
+      var bannerEl = document.getElementById('banner');
+      var overlay2El = document.getElementById('overlay2');
+
+      // Store current states (using display for consistency)
+      panelStates.overlay = overlayEl ? overlayEl.style.display : '';
+      panelStates.overlayContainer = overlayContainerEl ? overlayContainerEl.style.display : '';
+      panelStates.overlayList = overlayListEl ? overlayListEl.style.display : '';
+      panelStates.controller = controllerEl ? controllerEl.style.display : '';
+      panelStates.metar = metarEl ? metarEl.style.display : '';
+      panelStates.elevation = elevationEl ? elevationEl.style.display : '';
+      panelStates.banner = bannerEl ? bannerEl.style.display : '';
+      panelStates.overlay2 = overlay2El ? overlay2El.style.display : '';
+
+      // Hide all panels using display: none
+      if (overlayEl) overlayEl.style.display = 'none';
+      if (overlayContainerEl) overlayContainerEl.style.display = 'none';
+      if (overlayListEl) overlayListEl.style.display = 'none';
+      if (controllerEl) controllerEl.style.display = 'none';
+      if (metarEl) metarEl.style.display = 'none';
+      if (elevationEl) elevationEl.style.display = 'none';
+      if (bannerEl) bannerEl.style.display = 'none';
+      if (overlay2El) overlay2El.style.display = 'none';
+    };
+
+    var showPanels = function() {
+      if (MAP_DEBUG) console.log('[Map] Showing panels - layer control closed');
+      var overlayEl = document.getElementById('overlay');
+      var overlayContainerEl = document.getElementById('overlayContainer');
+      var overlayListEl = document.getElementById('overlayList');
+      var controllerEl = document.getElementById('controllerContainer');
+      var metarEl = document.getElementById('metarContainer');
+      var elevationEl = document.getElementById('elevationProfileSection');
+      var bannerEl = document.getElementById('banner');
+      var overlay2El = document.getElementById('overlay2');
+
+      // Restore states
+      if (overlayEl && panelStates.overlay !== undefined) overlayEl.style.display = panelStates.overlay;
+      if (overlayContainerEl && panelStates.overlayContainer !== undefined) overlayContainerEl.style.display = panelStates.overlayContainer;
+      if (overlayListEl && panelStates.overlayList !== undefined) overlayListEl.style.display = panelStates.overlayList;
+      if (controllerEl && panelStates.controller !== undefined) controllerEl.style.display = panelStates.controller;
+      if (metarEl && panelStates.metar !== undefined) metarEl.style.display = panelStates.metar;
+      if (elevationEl && panelStates.elevation !== undefined) elevationEl.style.display = panelStates.elevation;
+      if (bannerEl && panelStates.banner !== undefined) bannerEl.style.display = panelStates.banner;
+      if (overlay2El && panelStates.overlay2 !== undefined) overlay2El.style.display = panelStates.overlay2;
+    };
+
+    // Use MutationObserver to watch for class changes on layer control container
+    var observer = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          var isExpanded = LayerControl._container.classList.contains('leaflet-control-layers-expanded');
+          if (MAP_DEBUG) console.log('[Map] Layer control expanded:', isExpanded);
+          if (isExpanded) {
+            hidePanels();
+          } else {
+            showPanels();
+          }
+        }
+      });
+    });
+
+    observer.observe(LayerControl._container, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    if (MAP_DEBUG) console.log('[Map] Panel hide/show observer initialized');
+  }
+
+  setOpenAipSelection(true);
+
+  var firstStart = true;
+  $(".glass").on("click", () => {
+    if (firstStart == true) {
+      firstStart = false;
+    }
+    Keyboard.open();
+  });
+
+  toggle2 = L.easyButton({
+    id: "arrowButton",
+    position: "topright",
+    type: "replace",
+    leafletClasses: true,
+    states: [
+      {
+        stateName: "get-center",
+        title: "Wind indicator",
+        icon:
+          '<span class="btn-icon" id="arrow">' + getIcon('arrow-down') + '</span>' +
+          '<span id="windIndicator" class="backButton">3kts</span>',
+      },
+    ],
+  }).addTo(map);
+
+  toggle4 = L.easyButton({
+    states: [
+      {
+        stateName: "teleport",
+        icon: btnIcon('pin', 'TELEPORT'),
+        title: "Teleport mode",
+        onClick: function (control) {
+          control.state("add-markers");
+          window.isInTeleportMode = true; // Expose to kneeboard.js for polling control
+
+          // Store waypoint layers for later restoration (don't delete them!)
+          window.hiddenWaypointLayers = [];
+          map.eachLayer(function (layer) {
+            if (layer.feature &&
+                layer.feature.mytype != "airport" &&
+                layer.feature.mytype != "navaid" &&
+                layer.feature.mytype != "reportingPoint") {
+              window.hiddenWaypointLayers.push(layer);
+            }
+          });
+
+          // Hide (not delete!) waypoint layers
+          window.hiddenWaypointLayers.forEach(function(layer) {
+            map.removeLayer(layer);
+          });
+
+          // Hide route layers (not clear!)
+          if (map.hasLayer(pLineGroup)) map.removeLayer(pLineGroup);
+          if (map.hasLayer(pLineGroupDEP)) map.removeLayer(pLineGroupDEP);
+          if (map.hasLayer(pLineGroupARR)) map.removeLayer(pLineGroupARR);
+          if (map.hasLayer(startLineGroup)) map.removeLayer(startLineGroup);
+          if (map.hasLayer(middleMarkers)) map.removeLayer(middleMarkers);
+
+          // Hide UI panels
+          hideWpList();
+          hideElevationProfile();
+          map.closePopup();
+
+          toggle3 = false;
+          startlineShow = false;
+          waypointmode = false;
+          follow = false;
+          toggle.enable();
+        },
+      },
+      {
+        icon: btnIcon('globe-alt', 'ROUTE'),
+        stateName: "add-markers",
+        onClick: function (control) {
+          control.state("teleport");
+          window.isInTeleportMode = false; // Expose to kneeboard.js for polling control
+          map.closePopup();
+
+          // Restore route layers
+          if (!map.hasLayer(pLineGroup)) map.addLayer(pLineGroup);
+          if (!map.hasLayer(pLineGroupDEP)) map.addLayer(pLineGroupDEP);
+          if (!map.hasLayer(pLineGroupARR)) map.addLayer(pLineGroupARR);
+          if (!map.hasLayer(startLineGroup)) map.addLayer(startLineGroup);
+          if (middleMarkers && !map.hasLayer(middleMarkers)) map.addLayer(middleMarkers);
+
+          // Restore hidden waypoint layers
+          if (window.hiddenWaypointLayers && window.hiddenWaypointLayers.length > 0) {
+            window.hiddenWaypointLayers.forEach(function(layer) {
+              if (!map.hasLayer(layer)) {
+                map.addLayer(layer);
+              }
+            });
+            window.hiddenWaypointLayers = [];
+          }
+
+          waypointmode = true;
+
+          // Restore arrays from localStorage
+          var storedNames = getJSON("wpNames");
+          var storedTypes = getJSON("wpTypes");
+          var storedAlts = getJSON("altitudes");
+          if (storedNames) wpNames = storedNames;
+          if (storedTypes) wpTypes = storedTypes;
+          if (storedAlts) altitudes = storedAlts;
+
+          // Show UI panels if waypoints exist
+          // Aber nicht wenn Controller Modus aktiv
+          var layers = getWaypointLayersSorted();
+          if (layers && layers.length > 0 && !moverX) {
+            // Use showWpList which handles all visibility properly
+            showWpList(true);
+            showElevationProfile();
+          }
+        },
+        title: "Flightplan mode",
+      },
+    ],
+  });
+  toggle4.addTo(map);
+
+  var flightplanImportInProgress = false;
+
+  toggle5 = L.easyButton({
+    states: [
+      {
+        stateName: "sync-flightplan",
+        icon: btnIcon('repeat', 'SYNC'),
+        title: "Synchronize flightplan",
+        onClick: function () {
+          // Check if autoload is still in progress - block sync until complete
+          if (window.autoloadCheckInProgress || !window.initialAutoloadComplete) {
+            if (MAP_DEBUG) console.log('[Map] Sync button clicked but autoload still in progress, ignoring');
+            return;
+          }
+
+          // Prevent multiple imports while one is in progress
+          if (flightplanImportInProgress) {
+            return;
+          }
+
+          try {
+            flightplanImportInProgress = true;
+            toggle5.disable();
+            startSyncButtonPulse(); // Visual feedback during sync
+            // Clear autoload block - user manually requested sync
+            window.autoloadBlockedUntilNewFlightplan = false;
+            try { localStorage.removeItem('autoloadBlockedUntilNewFlightplan'); } catch (e) {}
+
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "synchronizeFlightplan", true);
+            xhr.send("foobar");
+            xhr.onreadystatechange = function () {
+              if (xhr.readyState !== XMLHttpRequest.DONE) {
+                return;
+              }
+
+              var rawResponse = xhr.responseText || "";
+              if (rawResponse.trim().length > 0) {
+                markServerFlightplanReceived('manual sync response');
+              }
+              var payload = "PLN:" + rawResponse;
+              if (window && typeof window.postMessage === "function") {
+                // L�st den Handler in kneeboard.js aus, der daraus �Flightplan:" macht
+                window.postMessage(payload, "*");
+              }
+
+              try {
+                if (window.parent && window.parent !== window) {
+                  window.parent.postMessage(payload, "coui://html_ui");
+                }
+              } catch (err) {
+                console.warn("Weiterleiten an Parent fehlgeschlagen:", err);
+              }
+
+              // Reset import flag - allows new sync after this one completes
+              // Button will be re-enabled by onFlightplanAnimationComplete()
+              flightplanImportInProgress = false;
+            };
+
+            // Fallback: Re-enable after timeout in case animation hangs or no flightplan received
+            setTimeout(function () {
+              if (flightplanImportInProgress) {
+                if (MAP_DEBUG) console.log('[Map] Sync button fallback timeout - re-enabling');
+                flightplanImportInProgress = false;
+                if (!window.flightplanUISequenceInProgress && !window.flightplanAnimationInProgress) {
+                  onFlightplanAnimationComplete();
+                } else {
+                  if (MAP_DEBUG) console.log('[Map] Skipping fallback onFlightplanAnimationComplete - UI sequence in progress');
+                }
+              }
+            }, 30000); // 30 second timeout
+
+          } catch (err) {
+            console.error("Sync-Request gescheitert:", err);
+            flightplanImportInProgress = false;
+            if (!window.flightplanUISequenceInProgress && !window.flightplanAnimationInProgress) {
+              onFlightplanAnimationComplete();
+            } else {
+              if (MAP_DEBUG) console.log('[Map] Skipping error onFlightplanAnimationComplete - UI sequence in progress');
+            }
+          }
+        }
+      }
+    ]
+  }).addTo(map);
+
+  // Check if pulse was requested before button was created
+  // Use setTimeout to ensure DOM is fully ready
+  if (window.pendingSyncButtonPulse) {
+    setTimeout(function() {
+      startSyncButtonPulse();
+      window.pendingSyncButtonPulse = false;  // Flag erst NACH Start löschen
+      if (MAP_DEBUG) console.log('[Map] Sync button pulse started (was pending)');
+    }, 50);
+  }
+
+  // Button state based on SimBrief ID availability
+  // Initially disabled, checkSimbriefIdAvailable() will enable if SimBrief ID is configured
+  if (simbriefIdAvailable) {
+    if (MAP_DEBUG) console.log('[Map] Sync button created - enabled (SimBrief ID available)');
+  } else {
+    toggle5.disable();
+    if (MAP_DEBUG) console.log('[Map] Sync button created - disabled (waiting for SimBrief ID check)');
+  }
+
+  toggle3 = L.easyButton({
+    states: [
+      {
+        stateName: "delete-markers",
+        icon: btnIcon('trash', 'DELETE'),
+        title: "Delete all markers",
+        onClick: function () {
+          removeAllMarkersAndClearServer();  // Use new combined function
+          if (document.getElementById("keyboard")) {
+            var x = document.getElementById("keyboard");
+            x.style.display = "none";
+          }
+        }
+      }
+    ]
+  }).addTo(map);
+
+  toggle10 = L.easyButton({
+    id: "controllerButton",
+    position: "topright",
+    type: "replace",
+    leafletClasses: true,
+    states: [
+      {
+        stateName: "radio",
+        title: "Radio Networks",
+        icon: btnIcon('data', 'RADIO'),
+        onClick: function (control) {
+          closeAllPopups();
+          // WICHTIG: Erst enabled setzen, DANN Panel öffnen!
+          // openControllerPanel setzt das Netzwerk automatisch
+          setControlZonesEnabled(true);
+          openControllerPanel("ivao");
+          control.state("ivao");
+        },
+      },
+      {
+        stateName: "ivao",
+        title: "IVAO (click for VATSIM)",
+        icon: btnIcon('data', 'IVAO'),
+        onClick: function (control) {
+          // Wechselt zu VATSIM - openControllerPanel setzt das Netzwerk
+          closeAllPopups();
+          setControlZonesEnabled(true);
+          openControllerPanel("vatsim");
+          control.state("vatsim");
+        },
+      },
+      {
+        stateName: "vatsim",
+        title: "VATSIM (click to close)",
+        icon: btnIcon('data', 'VATSIM'),
+        onClick: function (control) {
+          // Schließt das Panel und zurück zu radio
+          closeAllPopups();
+          mout();
+          setControlZonesEnabled(false);
+          control.state("radio");
+        },
+      },
+    ],
+  }).addTo(map);
+
+  toggle11 = L.easyButton({
+    id: "navaidButton",
+    position: "topright",
+    type: "replace",
+    leafletClasses: true,
+    states: [
+      {
+        icon: btnIcon('controller', 'AIRPORTS'),
+        stateName: "airports",
+        title: "AIRPORTS",
+        onClick: function (control) {
+          if (
+            document.getElementById("controllerContainer").style.visibility ==
+            "hidden"
+          ) {
+            // WICHTIG: mover() ZUERST aufrufen um alle Panels auszublenden
+            mover();
+            airportsToggle = "airports";
+            airportsCounter = 10;
+            document.getElementById("controllerListUl").innerHTML = "";
+            document.getElementById("controllerHeader").innerHTML = "Airports";
+            control.state("airports");
+            getWPData();
+            listNavaids();
+            airportsPanel = false;
+            panelState = "airports";
+            hideMetarContainer();
+            return;
+          }
+          airportsToggle = "navaids";
+          navaidsCounter = 10;
+          document.getElementById("controllerListUl").innerHTML = "";
+          document.getElementById("controllerHeader").innerHTML = "Navaids";
+          control.state("navaids");
+          getWPData();
+          listNavaids();
+          airportsPanel = true;
+          panelState = "navaids";
+          hideMetarContainer();
+        },
+      },
+      {
+        icon: btnIcon('controller', 'NAVAIDS'),
+        stateName: "navaids",
+        title: "NAVAIDS",
+        onClick: function (control) {
+          if (
+            document.getElementById("controllerContainer").style.visibility ==
+            "visible"
+          ) {
+            mout();
+            panelState = "";
+            return;
+          }
+          document.getElementById("controllerListUl").innerHTML = "";
+          airportsToggle = "airports";
+          airportsCounter = 10;
+          airportsPanel = true;
+          document.getElementById("controllerHeader").innerHTML = "Airports";
+          getWPData();
+          listNavaids();
+          control.state("airports");
+          panelState = "airports";
+          hideMetarContainer();
+        },
+      },
+    ],
+  }).addTo(map);
+
+  var iconAirplane = L.divIcon({
+    html: `
+      <div id="imageAirplane">
+        <svg width="50" height="50" viewBox="0 0 100 100" class="airplane-icon">
+          <path stroke="rgba(0,0,0,0.35)" stroke-width="4" paint-order="stroke fill" fill="currentColor" d="m97.99 4.95a9.21 9.12 0 0 0 -14.02 -1.17l-18.33 18.16-47.92-13.96a4.13 4.09 0 0 0 -4.09 1.03l-5.29 5.23a4.13 4.09 0 0 0 .69 6.33l35.31 22.45-3.22 3.19a68.61 67.97 0 0 0 -7.73 9.19l-24.41-2.58a4.15 4.11 0 0 0 -3.37 1.18l-3.38 3.35a4.15 4.11 0 0 0 .69 6.36l20.43 12.99 13.13 20.27a4.12 4.08 0 0 0 6.38 .68l3.41-3.39a4.12 4.08 0 0 0 1.18 -3.32l-2.60 -24.19a68.57 67.93 0 0 0 9.28 -7.66l3.22 -3.19 22.64 34.94a4.16 4.12 0 0 0 6.45 .69l5.24 -5.19a4.16 4.12 0 0 0 1.05 -4.08l-14.09 -47.45 17.98 -17.82c3.24 -3.21 4.03 -8.38 1.35 -12.06z"/>
+        </svg>
+      </div>
+    `,
+    iconSize: [50, 50],
+    iconAnchor: [25, 25],
+    className: "currentAirplane"
+  });
+
+
+  airplane = L.marker([47.442, 10.23], {
+    icon: iconAirplane,
+  }).addTo(map);
+
+  var pos = new L.LatLng(pos_lat, pos_lng);
+  airplane.setLatLng(pos).update();
+  // Nur auf Flugzeug zentrieren wenn KEINE Flightplan-Animation l�uft
+  if (!window.flightplanAnimationInProgress) {
+    if (window.aircraftPositionInitialized || hasCachedAircraftPosition) {
+      var source = window.aircraftPositionInitialized ? 'live' : 'cached';
+      map.panTo(pos);
+      console.log('[Map] Airplane init: panTo aircraft (' + source + ') at', pos_lat, pos_lng);
+    } else {
+      window.centerOnAircraftPending = true;
+      if (MAP_DEBUG) console.log('[Map] Airplane init: centering deferred until position received');
+    }
+  } else {
+    console.log('[Map] Airplane init: SKIPPED panTo - animation in progress');
+  }
+
+  // Activate Elevation Profile layer (add to map for layer control)
+  // NOTE: Do NOT call showElevationProfile() here - it will be called by
+  // onFlightplanAnimationComplete() after the flightplan animation finishes
+  if (elevationProfileLayer) {
+    elevationProfileLayer.addTo(map);
+  }
+
+  // ========================================================================
+  // Map ist jetzt vollständig initialisiert - starte Kneeboard-Init
+  // ========================================================================
+  if (MAP_DEBUG) console.log('[Map] Map initialization complete, starting Kneeboard initialization');
+  // Fallback: ensure initializeKneeboard exists before calling
+  if (typeof initializeKneeboard !== 'function') {
+    window.initializeKneeboard = function() {
+      MAP_DEBUG && console.warn('[Map] initializeKneeboard not defined - skipping kneeboard init');
+      return Promise.resolve();
+    };
+  }
+  initializeKneeboard().catch(function(error) {
+    console.error('[Map] Kneeboard initialization failed:', error);
+    // Fehler wurde bereits in initializeKneeboard() behandelt (Fallback zu executeSimplePath)
+  });
+
+  // Restore saved map UI state AFTER all UI elements are initialized
+  // (toggle10, toggle11, measureButton, searchButton, etc.)
+  setTimeout(function() {
+    if (MAP_DEBUG) console.log('[Map] Restoring map UI state after full initialization');
+    restoreMapState();
+  }, 500);
+}
+
+function hideMetarContainer() {
+  document.getElementById("metarContainer").style.display = "none";
+  metarSearchExpandet = false;
+  Keyboard.close();
+}
+
+var metarSearchExpandet = false;
+function myFunction() {
+  if (metarSearchExpandet == false) {
+    document.getElementById("metarContainer").style.display = "flex";
+    metarSearchExpandet = true;
+    document.getElementById("metarContainer").style.top = "10%";
+
+    // Reset and re-attach keyboard bindings for METAR input fields
+    setTimeout(function() {
+      var metarInputs = document.querySelectorAll("#aeropuerto, #aeropuerto2");
+      metarInputs.forEach(function(input) {
+        if (input && input.dataset) {
+          // Remove the bound flag to force re-binding
+          delete input.dataset.keyboardBound;
+        }
+      });
+
+      if (typeof refreshKeyboardBindings === "function") {
+        refreshKeyboardBindings();
+      }
+
+      // Explicitly attach keyboard to METAR fields as backup
+      metarInputs.forEach(function(input) {
+        if (input && typeof attachKeyboard === "function") {
+          attachKeyboard(input);
+        }
+      });
+    }, 150);
+  } else {
+    document.getElementById("metarContainer").style.display = "none";
+    metarSearchExpandet = false;
+    Keyboard.close();
+  }
+}
+
+function getOffset(el) {
+  const rect = el.getBoundingClientRect();
+  return {
+    left: rect.left + window.scrollX,
+    top: rect.top + window.scrollY,
+  };
+}
+
+function getNoaaRecordFromPayload(payload) {
+  if (!payload) {
+    return null;
+  }
+  if (Array.isArray(payload)) {
+    return payload.length ? payload[0] : null;
+  }
+  return payload;
+}
+
+function getNoaaRecord(responseText) {
+  try {
+    return getNoaaRecordFromPayload(JSON.parse(responseText));
+  } catch (error) {
+    console.error("Unable to parse NOAA response", error);
+    return null;
+  }
+}
+
+function buildNoaaUrl(type, icao) {
+  var base = type === "taf" ? "/api/taf/" : "/api/metar/";
+  return base + encodeURIComponent(icao);
+}
+
+var METAR_TAF_UNAVAILABLE = "No METAR/TAF available.";
+
+function METARAbrufen(e) {
+  var record = getNoaaRecordFromPayload(e);
+  var rawMetar =
+    record && (record.rawOb || record.raw_text || record.raw || record.report);
+  if (!rawMetar) {
+    rawMetar = METAR_TAF_UNAVAILABLE;
+  }
+  let texto_metar = " METAR: <br /> " + rawMetar + " <br /><br />";
+  return texto_metar;
+}
+
+function TAFAbrufen(e2) {
+  var record = getNoaaRecordFromPayload(e2);
+  var rawTaf =
+    record && (record.rawTAF || record.raw_text || record.raw || record.report);
+  if (!rawTaf) {
+    rawTaf = METAR_TAF_UNAVAILABLE;
+  }
+  let texto_taf = " TAF: <br /> " + rawTaf + " <br /><br />";
+  return texto_taf;
+}
+
+function renderMetarResult(targetElement, airportLabel, record) {
+  if (!targetElement) {
+    return;
+  }
+  var content = METARAbrufen(record);
+  targetElement.innerHTML = airportLabel
+    ? airportLabel + ":<br></br>" + content
+    : content;
+  updateMetarPanelScroll();
+}
+
+function renderTafResult(targetElement, record) {
+  if (!targetElement) {
+    return;
+  }
+  targetElement.innerHTML = TAFAbrufen(record);
+  updateMetarPanelScroll();
+}
+
+function clearMetarOutputs() {
+  if (!ensureMetarElements()) {
+    console.warn("METAR containers missing, aborting clear.");
+    return;
+  }
+  caja_METAR.innerHTML = "";
+  caja_Taf.innerHTML = "";
+  caja_METAR2.innerHTML = "";
+  caja_Taf2.innerHTML = "";
+  updateMetarPanelScroll();
+}
+
+function updateMetarPanelScroll() {
+  var panel = document.getElementById("MetarPanel");
+  if (!panel) return;
+
+  var hasContent = false;
+  var spans = panel.getElementsByTagName("span");
+  for (var i = 0; i < spans.length; i++) {
+    if (spans[i].innerHTML && spans[i].innerHTML.trim() !== "") {
+      hasContent = true;
+      break;
+    }
+  }
+
+  if (hasContent) {
+    panel.style.overflowY = "auto";
+  } else {
+    panel.style.overflowY = "hidden";
+  }
+}
+
+function onERROR(e) {
+  var message = e && e.error ? e.error : "ICAO not found!";
+  reset(message);
+  return (error = message);
+}
+
+function ensureMetarElements() {
+  caja_METAR = document.getElementById("zona-metar");
+  caja_Taf = document.getElementById("zona-taf");
+  caja_METAR2 = document.getElementById("zona-metar2");
+  caja_Taf2 = document.getElementById("zona-taf2");
+  return caja_METAR && caja_METAR2 && caja_Taf && caja_Taf2;
+}
+
+function pedirXML(e, t, start) {
+  if (!ensureMetarElements()) {
+    console.warn("METAR containers missing, aborting request.");
+    return;
+  }
+
+  if (e !== "metar") {
+    console.warn("Unsupported METAR request type:", e);
+  }
+  const a = new XMLHttpRequest(),
+    r = buildNoaaUrl(e, t);
+  (a.ontimeout = function () {
+    return alert("Server Timed Out.");
+  }),
+    (a.onreadystatechange = function () {
+      if (this.readyState === 4) {
+        var metarRecord = null;
+        if (200 === this.status) {
+          metarRecord = getNoaaRecord(this.response);
+        } else {
+          console.warn("METAR request failed: " + this.status);
+        }
+        renderMetarResult(caja_METAR, start, metarRecord);
+      }
+    }),
+    a.open("GET", r, !0),
+    (a.responseType = "text"),
+    a.setRequestHeader("Content-Type", "text/plain"),
+    (a.timeout = 1e4),
+    a.send();
+}
+
+function pedirXML2(e, t, destination) {
+  if (!ensureMetarElements()) {
+    console.warn("METAR containers missing, aborting request.");
+    return;
+  }
+  if (e !== "metar") {
+    console.warn("Unsupported METAR request type:", e);
+  }
+  const a = new XMLHttpRequest(),
+    r = buildNoaaUrl(e, t);
+  (a.ontimeout = function () {
+    return alert("Server Timed Out.");
+  }),
+    (a.onreadystatechange = function () {
+      if (this.readyState === 4) {
+        var metarRecord = null;
+        if (200 === this.status) {
+          metarRecord = getNoaaRecord(this.response);
+        } else {
+          console.warn("METAR request failed: " + this.status);
+        }
+        renderMetarResult(caja_METAR2, destination, metarRecord);
+      }
+    }),
+    a.open("GET", r, !0),
+    (a.responseType = "text"),
+    a.setRequestHeader("Content-Type", "text/plain"),
+    (a.timeout = 1e4),
+    a.send();
+}
+
+function pedirXMLTAF(e, t) {
+  if (!ensureMetarElements()) {
+    console.warn("TAF containers missing, aborting request.");
+    return;
+  }
+  if (e !== "taf") {
+    console.warn("Unsupported TAF request type:", e);
+  }
+  const a2 = new XMLHttpRequest(),
+    r2 = buildNoaaUrl(e, t);
+  (a2.ontimeout = function () {
+    return alert("Server Timed Out.");
+  }),
+  (a2.onreadystatechange = function () {
+      if (this.readyState === 4) {
+        var tafRecord = null;
+        if (200 === this.status) {
+          tafRecord = getNoaaRecord(this.response);
+        } else {
+          console.warn("TAF request failed: " + this.status);
+        }
+        renderTafResult(caja_Taf, tafRecord);
+      }
+    }),
+    a2.open("GET", r2, !0),
+    (a2.responseType = "text"),
+    a2.setRequestHeader("Content-Type", "text/plain"),
+    (a2.timeout = 1e4),
+    a2.send();
+}
+
+function pedirXMLTAF2(e, t) {
+  if (!ensureMetarElements()) {
+    console.warn("TAF containers missing, aborting request.");
+    return;
+  }
+  if (e !== "taf") {
+    console.warn("Unsupported TAF request type:", e);
+  }
+  const a2 = new XMLHttpRequest(),
+    r2 = buildNoaaUrl(e, t);
+  (a2.ontimeout = function () {
+    return alert("Server Timed Out.");
+  }),
+  (a2.onreadystatechange = function () {
+      if (this.readyState === 4) {
+        var tafRecord = null;
+        if (200 === this.status) {
+          tafRecord = getNoaaRecord(this.response);
+        } else {
+          console.warn("TAF request failed: " + this.status);
+        }
+        renderTafResult(caja_Taf2, tafRecord);
+      }
+    }),
+    a2.open("GET", r2, !0),
+    (a2.responseType = "text"),
+    a2.setRequestHeader("Content-Type", "text/plain"),
+    (a2.timeout = 1e4),
+    a2.send();
+}
+
+function check_ICAO(e) {
+  return !("" === e || 4 != e.length || !e.match("[A-Z]{4}"));
+}
+
+function reset(message) {
+  // SICHER: Nur METAR-bezogene Keys l�schen, NICHT den kompletten localStorage
+  // Verhindert versehentliches L�schen von Flugplan-Daten
+  const metarKeys = ['metarCache_', 'tafCache_', 'lastMetarICAO', 'lastTafICAO'];
+
+  for (var i = localStorage.length - 1; i >= 0; i--) {
+    var key = localStorage.key(i);
+    if (key && metarKeys.some(function(prefix) { return key.indexOf(prefix) === 0; })) {
+      localStorage.removeItem(key);
+    }
+  }
+
+  if (!ensureMetarElements()) {
+    return;
+  }
+  const safeMessage = message ? escapeHtml(String(message)) : "";
+  const errorMarkup = safeMessage
+    ? '<span class="metar-error">' + safeMessage + "</span>"
+    : "";
+  caja_METAR.innerHTML = errorMarkup;
+  caja_Taf.innerHTML = "";
+  caja_METAR2.innerHTML = "";
+  caja_Taf2.innerHTML = "";
+
+  if (MAP_DEBUG) console.log('[MapReset] METAR data cleared, flightplan data preserved');
+}
+
+var Timer;
+function metarSearch() {
+  if (!ensureMetarElements()) {
+    console.warn("METAR containers missing, cannot run search.");
+    return;
+  }
+  clearMetarOutputs();
+  var e = document.getElementById("aeropuerto").value;
+  var e2 = document.getElementById("aeropuerto2").value;
+  e = e.toUpperCase();
+  e2 = e2.toUpperCase();
+  document.getElementById("aeropuerto").value = e;
+  document.getElementById("aeropuerto2").value = e2;
+
+  const t = e;
+  const t2 = e2;
+
+  // Validierung: Panel nur anzeigen wenn mindestens ein g�ltiger ICAO-Code vorhanden
+  var hasValidICAO = false;
+
+  if (document.getElementById("aeropuerto").value.length == 4) {
+    if (!check_ICAO(t)) {
+      // Ung�ltiger ICAO: Fehler-Nachricht anzeigen
+      console.warn("[METAR] Invalid ICAO code:", t);
+      return;
+    }
+    hasValidICAO = true;
+    pedirXML("metar", t, t);
+    pedirXMLTAF("taf", t);
+  }
+
+  if (document.getElementById("aeropuerto2").value.length == 4) {
+    if (!check_ICAO(t2)) {
+      // Ung�ltiger ICAO: Fehler-Nachricht anzeigen
+      console.warn("[METAR] Invalid ICAO code:", t2);
+      return;
+    }
+    hasValidICAO = true;
+    pedirXML2("metar", t2, t2);
+    pedirXMLTAF2("taf", t2);
+  }
+
+  // Wenn kein g�ltiger ICAO-Code eingegeben wurde, Panel ausblenden
+  if (!hasValidICAO && (e.length === 0 && e2.length === 0)) {
+    var metarContainer = document.getElementById("metarContainer");
+    if (metarContainer && metarSearchExpandet) {
+      if (MAP_DEBUG) console.log("[METAR] No valid ICAO codes, hiding panel");
+      metarContainer.style.display = "none";
+      metarSearchExpandet = false;
+    }
+  }
+}
+
+let caja_METAR = null;
+let caja_Taf = null;
+let caja_METAR2 = null;
+let caja_Taf2 = null;
+var lastIvao = "";
+var lastVatsim = "";
+
+/**
+ * OPTIMIERUNG: Shared Cache für synchronizeControllers Response
+ * Verhindert doppelte API-Calls von fetchVatsimPilots() und getControllers()
+ */
+var controllerDataCache = {
+  response: null,
+  timestamp: 0,
+  TTL: 8000 // 8 Sekunden (unter dem 10s Polling-Intervall)
+};
+
+function postRequest(endpoint, onSuccess) {
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", endpoint, true);
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState !== XMLHttpRequest.DONE || !xhr.responseText) return;
+    onSuccess(xhr.responseText);
+  };
+  xhr.send("foobar");
+}
+
+/**
+ * OPTIMIERUNG: Gecachte Version von synchronizeControllers
+ * Shared zwischen fetchVatsimPilots() und getControllers()
+ */
+function getCachedControllerData(callback) {
+  var now = Date.now();
+  if (controllerDataCache.response && (now - controllerDataCache.timestamp) < controllerDataCache.TTL) {
+    callback(controllerDataCache.response);
+    return;
+  }
+
+  postRequest("synchronizeControllers", function(response) {
+    controllerDataCache.response = response;
+    controllerDataCache.timestamp = Date.now();
+    callback(response);
+  });
+}
+
+var _vatsimDataChanged = false;
+var _lastVatsimControllersHash = null;
+
+function getControllers() {
+  getCachedControllerData(function (response) {
+    var data = JSON.parse(response);
+    _vatsimControllerData = data;
+
+    // OPTIMIERUNG: Nur CONTROLLER-Daten vergleichen, nicht den ganzen Response!
+    // Piloten-Positionen ändern sich ständig, aber Controller bleiben meist gleich
+    var controllersHash = JSON.stringify(data.controllers || []);
+
+    if (_lastVatsimControllersHash !== controllersHash) {
+      _lastVatsimControllersHash = controllersHash;
+      _vatsimDataChanged = true;
+    } else {
+      _vatsimDataChanged = false;
+    }
+
+    _vatsimControllersReady = true;
+    _tryProcessVatsimData();
+  });
+}
+
+function getTransceivers() {
+  postRequest("synchronizeTransceivers", function (response) {
+    transceivers = JSON.parse(response);
+    _vatsimTransceiversReady = true;
+    _tryProcessVatsimData();
+  });
+}
+
+/**
+ * OPTIMIERUNG: Verarbeitet VATSIM-Daten erst wenn BEIDE Requests fertig sind
+ * Löst Race-Condition zwischen Controllers und Transceivers
+ */
+function _tryProcessVatsimData() {
+  if (!_vatsimControllersReady || !_vatsimTransceiversReady) {
+    return; // Warte bis beide fertig sind
+  }
+
+  // Idempotenz-Flag zurücksetzen - Fetch ist abgeschlossen
+  _vatsimDataFetching = false;
+
+  // NUR verarbeiten wenn Daten sich geändert haben
+  if (_vatsimDataChanged && _vatsimControllerData) {
+    filterAtis(_vatsimControllerData.atis);
+    filterControllers(_vatsimControllerData.controllers);
+    // checkInRange() wird von filterControllers -> getCoordinates aufgerufen
+    // startVatsimPolling() wird von checkInRange() aufgerufen
+  } else {
+    // Keine Änderungen - aber Polling muss trotzdem weiterlaufen
+    startVatsimPolling();
+  }
+}
+
+var _lastIvaoControllersHash = null;
+
+function getIVAO() {
+  postRequest("synchronizeIVAO", function (response) {
+    // Idempotenz-Flag zurücksetzen - IVAO Fetch ist abgeschlossen
+    _vatsimDataFetching = false;
+
+    var data = JSON.parse(response);
+
+    // OPTIMIERUNG: Nur ATC-Daten vergleichen, nicht Piloten!
+    var atcsHash = JSON.stringify(data.clients.atcs || []);
+
+    if (_lastIvaoControllersHash !== atcsHash) {
+      _lastIvaoControllersHash = atcsHash;
+      filterIVAO(data.clients.atcs);
+    }
+    // Polling weiterlaufen lassen
+    startVatsimPolling();
+  });
+}
+
+var innerHTML = "";
+var moverX = false;
+var windLayerStateBeforePanel = null;  // Tracks wind layer state before panel opens
+var measureToolStateBeforePanel = null; // Tracks measure tool state before panel opens
+var windLayerStateBeforeMeasure = null; // Tracks wind layer state before measure tool activates
+var elevationProfileStateBeforePanel = null; // Tracks elevation profile state before controller panel opens
+var elevationProfileStateBeforeMeasure = null; // Tracks elevation profile state before measure tool activates
+var flightplanPanelStateBeforeController = null; // Tracks flightplan panel state before controller mode
+var flightpathLayersStateBeforeController = null; // Tracks flight path layers state before controller mode
+
+function mover() {
+  if (moverX == false) {
+    var controllerOverlay = document.getElementById("controllerContainer");
+    controllerOverlay.style.visibility = "visible";
+    var list = document.getElementById("controllerList");
+    list.style.visibility = "visible";
+    moverX = true;
+    window.moverX = true; // Expose to kneeboard.js for polling control
+    // Reset minimized state when opening panel
+    controllerListMinimized = false;
+
+    // Save wind layer state and hide it
+    if (typeof owmWindLayer !== 'undefined' && owmWindLayer && map) {
+      windLayerStateBeforePanel = map.hasLayer(owmWindLayer);
+      if (windLayerStateBeforePanel) {
+        map.removeLayer(owmWindLayer);
+        // Also remove wind markers
+        if (typeof windMarkersLayer !== 'undefined' && windMarkersLayer && map.hasLayer(windMarkersLayer)) {
+          map.removeLayer(windMarkersLayer);
+        }
+      }
+    } else {
+      windLayerStateBeforePanel = false;
+    }
+
+    // Save measure tool state and hide it
+    if (typeof polylineMeasureControl !== 'undefined' && polylineMeasureControl) {
+      var pmContainer = polylineMeasureControl.getContainer();
+      if (pmContainer && typeof measureButton !== 'undefined' && measureButton) {
+        // Check if measure tool is active (container visible)
+        var isVisible = pmContainer.style.display === 'block';
+
+        // Save the current measure button state
+        var currentState = measureButton.state();
+        measureToolStateBeforePanel = {
+          state: currentState,
+          containerVisible: isVisible
+        };
+
+        // Hide the measure tool container
+        if (isVisible) {
+          pmContainer.style.display = 'none';
+        }
+
+        // If measuring is active, stop it properly
+        if (currentState === 'measure-on' || polylineMeasureControl._measuring) {
+          if (polylineMeasureControl._measuring) {
+            polylineMeasureControl._toggleMeasure();
+          }
+          // Only show red button if there are actual measurement paths
+          if (polylineMeasureControl._arrPolylines && polylineMeasureControl._arrPolylines.length > 0) {
+            measureButton.state('measure-off-with-path');
+          } else {
+            measureButton.state('measure-off');
+          }
+        }
+      }
+    }
+
+    // Save elevation profile state and hide it
+    elevationProfileStateBeforePanel = elevationProfileVisible;
+    if (elevationProfileVisible) {
+      hideElevationProfile();
+    }
+
+    // Save flightplan panel state and hide it
+    flightplanPanelStateBeforeController = wpListOn;
+    if (wpListOn) {
+      hideWpList();
+    }
+
+    // Save flight path layers state and hide them (route lines + waypoints + live tracking)
+    flightpathLayersStateBeforeController = {
+      pLineGroup: pLineGroup && map && map.hasLayer(pLineGroup),
+      pLineGroupDEP: pLineGroupDEP && map && map.hasLayer(pLineGroupDEP),
+      pLineGroupARR: pLineGroupARR && map && map.hasLayer(pLineGroupARR),
+      startLineGroup: startLineGroup && map && map.hasLayer(startLineGroup),
+      middleMarkers: middleMarkers && map && map.hasLayer(middleMarkers),
+      liveTrackingPolyline: polyline && map && map.hasLayer(polyline),
+      waypointMarkers: []
+    };
+
+    // Hide route polylines
+    if (flightpathLayersStateBeforeController.pLineGroup && pLineGroup) {
+      map.removeLayer(pLineGroup);
+    }
+    if (flightpathLayersStateBeforeController.pLineGroupDEP && pLineGroupDEP) {
+      map.removeLayer(pLineGroupDEP);
+    }
+    if (flightpathLayersStateBeforeController.pLineGroupARR && pLineGroupARR) {
+      map.removeLayer(pLineGroupARR);
+    }
+    if (flightpathLayersStateBeforeController.startLineGroup && startLineGroup) {
+      map.removeLayer(startLineGroup);
+    }
+    if (flightpathLayersStateBeforeController.middleMarkers && middleMarkers) {
+      map.removeLayer(middleMarkers);
+    }
+
+    // Hide live tracking polyline (red flight path animation)
+    if (flightpathLayersStateBeforeController.liveTrackingPolyline && polyline) {
+      map.removeLayer(polyline);
+    }
+
+    // Hide waypoint markers
+    if (typeof getWaypointLayersSorted === 'function') {
+      var wpLayers = getWaypointLayersSorted();
+      for (var i = 0; i < wpLayers.length; i++) {
+        var wpLayer = wpLayers[i];
+        if (map.hasLayer(wpLayer)) {
+          flightpathLayersStateBeforeController.waypointMarkers.push(wpLayer);
+          map.removeLayer(wpLayer);
+        }
+      }
+    }
+
+    console.log('[Controller] Flight path hidden - route lines, live tracking, and', flightpathLayersStateBeforeController.waypointMarkers.length, 'waypoints');
+
+    // Deaktiviere Delete-Button im Controller-Modus
+    var deleteBtn = document.querySelector('.leaflet-draw-edit-remove');
+    if (deleteBtn) {
+      deleteBtn.style.pointerEvents = 'none';
+      deleteBtn.style.opacity = '0.5';
+    }
+
+    // Force map resize after all UI changes to ensure full height rendering
+    setTimeout(function() {
+      if (map) {
+        map.invalidateSize({ pan: false });
+      }
+    }, 100);
+  }
+}
+
+// Versteckt nur das Panel, beendet NICHT den Controller-Modus
+// Panel kann durch Klick auf Flugzeug/Zone wieder geöffnet werden
+function hideControllerPanel() {
+  var controllerContainer = document.getElementById("controllerContainer");
+  var controllerList = document.getElementById("controllerList");
+  if (controllerContainer) {
+    controllerContainer.style.visibility = "hidden";
+  }
+  if (controllerList) {
+    controllerList.style.visibility = "hidden";
+  }
+  // panelState und moverX bleiben aktiv - Controller-Modus läuft weiter
+}
+
+// Öffnet das Panel wieder wenn Controller-Modus aktiv ist
+function showControllerPanel() {
+  if (!moverX) return; // Nur wenn Controller-Modus aktiv
+  var controllerContainer = document.getElementById("controllerContainer");
+  var controllerList = document.getElementById("controllerList");
+  if (controllerContainer) {
+    controllerContainer.style.visibility = "visible";
+  }
+  if (controllerList) {
+    controllerList.style.visibility = "visible";
+  }
+}
+
+// Prüft ob das Controller-Panel sichtbar ist
+function isControllerPanelVisible() {
+  var controllerContainer = document.getElementById("controllerContainer");
+  return controllerContainer && controllerContainer.style.visibility !== "hidden";
+}
+
+function mout() {
+  toggle10.state("radio");
+  toggle11.state("airports");
+  panelState = "";
+  var controllerOverlay = document.getElementById("controllerContainer");
+  controllerOverlay.style.visibility = "hidden";
+  moverX = false;
+  window.moverX = false; // Expose to kneeboard.js for polling control
+  var list = document.getElementById("controllerList");
+  list.style.visibility = "hidden";
+
+  // Hide control zones when panel is closed
+  czClear();
+
+  // Remove VATSIM/IVAO attribution from map
+  clearNetworkAttribution();
+
+  // Reaktiviere Delete-Button
+  var deleteBtn = document.querySelector('.leaflet-draw-edit-remove');
+  if (deleteBtn) {
+    deleteBtn.style.pointerEvents = 'auto';
+    deleteBtn.style.opacity = '1';
+  }
+
+  // Disable Online Pilots when panel is closed
+  setPilotsEnabled(false);
+  // Remove all pilots layers first
+  var pilotsLayerNames = ['Online Pilots_Both', 'Online Pilots_VATSIM', 'Online Pilots_IVAO', 'Online Pilots_Off'];
+  pilotsLayerNames.forEach(function(name) {
+    var layer = layerRegistry[name];
+    if (layer && map && map.hasLayer(layer)) {
+      map.removeLayer(layer);
+    }
+  });
+  // Add Off layer so LayerControl shows "Off" as selected
+  var pilotsOffLayer = layerRegistry['Online Pilots_Off'];
+  if (pilotsOffLayer && map) {
+    map.addLayer(pilotsOffLayer);
+  }
+  // Update LayerControl UI
+  if (LayerControl && typeof LayerControl._update === 'function') {
+    LayerControl._update();
+  }
+
+  // Restore wind layer if it was active before panel opened
+  if (windLayerStateBeforePanel === true && typeof owmWindLayer !== 'undefined' && owmWindLayer && map) {
+    // Remove Off layer first
+    if (windOffLayer && map.hasLayer(windOffLayer)) {
+      map.removeLayer(windOffLayer);
+    }
+    if (!map.hasLayer(owmWindLayer)) {
+      map.addLayer(owmWindLayer);
+    }
+    // Wind markers will be re-added by the overlayadd event handler
+  } else {
+    // Set Wind to Off
+    if (owmWindLayer && map && map.hasLayer(owmWindLayer)) {
+      map.removeLayer(owmWindLayer);
+    }
+    if (windOffLayer && map) {
+      if (map.hasLayer(windOffLayer)) {
+        map.removeLayer(windOffLayer);
+      }
+      map.addLayer(windOffLayer);
+    }
+  }
+  windLayerStateBeforePanel = null; // Reset state
+
+  // Restore measure tool state
+  if (measureToolStateBeforePanel && typeof polylineMeasureControl !== 'undefined' && polylineMeasureControl) {
+    var pmContainer = polylineMeasureControl.getContainer();
+    if (pmContainer && typeof measureButton !== 'undefined' && measureButton) {
+      // Restore container visibility
+      if (measureToolStateBeforePanel.containerVisible) {
+        pmContainer.style.display = 'block';
+      }
+
+      // Restore button state
+      if (measureToolStateBeforePanel.state) {
+        measureButton.state(measureToolStateBeforePanel.state);
+      }
+
+      // If measure was active, restart it
+      if (measureToolStateBeforePanel.state === 'measure-on') {
+        polylineMeasureControl._toggleMeasure();
+      }
+    }
+  }
+  measureToolStateBeforePanel = null; // Reset state
+
+  // Restore elevation profile if it was visible before panel opened
+  if (elevationProfileStateBeforePanel === true) {
+    var wpLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
+    if (wpLayers.length >= 2) {
+      showElevationProfile();
+    }
+  }
+  elevationProfileStateBeforePanel = null; // Reset state
+
+  // Restore flightplan panel if it was visible before controller mode
+  if (flightplanPanelStateBeforeController === true) {
+    showWpList();
+  }
+  flightplanPanelStateBeforeController = null; // Reset state
+
+  // Restore flight path layers (route lines + waypoints)
+  if (flightpathLayersStateBeforeController) {
+    // Restore route polylines
+    if (flightpathLayersStateBeforeController.pLineGroup && pLineGroup && map && !map.hasLayer(pLineGroup)) {
+      map.addLayer(pLineGroup);
+    }
+    if (flightpathLayersStateBeforeController.pLineGroupDEP && pLineGroupDEP && map && !map.hasLayer(pLineGroupDEP)) {
+      map.addLayer(pLineGroupDEP);
+    }
+    if (flightpathLayersStateBeforeController.pLineGroupARR && pLineGroupARR && map && !map.hasLayer(pLineGroupARR)) {
+      map.addLayer(pLineGroupARR);
+    }
+    if (flightpathLayersStateBeforeController.startLineGroup && startLineGroup && map && !map.hasLayer(startLineGroup)) {
+      map.addLayer(startLineGroup);
+    }
+    if (flightpathLayersStateBeforeController.middleMarkers && middleMarkers && map && !map.hasLayer(middleMarkers)) {
+      map.addLayer(middleMarkers);
+    }
+
+    // Restore waypoint markers
+    var restoredCount = 0;
+    if (flightpathLayersStateBeforeController.waypointMarkers && flightpathLayersStateBeforeController.waypointMarkers.length > 0) {
+      for (var i = 0; i < flightpathLayersStateBeforeController.waypointMarkers.length; i++) {
+        var wpLayer = flightpathLayersStateBeforeController.waypointMarkers[i];
+        if (wpLayer && map && !map.hasLayer(wpLayer)) {
+          map.addLayer(wpLayer);
+          restoredCount++;
+        }
+      }
+    }
+
+    console.log('[Controller] Flight path restored - route lines and', restoredCount, 'waypoints');
+  }
+  flightpathLayersStateBeforeController = null; // Reset state
+
+  // Update LayerControl UI to show "Off"
+  updatePilotsLayerControlUI('Off');
+
+  // Auto-save map UI state
+  scheduleMapStateSave();
+}
+
+// Separate function to hide all flightpath layers - called when controller panel opens
+function hideFlightpathLayers() {
+  console.log('[Controller] hideFlightpathLayers called');
+
+  // Hide route polylines
+  if (pLineGroup && map && map.hasLayer(pLineGroup)) {
+    map.removeLayer(pLineGroup);
+    console.log('[Controller] Removed pLineGroup');
+  }
+  if (pLineGroupDEP && map && map.hasLayer(pLineGroupDEP)) {
+    map.removeLayer(pLineGroupDEP);
+  }
+  if (pLineGroupARR && map && map.hasLayer(pLineGroupARR)) {
+    map.removeLayer(pLineGroupARR);
+  }
+  if (startLineGroup && map && map.hasLayer(startLineGroup)) {
+    map.removeLayer(startLineGroup);
+  }
+  if (middleMarkers && map && map.hasLayer(middleMarkers)) {
+    map.removeLayer(middleMarkers);
+  }
+
+  // Hide live tracking polyline
+  if (polyline && map && map.hasLayer(polyline)) {
+    map.removeLayer(polyline);
+    console.log('[Controller] Removed live tracking polyline');
+  }
+
+  // Hide ALL waypoint markers
+  if (typeof getWaypointLayersSorted === 'function') {
+    var wpLayers = getWaypointLayersSorted();
+    console.log('[Controller] Found', wpLayers.length, 'waypoint layers to hide');
+    for (var i = 0; i < wpLayers.length; i++) {
+      if (map.hasLayer(wpLayers[i])) {
+        map.removeLayer(wpLayers[i]);
+      }
+    }
+  }
+
+  // Also hide via eachLayer to catch any we missed
+  if (map && map.eachLayer) {
+    map.eachLayer(function(layer) {
+      // Check for waypoint markers by myId property
+      if (layer.options && typeof layer.options.myId !== 'undefined') {
+        map.removeLayer(layer);
+      }
+    });
+  }
+}
+
+function openControllerPanel(network) {
+  mover();
+
+  // FORCE hide all flightpath layers
+  hideFlightpathLayers();
+
+  lastIvao = "";
+  lastVatsim = "";
+  lastSelected = -1;
+  lastSelectedElement = null;
+  document.getElementById("controllerListUl").innerHTML = "";
+  vatsim = network === "vatsim";
+  airportsPanel = false;
+  panelMode = 'zones';  // Reset auf Zonen-Modus
+
+  // Header mit Toggle-Buttons für Zonen/Piloten
+  var networkName = network === "vatsim" ? "VATSIM" : "IVAO";
+  var toggleHtml = '<div class="panel-mode-toggle">' +
+    '<button id="toggleZones" class="mode-btn active">Zonen</button>' +
+    '<button id="togglePilots" class="mode-btn">Piloten</button>' +
+    '</div>';
+  document.getElementById("controllerHeader").innerHTML = networkName + toggleHtml;
+
+  // Event-Listener für Toggle-Buttons
+  document.getElementById("toggleZones").onclick = function() {
+    panelMode = 'zones';
+    this.classList.add('active');
+    document.getElementById("togglePilots").classList.remove('active');
+    listControllers();
+  };
+  document.getElementById("togglePilots").onclick = function() {
+    panelMode = 'pilots';
+    this.classList.add('active');
+    document.getElementById("toggleZones").classList.remove('active');
+    listPilots();
+  };
+
+  getVatsimData();
+  panelState = network;
+  hideMetarContainer();
+
+  // Sync control zones network with panel network
+  var zonesNetwork = network === "vatsim" ? "VATSIM" : "IVAO";
+  czSetNetwork(zonesNetwork);
+  // czRender wird NICHT hier aufgerufen - checkInRange() triggert das wenn Controller-Daten da sind
+
+  // Enable pilots for the selected network
+  // Zuerst den richtigen Layer setzen basierend auf dem Network
+  var pilotsNetworkName = network === 'vatsim' ? 'VATSIM' : 'IVAO';
+  var targetPilotsLayer = layerRegistry['Online Pilots_' + pilotsNetworkName];
+
+  if (PILOTS_DEBUG) console.log('[Pilots] openControllerPanel - network:', network, 'layerKey:', 'Online Pilots_' + pilotsNetworkName, 'targetLayer:', !!targetPilotsLayer);
+
+  if (targetPilotsLayer) {
+    // Remove any other pilots layers that might be on the map
+    var pilotsLayerNames = ['Online Pilots_Both', 'Online Pilots_VATSIM', 'Online Pilots_IVAO', 'Online Pilots_Off'];
+    pilotsLayerNames.forEach(function(name) {
+      var layer = layerRegistry[name];
+      if (layer && map.hasLayer(layer)) {
+        map.removeLayer(layer);
+        if (PILOTS_DEBUG) console.log('[Pilots] Removed layer:', name);
+      }
+    });
+
+    // Set the correct pilotsLayer reference
+    pilotsLayer = targetPilotsLayer;
+    pilotsLayer.clearLayers();
+    pilotsMarkersCache = {}; // Marker-Cache leeren bei Layer-Wechsel
+    // WICHTIG: pilotsAllDataCache bleibt erhalten für schnelles Wechseln
+
+    // Add the target layer to the map
+    if (!map.hasLayer(targetPilotsLayer)) {
+      map.addLayer(targetPilotsLayer);
+      if (PILOTS_DEBUG) console.log('[Pilots] Added targetPilotsLayer to map');
+    }
+
+    if (PILOTS_DEBUG) console.log('[Pilots] Layer on map after add:', map.hasLayer(targetPilotsLayer));
+  } else {
+    console.error('[Pilots] ERROR: targetPilotsLayer not found in layerRegistry!');
+  }
+
+  // WICHTIG: Setze zuerst die Variablen OHNE Update zu triggern,
+  // dann mache EIN Update am Ende. Das verhindert mehrfache API-Calls.
+  pilotsNetwork = network;
+  pilotsEnabled = true;
+
+  // Jetzt EIN Update starten
+  updatePilotsLayer();
+  startPilotsAutoUpdate();
+
+  updatePilotsLayerControlUI(pilotsNetworkName);
+
+  // Auto-save map UI state
+  scheduleMapStateSave();
+}
+
+function dynamicSort(property) {
+  var sortOrder = 1;
+  if (property[0] === "-") {
+    sortOrder = -1;
+    property = property.substr(1);
+  }
+  return function (a, b) {
+    var result =
+      a[property] < b[property] ? -1 : a[property] > b[property] ? 1 : 0;
+    return result * sortOrder;
+  };
+}
+
+function dynamicSortMultiple() {
+  var props = arguments;
+  return function (obj1, obj2) {
+    var i = 0,
+      result = 0,
+      numberOfProperties = props.length;
+    while (result === 0 && i < numberOfProperties) {
+      result = dynamicSort(props[i])(obj1, obj2);
+      i++;
+    }
+    return result;
+  };
+}
+
+function filterAtis(_atis) {
+  // WICHTIG: Array leeren bevor neue Einträge - filterControllers fügt danach hinzu
+  controllers_array = [];
+
+  for (var i = 0; i < _atis.length; i++) {
+    var controllerCode = _atis[i].callsign.substring(
+      0,
+      _atis[i].callsign.indexOf("_")
+    );
+    var callsign = _atis[i].callsign;
+    var frequency = _atis[i].frequency;
+    var text_atis = [];
+    var visualRange = 100;
+    if (_atis[i].text_atis) {
+      text_atis = _atis[i].text_atis;
+    } else {
+      text_atis = -1;
+    }
+    var controller = {
+      name: controllerCode,
+      callsign: callsign,
+      frequency: frequency,
+      visualRange: visualRange,
+      text_atis: text_atis,
+    };
+    controllers_array.push(controller);
+  }
+}
+
+function filterControllers(_controllers) {
+  // WICHTIG: controllersWithCoordArray leeren (wird in getCoordinates neu befüllt)
+  // controllers_array wird NICHT geleert, da filterAtis() vorher ATIS hinzufügt!
+  controllersWithCoordArray = [];
+
+  for (var i = 0; i < _controllers.length; i++) {
+    var controllerCode = _controllers[i].callsign.substring(
+      0,
+      _controllers[i].callsign.indexOf("_")
+    );
+    var callsign = _controllers[i].callsign;
+    var frequency = _controllers[i].frequency;
+    var visualRange = _controllers[i].visual_range;
+    var realname = _controllers[i].name || ''; // Controller's real name from VATSIM API
+    if (_controllers[i].text_atis) {
+      var text_atis = _controllers[i].text_atis;
+    } else {
+      var text_atis = -1;
+    }
+    var controller = {
+      name: controllerCode,
+      callsign: callsign,
+      frequency: frequency,
+      visualRange: visualRange,
+      text_atis: text_atis,
+      realname: realname, // Real name for popup display
+    };
+    controllers_array.push(controller);
+  }
+  getCoordinates(controllers_array);
+}
+
+function filterIVAO(_ivaoControllers) {
+  // WICHTIG: Array leeren bevor neue Controller hinzugefügt werden!
+  // Sonst bleiben alte/offline Controller erhalten
+  controllersWithCoordArray = [];
+
+  for (var i = 0; i < _ivaoControllers.length; i++) {
+    var controllerCode = _ivaoControllers[i].callsign.substring(
+      0,
+      _ivaoControllers[i].callsign.indexOf("_")
+    );
+    var station = _ivaoControllers[i].atcSession.position;
+    var callsign = _ivaoControllers[i].callsign;
+    var frequency = _ivaoControllers[i].atcSession.frequency;
+    var lat = 0;
+    var lng = 0;
+    if (_ivaoControllers[i].lastTrack) {
+      lat = _ivaoControllers[i].lastTrack.latitude;
+      lng = _ivaoControllers[i].lastTrack.longitude;
+    }
+    var visualRange = 100;
+    var text_atis = [];
+    if (_ivaoControllers[i].atis) {
+      text_atis = _ivaoControllers[i].atis.lines;
+    } else {
+      text_atis = -1;
+    }
+    var controller = {
+      name: controllerCode,
+      callsign: callsign,
+      frequency: frequency,
+      visualRange: visualRange,
+      text_atis: text_atis,
+      lat: lat,
+      lng: lng,
+      station: station || '', // Radio callname (e.g., "Langen Radar")
+      type: getControllerType(callsign) // TWR, GND, APP, CTR, etc.
+    };
+    if (controller.name != "" && controller.frequency != "") {
+      controllersWithCoordArray.push(controller);
+    }
+  }
+  checkInRange(controllersWithCoordArray);
+}
+
+function getCoordinates(_controllers_array) {
+  for (var i = 0; i < _controllers_array.length; i++) {
+    findAirportCoordinates(_controllers_array[i]);
+  }
+  checkInRange(controllersWithCoordArray);
+}
+
+function findAirportCoordinates(_controller) {
+  var callsign = _controller.callsign || '';
+  var parts = callsign.split('_');
+  var prefix = parts[0];
+  var suffix = parts[parts.length - 1];
+
+  var index = transceivers.findIndex(
+    (x) => x.callsign === callsign
+  );
+  if (index != -1 && transceivers[index].transceivers[0]) {
+    if (transceivers[index].transceivers.length >= 1) {
+      var coordinate = getAreaCenter(transceivers[index].transceivers);
+      _controller.lat = coordinate[0];
+      _controller.lng = coordinate[1];
+      controllersWithCoordArray.push(_controller);
+    } else {
+      _controller.lat = transceivers[index].transceivers[0].latDeg;
+      _controller.lng = transceivers[index].transceivers[0].lonDeg;
+      controllersWithCoordArray.push(_controller);
+    }
+  } else {
+    // Keine Transceiver-Position gefunden
+    // Für CTR-Controller: Trigger ARTCC-Lookup (async)
+    if (suffix === 'CTR' || suffix === 'FSS') {
+      lookupArtccForAirport(prefix, function(artcc) {
+        if (artcc) {
+          // Re-render wenn ARTCC gefunden wurde
+          czRenderDebounced();
+        }
+      });
+    }
+
+    // Für ATIS-Stationen: Versuche erst TWR/GND/DEL Transceiver desselben Flughafens zu finden
+    if (suffix === 'ATIS') {
+      var foundCoords = false;
+      var coordSource = '';
+
+      // 0. Prüfe ATIS-Lookup-Cache (verhindert mehrfache Abrufe)
+      if (_atisCoordLookupCache[callsign]) {
+        var cached = _atisCoordLookupCache[callsign];
+        if (cached.status === 'found') {
+          _controller.lat = cached.lat;
+          _controller.lng = cached.lng;
+          controllersWithCoordArray.push(_controller);
+          return; // Bereits gefunden, nichts mehr zu tun
+        } else if (cached.status === 'pending') {
+          return; // Lookup läuft bereits, nicht erneut starten
+        } else if (cached.status === 'notfound') {
+          return; // Bereits versucht und nicht gefunden
+        }
+      }
+
+      // 1. Prüfe zuerst den Airport-Cache (synchron und schnell)
+      if (window.airportCoordsCache && window.airportCoordsCache[prefix]) {
+        _controller.lat = window.airportCoordsCache[prefix].lat;
+        _controller.lng = window.airportCoordsCache[prefix].lng;
+        controllersWithCoordArray.push(_controller);
+        foundCoords = true;
+        coordSource = 'airportCoordsCache';
+        _atisCoordLookupCache[callsign] = { status: 'found', lat: _controller.lat, lng: _controller.lng };
+      }
+
+      // 2. Prüfe den ICAO-Index (synchron)
+      if (!foundCoords && window.airportIcaoIndex && window.airportIcaoIndex[prefix]) {
+        var icaoCached = window.airportIcaoIndex[prefix];
+        _controller.lat = icaoCached.lat;
+        _controller.lng = icaoCached.lng;
+        controllersWithCoordArray.push(_controller);
+        foundCoords = true;
+        coordSource = 'airportIcaoIndex';
+        _atisCoordLookupCache[callsign] = { status: 'found', lat: _controller.lat, lng: _controller.lng };
+      }
+
+      // 3. Suche Transceiver von anderen Stationen desselben Flughafens (TWR, GND, DEL)
+      if (!foundCoords) {
+        var alternativeSuffixes = ['TWR', 'GND', 'DEL', 'APP', 'DEP'];
+        for (var s = 0; s < alternativeSuffixes.length && !foundCoords; s++) {
+          var altCallsign = prefix + '_' + alternativeSuffixes[s];
+          var altIndex = transceivers.findIndex(function(x) { return x.callsign === altCallsign; });
+          if (altIndex !== -1 && transceivers[altIndex].transceivers && transceivers[altIndex].transceivers[0]) {
+            var coordinate = getAreaCenter(transceivers[altIndex].transceivers);
+            _controller.lat = coordinate[0];
+            _controller.lng = coordinate[1];
+            controllersWithCoordArray.push(_controller);
+            foundCoords = true;
+            coordSource = 'transceiver-' + alternativeSuffixes[s];
+            _atisCoordLookupCache[callsign] = { status: 'found', lat: _controller.lat, lng: _controller.lng };
+          }
+        }
+      }
+
+      if (CZ_DEBUG) console.log('[ATIS] ' + callsign + ': ' + (foundCoords ? 'coords from ' + coordSource : 'no sync coords, trying OpenAIP...'));
+
+      // 4. Fallback: OpenAIP wenn keine Koordinaten gefunden (asynchron)
+      if (!foundCoords) {
+        // Markiere als "pending" um mehrfache Abrufe zu verhindern
+        _atisCoordLookupCache[callsign] = { status: 'pending' };
+
+        fetchAirportFromOpenAIP(prefix, function(result) {
+          if (result && result.lat && result.lng) {
+            _controller.lat = result.lat;
+            _controller.lng = result.lng;
+            controllersWithCoordArray.push(_controller);
+            _atisCoordLookupCache[callsign] = { status: 'found', lat: result.lat, lng: result.lng };
+            if (CZ_DEBUG) console.log('[ATIS] ' + callsign + ': coords from OpenAIP async', result.lat, result.lng);
+            checkInRange(controllersWithCoordArray);
+          } else {
+            _atisCoordLookupCache[callsign] = { status: 'notfound' };
+            if (CZ_DEBUG) console.log('[ATIS] ' + callsign + ': NO coords found!');
+          }
+        });
+      }
+    }
+  }
+}
+
+function getAreaCenter(arr) {
+  var minX, maxX, minY, maxY;
+  for (var i = 0; i < arr.length; i++) {
+    minX = arr[i].latDeg < minX || minX == null ? arr[i].latDeg : minX;
+    maxX = arr[i].latDeg > maxX || maxX == null ? arr[i].latDeg : maxX;
+    minY = arr[i].lonDeg < minY || minY == null ? arr[i].lonDeg : minY;
+    maxY = arr[i].lonDeg > maxY || maxY == null ? arr[i].lonDeg : maxY;
+  }
+  return [(minX + maxX) / 2, (minY + maxY) / 2];
+}
+
+/**
+ * HYBRID-OPTIMIERUNG: Nutzt Server-seitig vorberechnete Bounding-Box
+ * Der Server liefert geometry.bbox als [minLat, maxLat, minLng, maxLng]
+ * Fallback auf Client-Berechnung für ältere Daten ohne bbox
+ */
+function getFeatureBoundingBox(feature) {
+  // Bereits gecached?
+  if (feature._bbox) return feature._bbox;
+  if (!feature.geometry) return null;
+
+  // HYBRID: Prüfe ob Server bereits Bounding-Box mitgeliefert hat
+  if (feature.geometry.bbox && Array.isArray(feature.geometry.bbox) && feature.geometry.bbox.length === 4) {
+    // Server liefert [minLat, maxLat, minLng, maxLng]
+    feature._bbox = {
+      minLat: feature.geometry.bbox[0],
+      maxLat: feature.geometry.bbox[1],
+      minLng: feature.geometry.bbox[2],
+      maxLng: feature.geometry.bbox[3]
+    };
+    return feature._bbox;
+  }
+
+  // Fallback: Client-seitige Berechnung (für ältere gecachte Daten ohne bbox)
+  if (!feature.geometry.coordinates) return null;
+
+  var minLat = Infinity, maxLat = -Infinity;
+  var minLng = Infinity, maxLng = -Infinity;
+
+  try {
+    var coords = feature.geometry.coordinates;
+    var rings = feature.geometry.type === 'MultiPolygon' ? coords[0] : coords;
+    if (!rings || !rings[0]) return null;
+    var ring = rings[0];
+
+    for (var i = 0; i < ring.length; i++) {
+      var pt = ring[i];
+      var lng = pt[0], lat = pt[1];
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    }
+
+    feature._bbox = { minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng };
+    return feature._bbox;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * OPTIMIERUNG: Schneller Bounding-Box Intersection Check
+ */
+function bboxIntersectsBounds(bbox, bounds) {
+  if (!bbox) return false;
+  return !(bbox.maxLat < bounds.getSouth() ||
+           bbox.minLat > bounds.getNorth() ||
+           bbox.maxLng < bounds.getWest() ||
+           bbox.minLng > bounds.getEast());
+}
+
+var lastControllers = [];
+
+function checkInRange(_controllersWithCoordArray) {
+  var _CurrentPosLat = lastLat;
+  var _CurrentPosLng = lastLng;
+  controllersInRange = [];
+
+  // Get active controller prefixes (controllers with active zones)
+  var activePrefixes = getActiveControllerPrefixes();
+
+  // Get only controllers whose zones are visible in the current viewport
+  // Use cache to avoid expensive layer iteration on every zoom/pan
+  var visiblePrefixes = {};
+  // For VATSIM: use cached boundary features; For IVAO: use controlZonesLayer
+  var hasZoneData = (controlZonesNetwork === 'VATSIM' && _cachedVatsimBoundaryFeatures) || controlZonesLayer;
+  if (hasZoneData && map) {
+    var bounds = map.getBounds();
+
+    // Check if we can use cached visiblePrefixes (viewport hasn't changed significantly)
+    var useCache = false;
+    if (_cachedVisiblePrefixes && _cachedVisiblePrefixesBounds) {
+      // Check if current bounds are within ~20% of cached bounds
+      var cachedCenter = _cachedVisiblePrefixesBounds.getCenter();
+      var currentCenter = bounds.getCenter();
+      var latDiff = Math.abs(cachedCenter.lat - currentCenter.lat);
+      var lngDiff = Math.abs(cachedCenter.lng - currentCenter.lng);
+      var cachedBoundsSize = Math.max(
+        _cachedVisiblePrefixesBounds.getNorth() - _cachedVisiblePrefixesBounds.getSouth(),
+        _cachedVisiblePrefixesBounds.getEast() - _cachedVisiblePrefixesBounds.getWest()
+      );
+      var currentBoundsSize = Math.max(
+        bounds.getNorth() - bounds.getSouth(),
+        bounds.getEast() - bounds.getWest()
+      );
+      // Check if zoom level changed significantly (bounds size changed by more than 20%)
+      var zoomChanged = Math.abs(cachedBoundsSize - currentBoundsSize) / cachedBoundsSize > 0.2;
+      // If center moved less than 20% of bounds size AND zoom hasn't changed significantly, use cache
+      if (cachedBoundsSize > 0 && latDiff < cachedBoundsSize * 0.2 && lngDiff < cachedBoundsSize * 0.2 && !zoomChanged) {
+        useCache = true;
+      }
+    }
+
+    if (useCache) {
+      visiblePrefixes = _cachedVisiblePrefixes;
+    } else {
+      // Recalculate visible prefixes
+      // OPTIMIERUNG: Bounding-Box Pre-Filter statt Punkt-für-Punkt Check
+      // Reduziert ~100.000 Iterationen auf ~500 durch cached Bounding-Boxes
+      // OPTIMIERUNG: Nutze gecachte Features statt Layer-Iteration
+      // Dies ist WESENTLICH schneller als eachLayer() aufzurufen
+      var cachedFeatures = null;
+      if (controlZonesNetwork === 'VATSIM' && _cachedVatsimBoundaryFeatures) {
+        cachedFeatures = _cachedVatsimBoundaryFeatures;
+      } else if (controlZonesNetwork === 'IVAO' && _cachedIvaoGeoJsonFeatures) {
+        cachedFeatures = _cachedIvaoGeoJsonFeatures;
+      }
+
+      if (cachedFeatures && cachedFeatures.length > 0) {
+        for (var fi = 0; fi < cachedFeatures.length; fi++) {
+          var feature = cachedFeatures[fi];
+          // OPTIMIERUNG: Schneller Bounding-Box Check statt jeden Punkt zu prüfen
+          var bbox = getFeatureBoundingBox(feature);
+          if (bbox && bboxIntersectsBounds(bbox, bounds)) {
+            var prefix = feature.properties && (feature.properties.prefix || feature.properties.id);
+            if (prefix) {
+              visiblePrefixes[prefix.toUpperCase()] = true;
+            }
+          }
+        }
+      } else if (controlZonesLayer) {
+        // Fallback: Layer-basierte Logik (nur wenn kein Feature-Cache vorhanden)
+        // controlZonesLayer is a LayerGroup containing GeoJSON batches
+        try {
+          controlZonesLayer.eachLayer(function(batchLayer) {
+            try {
+              if (batchLayer.eachLayer) {
+                batchLayer.eachLayer(function(featureLayer) {
+                  try {
+                    // Use cached bounds if available, otherwise calculate (only if layer has map)
+                    var layerBounds = featureLayer._cachedBounds || (featureLayer.getBounds && featureLayer._map ? featureLayer.getBounds() : null);
+                    if (layerBounds && layerBounds.intersects(bounds)) {
+                      var prefix = null;
+                      if (featureLayer.feature && featureLayer.feature.properties) {
+                        prefix = featureLayer.feature.properties.prefix || featureLayer.feature.properties.id;
+                      }
+                      if (prefix) {
+                        visiblePrefixes[prefix.toUpperCase()] = true;
+                      }
+                    }
+                  } catch (e) {}
+                });
+              } else {
+                // Only call getBounds if layer is attached to map
+                var layerBounds = batchLayer._cachedBounds || (batchLayer.getBounds && batchLayer._map ? batchLayer.getBounds() : null);
+                if (layerBounds && layerBounds.intersects(bounds)) {
+                  var prefix = null;
+                  if (batchLayer.feature && batchLayer.feature.properties) {
+                    prefix = batchLayer.feature.properties.prefix || batchLayer.feature.properties.id;
+                  }
+                  if (prefix) {
+                    visiblePrefixes[prefix.toUpperCase()] = true;
+                  }
+                }
+              }
+            } catch (e) {}
+          });
+        } catch (e) {}
+      }
+      // Update cache
+      _cachedVisiblePrefixes = visiblePrefixes;
+      _cachedVisiblePrefixesBounds = bounds;
+    }
+  }
+
+  for (var i = 0; i < _controllersWithCoordArray.length; i++) {
+    var controller = _controllersWithCoordArray[i];
+    var distance = calculateDistance(
+      parseFloat(pos_lat),
+      parseFloat(pos_lng),
+      controller.lat,
+      controller.lng,
+      "N"
+    );
+    var distance = distance.toFixed(0);
+
+    // Show all controllers whose coordinates are within the visible viewport
+    // This ensures APP/TWR/GND/DEL controllers are shown even if their FIR isn't active
+    var isVisible = false;
+    if (map && controller.lat && controller.lng) {
+      var bounds = map.getBounds();
+      // Check if controller coordinates are within viewport (with 20% padding for smoother scrolling)
+      var padLat = (bounds.getNorth() - bounds.getSouth()) * 0.2;
+      var padLng = (bounds.getEast() - bounds.getWest()) * 0.2;
+      var paddedBounds = L.latLngBounds(
+        [bounds.getSouth() - padLat, bounds.getWest() - padLng],
+        [bounds.getNorth() + padLat, bounds.getEast() + padLng]
+      );
+      isVisible = paddedBounds.contains([controller.lat, controller.lng]);
+    }
+
+    // Fallback: Also check if controller's FIR prefix is visible (for controllers at viewport edge)
+    if (!isVisible) {
+      var prefix = getFirPrefix(controller.callsign);
+      var prefixUpper = prefix ? prefix.toUpperCase() : '';
+      isVisible = prefixUpper && visiblePrefixes[prefixUpper];
+    }
+
+    if (isVisible) {
+      var controllerInRange = controller;
+      controllerInRange.distance = distance;
+      controllersInRange.push(controllerInRange);
+    }
+  }
+  controllersInRange.sort(dynamicSortMultiple("distance", "name"));
+
+  if (CZ_DEBUG) console.log('[ControllerList] Controllers in range:', controllersInRange.length);
+
+  // Always update the list (remove broken comparison)
+  var listEl = document.getElementById("controllerListUl");
+  if (listEl) {
+    listEl.innerHTML = "";
+    // Respektiere den aktuellen Panel-Modus (Zonen oder Piloten)
+    if (panelMode === 'pilots') {
+      listPilots();
+    } else {
+      listControllers();
+    }
+    lastControllers = controllersInRange;
+  }
+  // Update Control Zones when enabled
+  // Render on first load OR when controller prefixes change
+  var currentPrefixKeys = Object.keys(activePrefixes).sort().join(',');
+  var lastPrefixKeys = window._lastRenderedControllerPrefixes || '';
+  var prefixesChanged = currentPrefixKeys !== lastPrefixKeys;
+  var isFirstRender = !window._czFirstRenderDone;
+
+  if (czState.enabled && (prefixesChanged || isFirstRender)) {
+    window._lastRenderedControllerPrefixes = currentPrefixKeys;
+    window._czFirstRenderDone = true;
+    if (CZ_DEBUG) console.log('[CZ] Triggering render - prefixesChanged:', prefixesChanged, 'isFirstRender:', isFirstRender);
+    czRenderDebounced(); // Re-render control zones when controller data changes (debounced)
+  }
+  startVatsimPolling();
+}
+
+function getMarkerId() {
+  var markerIdArrray = [];
+  wpi3 = 0;
+  for (let index = 0; index < wpNames.length; index++) {
+    const element = wpNames[index];
+    if (element) {
+      const elementSplit = element.split("WP");
+      if (elementSplit[1] && !isNaN(elementSplit[1])) {
+        markerIdArrray.push(elementSplit[1]);
+      }
+    }
+  }
+  if (markerIdArrray.length > 0) {
+    wpi3 = Math.max.apply(Math, markerIdArrray);
+  }
+}
+
+// v1.47: Brute-Force Entfernung aller Waypoint-Layers direkt von der Map
+// Diese Funktion überlebt Coherent JS-Resets weil sie map._layers direkt durchsucht
+function removeAllWaypointLayers() {
+  if (!map || !map._layers) {
+    if (MAP_DEBUG) console.log('[Map] v1.47: map._layers nicht verfügbar');
+    return 0;
+  }
+
+  var removedCount = 0;
+  var layersToRemove = [];
+
+  // Erst alle zu löschenden Layers sammeln (nicht während Iteration löschen!)
+  $.each(map._layers, function (layerId, layer) {
+    if (layer && layer.feature && layer.feature.mytype === "waypoint") {
+      layersToRemove.push(layer);
+    }
+  });
+
+  // Dann alle gesammelten Layers entfernen
+  layersToRemove.forEach(function(layer) {
+    try {
+      map.removeLayer(layer);
+      removedCount++;
+    } catch (err) {
+      console.warn('[Map] v1.47: Fehler beim Entfernen von Layer:', err);
+    }
+  });
+
+  if (MAP_DEBUG) console.log('[Map] v1.47: removeAllWaypointLayers entfernte', removedCount, 'Waypoint-Layers');
+  return removedCount;
+}
+
+function removeAllMarkers() {
+  // v1.47: ERST alle Waypoint-Layers brute-force von der Map entfernen
+  // Das funktioniert auch nach Coherent JS-Reset!
+  removeAllWaypointLayers();
+
+  WpBlocked = false;
+  markerId = 0;
+  wpi = 0;
+  nextWaypointInsertIndex = null;
+  nextWaypointUseExisting = false;
+  skipNextMapClick = false;
+  pendingFirstActivation = false;
+  safeCleanupTimer('startlineInterval');
+  coordinates = [];
+  coordinatesArray = [];
+  if (startLineGroup && map.hasLayer(startLineGroup)) {
+    startLineGroup.clearLayers();
+    map.removeLayer(startLineGroup);
+  }
+  hideWpList();
+  if (startLineGroup && map.hasLayer(startLineGroup)) {
+    map.removeLayer(startLineGroup);
+  }
+  middleMarkers.clearLayers();
+  clearAllPolylineLayers();
+  if (map.hasLayer(polyline)) {
+    map.removeLayer(polyline);
+    polylinepoints = [];
+    polyline = [];
+    if (showPath == true) {
+      polyline = L.polyline(polylinepoints, {
+        color: '#ff0000',
+        weight: 3,
+        opacity: 0.7,
+        smoothFactor: 1
+      });
+      map.addLayer(polyline);
+    }
+  } else {
+    if (showPath == true) {
+      polyline = L.polyline(polylinepoints, {
+        color: '#ff0000',
+        weight: 3,
+        opacity: 0.7,
+        smoothFactor: 1
+      });
+      map.addLayer(polyline);
+    }
+  }
+
+  if (ActiveMarker && map.hasLayer(ActiveMarker)) {
+    map.removeLayer(ActiveMarker);
+  }
+  localStorage.setItem("targetMarker", -1);
+  startlineShow = false;
+  targetMarker = -1;
+  // NOTE: deleteAllMarkers() removed - it's now only called via removeAllMarkersAndClearServer()
+  // deleteAllMarkers();  // Removed to prevent /clearFlightplan during import
+  toggle3 = false;
+  altitudes = [];
+  wpNames = [];
+  wpTypes = [];
+  atbls = [];
+  wpSourceTypes = [];
+  wpDepartureProcedures = [];
+  wpArrivalProcedures = [];
+  wpAirways = [];
+  wpRunwayNumbers = [];
+  wpRunwayDesignators = [];
+  wpNames = [];
+
+  // NOTE: Hash reset and broadcast removed - only done in removeAllMarkersAndClearServer()
+  // This prevents empty flightplan broadcasts during import which would clear navlog cache
+}
+
+// Combined function for explicit deletion (button click, manual last waypoint deletion)
+function removeAllMarkersAndClearServer() {
+  // CRITICAL: Abort any pending flightplan loads and stop update checks
+  abortPendingFlightplanLoads();
+
+  // Cancel any ongoing flightplan animation
+  cancelFlightplanAnimation();
+
+  // Clear runway data
+  clearRunwayData();
+
+  // First remove all visual markers
+  removeAllMarkers();
+
+  // Then perform the server-side cleanup
+  WpBlocked = false;
+  deleted = true;
+
+  // Remove waypoint layers from map
+  $.each(map._layers, function (ml) {
+    if (
+      map._layers[ml].feature &&
+      map._layers[ml].feature.mytype != "airport" &&
+      map._layers[ml].feature.mytype != "navaid" &&
+      map._layers[ml].feature.mytype != "reportingPoint"
+    ) {
+      map.removeLayer(this);
+    }
+  });
+
+  // Clear all cached waypoint data
+  removeCachedItem("clickedPoints");
+  removeCachedItem("altitudes");
+  removeCachedItem("wpSourceTypes");
+  removeCachedItem("wpDepartureProcedures");
+  removeCachedItem("wpArrivalProcedures");
+  removeCachedItem("wpAirways");
+  removeCachedItem("wpRunwayNumbers");
+  removeCachedItem("wpRunwayDesignators");
+  removeCachedItem("wpNames");
+  removeCachedItem("wpTypes");
+  removeCachedItem("atbls");
+
+  // Clear arrays
+  altitudes = [];
+  wpNames = [];
+  wpTypes = [];
+  atbls = [];
+  wpSourceTypes = [];
+  wpDepartureProcedures = [];
+  wpArrivalProcedures = [];
+  wpAirways = [];
+  wpRunwayNumbers = [];
+  wpRunwayDesignators = [];
+
+  // Clear OFP meta data (both memory and cache)
+  importedFlightplanMeta = null;
+  importedOFPData = null;
+  setCachedItem("importedFlightplanMeta", null);
+  setCachedItem("importedOFPData", null);
+
+  // Reset flightplan fingerprint so the same flightplan can be reloaded after deletion
+  currentFlightplanFingerprint = null;
+  if (MAP_DEBUG) console.log('[Map] Flightplan fingerprint reset');
+
+  // WICHTIG: Flugplan-Hash zur�cksetzen damit gel�schte Flugpl�ne neu geladen werden k�nnen
+  try {
+    if (typeof window !== 'undefined' && window.parent) {
+      window.parent.postMessage({ type: 'resetFlightplanHash' }, '*');
+      if (MAP_DEBUG) console.log('[Map] Flightplan hash reset message sent');
+    }
+  } catch (e) {
+    console.warn('[Map] Could not send hash reset message:', e);
+  }
+
+  // Clear stored hash so server flight plan can be reloaded
+  setCachedItem('lastServerFlightplanHash', null);
+  setCachedItem('lastServerFlightplanTimestamp', null);
+
+  // Block autoload until new flightplan from server or manual sync
+  window.autoloadBlockedUntilNewFlightplan = true;
+  try { localStorage.setItem('autoloadBlockedUntilNewFlightplan', 'true'); } catch (e) {}
+
+  // Clear global variables
+  wpi2 = 0;
+  wpi3 = 0;
+  dep = "";
+  arr = "";
+  map.closePopup();
+
+  // WICHTIG: NavLog zurücksetzen wenn Flugplan gelöscht wird
+  broadcastNavlogReset();
+
+  scheduleNavlogSync();
+  hideElevationProfile();
+
+  // Clear local navlog but keep SimBrief cache intact
+  // User can immediately click sync again to reload the flightplan
+  fetch('clearLocalFlightplan').then(function(response) {
+    return response.json();
+  }).then(function(data) {
+    if (MAP_DEBUG) console.log('[Map] Local flightplan cleared, server has flightplan:', data.hasServerFlightplan);
+
+    // If server still has a flightplan from SimBrief, set button ORANGE (static, no pulse)
+    if (data.hasServerFlightplan) {
+      console.log('[SimBrief] Server has flightplan ready - setting button ORANGE');
+      setSyncButtonOrange();
+    }
+  }).catch(function(e) {
+    console.warn('[Map] Error clearing local flightplan:', e);
+  });
+
+  // Release sync button lock and update based on SimBrief ID availability
+  window.syncButtonLockedUntilServerFlightplan = false;
+  stopSyncButtonPulse();  // Stop any ongoing pulse animation
+  updateSyncButtonState();  // Enable/disable based on SimBrief ID
+
+  // Enable follow mode and center on aircraft
+  toggle.disable();
+  follow = true;
+  if (map && (window.aircraftPositionInitialized || hasCachedAircraftPosition) && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+    var lat = parseFloat(pos_lat);
+    var lng = parseFloat(pos_lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      var source = window.aircraftPositionInitialized ? 'live' : 'cached';
+      map.setView(new L.LatLng(lat, lng));
+      console.log('[Map] All markers deleted - centered on aircraft (' + source + ') at:', lat, lng);
+    } else {
+      window.centerOnAircraftPending = true;
+      console.log('[Map] All markers deleted - aircraft centering deferred (invalid coordinates)');
+    }
+  } else if (!window.aircraftPositionInitialized && !hasCachedAircraftPosition) {
+    window.centerOnAircraftPending = true;
+    console.log('[Map] All markers deleted - aircraft centering deferred (no position data)');
+  }
+
+  // Re-activate wind layer if it was active before the animation was cancelled
+  // This fixes the bug where wind layer doesn't update after flightplan deletion
+  // Don't activate if controller panel is open
+  if (window.windLayerWasActiveBeforeAnimation && window.initialWindLayerConfig && window.initialWindLayerConfig.layer && !(typeof moverX !== 'undefined' && moverX)) {
+    var windLayer = window.initialWindLayerConfig.layer;
+    if (typeof map !== 'undefined' && map && !map.hasLayer(windLayer)) {
+      if (MAP_DEBUG) console.log('[Wind] Re-activating wind layer after flightplan deletion');
+      windLayer.setOpacity(0);
+      windLayer.addTo(map);
+      setTimeout(function() {
+        if (typeof fetchWindData === 'function') {
+          fetchWindData();
+          setTimeout(function() {
+            if (windLayer && map.hasLayer(windLayer)) {
+              windLayer.setOpacity(0.4);
+            }
+          }, 300);
+        }
+      }, 100);
+    }
+    window.windLayerWasActiveBeforeAnimation = false;
+  }
+}
+
+function deleteAllMarkers() {
+  WpBlocked = false;
+  deleted = true;
+  $.each(map._layers, function (ml) {
+    if (
+      map._layers[ml].feature &&
+      map._layers[ml].feature.mytype != "airport" &&
+      map._layers[ml].feature.mytype != "navaid" &&
+      map._layers[ml].feature.mytype != "reportingPoint"
+    ) {
+      map.removeLayer(this);
+    }
+  });
+  // MIGRIERT: Versionierte Cache-Wrapper verwenden
+  removeCachedItem("clickedPoints");
+  removeCachedItem("altitudes");
+  altitudes = [];
+  wpNames = [];
+  wpTypes = [];
+  atbls = [];
+  removeCachedItem("wpSourceTypes");
+  removeCachedItem("wpDepartureProcedures");
+  removeCachedItem("wpArrivalProcedures");
+  removeCachedItem("wpAirways");
+  removeCachedItem("wpRunwayNumbers");
+  removeCachedItem("wpRunwayDesignators");
+  removeCachedItem("wpNames");
+  removeCachedItem("wpTypes");
+  removeCachedItem("atbls");
+  wpSourceTypes = [];
+  wpDepartureProcedures = [];
+  wpArrivalProcedures = [];
+  wpAirways = [];
+  wpRunwayNumbers = [];
+  wpRunwayDesignators = [];
+  scheduleNavlogSync();
+
+  // Hide elevation profile when all waypoints are deleted
+  hideElevationProfile();
+
+  // Enable sync button so user can reload flightplan from server
+  enableSyncButtonIfAllowed('flightplan cleared locally');
+
+  // Enable follow mode and center on aircraft after deleting all markers
+  toggle.disable();
+  follow = true;
+  if (map && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+    map.setView(new L.LatLng(pos_lat, pos_lng));
+    console.log('[Map] All markers deleted - centered on aircraft at:', pos_lat, pos_lng);
+  }
+}
+
+function setJSON(key, value) {
+  // MIGRIERT: Versionierte Cache-Wrapper verwenden
+  setCachedItem(key, value);
+}
+
+function getJSON(key) {
+  // MIGRIERT: Versionierte Cache-Wrapper verwenden
+  return getCachedItem(key);
+}
+
+function getStoredWaypointMetadata() {
+  function readArray(key) {
+    var parsed = getJSON(key);
+    if (Array.isArray(parsed)) {
+      return parsed.slice();
+    }
+    return [];
+  }
+  return {
+    names: readArray("wpNames"),
+    types: readArray("wpTypes"),
+    alts: readArray("altitudes"),
+    atbls: readArray("atbls"),
+  };
+}
+
+function loadPoints() {
+  // If flightplan animation is pending, don't load points here
+  // The animation will handle displaying waypoints with proper animation
+  if (window.flightplanAnimationInProgress) {
+    console.log('[Map] loadPoints skipped - animation will handle waypoint display');
+    // Still need to set follow=false and enable toggle to prevent aircraft centering
+    if (typeof toggle !== 'undefined' && toggle) {
+      toggle.enable();
+    }
+    follow = false;
+    return;
+  }
+
+  var coordinates = getJSON("clickedPoints");
+  wpNum = 0;
+  if (coordinates) {
+    WpBlocked = false;
+    var stored = getStoredWaypointMetadata();
+    wpNames = [];
+    wpTypes = [];
+    altitudes = [];
+    atbls = [];
+    wpSourceTypes = [];
+    wpDepartureProcedures = [];
+    wpArrivalProcedures = [];
+    wpAirways = [];
+    wpRunwayNumbers = [];
+    wpRunwayDesignators = [];
+    var i = 0;
+    coordinates.forEach((entry) => {
+      var latlng = Array.isArray(entry) ? entry : [entry.lat, entry.lng];
+      var storedName =
+        stored.names && typeof stored.names[i] !== "undefined"
+          ? stored.names[i]
+          : "";
+      var storedType =
+        stored.types && typeof stored.types[i] !== "undefined"
+          ? stored.types[i]
+          : "User";
+      var storedAlt =
+        stored.alts && typeof stored.alts[i] !== "undefined"
+          ? stored.alts[i]
+          : "0";
+      var storedAtbl =
+        stored.atbls && typeof stored.atbls[i] !== "undefined"
+          ? stored.atbls[i]
+          : "";
+
+      nextWaypointInsertIndex = wpNames.length;
+      nextWaypointUseExisting = false;
+      map.fire("contextmenu", {
+        latlng: L.latLng(latlng),
+        synthetic: true,
+        setName: storedName,
+        setType: storedType,
+        setAltitude: storedAlt,
+        setAtbl: storedAtbl,
+      });
+      i++;
+      wpNum++;
+    });
+    // Nicht einblenden wenn Controller Modus aktiv
+    if (coordinates.length > 0 && !moverX) {
+      showWpList(true);
+    }
+    if (coordinates.length > 2) {
+      toggle.enable();
+      follow = false;
+      // Only fitBounds if NOT during flightplan animation (animation handles centering)
+      if (!window.flightplanAnimationInProgress) {
+        var boundsCoords = normalizeCoordinatesForBounds(coordinates);
+        if (boundsCoords.length > 0) {
+          var bounds = L.latLngBounds(boundsCoords);
+          map.fitBounds(bounds);
+        }
+      }
+    } else {
+      // Only enable follow mode if NOT during flightplan animation
+      if (!window.flightplanAnimationInProgress) {
+        toggle.disable();
+        follow = true;
+      }
+    }
+    WpBlocked = false;
+    scheduleNavlogSync();
+    //map.closePopup();
+
+    // Update elevation profile if visible
+    if (elevationProfileVisible) {
+      // Invalidate map size to ensure proper canvas sizing (ohne panTo)
+      if (map) {
+        map.invalidateSize({ pan: false });
+      }
+      // Re-center on aircraft if follow mode is active AND no animation running
+      if (follow && !window.flightplanAnimationInProgress && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+        map.setView(new L.LatLng(pos_lat, pos_lng));
+      }
+      // Update elevation profile sofort
+      updateElevationProfile();
+      // Update aircraft position on elevation profile (uses ground elevation if no live data)
+      if (typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+        updateAircraftPositionOnRoute(pos_lat, pos_lng, altitude || 0);
+      }
+    }
+
+    // Validate array synchronization after loading
+    validateWaypointArrays('loadPoints');
+  } else {
+    // No waypoints found - enable follow mode and center on aircraft
+    // BUT only if NOT during flightplan animation (flightplan restore will handle centering)
+    if (!window.flightplanAnimationInProgress) {
+      toggle.disable();
+      follow = true;
+
+      // Center on aircraft position if available
+      if (map && (window.aircraftPositionInitialized || hasCachedAircraftPosition) && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+        var source = window.aircraftPositionInitialized ? 'live' : 'cached';
+        map.setView(new L.LatLng(pos_lat, pos_lng));
+        console.log('[Map] No waypoints - centered on aircraft (' + source + ') at:', pos_lat, pos_lng);
+      } else if (!window.aircraftPositionInitialized && !hasCachedAircraftPosition) {
+        window.centerOnAircraftPending = true;
+        if (MAP_DEBUG) console.log('[Map] No waypoints - aircraft centering deferred');
+      }
+    } else {
+      console.log('[Map] Skipping follow mode activation - flightplan animation in progress');
+    }
+  }
+}
+
+function savePoints() {
+  var coordinates = [];
+  var waypointLayers = getWaypointLayersSorted();
+  waypointLayers.forEach(function (layer) {
+    coordinates.push(layer.feature.geometry.coordinates);
+  });
+
+  // Validate array synchronization before saving
+  validateWaypointArrays('savePoints');
+
+  // MIGRIERT: Versionierte Cache-Wrapper verwenden
+  setCachedItem("clickedPoints", coordinates);
+  setCachedItem("wpNames", wpNames);
+  setCachedItem("wpTypes", wpTypes);
+  setCachedItem("altitudes", altitudes);
+  setCachedItem("atbls", atbls);
+  setCachedItem("wpSourceTypes", wpSourceTypes);
+  setCachedItem("wpDepartureProcedures", wpDepartureProcedures);
+  setCachedItem("wpArrivalProcedures", wpArrivalProcedures);
+  setCachedItem("wpAirways", wpAirways);
+  setCachedItem("wpRunwayNumbers", wpRunwayNumbers);
+  setCachedItem("wpRunwayDesignators", wpRunwayDesignators);
+}
+
+function calcMiddleLatLng(map, latlng1, latlng2) {
+  // calculate the middle coordinates between two markers
+  const p1 = map.project(latlng1);
+  const p2 = map.project(latlng2);
+  return map.unproject(p1._add(p2)._divideBy(2));
+}
+
+function createMiddleMarkers(line) {
+  middleMarkers.clearLayers();
+  $("#overlayListSum").empty();
+  if (map && !map.hasLayer(middleMarkers)) {
+    middleMarkers.addTo(map);
+  }
+  var latlngs = line.getLatLngs();
+  distances = [];
+  var gesDist = 0;
+  for (var i = 1; i < latlngs.length; i++) {
+    const left = latlngs[i - 1];
+    const right = latlngs[i];
+    const segmentIndex = i - 1;
+    const midpointLatLng = calcMiddleLatLng(map, left, right);
+
+    // Check if midpoint is too close to any waypoint marker
+    var tooClose = false;
+    var minDistancePixels = 40; // Minimum pixel distance from waypoint markers
+
+    // Get all waypoint layers
+    var waypointLayers = getWaypointLayersSorted();
+    for (var j = 0; j < waypointLayers.length; j++) {
+      var wpLatLng = waypointLayers[j].getLatLng();
+      var wpPoint = map.latLngToContainerPoint(wpLatLng);
+      var midPoint = map.latLngToContainerPoint(midpointLatLng);
+
+      var pixelDistance = Math.sqrt(
+        Math.pow(wpPoint.x - midPoint.x, 2) +
+        Math.pow(wpPoint.y - midPoint.y, 2)
+      );
+
+      if (pixelDistance < minDistancePixels) {
+        tooClose = true;
+        break;
+      }
+    }
+
+    // Skip this middle marker if too close to a waypoint
+    if (tooClose) {
+      continue;
+    }
+
+    distance = calculateDistance(
+      latlngs[i - 1].lat,
+      latlngs[i - 1].lng,
+      latlngs[i].lat,
+      latlngs[i].lng,
+      "N"
+    );
+    distances.push(distance);
+    gesDist = gesDist + distance;
+    var heading = headings[i - 1];
+    if (heading < 10) {
+      heading = "00" + Math.round(headings[i - 1]);
+    } else if (heading < 100) {
+      heading = "0" + Math.round(headings[i - 1]);
+    } else {
+      heading = Math.round(headings[i - 1]);
+    }
+    // Middle Marker mit visuellem Plus-Indikator - erscheint nur bei Proximity
+    // Größere Hitbox für frühere Erkennung, Plus erscheint in der Mitte
+    var markerSize = 60; // Größere unsichtbare Hitbox für Proximity-Detection
+    var anchorOffset = markerSize / 2;
+    var plusSize = 18; // Größe des Plus-Symbols
+    var plusColor = 'rgba(41, 129, 202, 0.9)'; // Blau passend zum Theme
+
+    // SVG Plus-Symbol mit Glow-Effekt - initial unsichtbar (opacity:0)
+    var plusSvg = '<svg class="middle-marker-plus" width="' + plusSize + '" height="' + plusSize + '" viewBox="0 0 16 16" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(0.5);opacity:0;transition:opacity 0.2s ease, transform 0.2s ease;filter:drop-shadow(0 0 3px rgba(41,129,202,0.8));">' +
+      '<circle cx="8" cy="8" r="7" fill="rgba(255,255,255,0.25)" stroke="' + plusColor + '" stroke-width="1.5"/>' +
+      '<line x1="8" y1="4" x2="8" y2="12" stroke="' + plusColor + '" stroke-width="2.5" stroke-linecap="round"/>' +
+      '<line x1="4" y1="8" x2="12" y2="8" stroke="' + plusColor + '" stroke-width="2.5" stroke-linecap="round"/>' +
+      '</svg>';
+
+    const middleMarker = new L.Marker(midpointLatLng, {
+      icon: new L.DivIcon({
+        className: "middle-marker-hitbox",
+        iconAnchor: [anchorOffset, anchorOffset],
+        iconSize: [markerSize, markerSize],
+        html: '<div class="middle-marker-visual" style="width:' + markerSize + 'px;height:' + markerSize + 'px;position:relative;">' + plusSvg + '</div>',
+      }),
+      interactive: true,
+      zIndexOffset: -1000,  // Place below waypoint markers to not intercept clicks
+    });
+
+    // Proximity Detection: Plus erscheint wenn Maus/Touch in die Nähe kommt
+    middleMarker.on("mouseover mouseenter", function(e) {
+      var el = this.getElement();
+      if (el) {
+        var svg = el.querySelector('.middle-marker-plus');
+        if (svg) {
+          svg.style.opacity = '1';
+          svg.style.transform = 'translate(-50%,-50%) scale(1)';
+        }
+      }
+    });
+
+    middleMarker.on("mouseout mouseleave", function(e) {
+      var el = this.getElement();
+      if (el) {
+        var svg = el.querySelector('.middle-marker-plus');
+        if (svg) {
+          svg.style.opacity = '0';
+          svg.style.transform = 'translate(-50%,-50%) scale(0.5)';
+        }
+      }
+    });
+
+    // Long-press detection for middle marker insertion
+    var pressTimer = null;
+    var pressStartTime = null;
+    var isLongPress = false;
+    var LONG_PRESS_DURATION = 500; // ms
+
+    middleMarker.on("mousedown touchstart", function (event) {
+      pressStartTime = Date.now();
+      isLongPress = false;
+
+      pressTimer = setTimeout(function() {
+        isLongPress = true;
+        if (MAP_DEBUG) console.log('[Map] Long-press detected on middle marker');
+      }, LONG_PRESS_DURATION);
+    });
+
+    middleMarker.on("mouseup touchend", function (event) {
+      if (pressTimer) {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+
+      var pressDuration = Date.now() - (pressStartTime || 0);
+
+      // Only insert waypoint if it was a long press
+      if (isLongPress || pressDuration >= LONG_PRESS_DURATION) {
+        if (!map || waypointmode === false || WpBlocked === true) {
+          return;
+        }
+        if (event && event.originalEvent && L && L.DomEvent && L.DomEvent.stop) {
+          L.DomEvent.stop(event.originalEvent);
+        }
+        suppressPolylineClick = true;
+        skipNextMapClick = true;
+        // Safety timeout - auto-reset after 500ms if still true
+        setTimeout(function() {
+          if (skipNextMapClick === true) {
+            console.warn('[Map Safety] skipNextMapClick stuck after 500ms at middle marker - auto-reset');
+            skipNextMapClick = false;
+          }
+        }, 500);
+        try {
+          nextWaypointInsertIndex = segmentIndex + 1;
+          nextWaypointUseExisting = false;
+          map.fire("contextmenu", {
+            latlng: midpointLatLng,
+            midpointInsert: true,
+            synthetic: true,
+          });
+        } catch (err) {
+          console.error('[Map] Error firing contextmenu from middle marker long-press:', err);
+          skipNextMapClick = false;
+        }
+        setTimeout(function () {
+          suppressPolylineClick = false;
+        }, 0);
+
+        if (MAP_DEBUG) console.log('[Map] Middle marker waypoint inserted after long-press');
+      } else {
+        if (MAP_DEBUG) console.log('[Map] Short click on middle marker ignored - long-press required');
+      }
+
+      isLongPress = false;
+      pressStartTime = null;
+    });
+
+    // Cancel long-press if mouse/touch moves away
+    middleMarker.on("mouseleave touchcancel", function() {
+      if (pressTimer) {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+      isLongPress = false;
+      pressStartTime = null;
+    });
+
+    middleMarker.addTo(middleMarkers);
+  }
+  $("#overlayListSum").append(
+    "<b>Total:</b >&nbsp;" + gesDist.toFixed(2) + " nm"
+  );
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2, unit) {
+  // Use Leaflet's accurate Haversine distance calculation
+  var distanceMeters = map.distance([lat1, lon1], [lat2, lon2]);
+
+  // Convert to requested unit
+  if (unit == "K") {
+    return distanceMeters / 1000; // kilometers
+  }
+  if (unit == "N" || unit == "nm") {
+    return distanceMeters * 0.000539957; // nautical miles
+  }
+  // Default: statute miles
+  return distanceMeters * 0.000621371;
+}
+
+var wpListMinimized = false;
+var controllerListMinimized = false;
+
+function minimizeWpList() {
+  var overlayEl = document.getElementById("overlay");
+  var overlayList = document.getElementById("overlayList");
+  var overlayListSum = document.getElementById("overlayListSum");
+  var minimizeBtn = document.getElementById("wpListMinimize");
+
+  if (!wpListMinimized) {
+    // Minimieren
+    if (overlayList) overlayList.style.display = "none";
+    if (overlayListSum) overlayListSum.style.display = "none";
+    if (overlayEl) {
+      overlayEl.style.height = "auto";
+      overlayEl.style.minHeight = "0";
+      overlayEl.style.overflow = "visible";
+      overlayEl.classList.add('minimized');
+    }
+    if (minimizeBtn) minimizeBtn.innerHTML = "+";
+    wpListMinimized = true;
+  } else {
+    // Maximieren
+    if (overlayList) {
+      overlayList.style.display = "";
+      overlayList.style.visibility = "visible";
+    }
+    if (overlayListSum) {
+      overlayListSum.style.display = "";
+      overlayListSum.style.visibility = "visible";
+    }
+    if (overlayEl) {
+      overlayEl.style.height = "50vh";
+      overlayEl.style.minHeight = "17vh";
+      overlayEl.style.overflow = "hidden";
+      overlayEl.classList.remove('minimized');
+    }
+    if (minimizeBtn) minimizeBtn.innerHTML = "_";
+    wpListMinimized = false;
+  }
+}
+
+function minimizeControllerList() {
+  var controllerContainer = document.getElementById("controllerContainer");
+  var controllerList = document.getElementById("controllerList");
+  var controllerListSum = document.getElementById("controllerListSum");
+  var minimizeBtn = document.getElementById("controllerListMinimize");
+
+  if (!controllerListMinimized) {
+    // Minimieren
+    if (controllerList) controllerList.style.display = "none";
+    if (controllerListSum) controllerListSum.style.display = "none";
+    if (controllerContainer) {
+      controllerContainer.style.height = "auto";
+      controllerContainer.style.maxHeight = "none";
+      controllerContainer.style.minHeight = "0";
+      controllerContainer.style.overflow = "hidden";
+      controllerContainer.classList.add('minimized');
+    }
+    if (minimizeBtn) minimizeBtn.innerHTML = "+";
+    controllerListMinimized = true;
+  } else {
+    // Maximieren
+    if (controllerList) {
+      controllerList.style.display = "";
+      controllerList.style.visibility = "visible";
+    }
+    if (controllerListSum) {
+      controllerListSum.style.display = "";
+      controllerListSum.style.visibility = "visible";
+    }
+    if (controllerContainer) {
+      controllerContainer.style.height = "50vh";
+      controllerContainer.style.maxHeight = "60vh";
+      controllerContainer.style.minHeight = "17vh";
+      controllerContainer.style.overflow = "hidden";
+      controllerContainer.classList.remove('minimized');
+    }
+    if (minimizeBtn) minimizeBtn.innerHTML = "_";
+    controllerListMinimized = false;
+  }
+}
+
+function hideWpList() {
+  wpListOn = false;
+  var overlayEl = document.getElementById("overlay");
+  if (overlayEl) {
+    overlayEl.style.display = "none";
+    overlayEl.style.visibility = "hidden";
+  }
+  // Banner visibility now controlled by SimConnect status only
+  document.getElementById("overlayContainer").style.visibility = "hidden";
+  document.getElementById("overlayList").style.visibility = "hidden";
+  $(".leaflet-geosearch-bar").css("top", 0);
+}
+
+function showWpList(force) {
+  // EARLY RETURN: Don't show when controller mode is active
+  if (moverX) {
+    if (MAP_DEBUG) console.log('[Map] Blocking showWpList - controller mode active');
+    return;
+  }
+
+  if (MAP_DEBUG) console.log('[Map] showWpList called - force:', force, 'wpNames.length:', wpNames.length);
+
+  var activeCount = 0;
+  if (Array.isArray(wpNames) && wpNames.length) {
+    activeCount = wpNames.filter(function (name) {
+      return typeof name === "string" && name.trim().length > 0;
+    }).length;
+    if (activeCount < 1) {
+      activeCount = wpNames.length;
+    }
+  }
+  if (activeCount < 1 && typeof getWaypointLayersSorted === "function") {
+    activeCount = getWaypointLayersSorted().length;
+  }
+  if (activeCount < 1 && typeof wpi === "number") {
+    activeCount = wpi;
+  }
+  if (force === true) {
+    activeCount = Math.max(activeCount, 1);
+  }
+
+  if (MAP_DEBUG) console.log('[Map] showWpList - activeCount:', activeCount, 'force:', force);
+
+  if (activeCount >= 1) {
+    wpListOn = true;
+    var overlayEl = document.getElementById("overlay");
+    var bannerEl = document.getElementById("banner");
+    var containerEl = document.getElementById("overlayContainer");
+    var listEl = document.getElementById("overlayList");
+
+    if (MAP_DEBUG) console.log('[Map] showWpList - Elements found:', {
+      overlay: !!overlayEl,
+      banner: !!bannerEl,
+      container: !!containerEl,
+      list: !!listEl
+    });
+
+    // Must set BOTH display and visibility because CSS has display: none
+    if (overlayEl) {
+      overlayEl.style.display = "flex";
+      overlayEl.style.visibility = "visible";
+    }
+    if (bannerEl) bannerEl.style.visibility = "visible";
+    if (containerEl) containerEl.style.visibility = "visible";
+    if (listEl) {
+      listEl.style.display = "";
+      listEl.style.visibility = "visible";
+    }
+    var footerEl = document.getElementById("overlayListSum");
+    if (footerEl) {
+      footerEl.style.display = "";
+      footerEl.style.visibility = "visible";
+    }
+    wpListMinimized = false;
+    var wpMinBtn = document.getElementById("wpListMinimize");
+    if (wpMinBtn) wpMinBtn.innerHTML = "_";
+    $(".leaflet-geosearch-bar").css("top", 72);
+
+    if (MAP_DEBUG) console.log('[Map] Waypoint list shown - wpListOn:', wpListOn);
+  } else {
+    if (MAP_DEBUG) console.log('[Map] showWpList - activeCount < 1, not showing panel');
+  }
+}
+
+function altitudeUp() {
+  adjustNumericInput('altitudeInput', 1);
+}
+
+function altitudeDwn() {
+  adjustNumericInput('altitudeInput', -1);
+}
+
+function headingUp() {
+  adjustNumericInput('headingInput', 1);
+}
+
+function headingDwn() {
+  adjustNumericInput('headingInput', -1);aanwd
+}
+
+function speedUp() {
+  adjustNumericInput('speedInput', 1);
+}
+
+function speedDwn() {
+  adjustNumericInput('speedInput', -1);
+}
+
+function WPaltitudeUp() {
+  adjustNumericInput('WPaltitudeInput', 100);
+  var altitudeInput = parseFloat(document.getElementById("WPaltitudeInput").value) || 0;
+  setWPaltitude(altitudeInput);
+}
+
+function WPaltitudeDwn() {
+  adjustNumericInput('WPaltitudeInput', -100);
+  var altitudeInput = parseFloat(document.getElementById("WPaltitudeInput").value) || 0;
+  setWPaltitude(altitudeInput);
+}
+
+function WPaltitudeUpUp() {
+  adjustNumericInput('WPaltitudeInput', 1000);
+  var altitudeInput = parseFloat(document.getElementById("WPaltitudeInput").value) || 0;
+  setWPaltitude(altitudeInput);
+}
+
+function WPaltitudeDwnDwn() {
+  adjustNumericInput('WPaltitudeInput', -1000);
+  var altitudeInput = parseFloat(document.getElementById("WPaltitudeInput").value) || 0;
+  setWPaltitude(altitudeInput);
+}
+
+function setWPaltitude(altitude) {
+  //altitudes[activeWP] = parseFloat(alt);
+  altitudes[activeWP] = altitude;
+  setCachedItem("altitudes", altitudes);
+  //altitudes[id] = alt;
+  //altitudes.splice(0, 0, parseFloat(document.getElementById('WPaltitudeInput').value));
+  updateUlElement();
+
+  // Update elevation profile if visible
+  if (elevationProfileVisible) {
+    updateElevationProfile();
+  }
+}
+
+function setWPaltitude2() {
+  //altitudes[activeWP] = parseFloat(alt);
+  altitudes[activeWP] = document.getElementById("WPaltitudeInput").value;
+  setCachedItem("altitudes", altitudes);
+  //altitudes[id] = alt;
+  //altitudes.splice(0, 0, parseFloat(document.getElementById('WPaltitudeInput').value));
+  updateUlElement();
+
+  // Update elevation profile if visible
+  if (elevationProfileVisible) {
+    updateElevationProfile();
+  }
+}
+
+function setWPname() {
+  if (document.getElementById("WPnameInput")) {
+    wpNames[activeWP] = document.getElementById("WPnameInput").value.trim();
+  }
+
+  normalizeWaypointNames();
+  setCachedItem("wpNames", wpNames);
+
+  if (document.getElementById("WPnameInput")) {
+    document.getElementById("WPnameInput").value = wpNames[activeWP];
+  }
+
+  var isEditing =
+    document.activeElement && document.activeElement.id === "WPnameInput";
+  reindexWaypointLayers();
+  drawLines();
+  if (isEditing) {
+    pendingFirstActivation = true;
+  } else {
+    activateNearestWaypoint();
+  }
+}
+
+function updateUlElement() {
+  var x = document.querySelectorAll("#overlayList > ul > p > a")[activeWP];
+  if (x) {
+    x.innerHTML = altitudes[activeWP] + " ft";
+  }
+}
+
+function updateLiElement() {
+  var x = document.querySelectorAll("#overlayList > ul > li")[activeWP];
+  if (x) {
+    x.innerHTML = wpNames[activeWP] + "<br>" + "User";
+  }
+}
+
+function setPosition(lat, lng) {
+  pos_lat = lat;
+  pos_lng = lng;
+  window.aircraftPositionInitialized = true;
+
+  // Persist last known aircraft position so next map init can start there
+  try {
+    window.localStorage.setItem("mapCenterLat", lat);
+    window.localStorage.setItem("mapCenterLng", lng);
+  } catch (persistError) {
+    if (MAP_DEBUG) console.log('[Map] Unable to persist aircraft position:', persistError);
+  }
+
+  if (!airplane) {
+    return;
+  }
+  var pos = new L.LatLng(lat, lng);
+  airplane.setLatLng(pos).update();
+
+  // Don't center on aircraft during flightplan animation/loading
+  if (window.flightplanAnimationInProgress) {
+    return;
+  }
+
+  if (window.centerOnAircraftPending) {
+    if (centerMapOnAircraft('pending request from setPosition')) {
+      window.centerOnAircraftPending = false;
+    }
+    return;
+  }
+
+  if (map && waypointmode == true) {
+    if (follow == true) {
+      map.setView(pos);
+    }
+    // Removed: Forced centering when no flightplan
+    // The 'follow' variable is the single source of truth for aircraft centering.
+    // User's manual pan (dragstart sets follow=false) must be respected.
+  }
+}
+
+function setRotation(deg) {
+  $("#imageAirplane").css(
+    "transform",
+    "rotate(" + Math.round(deg - 45) + "deg)  scale(" + aircraftScale + ")"
+  );
+  $("#imageAirplane").css("fill", colorLight);
+}
+
+function setWind(direction, speed) {
+  $("i#arrow").css(
+    "transform",
+    "translate(-50%, -50%) rotate(" + Math.round(direction) + "deg) scale(calc(var(--iconScale) * 6.0))"
+  );
+  $("#windIndicator").text(
+    Math.round(direction) + "/" + Math.round(speed)
+  );
+}
+
+function getTeleportInputValue(elementId) {
+  var el = document.getElementById(elementId);
+  if (!el) {
+    return undefined;
+  }
+  var value = parseFloat(el.value);
+  return isFinite(value) ? value : undefined;
+}
+
+function getTeleportSettings() {
+  var altitudeInput = getTeleportInputValue("altitudeInput");
+  if (altitudeInput === undefined) {
+    altitudeInput = getTeleportInputValue("WPaltitudeInput");
+  }
+  if (!isFinite(altitudeInput)) {
+    altitudeInput = altitude;
+  }
+  if (!isFinite(altitudeInput)) {
+    altitudeInput = 0;
+  }
+  altitude = altitudeInput;
+
+  var headingInput = getTeleportInputValue("headingInput");
+  if (!isFinite(headingInput)) {
+    headingInput = heading;
+  }
+  if (!isFinite(headingInput)) {
+    headingInput = 0;
+  }
+  heading = headingInput;
+
+  var speedInput = getTeleportInputValue("speedInput");
+  if (!isFinite(speedInput)) {
+    speedInput = speed;
+  }
+  if (!isFinite(speedInput)) {
+    speedInput = 0;
+  }
+  speed = speedInput;
+
+  return {
+    altitude: altitudeInput,
+    heading: headingInput,
+    speed: speedInput,
+  };
+}
+
+// Returns only the teleport values that were explicitly changed by the user
+// (empty input fields are not included, preserving the current aircraft state)
+function getTeleportChangedValues() {
+  var changed = {};
+
+  var altitudeInput = getTeleportInputValue("altitudeInput");
+  if (altitudeInput === undefined) {
+    altitudeInput = getTeleportInputValue("WPaltitudeInput");
+  }
+  // Only include altitude if user explicitly entered a value
+  if (isFinite(altitudeInput) && altitudeInput !== "") {
+    changed.altitude = parseFloat(altitudeInput);
+  }
+
+  var headingInput = getTeleportInputValue("headingInput");
+  // Only include heading if user explicitly entered a value
+  if (isFinite(headingInput) && headingInput !== "") {
+    changed.heading = parseFloat(headingInput);
+  }
+
+  var speedInput = getTeleportInputValue("speedInput");
+  // Only include speed if user explicitly entered a value
+  if (isFinite(speedInput) && speedInput !== "") {
+    changed.speed = parseFloat(speedInput);
+  }
+
+  return changed;
+}
+
+function teleport(lat, lng) {
+  console.log('[Teleport] Button clicked, lat:', lat, 'lng:', lng);
+
+  // WICHTIG: Werte ZUERST lesen, BEVOR das Popup geschlossen wird!
+  teleporting = true;
+  var teleportValues = getTeleportChangedValues();
+  console.log('[Teleport] Changed values:', teleportValues);
+
+  // FORCE waypointmode to FALSE to prevent adding to flightplan
+  if (typeof waypointmode !== 'undefined') {
+    waypointmode = false;
+    console.log('[Teleport] Forced waypointmode = false');
+  }
+
+  // JETZT Popup schließen und Marker entfernen
+  console.log('[Teleport] Closing popup and cleaning up...');
+
+  // Reset programmatic popup timestamp to prevent reopening
+  if (typeof programmaticPopupTimestamp !== 'undefined') {
+    programmaticPopupTimestamp = 0;
+    console.log('[Teleport] Reset programmaticPopupTimestamp');
+  }
+
+  map.closePopup();
+
+  // Remove newMarker if it exists - FORCE CLEANUP
+  if (typeof newMarker !== 'undefined' && newMarker) {
+    console.log('[Teleport] Force removing newMarker from map');
+
+    // Remove all event listeners
+    if (newMarker.off) {
+      newMarker.off();
+    }
+
+    // Close and unbind popup
+    if (newMarker._popup) {
+      newMarker.closePopup();
+      newMarker.unbindPopup();
+    }
+
+    // Remove from map
+    if (map.hasLayer(newMarker)) {
+      map.removeLayer(newMarker);
+    }
+
+    // Destroy marker completely
+    if (newMarker.remove) {
+      newMarker.remove();
+    }
+
+    newMarker = null;
+  }
+
+  // Also try currentPopup cleanup
+  if (typeof currentPopup !== 'undefined' && currentPopup) {
+    currentPopup.remove();
+    currentPopup = null;
+  }
+
+  // Get ground elevation for the teleport location
+  console.log('[Teleport] Fetching ground elevation...');
+  getGroundElevationForPoint(lat, lng).then(function(groundElevMeters) {
+    console.log('[Teleport] Ground elevation:', groundElevMeters, 'meters');
+
+    // Calculate altitude: ground + 10ft (so plane sits on wheels)
+    var altitudeFeet;
+    if (teleportValues.altitude && teleportValues.altitude > 0) {
+      // User specified altitude - use it
+      altitudeFeet = teleportValues.altitude;
+      console.log('[Teleport] Using user-specified altitude:', altitudeFeet, 'ft');
+    } else if (groundElevMeters !== null && groundElevMeters !== undefined) {
+      // Ground elevation + 10 feet
+      altitudeFeet = Math.round(groundElevMeters * 3.28084) + 10;
+      console.log('[Teleport] Calculated altitude (ground + 10ft):', altitudeFeet, 'ft');
+    } else {
+      // Kein Fallback - null senden, Server behält aktuelle Altitude
+      altitudeFeet = null;
+      console.log('[Teleport] No altitude specified - keeping current altitude');
+    }
+
+    // DIREKTER TELEPORT - OHNE PAUSE/SLEW!
+    // Build payload - nur geänderte Werte senden, null = aktuelle behalten
+    var data = {
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+      altitude: altitudeFeet,
+      heading: teleportValues.heading !== undefined ? teleportValues.heading : null,
+      speed: teleportValues.speed !== undefined ? teleportValues.speed : null
+    };
+
+    console.log('[Teleport] Sending teleport command:', data);
+    // Send teleport directly to EFB
+    postMessageToBridge('map:' + JSON.stringify(data));
+
+    // Cleanup
+    map.invalidateSize();
+    teleporting = false;
+  }).catch(function(err) {
+    console.error('[Teleport] Error fetching elevation:', err);
+
+    // Fallback: use default values
+    var data = Object.assign({
+      lat: parseFloat(lat),
+      lng: parseFloat(lng)
+    }, teleportValues);
+
+    console.log('[Teleport] Sending teleport command (fallback):', data);
+    postMessageToBridge('map:' + JSON.stringify(data));
+
+    map.invalidateSize();
+    teleporting = false;
+  });
+
+  // Nochmal sicherstellen dass alles weg ist (aggressiv)
+  setTimeout(function() {
+    console.log('[Teleport] Delayed cleanup - closing all popups');
+    map.closePopup();
+    programmaticPopupTimestamp = 0;
+
+    if (typeof newMarker !== 'undefined' && newMarker) {
+      console.log('[Teleport] Delayed cleanup - removing newMarker');
+      if (newMarker.off) newMarker.off();
+      if (newMarker._popup) {
+        newMarker.closePopup();
+        newMarker.unbindPopup();
+      }
+      if (map.hasLayer(newMarker)) {
+        map.removeLayer(newMarker);
+      }
+      if (newMarker.remove) newMarker.remove();
+      newMarker = null;
+    }
+  }, 100);
+}
+
+// Flight plan animation state tracking
+var flightplanAnimationState = {
+  inProgress: false,
+  shouldCancel: false,
+  timeouts: []
+};
+
+function cancelFlightplanAnimation() {
+  if (!flightplanAnimationState.inProgress && !window.flightplanAnimationInProgress && !window.flightplanUISequenceInProgress) return;
+
+  flightplanAnimationState.shouldCancel = true;
+
+  // Clear animation timeouts
+  flightplanAnimationState.timeouts.forEach(function(id) {
+    clearTimeout(id);
+  });
+  flightplanAnimationState.timeouts = [];
+
+  // Clear UI sequence timeouts
+  if (window.flightplanUISequenceTimeouts && window.flightplanUISequenceTimeouts.length > 0) {
+    window.flightplanUISequenceTimeouts.forEach(function(id) {
+      clearTimeout(id);
+    });
+    window.flightplanUISequenceTimeouts = [];
+    if (MAP_DEBUG) console.log('[Map] UI sequence timeouts cleared');
+  }
+
+  flightplanAnimationState.inProgress = false;
+  window.flightplanAnimationInProgress = false;
+  window.flightplanUISequenceInProgress = false; // Also reset UI sequence flag
+  WpBlocked = false;
+
+  if (MAP_DEBUG) console.log('[Map] Flugplan-Animation abgebrochen (UI sequence also reset)');
+
+  // Only re-enable sync button, do NOT activate wind layer here
+  // Wind layer will be activated when the NEW animation completes
+  // BUT only enable if initial autoload is complete
+  if (window.initialAutoloadComplete) {
+    enableSyncButtonIfAllowed('animation cancel');
+  } else if (MAP_DEBUG) {
+    console.log('[Map] Skipping sync button enable in cancel - initial autoload not yet complete');
+  }
+}
+
+function geoTeleport() {
+  var x = document.getElementById("keyboard");
+  x.style.display = "none";
+
+  var changed = {};
+
+  var altInput = parseFloat(document.getElementById("altitudeInput").value);
+  if (isFinite(altInput) && altInput !== "") {
+    changed.altitude = Math.round(altInput);
+  }
+
+  var headingInput = parseFloat(document.getElementById("headingInput").value);
+  if (isFinite(headingInput) && headingInput !== "") {
+    changed.heading = Math.round(headingInput);
+  }
+
+  var speedInput = parseFloat(document.getElementById("speedInput").value);
+  if (isFinite(speedInput) && speedInput !== "") {
+    changed.speed = Math.round(speedInput);
+  }
+
+  // Request pause instead of immediate teleport
+  requestTeleportPause(geosearchLat, geosearchLng, changed);
+  clearAllPolylineLayers();
+  if (map.hasLayer(polyline)) {
+    map.removeLayer(polyline);
+  }
+  polylinepoints = [];
+  polyline = [];
+  if (showPath == true) {
+    polyline = L.polyline(polylinepoints, {
+      color: '#ff0000',
+      weight: 3,
+      opacity: 0.7,
+      smoothFactor: 1
+    });
+    map.addLayer(polyline);
+  }
+}
+
+var lastLat;
+var lastLng;
+var flightplan;
+var currentFlightplanFingerprint = null; // Track flight plan changes for elevation zoom
+var atbl = [];
+lastLat = "13.493889";
+lastLng = "52.351389";
+var tunedFrequency = "";
+let readyToPost = false;
+// Receive controls from parent page
+
+function receiveMessage(e) {
+  // Type check: ensure e.data exists and is a string
+  if (!e.data || typeof e.data !== 'string') {
+    // Handle object messages
+    if (e.data && typeof e.data === 'object') {
+      console.log('[Teleport] Received object message:', e.data);
+      if (e.data.type === 'resetFlightplanHash') {
+        // Handled elsewhere
+        return;
+      }
+      if (e.data.type === 'pauseConfirmed') {
+        console.log('[Teleport] Pause confirmation received, calling handlePauseConfirmation()');
+        handlePauseConfirmation(e.data);
+        return;
+      }
+    }
+    // Ignore non-string messages
+    return;
+  }
+
+  var sender = e.data.substr(0, e.data.indexOf(":"));
+  var message = e.data.substr(e.data.indexOf(":") + 1, e.data.length);
+  if (sender == "Position") {
+    // Call function:
+    var latlng = message.split("_");
+    var lat = parseFloat(latlng[0]);
+    var lng = parseFloat(latlng[1]);
+    var altValue = parseFloat(latlng[2]);
+    var headingRad = parseFloat(latlng[3]);
+    var spdValue = parseFloat(latlng[4]);
+    var windDir = parseFloat(latlng[5]);
+    var windSpd = parseFloat(latlng[6]);
+
+    if (Number.isFinite(altValue)) {
+      altitude = altValue;
+
+      // Update aircraft position on elevation profile with the ACTUAL altitude value
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        updateAircraftPositionOnRoute(lat, lng, altValue);
+      }
+    }
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      setPosition(lat, lng);
+
+      // Initialize lastLat/lastLng on first call
+      if (lastLat === undefined || lastLng === undefined) {
+        lastLat = lat;
+        lastLng = lng;
+        return;
+      }
+
+      // Only add to path if position changed significantly (> 10 meters)
+      // Check if map is initialized before calling map.distance
+      if (!map || typeof map.distance !== 'function') {
+        return;
+      }
+      var distance = map.distance([lastLat, lastLng], [lat, lng]);
+      if (distance > 10 && (lat != lastLat || lng != lastLng)) {
+        if (showPath == true && polyline && !moverX) {
+          polyline.addLatLng([lat, lng]);
+          polylinepoints.push([lat, lng]);
+        }
+        lastLat = lat;
+        lastLng = lng;
+      }
+    }
+    if (Number.isFinite(headingRad)) {
+      heading = (headingRad * 180) / Math.PI;
+      setRotation(heading);
+    }
+    if (Number.isFinite(spdValue)) {
+      speed = spdValue;
+    }
+    if (Number.isFinite(windDir) && Number.isFinite(windSpd)) {
+      setWind(windDir, windSpd);
+    }
+  } else if (sender == "Flightplan") {
+    // If map is not yet initialized, store the message for later processing
+    if (!mapInitialized && !pendingFlightplanMessageProcessed) {
+      pendingFlightplanMessage = e.data;
+      return;
+    }
+    // Check if this is a broadcast from the map itself (source="map") - don't trigger pulse/unlock for those
+    try {
+      var parsed = JSON.parse(message);
+      if (parsed && typeof parsed === "object" && parsed.meta && parsed.meta.source === "map") {
+        // This is a navlog sync broadcast from the map itself, just process without pulse/unlock
+        processFlightplanMessage(message);
+        return;
+      }
+    } catch (e) {
+      // Parse error - continue with normal processing
+    }
+    // Clear autoload block - server sent a new flightplan
+    window.autoloadBlockedUntilNewFlightplan = false;
+    try { localStorage.removeItem('autoloadBlockedUntilNewFlightplan'); } catch (e) {}
+    // Start pulse animation for visual feedback
+    startSyncButtonPulse();
+    processFlightplanMessage(message);
+  }
+}
+
+async function processFlightplanMessage(message, skipSourceCheck) {
+  if (MAP_DEBUG) console.log('[Map] processFlightplanMessage called, skipSourceCheck:', skipSourceCheck, 'message length:', message ? message.length : 0);
+
+  // CRITICAL FIX: Parse and check source BEFORE cancelling animation!
+  // Otherwise we cancel Scenario 2's render and then ignore the message, leaving 0 markers
+  var parsed;
+  try {
+    parsed = JSON.parse(message);
+    if (MAP_DEBUG) console.log('[Map] Parsed message successfully, keys:', parsed ? Object.keys(parsed) : 'null');
+  } catch (e) {
+    if (MAP_DEBUG) console.error('[Map] Failed to parse message:', e);
+    return;
+  }
+
+  // Skip source check for auto-load (skipSourceCheck=true) to allow server-stored flightplans
+  // IMPORTANT: Check this BEFORE cancelling animation to avoid cancelling Scenario 2's render
+  if (!skipSourceCheck && parsed && typeof parsed === "object" && parsed.meta && parsed.meta.source === "map") {
+    if (MAP_DEBUG) console.log('[Map] Ignoring flightplan with source=map (not from auto-load) - NOT cancelling animation');
+    return;
+  }
+
+  // IMPORTANT: Extract flightplan BEFORE checking if we should cancel animation
+  // This allows us to check if the flightplan is identical and skip cancellation
+  if (Array.isArray(parsed)) {
+    flightplan = parsed;
+  } else if (parsed && typeof parsed === "object") {
+    // Check for different data formats: waypoints (kneeboard), pln (server storage)
+    if (Array.isArray(parsed.waypoints)) {
+      flightplan = parsed.waypoints;
+    } else if (Array.isArray(parsed.pln)) {
+      flightplan = parsed.pln;
+    } else {
+      flightplan = [];
+    }
+  } else {
+    flightplan = [];
+  }
+  if (MAP_DEBUG) console.log('[Map] processFlightplanMessage: flightplan length:', flightplan ? flightplan.length : 0);
+
+  // CRITICAL FIX: Check if flightplan is identical BEFORE cancelling animation!
+  // If identical and animation is in progress, skip entirely to prevent cancellation loop
+  if (flightplan && flightplan.length && isFlightplanSameAsCurrent(flightplan)) {
+    if (window.flightplanUISequenceInProgress || window.flightplanAnimationInProgress) {
+      if (MAP_DEBUG) console.log('[Map] Identical flightplan while animation/UI in progress - skipping entirely (no cancel)');
+      return;
+    }
+  }
+
+  // Only cancel animation if we're going to process a NEW/different flightplan
+  if (window.flightplanAnimationInProgress) {
+    if (MAP_DEBUG) console.log('[Map] Cancelling current animation to process new flightplan');
+    cancelFlightplanAnimation();
+  }
+
+  if (flightplan && flightplan.length) {
+    // Check if flightplan is different from current waypoints
+    if (isFlightplanSameAsCurrent(flightplan)) {
+      if (MAP_DEBUG) console.log("Flightplan is identical to current waypoints, skipping import but handling UI");
+
+      // Note: We already checked flightplanAnimationInProgress above,
+      // but check flightplanUISequenceInProgress again in case it was set after extraction
+      if (window.flightplanUISequenceInProgress) {
+        if (MAP_DEBUG) console.log('[Map] UI sequence already in progress, skipping duplicate (identical flightplan)');
+        return;
+      }
+
+      // CRITICAL FIX: Check if markers actually exist!
+      // After page reload, cache has data but markers were never created
+      var existingMarkerCount = 0;
+      var existingLayers = getWaypointLayersSorted();
+      existingMarkerCount = existingLayers.length;
+
+      if (MAP_DEBUG) console.log('[Map] Identical flightplan check - existing markers:', existingMarkerCount, ', expected:', flightplan.length);
+
+      if (existingMarkerCount === 0 && flightplan.length > 0) {
+        // Markers don't exist! Force creation by resetting fingerprint and calling scheduleFlightplanRender
+        if (MAP_DEBUG) console.log('[Map] No markers exist! Forcing marker creation from identical flightplan...');
+        currentFlightplanFingerprint = null;  // Reset fingerprint to force re-render
+
+        // Hide wind layer during flightplan display
+        if (owmWindLayer && map.hasLayer(owmWindLayer)) {
+          owmWindLayer.setOpacity(0);
+          if (MAP_DEBUG) console.log('[Map] Wind layer hidden (recreating markers)');
+        }
+
+        // Set flags
+        window.flightplanAnimationAlreadyCompleted = false;
+        window.flightplanAnimationInProgress = true;
+        window.flightplanUISequenceInProgress = true;
+        if (window.initialWindLayerConfig) {
+          window.initialWindLayerConfig.initialActivationDone = false;
+        }
+
+        // Create markers using the normal render path
+        transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'recreate-markers');
+        preCenterMapOnFlightplan(flightplan, 'recreate-markers');
+        scheduleFlightplanRender(flightplan);  // This will create the markers!
+        return;
+      }
+
+      // Markers exist - proceed with normal "identical" path
+      // Hide wind layer during flightplan display
+      if (owmWindLayer && map.hasLayer(owmWindLayer)) {
+        owmWindLayer.setOpacity(0);
+        if (MAP_DEBUG) console.log('[Map] Wind layer hidden (identical flightplan)');
+      }
+
+      // Reset flags so the event chain can run and wind layer can be re-activated
+      window.flightplanAnimationAlreadyCompleted = false;
+      window.flightplanAnimationInProgress = true;
+      window.flightplanUISequenceInProgress = true;
+      if (window.initialWindLayerConfig) {
+        window.initialWindLayerConfig.initialActivationDone = false;
+      }
+
+      // Event-basierte UI-Sequenz (v1.24): Startet die Event-Chain
+      if (flightplan.length > 1) {
+        if (MAP_DEBUG) console.log('[Map] Starting event-based UI sequence (identical flightplan)');
+        transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'identical-flightplan');
+        preCenterMapOnFlightplan(flightplan, 'identical-flightplan');
+        // Emit MARKERS_READY to start the event chain
+        // Chain: MARKERS_READY -> ELEVATION_UPDATED -> MAP_CENTERED -> ANIMATION_COMPLETE
+        emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'identical-flightplan' });
+      } else {
+        // No waypoints to center on, complete immediately (only if not already in a sequence)
+        if (!window.flightplanUISequenceInProgress && !window.flightplanAnimationInProgress) {
+          onFlightplanAnimationComplete();
+        } else {
+          if (MAP_DEBUG) console.log('[Map] Skipping onFlightplanAnimationComplete (no waypoints) - sequence in progress');
+        }
+      }
+      return;
+    }
+
+    const keyboard = document.getElementById("keyboard");
+    if (keyboard) keyboard.style.display = "none";
+    waypointmode = true;         // zwingt den Map-Handler in den Wegpunktmodus
+    WpBlocked = false;           // erlaubt den künstlichen Klicks neue Marker anzulegen
+
+    // Disable follow mode when loading a flightplan so the map can center on the route
+    follow = false;
+    if (typeof toggle !== 'undefined' && toggle && typeof toggle.enable === 'function') {
+      toggle.enable();
+    }
+    if (MAP_DEBUG) console.log("Follow mode disabled after loading flightplan");
+
+    if (parsed && parsed.meta && typeof parsed.meta === "object") {
+      importedFlightplanMeta = parsed.meta;
+      if (MAP_DEBUG) {
+        console.log('[Map Debug] importedFlightplanMeta set:', importedFlightplanMeta);
+        console.log('[Map Debug] OFP fields:', {
+          callsign: importedFlightplanMeta.callsign,
+          aircraftType: importedFlightplanMeta.aircraftType,
+          aircraftEquip: importedFlightplanMeta.aircraftEquip,
+          departureTime: importedFlightplanMeta.departureTime,
+          alternateAirport: importedFlightplanMeta.alternateAirport
+        });
+      }
+    } else {
+      importedFlightplanMeta = {
+        source: parsed && parsed.source ? parsed.source : "simbrief",
+        departureName: parsed && parsed.departureName ? parsed.departureName : "",
+        destinationName:
+          parsed && parsed.destinationName ? parsed.destinationName : "",
+        departurePosition:
+          parsed && parsed.departurePosition ? parsed.departurePosition : "",
+      };
+    }
+
+    // CRITICAL FIX: Save full OFP object for ETA calculation
+    if (parsed && parsed.ofp && typeof parsed.ofp === "object") {
+      importedOFPData = parsed.ofp;
+      if (MAP_DEBUG) {
+        console.log('[Map Debug] Full OFP data stored for ETA calculation');
+        console.log('[Map Debug] OFP has Navlog?', !!(importedOFPData.Navlog || importedOFPData.navlog));
+        var navlogFixes = (importedOFPData.Navlog && importedOFPData.Navlog.Fix) || (importedOFPData.navlog && importedOFPData.navlog.fix);
+        console.log('[Map Debug] Navlog fixes count:', navlogFixes ? navlogFixes.length : 0);
+      }
+      // Fetch runway coordinates for accurate route start/end points
+      // CRITICAL: Wait for runway data BEFORE starting animation
+      await updateRunwayDataFromOFP();
+    } else {
+      importedOFPData = null;
+      clearRunwayData();
+      if (MAP_DEBUG) console.log('[Map Debug] No OFP data in message');
+    }
+
+    // Save flightplan metadata and OFP to localStorage
+    setCachedItem("importedFlightplanMeta", importedFlightplanMeta);
+    setCachedItem("importedOFPData", importedOFPData);
+
+    transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'new-flightplan');
+    preCenterMapOnFlightplan(flightplan, 'new-flightplan');
+    scheduleFlightplanRender(flightplan);  // Pass flightplan data directly
+  } else {
+    // NOTE: importedFlightplanMeta is NOT cleared here to preserve OFP data for subsequent broadcasts
+    // Only clear it from cache, but keep it in memory
+    setCachedItem("importedFlightplanMeta", null);
+  }
+}
+
+function isFlightplanSameAsCurrent(newFlightplan) {
+  // Get current waypoints from storage
+  var currentCoords = getJSON("clickedPoints");
+
+  if (!currentCoords || currentCoords.length !== newFlightplan.length) {
+    return false;
+  }
+
+  // Compare each waypoint
+  for (var i = 0; i < newFlightplan.length; i++) {
+    var newWp = newFlightplan[i];
+    var currentWp = currentCoords[i];
+
+    // Handle both array format [lat, lng] and object format {lat, lng}
+    var currentLat = Array.isArray(currentWp) ? currentWp[0] : currentWp.lat;
+    var currentLng = Array.isArray(currentWp) ? currentWp[1] : currentWp.lng;
+
+    // Compare coordinates with tolerance (0.0001 degrees � 11 meters)
+    var latDiff = Math.abs(newWp.lat - currentLat);
+    var lngDiff = Math.abs(newWp.lng - currentLng);
+
+    if (latDiff > 0.0001 || lngDiff > 0.0001) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Duplicate setPosition() function removed - see line 4562 for the original
+
+var pendingFlightplanRafId = null;
+var pendingFlightplanTimer = null;
+
+function scheduleFlightplanRender(flightplanData, delay) {
+  // BLOCK rendering when controller mode is active
+  if (moverX) {
+    if (MAP_DEBUG) console.log('[Render] BLOCKED - controller mode active (moverX=true)');
+    return;
+  }
+
+  safeCleanupTimer('pendingFlightplanTimer');
+  var ms = typeof delay === "number" ? delay : 0;
+
+  function tryRenderFlightplan() {
+    // Check again in case controller mode was activated during delay
+    if (moverX) {
+      if (MAP_DEBUG) console.log('[Render] BLOCKED in tryRenderFlightplan - controller mode active');
+      return;
+    }
+
+    if (!map || typeof map.fire !== "function") {
+      pendingFlightplanRafId = requestAnimationFrame(tryRenderFlightplan);
+      return;
+    }
+
+    pendingFlightplanRafId = null;
+    var flightplan = flightplanData || [];
+
+    // Fingerprint check
+    var newFingerprint = flightplan && flightplan.length > 0
+      ? flightplan.length + '_' +
+        flightplan[0].lat.toFixed(4) + '_' + flightplan[0].lng.toFixed(4) + '_' +
+        flightplan[flightplan.length-1].lat.toFixed(4) + '_' + flightplan[flightplan.length-1].lng.toFixed(4)
+      : 'empty';
+
+    if (newFingerprint === currentFlightplanFingerprint) {
+      if (MAP_DEBUG) console.log('[Render] Unchanged, skipping:', newFingerprint);
+      if (currentFlightplanState !== FlightplanLoadState.READY) {
+        emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'unchanged' });
+      }
+      return;
+    }
+
+    if (MAP_DEBUG) console.log('[Render] New flightplan:', flightplan.length, 'waypoints');
+    removeAllMarkers();
+    setTimeout(function() {
+      setWaypoints(flightplanData);
+    }, 50);
+  }
+
+  pendingFlightplanTimer = setTimeout(tryRenderFlightplan, ms);
+}
+
+function choosePreferredProcedure(current, candidate) {
+  if (!candidate) return current;
+  if (!current) return candidate;
+  function score(name) {
+    var up = String(name).toUpperCase();
+    if (up.endsWith('R')) return 3;
+    if (up.endsWith('C')) return 2;
+    return 1;
+  }
+  return score(candidate) > score(current) ? candidate : current;
+}
+
+function extractSidStarFromOFP(ofp) {
+  var result = { sid: null, star: null };
+  if (!ofp || typeof ofp !== "object") return result;
+  var general = ofp.General || ofp.general || {};
+  var origin = ofp.Origin || ofp.origin || {};
+  var destination = ofp.Destination || ofp.destination || {};
+  result.sid = choosePreferredProcedure(result.sid, general.Sid || general.sid || general.SID || general.Sid_name || general.sid_name);
+  result.star = choosePreferredProcedure(result.star, general.Star || general.star || general.STAR || general.Star_name || general.star_name);
+  result.sid = choosePreferredProcedure(result.sid, origin.Sid || origin.sid || origin.SID || origin.Sid_name || origin.sid_name);
+  result.star = choosePreferredProcedure(result.star, destination.Star || destination.star || destination.STAR || destination.Star_name || destination.star_name);
+  var navlog = ofp.Navlog || ofp.navlog;
+  var fixes = navlog && (navlog.Fix || navlog.fix);
+  if (Array.isArray(fixes) && fixes.length > 0) {
+    var sidCandidate = null;
+    for (var i = 0; i < fixes.length; i++) {
+      var fix = fixes[i];
+      var fixType = (fix.Type || fix.type || '').toLowerCase();
+      var isSid = fix.Is_sid_star === '1' || fix.is_sid_star === '1' || fixType === 'sid';
+      if (isSid) {
+        var via = fix.Via_airway || fix.via_airway || fix.Via || fix.via;
+        sidCandidate = choosePreferredProcedure(sidCandidate, via);
+      } else if (sidCandidate) {
+        break;
+      }
+    }
+    if (sidCandidate) {
+      result.sid = choosePreferredProcedure(result.sid, sidCandidate);
+    }
+    var starCandidate = null;
+    for (var j = fixes.length - 1; j >= 0; j--) {
+      var fixEnd = fixes[j];
+      var fixEndType = (fixEnd.Type || fixEnd.type || '').toLowerCase();
+      var isStar = fixEnd.Is_sid_star === '1' || fixEnd.is_sid_star === '1' || fixEndType === 'star';
+      var viaStar = fixEnd.Via_airway || fixEnd.via_airway || fixEnd.Via || fixEnd.via;
+      if (isStar && viaStar) {
+        starCandidate = choosePreferredProcedure(starCandidate, viaStar);
+      } else if (starCandidate) {
+        break;
+      }
+    }
+    if (starCandidate && starCandidate !== result.sid) {
+      result.star = choosePreferredProcedure(result.star, starCandidate);
+    }
+  }
+  return result;
+}
+
+function setWaypoints(flightplanData) {
+  // BLOCK when controller mode is active
+  if (moverX) {
+    if (MAP_DEBUG) console.log('[setWaypoints] BLOCKED - controller mode active');
+    return;
+  }
+
+  // v1.45: Render-ID Logik entfernt - funktioniert nicht in Coherent
+  // Stattdessen werden Marker SOFORT am Anfang von scheduleFlightplanRender gelöscht
+
+  // Use parameter if provided, otherwise fallback to global
+  var flightplan = flightplanData || [];
+
+  // DEBUG: Check runway data availability
+  console.log('[setWaypoints] DEBUG - departureRunwayData available?', !!departureRunwayData);
+  console.log('[setWaypoints] DEBUG - arrivalRunwayData available?', !!arrivalRunwayData);
+  if (departureRunwayData) {
+    console.log('[setWaypoints] DEBUG - departure coords:', departureRunwayData.thresholdLat, departureRunwayData.thresholdLon, '->', departureRunwayData.endLat, departureRunwayData.endLon);
+  }
+
+  // CRITICAL FIX: Integrate runway data directly into flightplan BEFORE animation
+  if (flightplan && flightplan.length > 0) {
+    if (departureRunwayData && departureRunwayData.thresholdLat && departureRunwayData.thresholdLon) {
+      console.log('[setWaypoints] ✓ MODIFYING FLIGHTPLAN: Adding departure runway coordinates');
+      // Use threshold as start, end as end (from opposite runway threshold)
+      var thresholdWp = {
+        name: 'RWY_THRESHOLD',
+        lat: departureRunwayData.thresholdLat,
+        lng: departureRunwayData.thresholdLon,
+        type: 'DEP'
+      };
+      var endWp = {
+        name: 'RWY_END',
+        lat: departureRunwayData.endLat,
+        lng: departureRunwayData.endLon,
+        type: 'DEP'
+      };
+      // Replace first waypoint (airport) with runway coordinates
+      flightplan[0] = thresholdWp;
+      flightplan.splice(1, 0, endWp); // Insert runway end after threshold
+      console.log('[setWaypoints] ✓ Departure runway integrated - new flightplan length:', flightplan.length);
+    } else {
+      console.log('[setWaypoints] ✗ NO departure runway data available during setWaypoints');
+    }
+
+    if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
+      console.log('[setWaypoints] ✓ MODIFYING FLIGHTPLAN: Adding arrival runway coordinates');
+      // Replace last waypoint (airport) with runway threshold
+      var lastIdx = flightplan.length - 1;
+      flightplan[lastIdx] = {
+        name: 'ARR_THRESHOLD',
+        lat: arrivalRunwayData.thresholdLat,
+        lng: arrivalRunwayData.thresholdLon,
+        type: 'ARR'
+      };
+      console.log('[setWaypoints] ✓ Arrival runway integrated');
+    } else {
+      console.log('[setWaypoints] ✗ NO arrival runway data available during setWaypoints');
+    }
+  }
+
+  // Calculate flight plan fingerprint to detect changes (include runway data)
+  var runwayFingerprint = '';
+  if (departureRunwayData && departureRunwayData.thresholdLat) {
+    runwayFingerprint += '_dep:' + departureRunwayData.thresholdLat.toFixed(4) + ',' + departureRunwayData.thresholdLon.toFixed(4);
+  }
+  if (arrivalRunwayData && arrivalRunwayData.thresholdLat) {
+    runwayFingerprint += '_arr:' + arrivalRunwayData.thresholdLat.toFixed(4) + ',' + arrivalRunwayData.thresholdLon.toFixed(4);
+  }
+  
+  var newFingerprint = flightplan && flightplan.length > 0
+    ? flightplan.length + '_' +
+      flightplan[0].lat.toFixed(4) + '_' + flightplan[0].lng.toFixed(4) + '_' +
+      flightplan[flightplan.length-1].lat.toFixed(4) + '_' + flightplan[flightplan.length-1].lng.toFixed(4) +
+      runwayFingerprint
+    : 'empty';
+
+  var flightplanChanged = (newFingerprint !== currentFlightplanFingerprint);
+
+  // EARLY RETURN if flightplan hasn't changed - skip duplicate animation (Timer-Problem fix)
+  if (!flightplanChanged) {
+    if (MAP_DEBUG) console.log('[Map] Flightplan unchanged (same fingerprint: ' + newFingerprint + '), skipping duplicate animation');
+    window.flightplanAnimationInProgress = false;
+    // Only call onFlightplanAnimationComplete if UI sequence is not running
+    if (!window.flightplanUISequenceInProgress) {
+      onFlightplanAnimationComplete();
+    } else {
+      if (MAP_DEBUG) console.log('[Map] Skipping onFlightplanAnimationComplete (unchanged fingerprint) - UI sequence in progress');
+    }
+    return;
+  }
+
+  currentFlightplanFingerprint = newFingerprint;
+  window.flightplanJustChanged = flightplanChanged;
+
+  // State transition
+  transitionToState(FlightplanLoadState.ANIMATING_WAYPOINTS, 'new-flightplan');
+  
+  flightplanAnimationState.inProgress = true;
+  flightplanAnimationState.shouldCancel = false;
+  flightplanAnimationState.timeouts = [];
+
+  // Store wind layer state and hide it during animation
+  window.windLayerWasActiveBeforeAnimation = map && window.initialWindLayerConfig &&
+    window.initialWindLayerConfig.layer && map.hasLayer(window.initialWindLayerConfig.layer);
+
+  if (window.windLayerWasActiveBeforeAnimation && window.initialWindLayerConfig.layer) {
+    map.removeLayer(window.initialWindLayerConfig.layer);
+    if (window.initialWindLayerConfig.markersLayer && map.hasLayer(window.initialWindLayerConfig.markersLayer)) {
+      map.removeLayer(window.initialWindLayerConfig.markersLayer);
+    }
+    if (MAP_DEBUG) console.log('[Wind] Hidden during animation');
+  }
+
+  if (MAP_DEBUG) console.log('[Waypoints] Animation starting:', flightplan.length, 'waypoints');
+
+  var i = 0;
+  var i2 = 0;
+  wpi = 0;
+  wpi3 = 0;
+
+  altitudes = [];
+  atbls = [];
+  wpTypes = [];
+  wpNames = [];
+  wpSourceTypes = [];
+  wpDepartureProcedures = [];
+  wpArrivalProcedures = [];
+  wpAirways = [];
+  wpRunwayNumbers = [];
+  wpRunwayDesignators = [];
+  var procedureDefaults = extractSidStarFromOFP(importedOFPData);
+  var defaultSid = procedureDefaults.sid || "";
+  var defaultStar = procedureDefaults.star || "";
+  var defaultOrigin = importedOFPData && (importedOFPData.Origin || importedOFPData.origin) || null;
+  var defaultDestination = importedOFPData && (importedOFPData.Destination || importedOFPData.destination) || null;
+  var defaultDepRunway = defaultOrigin ? (defaultOrigin.Plan_rwy || defaultOrigin.plan_rwy || "") : "";
+  var defaultArrRunway = defaultDestination ? (defaultDestination.Plan_rwy || defaultDestination.plan_rwy || "") : "";
+  flightplan.forEach((entry, idx) => {
+    if (entry.altitude) {
+      altitudes.splice(i2, 0, String(parseFloat(entry.altitude).toFixed(0)));
+    } else {
+      altitudes.splice(i2, 0, "0");
+    }
+
+    if (entry.atbl) {
+      if (entry.atbl == "AT_OR_ABOVE") {
+        atbls.splice(i2, 0, "A");
+      } else if (entry.atbl == "AT_OR_BELOW") {
+        atbls.splice(i2, 0, "B");
+      } else {
+        atbls.splice(i2, 0, "");
+      }
+    } else {
+      atbls.splice(i2, 0, "");
+    }
+
+    if (entry.name) {
+      if (entry.name == "TIMEDSCNT") {
+        wpNames.splice(i2, 0, "TOD");
+        wpTypes.push("Info");
+      } else if (entry.name == "TIMECRUIS") {
+        wpNames.splice(i2, 0, "TOC");
+        wpTypes.push("Info");
+      } else {
+        wpNames.splice(i2, 0, entry.name);
+        if (entry.waypointType) {
+          wpTypes.push(entry.waypointType);
+        } else {
+          wpTypes.push("User");
+        }
+      }
+    } else {
+      wpNames.splice(i2, 0, "WP" + (wpi3 + 1));
+      wpi3++;
+    }
+
+    wpSourceTypes.push(entry.sourceType || "");
+    var depProcValue = entry.departureProcedure || (idx === 0 ? defaultSid : "");
+    var arrProcValue = entry.arrivalProcedure || (idx === flightplan.length - 1 ? defaultStar : "");
+    wpDepartureProcedures.push(depProcValue || "");
+    wpArrivalProcedures.push(arrProcValue || "");
+    wpAirways.push(entry.airway || "");
+    var runwayNumberValue = entry.runwayNumber || (idx === 0 ? defaultDepRunway : (idx === flightplan.length - 1 ? defaultArrRunway : ""));
+    wpRunwayNumbers.push(runwayNumberValue || "");
+    wpRunwayDesignators.push(entry.runwayDesignator || "");
+
+    i2++;
+  });
+
+  normalizeWaypointNames();
+
+  // Validate array synchronization after building waypoint data
+  validateWaypointArrays('setWaypoints');
+
+  // MIGRIERT: Versionierte Cache-Wrapper verwenden
+  setCachedItem("wpNames", wpNames);
+  setCachedItem("wpTypes", wpTypes);
+  setCachedItem("altitudes", altitudes);
+  setCachedItem("atbls", atbls);
+
+  if (MAP_DEBUG) console.log('[Map] Starting sequenced animation with', flightplan.length, 'waypoints');
+
+  // v1.47: Zentrierung entfernt - passiert jetzt in executeFlightplanPath() VOR scheduleFlightplanRender()
+
+  // Bulk-loading for very large flightplans (> 50 waypoints) - skip animation for speed
+  if (flightplan.length > 50) {
+    if (MAP_DEBUG) console.log('[Map] Large flightplan detected (', flightplan.length, 'waypoints) - using bulk loading');
+
+    // Add all waypoints at once without animation
+    flightplan.forEach(function(entry, index) {
+      if (!entry) return;
+      var lat = Number(entry.lat);
+      var lng = Number(entry.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+      nextWaypointInsertIndex = index;
+      nextWaypointUseExisting = true;
+
+      map.fire("contextmenu", {
+        latlng: L.latLng([lat, lng]),
+        synthetic: true,
+        setType: entry.waypointType || null,
+        setName: entry.name || null,
+        setAltitude: typeof entry.altitude !== "undefined" ? String(entry.altitude) : "0",
+        setAtbl: typeof entry.atbl !== "undefined" ? String(entry.atbl) : "",
+        setSourceType: entry.sourceAtcWaypointType || entry.atcWaypointType || entry.waypointType,
+        setDepartureProcedure: entry.DepartureFP || entry.departureFP || entry.departureProcedure || "",
+        setArrivalProcedure: entry.ArrivalFP || entry.arrivalFP || entry.arrivalProcedure || "",
+        setAirway: entry.airway || entry.ATCAirway || "",
+        setRunwayNumber: entry.runwayNumberFP || entry.runwayNumber || "",
+        setRunwayDesignator: entry.runwayDesignatorFP || entry.runwayDesignator || "",
+      });
+    });
+
+    // Complete immediately without animation
+    if (MAP_DEBUG) console.log('[Map] Bulk loading complete');
+    // Nicht einblenden wenn Controller Modus aktiv
+    if (flightplan.length > 0 && !moverX) {
+      showWpList(true);
+    }
+    if (flightplan.length > 2) {
+      toggle.enable();
+      follow = false;
+    }
+    getMarkerId();
+    WpBlocked = false;
+    scheduleNavlogSync();
+
+    // Update elevation and center
+    setTimeout(function() {
+      updateElevationProfile()
+        .then(function(elevationResult) {
+          console.log('[Map] Elevation profile ready:', elevationResult);
+          // Center map on route
+          if (flightplan.length > 1 && elevationResult.panelVisible) {
+            var flightplanCoords = flightplan.map(function(entry) {
+              return L.latLng(entry.lat, entry.lng);
+            });
+            var routeBounds = L.latLngBounds(flightplanCoords);
+            var fitBoundsOptions = { padding: [30, 30] };
+            var elevSection = document.getElementById('elevationProfileSection');
+            if (elevSection) {
+              var panelHeight = elevSection.getBoundingClientRect().height;
+              fitBoundsOptions.paddingBottom = panelHeight + 50;
+            }
+            map.fitBounds(routeBounds, fitBoundsOptions);
+          }
+          // v1.24: Event-basiert statt direkter Aufruf
+          console.log('[Map] Bulk mode complete, emitting MARKERS_READY');
+          emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'bulk-mode' });
+        })
+        .catch(function(error) {
+          console.error('[Map] Elevation profile update failed:', error);
+          emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'bulk-mode-error' });
+        });
+    }, 50);
+
+    if (MAP_DEBUG) console.log('[Map] setWaypoints completed (bulk mode).');
+    return; // Skip animated version for large flightplans
+  }
+
+  // Start waypoint animation directly (elevation profile will auto-show during animation)
+  // Using requestAnimationFrame for smooth 60 FPS animation
+  requestAnimationFrame(function startAnimation() {
+    if (MAP_DEBUG) console.log('[Map] Starting waypoint animation with', flightplan.length, 'waypoints');
+
+    // Fallback for browsers without performance.now() (should be rare with Coherent)
+    var perfNow = typeof performance !== 'undefined' && performance.now ?
+                  function() { return performance.now(); } :
+                  function() { return Date.now(); };
+
+    var lastFrameTime = perfNow();
+    var currentIndex = 0;
+
+    // Calculate waypoints per second for smooth animation (verlangsamt f�r bessere Sichtbarkeit)
+    var waypointsPerSecond = flightplan.length > 50 ? 25 :   // 25 wp/s for large routes (40ms pro wp)
+                             flightplan.length > 30 ? 20 :   // 20 wp/s (50ms pro wp)
+                             flightplan.length > 15 ? 12 :   // 12 wp/s (83ms pro wp)
+                                                      8;     // 8 wp/s for small routes (125ms pro wp)
+    var msPerWaypoint = 1000 / waypointsPerSecond;
+
+    function addWaypointSmooth() {
+      // v1.45: Render-ID Check entfernt - funktioniert nicht in Coherent
+      // Marker werden stattdessen SOFORT am Anfang von scheduleFlightplanRender gelöscht
+
+      // Check if animation should be cancelled
+      if (flightplanAnimationState.shouldCancel) {
+        if (MAP_DEBUG) console.log('[Map] Animation abgebrochen');
+        flightplanAnimationState.inProgress = false;
+        WpBlocked = false;
+        return;
+      }
+
+      var now = perfNow();
+      var deltaTime = now - lastFrameTime;
+
+      // Only add waypoint if enough time has passed
+      if (deltaTime >= msPerWaypoint) {
+        lastFrameTime = now;
+
+        if (currentIndex >= flightplan.length) {
+          // Animation complete
+          if (MAP_DEBUG) console.log('[Map] Animation complete');
+          // Nicht einblenden wenn Controller Modus aktiv
+          if (flightplan.length > 0 && !moverX) {
+            showWpList(true);
+          }
+          if (flightplan.length > 2) {
+            toggle.enable();
+            follow = false;
+          } else {
+            toggle.disable();
+            follow = true;
+          }
+          getMarkerId();
+          WpBlocked = false;
+          scheduleNavlogSync();
+
+          // Animation complete - trigger elevation update
+          requestAnimationFrame(function() {
+            if (MAP_DEBUG) console.log('[Waypoints] Animation complete, updating elevation');
+            updateElevationProfile()
+              .then(function(elevationResult) {
+                if (MAP_DEBUG) console.log('[Elevation] Profile ready:', elevationResult.panelVisible);
+                emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-complete' });
+              })
+              .catch(function(error) {
+                console.warn('[Elevation] Update error:', error);
+                emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-error' });
+              });
+          });
+          return;
+        }
+
+        // Add current waypoint
+        var entry = flightplan[currentIndex];
+        if (entry) {
+          var lat = Number(entry.lat);
+          var lng = Number(entry.lng);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            nextWaypointInsertIndex = currentIndex;
+            nextWaypointUseExisting = true;
+
+            map.fire("contextmenu", {
+              latlng: L.latLng([lat, lng]),
+              synthetic: true,
+              setType: entry.waypointType || null,
+              setName: entry.name || null,
+              setAltitude: typeof entry.altitude !== "undefined" ? String(entry.altitude) : "0",
+              setAtbl: typeof entry.atbl !== "undefined" ? String(entry.atbl) : "",
+              setSourceType: entry.sourceAtcWaypointType || entry.atcWaypointType || entry.waypointType,
+              setDepartureProcedure: entry.DepartureFP || entry.departureFP || entry.departureProcedure || "",
+              setArrivalProcedure: entry.ArrivalFP || entry.arrivalFP || entry.arrivalProcedure || "",
+              setAirway: entry.airway || entry.ATCAirway || "",
+              setRunwayNumber: entry.runwayNumberFP || entry.runwayNumber || "",
+              setRunwayDesignator: entry.runwayDesignatorFP || entry.runwayDesignator || "",
+            });
+          }
+        }
+
+        currentIndex++;
+      }
+
+      // Continue animation on next frame (60 FPS)
+      requestAnimationFrame(addWaypointSmooth);
+    }
+
+    // Start smooth animation
+    addWaypointSmooth();
+  });
+
+  if (MAP_DEBUG) console.log('[Map] setWaypoints completed. Animation scheduled.');
+}
+
+function postMessageToBridge(message) {
+  toggle.disable();
+
+  console.log('[Bridge] Processing message:', message);
+
+  // Parse message format and call appropriate API endpoint
+  if (message.startsWith('map:')) {
+    var jsonStr = message.substring('map:'.length);
+    var data = JSON.parse(jsonStr);
+    handleTeleportAPI(data);
+    return;
+  }
+
+  if (message.startsWith('setFrequency:')) {
+    var jsonStr = message.substring('setFrequency:'.length);
+    var data = JSON.parse(jsonStr);
+    handleFrequencyAPI(data);
+    return;
+  }
+
+  console.warn('[Bridge] Unknown message format:', message);
+}
+
+function handleTeleportAPI(data) {
+  console.log('[Bridge] Handling teleport request:', data);
+
+  fetch('http://localhost:815/api/simconnect/teleport', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(result => {
+    console.log('[Bridge] Teleport response:', result);
+  })
+  .catch(error => {
+    console.error('[Bridge] Teleport request failed:', error);
+  });
+}
+
+function handleFrequencyAPI(data) {
+  console.log('[Bridge] Handling frequency request:', data);
+
+  fetch('http://localhost:815/api/simconnect/radio/frequency', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(result => {
+    console.log('[Bridge] Frequency response:', result);
+  })
+  .catch(error => {
+    console.error('[Bridge] Frequency request failed:', error);
+  });
+}
+
+/**
+ * Shows the frequency context menu for setting COM1/COM2 standby
+ * @param {number} x - X position for menu
+ * @param {number} y - Y position for menu
+ * @param {string} frequency - The frequency to set (e.g., "119.925")
+ * @param {string} callsign - Controller callsign for display
+ * @param {string} mode - 'com' for COM radios (default), 'nav' for NAV radios
+ */
+function showFrequencyContextMenu(x, y, frequency, callsign, mode, alignLeft) {
+  var menu = document.getElementById('frequencyContextMenu');
+  var title = document.getElementById('frequencyContextTitle');
+  var navButtonsRow = document.getElementById('navButtonsRow');
+  var comButtonsRow = document.getElementById('comButtonsRow');
+  var adfButtonsRow = document.getElementById('adfButtonsRow');
+
+  if (!menu || !title) {
+    console.warn('[Frequency Menu] Context menu elements not found');
+    return;
+  }
+
+  // Show/hide appropriate button rows based on mode
+  if (mode === 'nav') {
+    if (comButtonsRow) comButtonsRow.style.display = 'none';
+    if (navButtonsRow) navButtonsRow.style.display = 'grid';
+    if (adfButtonsRow) adfButtonsRow.style.display = 'none';
+  } else if (mode === 'adf') {
+    if (comButtonsRow) comButtonsRow.style.display = 'none';
+    if (navButtonsRow) navButtonsRow.style.display = 'none';
+    if (adfButtonsRow) adfButtonsRow.style.display = 'grid';
+  } else {
+    if (comButtonsRow) comButtonsRow.style.display = 'grid';
+    if (navButtonsRow) navButtonsRow.style.display = 'none';
+    if (adfButtonsRow) adfButtonsRow.style.display = 'none';
+  }
+
+  // Store data for button handlers
+  frequencyContextMenuData = {
+    frequency: frequency,
+    callsign: callsign
+  };
+
+  // Set title with appropriate unit (kHz for ADF/NDB, MHz for NAV/COM)
+  var unit = (mode === 'adf') ? 'kHz' : 'MHz';
+  title.textContent = callsign + ' - ' + frequency + ' ' + unit;
+
+  // First make menu visible but off-screen to measure its size
+  menu.style.left = '-9999px';
+  menu.style.top = '-9999px';
+  menu.style.display = 'block';
+
+  // Get menu dimensions
+  var menuRect = menu.getBoundingClientRect();
+  var menuHeight = menuRect.height;
+  var menuWidth = menuRect.width;
+
+  // Get viewport dimensions - use multiple fallbacks for Coherent GT compatibility
+  var viewportWidth = Math.min(
+    window.innerWidth || 9999,
+    document.documentElement.clientWidth || 9999,
+    document.body.clientWidth || 9999
+  );
+  var viewportHeight = Math.min(
+    window.innerHeight || 9999,
+    document.documentElement.clientHeight || 9999,
+    document.body.clientHeight || 9999
+  );
+
+  // Convert page coordinates to viewport coordinates for fixed positioning
+  var scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+  var scrollLeft = window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
+  var viewportX = x - scrollLeft;
+  var viewportY = y - scrollTop;
+
+  // Calculate X position based on alignLeft parameter
+  var finalX;
+  if (alignLeft) {
+    // Position menu to the LEFT of click point
+    finalX = viewportX - menuWidth - 10;
+    if (finalX < 10) {
+      finalX = 10;
+    }
+  } else {
+    // Position menu to the RIGHT of click point (default)
+    finalX = viewportX;
+    if (finalX + menuWidth > viewportWidth - 10) {
+      finalX = viewportWidth - menuWidth - 10;
+    }
+    if (finalX < 10) {
+      finalX = 10;
+    }
+  }
+
+  // Adjust Y if menu would overflow bottom - show above click point instead
+  var finalY = viewportY;
+  if (finalY + menuHeight > viewportHeight - 10) {
+    // Show menu above the click point
+    finalY = viewportY - menuHeight - 10;
+  }
+  // If that would go above viewport, just position at top
+  if (finalY < 10) {
+    finalY = 10;
+  }
+
+  // Apply final position (fixed positioning uses viewport coordinates)
+  menu.style.left = finalX + 'px';
+  menu.style.top = finalY + 'px';
+
+  frequencyContextMenuOpen = true;
+  frequencyContextMenuOpenTime = Date.now();
+}
+
+/**
+ * Hides the frequency context menu
+ */
+function hideFrequencyContextMenu() {
+  var menu = document.getElementById('frequencyContextMenu');
+  if (menu) {
+    menu.style.display = 'none';
+  }
+  frequencyContextMenuOpen = false;
+  frequencyContextMenuData = null;
+}
+
+/**
+ * Sets COM frequency via MSFS EFB bridge
+ * @param {number} comIndex - 1 for COM1, 2 for COM2
+ * @param {boolean} isActive - true for Active, false for Standby
+ */
+function setComFrequency(comIndex, isActive) {
+  if (!frequencyContextMenuData || !frequencyContextMenuData.frequency) {
+    console.warn('[Frequency Menu] No frequency data available');
+    hideFrequencyContextMenu();
+    return;
+  }
+
+  var frequencyMHz = parseFloat(frequencyContextMenuData.frequency);
+  if (isNaN(frequencyMHz)) {
+    console.warn('[Frequency Menu] Invalid frequency:', frequencyContextMenuData.frequency);
+    hideFrequencyContextMenu();
+    return;
+  }
+
+  // Convert MHz to Hz for SimConnect (e.g., 119.925 -> 119925000)
+  var frequencyHz = Math.round(frequencyMHz * 1000000);
+  var radioType = isActive ? 'ACTIVE' : 'STBY';
+
+  // Create message payload
+  var payload = {
+    radio: 'COM' + comIndex + '_' + radioType,
+    frequencyMHz: frequencyMHz,
+    frequencyHz: frequencyHz,
+    callsign: frequencyContextMenuData.callsign
+  };
+
+  var message = 'setFrequency:' + JSON.stringify(payload);
+
+  if (FREQ_DEBUG) console.log('[Frequency Menu] Setting COM' + comIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyMHz + ' MHz');
+
+  // Send to MSFS EFB
+  postMessageToBridge(message);
+
+  // Hide menu
+  hideFrequencyContextMenu();
+}
+
+/**
+ * Shows the NAV frequency context menu from a navaid popup button
+ * @param {Event} event - Click event for positioning
+ * @param {number} frequencyMHz - Frequency in MHz (e.g., 114.25)
+ * @param {string} navaidName - Name of the navaid for display
+ */
+function showNavFrequencyMenu(event, frequencyMHz, navaidName) {
+  event.stopPropagation();
+  var x = event.clientX || event.pageX;
+  var y = event.clientY || event.pageY;
+  showFrequencyContextMenu(x, y, frequencyMHz.toString(), navaidName || 'NAV', 'nav');
+}
+
+/**
+ * Shows the ADF frequency context menu for NDB navaids (from marker popup)
+ * @param {Event} event - Click event for positioning
+ * @param {number} frequencyKHz - Frequency in kHz (e.g., 354)
+ * @param {string} navaidName - Name of the navaid for display
+ */
+function showAdfFrequencyMenu(event, frequencyKHz, navaidName) {
+  event.stopPropagation();
+  var x = event.clientX || event.pageX;
+  var y = event.clientY || event.pageY;
+  showFrequencyContextMenu(x, y, frequencyKHz.toString(), navaidName || 'NDB', 'adf');
+}
+
+/**
+ * Sets a NAV radio frequency (NAV1 or NAV2)
+ * @param {number} navIndex - 1 for NAV1, 2 for NAV2
+ * @param {boolean} isActive - true for Active, false for Standby
+ */
+function setNavFrequency(navIndex, isActive) {
+  if (!frequencyContextMenuData || !frequencyContextMenuData.frequency) {
+    console.warn('[Frequency Menu] No frequency data available');
+    hideFrequencyContextMenu();
+    return;
+  }
+
+  var frequencyMHz = parseFloat(frequencyContextMenuData.frequency);
+  if (isNaN(frequencyMHz)) {
+    console.warn('[Frequency Menu] Invalid frequency:', frequencyContextMenuData.frequency);
+    hideFrequencyContextMenu();
+    return;
+  }
+
+  var frequencyHz = Math.round(frequencyMHz * 1000000);
+  var radioType = isActive ? 'ACTIVE' : 'STBY';
+
+  var payload = {
+    radio: 'NAV' + navIndex + '_' + radioType,
+    frequencyMHz: frequencyMHz,
+    frequencyHz: frequencyHz,
+    callsign: frequencyContextMenuData.callsign
+  };
+
+  var message = 'setFrequency:' + JSON.stringify(payload);
+  console.log('[Frequency] Setting NAV' + navIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyMHz + ' MHz (Hz: ' + frequencyHz + ')');
+  console.log('[Frequency] Full payload:', JSON.stringify(payload));
+  postMessageToBridge(message);
+  hideFrequencyContextMenu();
+}
+
+/**
+ * Sets an ADF radio frequency (ADF1 or ADF2) for NDB navigation
+ * @param {number} adfIndex - 1 for ADF1, 2 for ADF2
+ * @param {boolean} isActive - true for Active, false for Standby
+ */
+function setAdfFrequency(adfIndex, isActive) {
+  if (!frequencyContextMenuData || !frequencyContextMenuData.frequency) {
+    console.warn('[Frequency Menu] No frequency data available');
+    hideFrequencyContextMenu();
+    return;
+  }
+
+  var frequencyKHz = parseFloat(frequencyContextMenuData.frequency);
+  if (isNaN(frequencyKHz)) {
+    console.warn('[Frequency Menu] Invalid frequency:', frequencyContextMenuData.frequency);
+    hideFrequencyContextMenu();
+    return;
+  }
+
+  // ADF frequencies are in kHz, convert to Hz for the panel
+  var frequencyHz = Math.round(frequencyKHz * 1000);
+  var radioType = 'ADF' + adfIndex + '_' + (isActive ? 'ACTIVE' : 'STBY');
+
+  var payload = {
+    radio: radioType,
+    frequencyHz: frequencyHz,
+    frequencyKHz: frequencyKHz,
+    callsign: frequencyContextMenuData.callsign
+  };
+
+  var message = 'setFrequency:' + JSON.stringify(payload);
+  console.log('[Frequency] Setting ADF' + adfIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyKHz + ' kHz');
+  postMessageToBridge(message);
+  hideFrequencyContextMenu();
+}
+
+/**
+ * Initializes frequency context menu button handlers
+ */
+function initFrequencyContextMenu() {
+  var com1StbyBtn = document.getElementById('frequencyContextCom1Stby');
+  var com1ActiveBtn = document.getElementById('frequencyContextCom1Active');
+  var com2StbyBtn = document.getElementById('frequencyContextCom2Stby');
+  var com2ActiveBtn = document.getElementById('frequencyContextCom2Active');
+
+  if (com1StbyBtn) {
+    com1StbyBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setComFrequency(1, false); // COM1 Standby
+    });
+  }
+
+  if (com1ActiveBtn) {
+    com1ActiveBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setComFrequency(1, true); // COM1 Active
+    });
+  }
+
+  if (com2StbyBtn) {
+    com2StbyBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setComFrequency(2, false); // COM2 Standby
+    });
+  }
+
+  if (com2ActiveBtn) {
+    com2ActiveBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setComFrequency(2, true); // COM2 Active
+    });
+  }
+
+  // NAV button handlers
+  var nav1StbyBtn = document.getElementById('frequencyContextNav1Stby');
+  var nav1ActiveBtn = document.getElementById('frequencyContextNav1Active');
+  var nav2StbyBtn = document.getElementById('frequencyContextNav2Stby');
+  var nav2ActiveBtn = document.getElementById('frequencyContextNav2Active');
+
+  if (nav1StbyBtn) {
+    nav1StbyBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setNavFrequency(1, false); // NAV1 Standby
+    });
+  }
+
+  if (nav1ActiveBtn) {
+    nav1ActiveBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setNavFrequency(1, true); // NAV1 Active
+    });
+  }
+
+  if (nav2StbyBtn) {
+    nav2StbyBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setNavFrequency(2, false); // NAV2 Standby
+    });
+  }
+
+  if (nav2ActiveBtn) {
+    nav2ActiveBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setNavFrequency(2, true); // NAV2 Active
+    });
+  }
+
+  // ADF button handlers (for NDB frequencies)
+  var adf1StbyBtn = document.getElementById('frequencyContextAdf1Stby');
+  var adf1ActiveBtn = document.getElementById('frequencyContextAdf1Active');
+  var adf2StbyBtn = document.getElementById('frequencyContextAdf2Stby');
+  var adf2ActiveBtn = document.getElementById('frequencyContextAdf2Active');
+
+  if (adf1StbyBtn) {
+    adf1StbyBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setAdfFrequency(1, false); // ADF1 Standby
+    });
+  }
+
+  if (adf1ActiveBtn) {
+    adf1ActiveBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setAdfFrequency(1, true); // ADF1 Active
+    });
+  }
+
+  if (adf2StbyBtn) {
+    adf2StbyBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setAdfFrequency(2, false); // ADF2 Standby
+    });
+  }
+
+  if (adf2ActiveBtn) {
+    adf2ActiveBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setAdfFrequency(2, true); // ADF2 Active
+    });
+  }
+
+  // Close menu on click outside (with delay to ignore click after long-press)
+  document.addEventListener('click', function(e) {
+    if (frequencyContextMenuOpen) {
+      // Ignore clicks within 300ms of opening (prevents close after long-press mouseup)
+      if (Date.now() - frequencyContextMenuOpenTime < 300) {
+        return;
+      }
+      var menu = document.getElementById('frequencyContextMenu');
+      if (menu && !menu.contains(e.target)) {
+        hideFrequencyContextMenu();
+      }
+    }
+    // Also close waypoint insert menu on click outside
+    if (waypointInsertMenuOpen) {
+      var wpMenu = document.getElementById('waypointInsertMenu');
+      if (wpMenu && !wpMenu.contains(e.target) && !e.target.classList.contains('marker-delete-button')) {
+        hideWaypointInsertMenu();
+      }
+    }
+  });
+
+  // Close menu on scroll
+  document.addEventListener('scroll', function() {
+    if (frequencyContextMenuOpen) {
+      hideFrequencyContextMenu();
+    }
+    if (waypointInsertMenuOpen) {
+      hideWaypointInsertMenu();
+    }
+  }, true);
+}
+
+var cursorPos = null;
+function getCursorpos() {
+  cursorPos = document.getElementsByTagName("input")[0].selectionStart;
+}
+
+function setCursorpos() {
+  if (cursorPos != null) {
+    var targetTextarea = document.getElementsByTagName("input")[0];
+    targetTextarea.focus();
+    setCaretToPos(targetTextarea, cursorPos);
+    var text = targetTextarea.value;
+    Keyboard.properties.value = targetTextarea.value;
+    textstart = text.slice(0, targetTextarea.selectionStart);
+    textend = text.slice(
+      targetTextarea.selectionStart,
+      targetTextarea.value.length
+    );
+  }
+}
+
+function setSelectionRange(input, selectionStart, selectionEnd) {
+  if (input.setSelectionRange) {
+    input.focus();
+    input.setSelectionRange(selectionStart, selectionEnd);
+  } else if (input.createTextRange) {
+    var range = input.createTextRange();
+    range.collapse(true);
+    range.moveEnd("character", selectionEnd);
+    range.moveStart("character", selectionStart);
+    range.select();
+  }
+}
+
+function setCaretToPos(input, pos) {
+  setSelectionRange(input, pos, pos);
+}
+
+function collectWaypointCoordinateData() {
+  var waypointLayers = getWaypointLayersSorted();
+  var coordsAll = [];
+  var coordsDep = [];
+  var coordsArr = [];
+  waypointLayers.forEach(function (layer, index) {
+    if (!layer || typeof layer.getLatLng !== "function") {
+      return;
+    }
+    var latlng = layer.getLatLng();
+    if (!latlng) {
+      return;
+    }
+    var coordPair = [latlng.lat, latlng.lng];
+    coordsAll.push(coordPair);
+    var type = (layer.options && layer.options.type) || "";
+    if (index === 0 && type && type.startsWith("AIRPORT")) {
+      coordsDep.push(coordPair);
+    }
+    if (type && type.startsWith("DEP")) {
+      coordsDep.push(coordPair);
+    } else if (type && type.startsWith("ARR")) {
+      coordsArr.push(coordPair);
+    }
+  });
+  // ARR-Strecke bleibt auf explizite ARR-Wegpunkte begrenzt.
+  return {
+    all: coordsAll,
+    dep: coordsDep,
+    arr: coordsArr,
+    length: waypointLayers.length,
+  };
+}
+
+var navlogSyncTimeout = null;
+function scheduleNavlogSync() {
+  if (navlogSyncTimeout) {
+    clearTimeout(navlogSyncTimeout);
+  }
+  navlogSyncTimeout = setTimeout(function () {
+    navlogSyncTimeout = null;
+    broadcastNavlogWaypoints();
+  }, 300);
+}
+
+function buildNavlogFlightplanPayload() {
+  var layers = getWaypointLayersSorted();
+  var waypoints = [];
+  if (layers && layers.length) {
+    layers.forEach(function (layer, index) {
+      if (!layer || typeof layer.getLatLng !== "function") {
+        return;
+      }
+      var coord = layer.getLatLng();
+      if (!coord) {
+        return;
+      }
+      var altitudeValue = parseFloat(altitudes[index]);
+      if (!Number.isFinite(altitudeValue)) {
+        altitudeValue = 0;
+      }
+      var nameValue = "";
+      if (typeof wpNames[index] === "string" && wpNames[index].trim().length) {
+        nameValue = wpNames[index].trim();
+      } else if (layer.options && layer.options.name) {
+        nameValue = String(layer.options.name);
+      }
+      var typeValue = "";
+      if (layer.options && layer.options.type) {
+        typeValue = String(layer.options.type);
+      } else if (typeof wpTypes[index] === "string") {
+        typeValue = wpTypes[index];
+      }
+      var sourceTypeValue = typeValue;
+      if (layer.options && typeof layer.options.sourceType === "string") {
+        sourceTypeValue = layer.options.sourceType;
+      } else if (
+        typeof wpSourceTypes[index] === "string" &&
+        wpSourceTypes[index].trim() !== ""
+      ) {
+        sourceTypeValue = wpSourceTypes[index];
+      }
+      var departureProcedureValue = "";
+      if (
+        layer.options &&
+        typeof layer.options.departureProcedure === "string"
+      ) {
+        departureProcedureValue = layer.options.departureProcedure;
+      } else if (typeof wpDepartureProcedures[index] === "string") {
+        departureProcedureValue = wpDepartureProcedures[index];
+      }
+      var arrivalProcedureValue = "";
+      if (layer.options && typeof layer.options.arrivalProcedure === "string") {
+        arrivalProcedureValue = layer.options.arrivalProcedure;
+      } else if (typeof wpArrivalProcedures[index] === "string") {
+        arrivalProcedureValue = wpArrivalProcedures[index];
+      }
+      var airwayValue = "";
+      if (layer.options && typeof layer.options.airway === "string") {
+        airwayValue = layer.options.airway;
+      } else if (typeof wpAirways[index] === "string") {
+        airwayValue = wpAirways[index];
+      }
+      var runwayNumberValue = "";
+      if (layer.options && typeof layer.options.runwayNumber === "string") {
+        runwayNumberValue = layer.options.runwayNumber;
+      } else if (typeof wpRunwayNumbers[index] === "string") {
+        runwayNumberValue = wpRunwayNumbers[index];
+      }
+      var runwayDesignatorValue = "";
+      if (
+        layer.options &&
+        typeof layer.options.runwayDesignator === "string"
+      ) {
+        runwayDesignatorValue = layer.options.runwayDesignator;
+      } else if (typeof wpRunwayDesignators[index] === "string") {
+        runwayDesignatorValue = wpRunwayDesignators[index];
+      }
+      waypoints.push({
+        lat: coord.lat,
+        lng: coord.lng,
+        altitude: altitudeValue,
+        name: nameValue,
+        waypointType: typeValue,
+        atcWaypointType: sourceTypeValue,
+        sourceAtcWaypointType: sourceTypeValue,
+        DepartureFP: departureProcedureValue,
+        ArrivalFP: arrivalProcedureValue,
+        airway: airwayValue,
+        ATCAirway: airwayValue,
+        runwayNumberFP: runwayNumberValue,
+        runwayDesignatorFP: runwayDesignatorValue,
+      });
+    });
+  }
+  var meta = {
+    source: "map",
+    departureName: wpNames[0] || "",
+    destinationName:
+      wpNames.length > 0 ? wpNames[wpNames.length - 1] : "",
+    departurePosition: wpNames[0] || "",
+  };
+  if (importedFlightplanMeta && typeof importedFlightplanMeta === "object") {
+    // Kopiere alle importierten Meta-Daten (inkl. OFP-Felder)
+    for (var key in importedFlightplanMeta) {
+      if (importedFlightplanMeta.hasOwnProperty(key) && importedFlightplanMeta[key] !== undefined) {
+        meta[key] = importedFlightplanMeta[key];
+      }
+    }
+    // WICHTIG: source muss immer "map" sein für interne broadcasts
+    meta.source = "map";
+  }
+  if (MAP_DEBUG) console.log('[Map Debug] Broadcasting meta:', meta);
+  if (MAP_DEBUG) console.log('[Map Debug] Broadcasting OFP fields:', {
+    callsign: meta.callsign,
+    aircraftType: meta.aircraftType,
+    aircraftEquip: meta.aircraftEquip,
+    departureTime: meta.departureTime,
+    alternateAirport: meta.alternateAirport
+  });
+
+  // CRITICAL FIX: Include full OFP object for ETA calculation in navlog.js
+  var payload = {
+    waypoints: waypoints,
+    flightType: "ifr",
+    meta: meta,
+  };
+
+  if (importedOFPData && typeof importedOFPData === "object") {
+    payload.ofp = importedOFPData;
+    if (MAP_DEBUG) console.log('[Map Debug] Including OFP data in broadcast for ETA calculation');
+  } else {
+    if (MAP_DEBUG) console.log('[Map Debug] No OFP data available for broadcast');
+  }
+
+  return payload;
+}
+
+function broadcastNavlogWaypoints() {
+  try {
+    var payload = buildNavlogFlightplanPayload();
+    var message = "Flightplan:" + JSON.stringify(payload);
+    if (typeof window !== "undefined" && typeof window.postMessage === "function") {
+      window.postMessage(message, "*");
+    }
+  } catch (err) {
+    console.warn("Map: Unable to broadcast navlog payload:", err);
+  }
+}
+
+function broadcastNavlogReset() {
+  // Broadcast reset message to navlog via postMessage
+  try {
+    var resetPayload = {
+      waypoints: [],
+      flightType: "ifr",
+      meta: { source: "map" },  // Mark as coming from map to prevent sync button pulse
+      resetNavlog: true,
+      clearNavlog: true
+    };
+    var message = "Flightplan:" + JSON.stringify(resetPayload);
+    if (typeof window !== "undefined" && typeof window.postMessage === "function") {
+      window.postMessage(message, "*");
+      console.log("[Map] Navlog reset broadcast sent");
+    }
+  } catch (err) {
+    console.warn("Map: Unable to broadcast navlog reset:", err);
+  }
+
+  // Also clear navlog data on server
+  try {
+    var clearUrl = "http://localhost:815/clearNavlogValues";
+    fetch(clearUrl, { method: "GET" })
+      .then(function(res) {
+        if (res.ok) {
+          console.log("[Map] Navlog server data cleared");
+        }
+      })
+      .catch(function(err) {
+        console.warn("[Map] Failed to clear navlog server data:", err);
+      });
+  } catch (err) {
+    console.warn("[Map] Error clearing navlog server data:", err);
+  }
+}
+
+function updatePolylineGeometriesFromMarkers() {
+  if (!pLineGroup || (!pline && !plineDEP && !plineARR)) {
+    return;
+  }
+  var coordData = collectWaypointCoordinateData();
+  coordinatesArray = coordData.all.slice();
+  coordinatesArrayDEP = coordData.dep.slice();
+  coordinatesArrayARR = coordData.arr.slice();
+  wpi = coordData.length;
+
+  if (pline && typeof pline.setLatLngs === "function") {
+    pline.setLatLngs(coordData.all);
+  }
+  if (plineDEP && typeof plineDEP.setLatLngs === "function") {
+    plineDEP.setLatLngs(coordData.dep);
+  }
+  if (plineARR && typeof plineARR.setLatLngs === "function") {
+    plineARR.setLatLngs(coordData.arr);
+  }
+  if (coordData.all.length > 1 && pline) {
+    createMiddleMarkers(pline);
+  } else if (middleMarkers) {
+    middleMarkers.clearLayers();
+  }
+}
+
+function scheduleRouteGeometryRefresh() {
+  if (routeRefreshRafId !== null) {
+    return;
+  }
+  var raf =
+    (typeof window !== "undefined" && window.requestAnimationFrame) ||
+    function (cb) {
+      return setTimeout(cb, 0);
+    };
+  routeRefreshRafId = raf(function () {
+    routeRefreshRafId = null;
+    updatePolylineGeometriesFromMarkers();
+  });
+}
+
+var selected = false;
+var lastSelected = -1;
+var lastSelectedElement;
+
+// Öffnet ein Popup für einen Controller an seiner Position
+function openControllerPopup(controllerInfo) {
+  if (!controllerInfo || !controllerInfo.lat || !controllerInfo.lng || !map) return;
+
+  var callsign = controllerInfo.callsign || '';
+  var freq = controllerInfo.frequency || '';
+  var ctrlType = getControllerType(callsign);
+
+  // Frequenz formatieren
+  if (freq) {
+    var freqNum = parseFloat(freq);
+    if (!isNaN(freqNum)) freq = freqNum.toFixed(3);
+  }
+
+  var typeNames = { 'CTR': 'Center', 'FSS': 'Flight Service', 'APP': 'Approach', 'DEP': 'Departure', 'TWR': 'Tower', 'GND': 'Ground', 'DEL': 'Delivery', 'ATIS': 'ATIS' };
+  var typeName = typeNames[ctrlType] || ctrlType;
+  var typeClass = 'cz-type-' + (ctrlType || 'TWR').toLowerCase();
+
+  var popupHtml = '<div class="control-zone-popup">';
+  popupHtml += '<div class="cz-header">' + callsign + '</div>';
+  popupHtml += '<div class="cz-controller">';
+  popupHtml += '<div class="cz-controller-header">';
+  popupHtml += '<span class="cz-callsign ' + typeClass + '">' + typeName + '</span>';
+  popupHtml += '</div>';
+
+  if (freq) {
+    popupHtml += '<div class="cz-freq-row">';
+    popupHtml += '<span class="cz-freq">' + freq + '</span>';
+    popupHtml += '<div class="cz-com-buttons">';
+    popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + callsign + '\', 1, false)" title="COM1 Standby">C1 STBY</button>';
+    popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + callsign + '\', 1, true)" title="COM1 Active">C1 ACT</button>';
+    popupHtml += '<button class="cz-com-btn" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + callsign + '\', 2, false)" title="COM2 Standby">C2 STBY</button>';
+    popupHtml += '<button class="cz-com-btn cz-com-active" onclick="setControlZoneFrequency(\'' + freq + '\', \'' + callsign + '\', 2, true)" title="COM2 Active">C2 ACT</button>';
+    popupHtml += '</div>';
+    popupHtml += '</div>';
+  }
+
+  // ATIS anzeigen wenn vorhanden
+  if (controllerInfo.text_atis && controllerInfo.text_atis !== -1) {
+    var atisLines = Array.isArray(controllerInfo.text_atis) ? controllerInfo.text_atis : [controllerInfo.text_atis];
+    var atisText = atisLines.filter(function(l) { return l; }).join('\n');
+    if (atisText) {
+      popupHtml += '<div class="cz-atis">' + atisText + '</div>';
+    }
+  }
+
+  popupHtml += '</div></div>';
+
+  L.popup({ maxWidth: 450, maxHeight: 400, className: 'control-zone-popup-container' })
+    .setLatLng([controllerInfo.lat, controllerInfo.lng])
+    .setContent(popupHtml)
+    .openOn(map);
+}
+
+function listControllers() {
+  var list = document.getElementById("controllerList");
+  if (!list) {
+    return;
+  }
+  var listUl = list.querySelector("ul");
+  if (!listUl) {
+    return;
+  }
+  $(listUl).empty();
+  // Nur anzeigen wenn nicht minimiert
+  if (!controllerListMinimized) {
+    list.style.display = "inline-block";
+  }
+
+  // PERFORMANCE: Ein Loop statt 6 separate filter() Aufrufe
+  var grouped = { ctr: [], app: [], twr: [], gnd: [], del: [], atis: [] };
+  for (var i = 0; i < controllersInRange.length; i++) {
+    var c = controllersInRange[i];
+    var suffix = c.callsign.substring(c.callsign.lastIndexOf("_") + 1);
+    if (suffix === 'CTR' || suffix === 'FSS') grouped.ctr.push(c);
+    else if (suffix === 'APP' || suffix === 'DEP') grouped.app.push(c);
+    else if (suffix === 'TWR') grouped.twr.push(c);
+    else if (suffix === 'GND') grouped.gnd.push(c);
+    else if (suffix === 'DEL') grouped.del.push(c);
+    else if (suffix === 'ATIS') grouped.atis.push(c);
+  }
+
+  // Alphabetisch sortieren innerhalb jeder Gruppe
+  var sortByCallsign = function(a, b) {
+    return a.callsign.localeCompare(b.callsign);
+  };
+  grouped.ctr.sort(sortByCallsign);
+  grouped.app.sort(sortByCallsign);
+  grouped.twr.sort(sortByCallsign);
+  grouped.gnd.sort(sortByCallsign);
+  grouped.del.sort(sortByCallsign);
+  grouped.atis.sort(sortByCallsign);
+
+  // Use control zone colors for controller list dots
+  var czColors = controlZonesSettings && controlZonesSettings.colors ? controlZonesSettings.colors : {
+    CTR: '#9ca3af', APP: '#035869', TWR: '#c9860b', GND: '#2d8a4e', DEL: '#7b5aa6', FSS: '#9ca3af', ATIS: '#a855f7'
+  };
+
+  // PERFORMANCE: DocumentFragment für batched DOM-Update (nur 1 Reflow statt viele)
+  var fragment = document.createDocumentFragment();
+  var tempDiv = document.createElement('div');
+
+  // Helper zum Hinzufügen von HTML-String zum Fragment
+  function appendHtml(html) {
+    tempDiv.innerHTML = html;
+    while (tempDiv.firstChild) {
+      fragment.appendChild(tempDiv.firstChild);
+    }
+  }
+
+  // Helper für Controller-Kategorie
+  function appendCategory(categoryName, controllers, color, categoryType) {
+    appendHtml('<div class="kneeboard-panel-category">' + categoryName + '</div>');
+    for (var j = 0; j < controllers.length; j++) {
+      appendHtml(buildPanelListItem({
+        id: controllers[j].callsign,
+        title: controllers[j].callsign,
+        subtitle: controllers[j].frequency,
+        dotColor: color,
+        data: {
+          type: 'controller',
+          category: categoryType,
+          frequency: controllers[j].frequency
+        }
+      }));
+    }
+  }
+
+  appendCategory('Center', grouped.ctr, czColors.CTR, 'center');
+  appendCategory('App./Dep.', grouped.app, czColors.APP, 'app');
+  appendCategory('Tower', grouped.twr, czColors.TWR, 'tower');
+  appendCategory('Ground', grouped.gnd, czColors.GND, 'ground');
+  appendCategory('Delivery', grouped.del, czColors.DEL, 'delivery');
+
+  if (vatsim == true) {
+    appendCategory('ATIS', grouped.atis, czColors.ATIS, 'atis');
+  }
+
+  appendHtml('<div class="kneeboard-panel-category">UNICOM</div>');
+  appendHtml(buildPanelListItem({
+    id: 'UNICOM',
+    title: 'UNICOM',
+    subtitle: '122.800',
+    data: {
+      type: 'controller',
+      category: 'unicom',
+      frequency: '122.800'
+    }
+  }));
+
+  // Update map attribution with data source (VATSIM or IVAO)
+  updateNetworkAttribution(vatsim);
+
+  // EIN DOM-Update am Ende
+  listUl.appendChild(fragment);
+
+  // Hide "show more" button for VATSIM/IVAO controllers
+  var listSum = document.getElementById("controllerListSum");
+  if (listSum) {
+    listSum.innerHTML = "";
+    listSum.style.display = "none";
+  }
+
+  // Add event handlers for new kneeboard-list-item structure
+  $(listUl).off("click", ".kneeboard-list-item");
+  $(listUl).on("click", ".kneeboard-list-item", function(e) {
+    var callsign = this.id;
+    var index = controllersInRange.findIndex((x) => x.callsign === callsign);
+
+    // Remove active class from all items and remove ATIS
+    $(listUl).find(".kneeboard-list-item").removeClass("active");
+    $(listUl).find(".atis-info").remove();
+
+    if (lastSelected != callsign && callsign != "UNICOM") {
+      // Mark this item as active
+      $(this).addClass("active");
+
+      selected = true;
+      lastSelected = callsign;
+      lastSelectedElement = this;
+
+      if (index != -1) {
+        var controllerInfo = controllersInRange[index];
+        var atisLines = controllerInfo.text_atis;
+        var hasAtis = atisLines && atisLines !== -1;
+        var atisString = "";
+
+        if (hasAtis) {
+          var normalizedLines = Array.isArray(atisLines) ? atisLines : [atisLines];
+          normalizedLines.forEach(function (element) {
+            if (element) {
+              atisString += element + "<br>";
+            }
+          });
+        }
+
+        if (atisString) {
+          // Add ATIS using new structure
+          var atisHtml = '<div class="atis-info">' + atisString + '</div>';
+          $(this).append(atisHtml);
+        } else if (vatsim) {
+          // Only show "no ATIS" message for VATSIM
+          var atisHtml = '<div class="atis-info">Keine ATIS-Daten verfügbar</div>';
+          $(this).append(atisHtml);
+        }
+
+        // Zur Controller-Position pannen und Popup öffnen
+        if (controllerInfo.lat && controllerInfo.lng) {
+          map.panTo([controllerInfo.lat, controllerInfo.lng]);
+          // Suche und öffne Popup für diese Control Zone
+          openControllerPopup(controllerInfo);
+        }
+      }
+
+      if (controllerInterval) {
+        clearInterval(controllerInterval);
+        controllerInterval = null;
+      }
+    } else if (callsign != "UNICOM") {
+      // Toggle off - remove ATIS
+      selected = false;
+      lastSelected = -1;
+      lastSelectedElement = null;
+
+      startVatsimPolling();
+    }
+  });
+
+  // Context menu handler for frequency setting (right-click)
+  $(listUl).off("contextmenu", ".kneeboard-list-item");
+  $(listUl).on("contextmenu", ".kneeboard-list-item", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    var $item = $(this);
+    var frequency = $item.data('frequency');
+    var callsign = this.id;
+
+    if (!frequency) {
+      console.warn('[Frequency Menu] No frequency data on element');
+      return;
+    }
+
+    showFrequencyContextMenu(e.pageX, e.pageY, frequency, callsign);
+  });
+
+  // Long-press handler for touch AND mouse devices (EFB + desktop compatibility)
+  // Using native addEventListener instead of jQuery delegation for MSFS Coherent GT compatibility
+  var listItems = listUl.querySelectorAll('.kneeboard-list-item');
+  if (FREQ_DEBUG) console.log('[Frequency Menu] Found ' + listItems.length + ' list items for long-press handlers');
+  listItems.forEach(function(item) {
+    var freqLongPressTimer = null;
+    var freqLongPressTriggered = false;
+    var freqStartX = 0;
+    var freqStartY = 0;
+    var FREQ_MOVE_THRESHOLD = 20; // pixels - allow small movements during long press
+
+    // Mousedown / Touchstart - start long press timer
+    item.addEventListener('mousedown', function(e) {
+      if (FREQ_DEBUG) console.log('[Frequency Menu] mousedown on item:', item.id, 'button:', e.button);
+      if (e.button !== 0) return; // Only left mouse button
+      e.preventDefault(); // Prevent text selection
+      freqLongPressTriggered = false;
+      freqStartX = e.pageX;
+      freqStartY = e.pageY;
+      var frequency = item.getAttribute('data-frequency');
+      var callsign = item.id;
+
+      freqLongPressTimer = setTimeout(function() {
+        if (FREQ_DEBUG) console.log('[Frequency Menu] Long press timer fired! frequency:', frequency, 'callsign:', callsign);
+        freqLongPressTriggered = true;
+        if (frequency) {
+          showFrequencyContextMenu(freqStartX, freqStartY, frequency, callsign);
+        }
+      }, longPressDelay);
+    });
+
+    item.addEventListener('touchstart', function(e) {
+      freqLongPressTriggered = false;
+      var touch = e.touches[0];
+      freqStartX = touch.pageX;
+      freqStartY = touch.pageY;
+      var frequency = item.getAttribute('data-frequency');
+      var callsign = item.id;
+
+      freqLongPressTimer = setTimeout(function() {
+        freqLongPressTriggered = true;
+        if (frequency) {
+          showFrequencyContextMenu(freqStartX, freqStartY, frequency, callsign);
+        }
+      }, longPressDelay);
+    }, { passive: true });
+
+    // Cancel long press on move (only if moved more than threshold)
+    item.addEventListener('mousemove', function(e) {
+      if (freqLongPressTimer) {
+        var dx = Math.abs(e.pageX - freqStartX);
+        var dy = Math.abs(e.pageY - freqStartY);
+        if (dx > FREQ_MOVE_THRESHOLD || dy > FREQ_MOVE_THRESHOLD) {
+          if (FREQ_DEBUG) console.log('[Frequency Menu] Cancelled due to movement:', dx, dy);
+          clearTimeout(freqLongPressTimer);
+          freqLongPressTimer = null;
+        }
+      }
+    });
+
+    item.addEventListener('touchmove', function(e) {
+      if (freqLongPressTimer && e.touches.length > 0) {
+        var touch = e.touches[0];
+        var dx = Math.abs(touch.pageX - freqStartX);
+        var dy = Math.abs(touch.pageY - freqStartY);
+        if (dx > FREQ_MOVE_THRESHOLD || dy > FREQ_MOVE_THRESHOLD) {
+          clearTimeout(freqLongPressTimer);
+          freqLongPressTimer = null;
+        }
+      }
+    }, { passive: true });
+
+    // Cancel long press on release
+    var cancelLongPress = function(e) {
+      if (FREQ_DEBUG) console.log('[Frequency Menu] cancelLongPress called, event:', e.type, 'timer active:', !!freqLongPressTimer);
+      if (freqLongPressTimer) {
+        clearTimeout(freqLongPressTimer);
+        freqLongPressTimer = null;
+      }
+      // Don't reset freqLongPressTriggered here - let click handler do it
+    };
+
+    item.addEventListener('mouseup', cancelLongPress);
+    item.addEventListener('mouseleave', cancelLongPress);
+    item.addEventListener('touchend', cancelLongPress);
+    item.addEventListener('touchcancel', cancelLongPress);
+
+    // Block click event after long press (prevents list item toggle)
+    item.addEventListener('click', function(e) {
+      if (freqLongPressTriggered) {
+        if (FREQ_DEBUG) console.log('[Frequency Menu] Blocking click after long press');
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        freqLongPressTriggered = false;
+      }
+    }, true); // Use capture phase to intercept before other handlers
+  });
+
+  var stations = document.getElementsByClassName("station");
+  var frequency = "";
+  for (var i = 0; i < stations.length; i++) {
+    stations[i].addEventListener(
+      "mousedown",
+      function (e) {
+        e.preventDefault();
+      },
+      false
+    );
+    stations[i].addEventListener("click", function (e) {
+      for (var i = 0; i < stations.length; i++) {
+        stations[i].style.color = "";
+      }
+      var index = controllersInRange.findIndex((x2) => x2.callsign === this.id);
+      if (lastSelected != this.id && this.id != "UNICOM") {
+        if (lastSelected != -1) {
+          var index2 = controllersInRange.findIndex(
+            (x3) => x3.callsign === lastSelected
+          );
+          lastSelectedElement.innerHTML =
+            controllersInRange[index2].callsign +
+            " -&nbsp" +
+            controllersInRange[index2].frequency;
+        }
+        selected = true;
+        lastSelected = this.id;
+        lastSelectedElement = this;
+        if (index != -1) {
+          var controllerInfo = controllersInRange[index];
+          var atisLines = controllerInfo.text_atis;
+          var hasAtis = atisLines && atisLines !== -1;
+          var atisString = "";
+          if (hasAtis) {
+            var normalizedLines = Array.isArray(atisLines)
+              ? atisLines
+              : [atisLines];
+            normalizedLines.forEach(function (element) {
+              if (element) {
+                atisString += element + "<br>";
+              }
+            });
+          }
+          if (atisString) {
+            var innerText =
+              controllerInfo.callsign +
+              " -&nbsp" +
+              controllerInfo.frequency +
+              '<br><p class="atisText"><i>' +
+              atisString +
+              "</i></p>";
+            this.innerHTML = innerText;
+          } else {
+            var fallbackText =
+              controllerInfo.callsign +
+              " -&nbsp" +
+              controllerInfo.frequency +
+              '<br><p class="atisText"><i>Keine ATIS-Daten verfügbar</i></p>';
+            this.innerHTML = fallbackText;
+          }
+        }
+        if (controllerInterval) {
+          clearInterval(controllerInterval);
+          controllerInterval = null;
+        }
+      } else if (this.id != "UNICOM") {
+        var innerText =
+          controllersInRange[index].callsign +
+          " -&nbsp" +
+          controllersInRange[index].frequency;
+        this.innerHTML = innerText;
+        selected = false;
+        lastSelected = -1;
+        startVatsimPolling();
+      }
+    });
+  }
+}
+
+var navaidsCounter = 10;
+var airportsCounter = 10;
+var reportingPointsCounter = 10;
+var stationListClickAttached = false;
+
+function calculateOptimalListCount() {
+  var list = document.getElementById("controllerList");
+  if (!list) return 10;
+
+  var containerHeight = list.clientHeight;
+  var headerHeight = 60;
+  var itemHeight = 45;
+  var showMoreHeight = 40;
+
+  var availableHeight = containerHeight - headerHeight - showMoreHeight;
+  var count = Math.floor(availableHeight / itemHeight);
+
+  return Math.max(5, count);
+}
+
+function attachStationListHandler() {
+  if (stationListClickAttached) {
+    return;
+  }
+  var listRoot = document.getElementById("controllerListUl");
+  if (!listRoot) {
+    return;
+  }
+  listRoot.addEventListener("click", function (event) {
+    var target = event.target.closest(".station2");
+    if (!target) {
+      return;
+    }
+    event.preventDefault();
+    var stations2 = document.getElementsByClassName("station2");
+    for (var i = 0; i < stations2.length; i++) {
+      stations2[i].style.color = "";
+    }
+    target.style.color = "#d32f2f";
+    const lookupDomId = target.getAttribute("data-lookup") || target.id;
+    var layer = findLayerByLookupDomId(lookupDomId);
+    if (layer) {
+      openLayerPopupWithPan(layer);
+    }
+  });
+  stationListClickAttached = true;
+}
+
+/**
+ * Extracts NAV frequency from waypoint type string (e.g., "VOR&nbsp;116.5&nbsp;MHz" -> 116.5)
+ * Returns null if not a NAV-compatible type (VOR, VORTAC, DVOR, etc.)
+ */
+function extractNavFrequencyFromType(typeStr) {
+  var result = extractNavaidFrequencyInfo(typeStr);
+  // Only return frequency for VOR/TACAN types (backward compatibility)
+  if (result && result.mode === 'nav') {
+    return result.frequency;
+  }
+  return null;
+}
+
+/**
+ * Extracts frequency info from waypoint type string for VOR, TACAN, and NDB navaids
+ * Returns object with { frequency, mode, unit } or null
+ * mode: 'nav' for VOR/TACAN (NAV radio), 'adf' for NDB (ADF radio)
+ */
+function extractNavaidFrequencyInfo(typeStr) {
+  if (!typeStr) return null;
+  // Decode HTML entities and normalize spaces
+  var decoded = typeStr.replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Check for VOR-based navaids (use NAV radio, MHz)
+  var vorTypes = ['VOR', 'VOR-DME', 'VORTAC', 'DVOR', 'DVOR-DME', 'DVORTAC'];
+  var isVorBased = vorTypes.some(function(vorType) {
+    return decoded.indexOf(vorType) === 0;
+  });
+
+  // Check for TACAN (use NAV radio, MHz)
+  var isTacan = decoded.indexOf('TACAN') === 0;
+
+  // Check for NDB (use ADF radio, kHz)
+  var isNdb = decoded.indexOf('NDB') === 0;
+
+  if (isVorBased || isTacan) {
+    // Extract MHz frequency (e.g., "116.5" from "VOR 116.5 MHz")
+    var mhzMatch = decoded.match(/(\d+\.?\d*)\s*MHz/i);
+    if (mhzMatch && mhzMatch[1]) {
+      var freq = parseFloat(mhzMatch[1]);
+      if (!isNaN(freq) && freq >= 108.0 && freq <= 117.95) {
+        return { frequency: freq, mode: 'nav', unit: 'MHz' };
+      }
+    }
+  }
+
+  if (isNdb) {
+    // Extract kHz frequency (e.g., "350" from "NDB 350 kHz")
+    var khzMatch = decoded.match(/(\d+\.?\d*)\s*kHz/i);
+    if (khzMatch && khzMatch[1]) {
+      var freqKhz = parseFloat(khzMatch[1]);
+      if (!isNaN(freqKhz) && freqKhz >= 190 && freqKhz <= 1750) {
+        return { frequency: freqKhz, mode: 'adf', unit: 'kHz' };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Attaches long-press handlers to navaid list items for NAV frequency context menu
+ * Similar to controller panel long-press behavior
+ */
+function attachNavaidLongPressHandlers(listRoot) {
+  if (!listRoot) return;
+
+  var listItems = listRoot.querySelectorAll('.kneeboard-list-item[data-navfrequency]');
+  if (FREQ_DEBUG) console.log('[Frequency Menu] Found ' + listItems.length + ' navaid items with frequencies for long-press handlers');
+
+  listItems.forEach(function(item) {
+    var navLongPressTimer = null;
+    var navLongPressTriggered = false;
+    var navStartX = 0;
+    var navStartY = 0;
+    var NAV_MOVE_THRESHOLD = 20; // pixels - allow small movements during long press
+
+    // Mousedown - start long press timer
+    item.addEventListener('mousedown', function(e) {
+      if (e.button !== 0) return; // Only left mouse button
+      e.preventDefault(); // Prevent text selection
+      navLongPressTriggered = false;
+      navStartX = e.pageX;
+      navStartY = e.pageY;
+      var frequency = item.getAttribute('data-navfrequency');
+      var freqMode = item.getAttribute('data-navfrequencymode') || 'nav'; // Default to 'nav' for backward compatibility
+      var callsign = item.querySelector('.kneeboard-list-item-title');
+      var callsignText = callsign ? callsign.textContent : item.id;
+
+      navLongPressTimer = setTimeout(function() {
+        if (FREQ_DEBUG) console.log('[Frequency Menu] Long press timer fired! frequency:', frequency, 'mode:', freqMode, 'callsign:', callsignText);
+        navLongPressTriggered = true;
+        if (frequency) {
+          showFrequencyContextMenu(navStartX, navStartY, frequency, callsignText, freqMode);
+        }
+      }, longPressDelay);
+    });
+
+    // Touchstart - start long press timer
+    item.addEventListener('touchstart', function(e) {
+      navLongPressTriggered = false;
+      var touch = e.touches[0];
+      navStartX = touch.pageX;
+      navStartY = touch.pageY;
+      var frequency = item.getAttribute('data-navfrequency');
+      var freqMode = item.getAttribute('data-navfrequencymode') || 'nav';
+      var callsign = item.querySelector('.kneeboard-list-item-title');
+      var callsignText = callsign ? callsign.textContent : item.id;
+
+      navLongPressTimer = setTimeout(function() {
+        navLongPressTriggered = true;
+        if (frequency) {
+          showFrequencyContextMenu(navStartX, navStartY, frequency, callsignText, freqMode);
+        }
+      }, longPressDelay);
+    }, { passive: true });
+
+    // Cancel long press on move (only if moved more than threshold)
+    item.addEventListener('mousemove', function(e) {
+      if (navLongPressTimer) {
+        var dx = Math.abs(e.pageX - navStartX);
+        var dy = Math.abs(e.pageY - navStartY);
+        if (dx > NAV_MOVE_THRESHOLD || dy > NAV_MOVE_THRESHOLD) {
+          clearTimeout(navLongPressTimer);
+          navLongPressTimer = null;
+        }
+      }
+    });
+
+    item.addEventListener('touchmove', function(e) {
+      if (navLongPressTimer && e.touches.length > 0) {
+        var touch = e.touches[0];
+        var dx = Math.abs(touch.pageX - navStartX);
+        var dy = Math.abs(touch.pageY - navStartY);
+        if (dx > NAV_MOVE_THRESHOLD || dy > NAV_MOVE_THRESHOLD) {
+          clearTimeout(navLongPressTimer);
+          navLongPressTimer = null;
+        }
+      }
+    }, { passive: true });
+
+    // Cancel long press on release
+    var cancelNavLongPress = function(e) {
+      if (navLongPressTimer) {
+        clearTimeout(navLongPressTimer);
+        navLongPressTimer = null;
+      }
+    };
+
+    item.addEventListener('mouseup', cancelNavLongPress);
+    item.addEventListener('mouseleave', cancelNavLongPress);
+    item.addEventListener('touchend', cancelNavLongPress);
+    item.addEventListener('touchcancel', cancelNavLongPress);
+
+    // Block click event after long press (prevents list item toggle)
+    item.addEventListener('click', function(e) {
+      if (navLongPressTriggered) {
+        if (MAP_DEBUG) console.log('[NAV Frequency] Blocking click after long press');
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        navLongPressTriggered = false;
+      }
+    }, true); // Use capture phase to intercept before other handlers
+  });
+}
+
+function ensureLookupKey(props, prefix) {
+  if (!props) {
+    props = {};
+  }
+  if (!props.lookupKey) {
+    var keyCandidate =
+      props.icaoCode || props.identifier || props.name || props.id || props._id;
+    if (!keyCandidate && props.geometry && props.geometry.coordinates) {
+      keyCandidate = props.geometry.coordinates.join(",");
+    }
+    if (!keyCandidate) {
+      keyCandidate = Math.random().toString(36).substring(2);
+    }
+    props.lookupKey = (prefix || "item") + "-" + keyCandidate;
+  }
+  if (!props.lookupDomId) {
+    props.lookupDomId = sanitizeDomId(props.lookupKey);
+  }
+  return props.lookupKey;
+}
+
+function findLayerByLookupDomId(lookupDomId) {
+  if (!lookupDomId) {
+    return null;
+  }
+  var layerGroups = [airportMarkers, navaidMarkers, reportingPointMarkers];
+  for (var g = 0; g < layerGroups.length; g++) {
+    var group = layerGroups[g];
+    if (!group || typeof group.eachLayer !== "function") {
+      continue;
+    }
+    var matched = null;
+    group.eachLayer(function (layer) {
+      if (matched) {
+        return;
+      }
+      var featureLookup =
+        (layer.feature &&
+          layer.feature.properties &&
+          layer.feature.properties.lookupDomId) ||
+        layer._lookupDomId;
+      if (featureLookup && featureLookup === lookupDomId) {
+        matched = layer;
+      }
+    });
+    if (matched) {
+      return matched;
+    }
+  }
+  return null;
+}
+
+const MIN_POI_ZOOM = 10;
+
+function openLayerPopupWithPan(layer) {
+  if (!layer || !map) {
+    return;
+  }
+  if (typeof layer.addTo === "function" && !map.hasLayer(layer)) {
+    layer.addTo(map);
+  }
+
+  var latlng = null;
+  if (typeof layer.getLatLng === "function") {
+    latlng = layer.getLatLng();
+  } else if (layer._latlng) {
+    latlng = layer._latlng;
+  } else if (typeof layer.getBounds === "function") {
+    try {
+      latlng = layer.getBounds().getCenter();
+    } catch (err) {}
+  }
+
+  var popupOpened = false;
+  var finalizePopup = function () {
+    if (popupOpened) {
+      return;
+    }
+    popupOpened = true;
+    if (typeof layer.openPopup === "function") {
+      programmaticPopupTimestamp = Date.now();
+      layer.openPopup();
+    }
+  };
+
+  if (latlng) {
+    var targetZoom = Math.max(map.getZoom(), MIN_POI_ZOOM);
+    var moveHandler = function () {
+      map.off("moveend", moveHandler);
+      finalizePopup();
+    };
+    map.on("moveend", moveHandler);
+    if (map.getZoom() < targetZoom) {
+      map.setView(latlng, targetZoom, { animate: true });
+    } else {
+      map.panTo(latlng, { animate: true });
+    }
+    setTimeout(function () {
+      if (!popupOpened) {
+        map.off("moveend", moveHandler);
+        finalizePopup();
+      }
+    }, 900);
+  } else {
+    finalizePopup();
+  }
+}
+
+function moreAirports() {
+  airportsCounter = airportsCounter + 10;
+  listNavaids();
+}
+
+function moreNavaids() {
+  navaidsCounter = navaidsCounter + 10;
+  listNavaids();
+}
+
+function moreReportingPoints() {
+  reportingPointsCounter = reportingPointsCounter + 10;
+  listNavaids();
+}
+
+function buildStationListItem(domId, lookupDomId, title, subtitle, navFrequency, navFrequencyMode) {
+  // Wrapper für buildPanelListItem - für Rückwärtskompatibilität
+  var dataAttrs = {
+    lookup: lookupDomId
+  };
+  // Add frequency if available (for VOR/TACAN/NDB navaids)
+  if (navFrequency !== null && navFrequency !== undefined) {
+    dataAttrs.navfrequency = navFrequency;
+    // Store frequency mode: 'nav' for VOR/TACAN, 'adf' for NDB
+    if (navFrequencyMode) {
+      dataAttrs.navfrequencymode = navFrequencyMode;
+    }
+  }
+  return buildPanelListItem({
+    id: domId,
+    title: title,
+    subtitle: subtitle,
+    iconClass: 'gg-shape-circle kneeboard-list-item-icon',
+    data: dataAttrs
+  });
+}
+
+function getAirportTypeLabel(typeId) {
+  switch (typeId) {
+    case 0:
+      return "Airport (civil/military)";
+    case 1:
+      return "Glider Site";
+    case 2:
+      return "Airfield Civil";
+    case 3:
+      return "International Airport";
+    case 4:
+      return "Heliport Military";
+    case 5:
+      return "Military Aerodrome";
+    case 6:
+      return "Ultra Light Flying Site";
+    case 7:
+      return "Heliport Civil";
+    case 8:
+      return "Aerodrome Closed";
+    case 9:
+      return "Airport resp. Airfield IFR";
+    case 10:
+      return "Airfield Water";
+    case 11:
+      return "Landing Strip";
+    case 12:
+      return "Agricultural Landing Strip";
+    case 13:
+      return "Altiport";
+    default:
+      return "";
+  }
+}
+
+function getNavaidTypeLabel(typeId) {
+  switch (typeId) {
+    case 0:
+      return "DME";
+    case 1:
+      return "TACAN";
+    case 2:
+      return "NDB";
+    case 3:
+      return "VOR";
+    case 4:
+      return "VOR-DME";
+    case 5:
+      return "VORTAC";
+    case 6:
+      return "DVOR";
+    case 7:
+      return "DVOR-DME";
+    case 8:
+      return "DVORTAC";
+    default:
+      return "";
+  }
+}
+
+function listNavaids() {
+  var list = document.getElementById("controllerList");
+  var listRoot =
+    document.getElementById("controllerListUl") ||
+    (list ? list.querySelector("ul") : null);
+  var listSum = document.getElementById("controllerListSum");
+  if (!list || !listRoot) {
+    return;
+  }
+  list.style.display = "inline-block";
+  var htmlChunks = [];
+  var showMoreHtml = "";
+
+  if (airportsToggle == "airports") {
+    var optimalCount = calculateOptimalListCount();
+    navaidsCounter = optimalCount;
+    reportingPointsCounter = optimalCount;
+    if (airportsCounter < optimalCount) {
+      airportsCounter = optimalCount;
+    }
+    // Performance: Use for-loop with break instead of forEach (stops early)
+    var maxAirports = Math.min(airports.length, airportsCounter);
+    for (var airportsI = 0; airportsI < maxAirports; airportsI++) {
+      var element = airports[airportsI];
+      var lookupKey = ensureLookupKey(element.properties, "airport");
+      var domId = element.properties.lookupDomId || sanitizeDomId(lookupKey);
+      var lookupDomId = element.properties.lookupDomId || domId;
+      var typeLabel = getAirportTypeLabel(element.properties.type);
+      var title =
+        element.properties.icaoCode || element.properties.name || "Airport";
+      var subtitleParts = [];
+      if (element.properties.name && title !== element.properties.name) {
+        subtitleParts.push(element.properties.name);
+      }
+      if (typeLabel) {
+        subtitleParts.push(typeLabel);
+      }
+      htmlChunks.push(
+        buildStationListItem(
+          domId,
+          lookupDomId,
+          title,
+          subtitleParts.join(" - ")
+        )
+      );
+    }
+    if (airports.length > airportsCounter) {
+      showMoreHtml = '<span class="station2" onclick="moreAirports()">show&nbsp;more...</span>';
+    }
+  } else if (airportsToggle == "navaids") {
+    var optimalCount = calculateOptimalListCount();
+    airportsCounter = optimalCount;
+    reportingPointsCounter = optimalCount;
+    if (navaidsCounter < optimalCount) {
+      navaidsCounter = optimalCount;
+    }
+    // Performance: Use for-loop with break instead of forEach (stops early)
+    var maxNavaids = Math.min(navaids.length, navaidsCounter);
+    for (var navaidsI = 0; navaidsI < maxNavaids; navaidsI++) {
+      var element2 = navaids[navaidsI];
+      var lookupKey = ensureLookupKey(element2.properties, "navaid");
+      var domId = element2.properties.lookupDomId || sanitizeDomId(lookupKey);
+      var lookupDomId = element2.properties.lookupDomId || domId;
+      var navaidType = element2.properties.type;
+      var type = getNavaidTypeLabel(navaidType);
+      var title =
+        element2.properties.identifier ||
+        element2.properties.name ||
+        type ||
+        "Navaid";
+      var subtitle = type;
+      // Extract frequency for navaids - supports VOR, TACAN (NAV radio) and NDB (ADF radio)
+      var navFrequency = null;
+      var navFrequencyMode = null;
+      if (FREQ_DEBUG && navaidType === 2) {
+        console.log('[Frequency Menu] NDB navaid:', title, 'type:', navaidType, 'frequency:', JSON.stringify(element2.properties.frequency));
+      }
+      if (element2.properties.frequency && element2.properties.frequency.value) {
+        var freqUnit = element2.properties.frequency.unit;
+        if (FREQ_DEBUG) console.log('[Frequency Menu] Navaid', title, 'type:', navaidType, 'freqUnit:', freqUnit, 'freqValue:', element2.properties.frequency.value);
+        // VOR-based navaids (types 3-8) and TACAN (type 1) use NAV radio (MHz, unit=2)
+        if (freqUnit === 2 && (navaidType >= 3 && navaidType <= 8 || navaidType === 1)) {
+          navFrequency = element2.properties.frequency.value;
+          navFrequencyMode = 'nav';
+          if (FREQ_DEBUG) console.log('[Frequency Menu] -> VOR/TACAN mode for', title);
+        }
+        // NDB (type 2) uses ADF radio (kHz, unit=1)
+        else if (freqUnit === 1 && navaidType === 2) {
+          navFrequency = Math.ceil(element2.properties.frequency.value);
+          navFrequencyMode = 'adf';
+          if (FREQ_DEBUG) console.log('[Frequency Menu] -> NDB/ADF mode for', title, 'freq:', navFrequency);
+        }
+      }
+      htmlChunks.push(
+        buildStationListItem(domId, lookupDomId, title, subtitle, navFrequency, navFrequencyMode)
+      );
+    }
+    if (navaids.length > navaidsCounter) {
+      showMoreHtml = '<span class="station2" onclick="moreNavaids()">show&nbsp;more...</span>';
+    }
+  } else if (airportsToggle == "reportingPoints") {
+    var optimalCount = calculateOptimalListCount();
+    airportsCounter = optimalCount;
+    navaidsCounter = optimalCount;
+    if (reportingPointsCounter < optimalCount) {
+      reportingPointsCounter = optimalCount;
+    }
+    // Performance: Use for-loop with break instead of forEach (stops early)
+    var maxReportingPoints = Math.min(reportingPoints.length, reportingPointsCounter);
+    for (var reportingPointsI = 0; reportingPointsI < maxReportingPoints; reportingPointsI++) {
+      var element2 = reportingPoints[reportingPointsI];
+      var lookupKey = ensureLookupKey(element2.properties, "reportingPoint");
+      var domId = element2.properties.lookupDomId || sanitizeDomId(lookupKey);
+      var lookupDomId = element2.properties.lookupDomId || domId;
+      var titleRp = element2.properties.name || lookupKey;
+      var subtitleRp =
+        element2.properties.identifier || element2.properties.description || "";
+      htmlChunks.push(
+        buildStationListItem(domId, lookupDomId, titleRp, subtitleRp)
+      );
+    }
+    if (reportingPoints.length > reportingPointsCounter) {
+      showMoreHtml = '<span class="station2" onclick="moreReportingPoints()">show&nbsp;more...</span>';
+    }
+  }
+
+  listRoot.innerHTML = htmlChunks.join("");
+  if (listSum) {
+    listSum.innerHTML = showMoreHtml;
+    listSum.style.display = showMoreHtml ? "block" : "none";
+  }
+  attachStationListHandler();
+  // Re-attach long-press handlers after list re-render (for navaid items with frequencies)
+  attachNavaidLongPressHandlers(listRoot);
+}
+
+// Performance: Cache getBounds() results to avoid expensive recalculations
+var _cachedMapRadius = null;
+var _cachedMapRadiusCenter = null;
+var _cachedMapRadiusZoom = null;
+
+function getMapRadius() {
+  if (!map) return 100000; // Fallback 100km
+
+  // Cache radius calculation - only recalculate if center or zoom changed significantly
+  var currentCenter = map.getCenter();
+  var currentZoom = map.getZoom();
+
+  if (_cachedMapRadius !== null &&
+      _cachedMapRadiusZoom === currentZoom &&
+      _cachedMapRadiusCenter &&
+      Math.abs(_cachedMapRadiusCenter.lat - currentCenter.lat) < 0.01 &&
+      Math.abs(_cachedMapRadiusCenter.lng - currentCenter.lng) < 0.01) {
+    return _cachedMapRadius;
+  }
+
+  var mapBoundNorthEast = map.getBounds().getNorthEast();
+  var mapDistance = mapBoundNorthEast.distanceTo(currentCenter);
+
+  _cachedMapRadius = mapDistance;
+  _cachedMapRadiusCenter = currentCenter;
+  _cachedMapRadiusZoom = currentZoom;
+
+  return mapDistance;
+}
+
+var teleporting = false;
+
+// OPTIMIERT: Map-basierter Cache mit O(1) Lookup statt O(n) Array-Suche
+function createSpatialCache(maxEntries, ttlMs) {
+  var cache = new Map();
+  var accessOrder = [];  // Für LRU-Eviction
+
+  return {
+    get: function (key) {
+      if (!key) {
+        return null;
+      }
+      var entry = cache.get(key);
+      if (!entry) {
+        return null;
+      }
+      if (Date.now() - entry.timestamp > ttlMs) {
+        cache.delete(key);
+        var idx = accessOrder.indexOf(key);
+        if (idx !== -1) accessOrder.splice(idx, 1);
+        return null;
+      }
+      return entry.value;
+    },
+    set: function (key, value) {
+      if (!key) {
+        return;
+      }
+      var now = Date.now();
+      if (cache.has(key)) {
+        cache.set(key, { value: value, timestamp: now });
+        return;
+      }
+      if (cache.size >= maxEntries) {
+        var oldest = accessOrder.shift();
+        if (oldest) cache.delete(oldest);
+      }
+      cache.set(key, { value: value, timestamp: now });
+      accessOrder.push(key);
+    },
+  };
+}
+
+function buildSpatialCacheKey(lat, lng, radius) {
+  var zoom = map && typeof map.getZoom === "function" ? map.getZoom() : 0;
+  var latKey = Math.round(lat * 1000) / 1000;
+  var lngKey = Math.round(lng * 1000) / 1000;
+  var radiusKey = Math.round(radius / 500) * 500;
+  return latKey + "|" + lngKey + "|" + radiusKey + "|" + zoom;
+}
+
+function transformOpenAipItems(items, featureType) {
+  var result = [];
+  if (!items || !items.length) {
+    return result;
+  }
+  for (var i = 0; i < items.length; i++) {
+    var entity = items[i];
+    if (!entity || !entity.geometry) {
+      continue;
+    }
+    var feature = {
+      properties: entity,
+      type: "Feature",
+      geometry: entity.geometry,
+      mytype: featureType,
+    };
+    ensureLookupKey(feature.properties, featureType);
+    result.push(feature);
+  }
+  return result;
+}
+
+function cloneFeatureArray(features) {
+  return features && features.slice ? features.slice() : [];
+}
+
+function abortPendingOpenAipRequest(type) {
+  if (
+    openAipRequests[type] &&
+    typeof openAipRequests[type].abort === "function"
+  ) {
+    try {
+      openAipRequests[type].abort();
+    } catch (abortErr) {}
+  }
+  openAipRequests[type] = null;
+}
+
+function fetchOpenAipData(config) {
+  var lat = config.lat;
+  var lng = config.lng;
+  var type = config.type;
+  var endpoint = config.endpoint;
+  var transform = config.transform;
+  var render = config.render;
+
+  var radius = Math.round(getMapRadius());
+  var cacheKey = buildSpatialCacheKey(lat, lng, radius);
+  var cached = openAipCache[type].get(cacheKey);
+
+  if (cached) {
+    // Performance: Skip render if data hasn't changed (same cache key)
+    if (openAipLastRenderedKey[type] === cacheKey) {
+      // Data already rendered - just ensure layer visibility based on zoom
+      ensureLayerVisibility(type);
+      return;
+    }
+    openAipLastRenderedKey[type] = cacheKey;
+    render(cached);
+    return;
+  }
+
+  abortPendingOpenAipRequest(type);
+
+  // Generate unique sequence ID for this request
+  var sequenceId = (openAipRequestSequence[type] || 0) + 1;
+  openAipRequestSequence[type] = sequenceId;
+
+  var url = getOpenAipUrl(
+    endpoint + "?lat=" + encodeURIComponent(lat) +
+    "&lng=" + encodeURIComponent(lng) +
+    "&dist=" + encodeURIComponent(radius)
+  );
+
+  var xhr = new XMLHttpRequest();
+  openAipRequests[type] = xhr;
+  xhr.open("GET", url, true);
+  xhr.setRequestHeader("accept", "application/json");
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState !== 4) return;
+    openAipRequests[type] = null;
+    if (xhr.status < 200 || xhr.status >= 300) return;
+
+    // Only render if this is still the latest request
+    if (openAipRequestSequence[type] !== sequenceId) {
+      return;
+    }
+
+    try {
+      var json = JSON.parse(xhr.responseText);
+      var features = transformOpenAipItems(json.items, transform);
+      openAipCache[type].set(cacheKey, cloneFeatureArray(features));
+      openAipLastRenderedKey[type] = cacheKey;
+      render(features);
+    } catch (err) {
+      console.error("Failed to load " + type, err);
+    }
+  };
+  xhr.send(null);
+}
+
+// Performance: Just toggle layer visibility without rebuilding
+function ensureLayerVisibility(type) {
+  var zoomLevel = map ? map.getZoom() : 0;
+  var shouldShow = zoomLevel > 9;
+
+  if (type === 'airports' && airportMarkers) {
+    if (shouldShow && !map.hasLayer(airportMarkers)) {
+      airportMarkers.addTo(map);
+    } else if (!shouldShow && map.hasLayer(airportMarkers)) {
+      map.removeLayer(airportMarkers);
+    }
+  } else if (type === 'navaids' && navaidMarkers) {
+    if (shouldShow && !map.hasLayer(navaidMarkers)) {
+      navaidMarkers.addTo(map);
+    } else if (!shouldShow && map.hasLayer(navaidMarkers)) {
+      map.removeLayer(navaidMarkers);
+    }
+  } else if (type === 'reportingPoints' && reportingPointMarkers) {
+    if (shouldShow && !map.hasLayer(reportingPointMarkers)) {
+      reportingPointMarkers.addTo(map);
+    } else if (!shouldShow && map.hasLayer(reportingPointMarkers)) {
+      map.removeLayer(reportingPointMarkers);
+    }
+  }
+}
+
+function getWPData() {
+  var mapCenter = map.getCenter();
+  if (teleporting != true) {
+    getAirports(mapCenter.lat, mapCenter.lng);
+    getNavaids(mapCenter.lat, mapCenter.lng);
+    getReportingPoints(mapCenter.lat, mapCenter.lng);
+    if (controllerInterval) {
+      clearInterval(controllerInterval);
+      controllerInterval = null;
+    }
+  }
+}
+
+function renderAirportsLayer(featureCollection) {
+  var reopenLookupDomId = null;
+  if (
+    map &&
+    map._popup &&
+    map._popup._source &&
+    map._popup._source._lookupDomId
+  ) {
+    reopenLookupDomId = map._popup._source._lookupDomId;
+  }
+  var reopenMarker = null;
+  airports = cloneFeatureArray(featureCollection);
+
+  // PERFORMANCE: Baue ICAO-Index für schnellen O(1) Lookup beim Hover
+  // Das verhindert die langsame O(n) Array-Durchsuchung bei jedem Mouseover!
+  buildAirportIcaoIndex();
+
+  if (airportMarkers && map && map.hasLayer && map.hasLayer(airportMarkers)) {
+    map.removeLayer(airportMarkers);
+  }
+  airportMarkers = null;
+  var runwayLabels = "";
+  var airportElevation = "";
+  if (!airports.length) {
+    if (panelState == "airports") {
+      listNavaids();
+    }
+    return;
+  }
+  airportMarkers = L.geoJSON(airports, {
+    pointToLayer: function (feature, latlng) {
+      ensureLookupKey(feature.properties, "airport");
+      var lookupDomId =
+        feature.properties.lookupDomId ||
+        sanitizeDomId(feature.properties.lookupKey);
+      feature.properties.lookupDomId = lookupDomId;
+      var label = "";
+      var label2 = "";
+      var elevation = "";
+
+      if (feature.properties.icaoCode) {
+        label += String(feature.properties.icaoCode) + "<br>";
+        label2 += String(feature.properties.icaoCode) + "<br>";
+      }
+
+      if (feature.properties.name) {
+        label += String(feature.properties.name);
+        label2 += String(feature.properties.name) + "<br>";
+      }
+
+      var type = "";
+      if (feature.properties.type) {
+        switch (feature.properties.type) {
+          case 0:
+            type = "Airport (civil/military)";
+            break;
+          case 1:
+            type = "Glider Site";
+            break;
+          case 2:
+            type = "Airfield Civil";
+            break;
+          case 3:
+            type = "International Airport";
+            break;
+          case 4:
+            type = "Heliport Military";
+            break;
+          case 5:
+            type = "Military Aerodrome";
+            break;
+          case 6:
+            type = "Ultra Light Flying Site";
+            break;
+          case 7:
+            type = "Heliport Civil";
+            break;
+          case 8:
+            type = "Aerodrome Closed";
+            break;
+          case 9:
+            type = "Airport resp. Airfield IFR";
+            break;
+          case 10:
+            type = "Airfield Water";
+            break;
+          case 11:
+            type = "Landing Strip";
+            break;
+          case 12:
+            type = "Agricultural Landing Strip";
+            break;
+          case 13:
+            type = "Altiport";
+        }
+        label2 += String(type);
+      }
+
+      if (feature.properties.elevation && feature.properties.elevation.value) {
+        elevation = String(
+          Math.floor(feature.properties.elevation.value * 3.28084)
+        );
+      }
+
+      runwayLabels = "";
+      airportElevation = "";
+      airportElevation += elevation + "&apos;";
+      if (feature.properties.runways) {
+        $.each(feature.properties.runways, function (runway) {
+          runwayLabels +=
+            String(feature.properties.runways[runway].designator) +
+            "&nbsp;" +
+            "<br>";
+        });
+      }
+      const airportPopup = L.popup({
+        closeOnClick: false,
+        autoClose: true,
+      });
+
+      if (runwayLabels != "") {
+        airportPopup.setContent(
+          "<p style='font-size: 1rem'><br>" +
+            "<span style='color:var(--fontDark)'>" +
+            label +
+            "</span>" +
+            "</p><p style='font-size: 0.8rem'>" +
+            "<span style='color:var(--fontDark)'>" +
+            type +
+            "</span>" +
+            "<br></p><p style='font-size: 0.6rem'> Elevation:<br><span style='color:var(--fontDark)'>" +
+            airportElevation +
+            "</span>" +
+            "<br>Runways: <br>" +
+            "<span style='color:var(--fontDark)'>" +
+            runwayLabels +
+            "</span>" +
+            "</p><br><tr><td><span style='margin-top: 15px'><button style='margin-top:0px; text-align: center' class='marker-delete-button' onclick='showWaypointInsertMenuFromButton(event," +
+            latlng.lat +
+            "," +
+            latlng.lng +
+            ",\"airport\");'>&nbsp;Add WP&nbsp;</button></span></td></tr><br><tr><td><span style='margin-top: 15px'><button style='margin-top:10px; text-align: center' class='marker-delete-button' onclick='teleport(" +
+            latlng.lat +
+            "," +
+            latlng.lng +
+            ")' >&nbsp;Teleport&nbsp;</button></span></tr></td>"
+        );
+      } else {
+        airportPopup.setContent(
+          "<p style='font-size: 1rem'><br>" +
+            "<span style='color:var(--fontDark)'>" +
+            label +
+            "</span>" +
+            "</p><p style='font-size: 0.8rem'>" +
+            "<span style='color:var(--fontDark)'>" +
+            type +
+            "</span>" +
+            "<br></p><p style='font-size: 0.6rem'> Elevation:<br><span style='color:var(--fontDark)'>" +
+            airportElevation +
+            "</span>" +
+            "</p><br><tr><td><span style='margin-top: 15px'><button style='margin-top:0px; text-align: center' class='marker-delete-button' onclick='showWaypointInsertMenuFromButton(event," +
+            latlng.lat +
+            "," +
+            latlng.lng +
+            ",\"airport\");'>&nbsp;Add WP&nbsp;</button></span></td></tr><br><tr><td><span style='margin-top: 15px'><button style='margin-top:10px; text-align: center' class='marker-delete-button' onclick='teleport(" +
+            latlng.lat +
+            "," +
+            latlng.lng +
+            ")' >&nbsp;Teleport&nbsp;</button></span></tr></td>"
+        );
+      }
+
+      var marker = new L.CircleMarker(latlng, {
+        color: "transparent",
+        radius: 20,  // Increased from 14 for better click target
+        interactive: true,
+        bubblingMouseEvents: false
+      })
+        .bindPopup(airportPopup, { closeOnClick: false, autoClose: false })
+        .off('click')  // Remove Leaflet's automatic click handler
+        .bindTooltip(label2, { permanent: false })  // Performance: show on hover only, not permanent
+        .on("popupopen", onPopupOpenAirport)
+        .on("click", function(e) {
+          // Prevent Leaflet's default popup behavior
+          L.DomEvent.stopPropagation(e);
+          L.DomEvent.preventDefault(e);
+
+          // Skip toggle if this was a recent programmatic open
+          if (Date.now() - programmaticPopupTimestamp < 100) {
+            return;
+          }
+          // Toggle popup - if already open, close it; otherwise open it
+          if (this.isPopupOpen()) {
+            this.closePopup();
+          } else {
+            // Schließe alle offenen Popups bevor ein neues geöffnet wird
+            map.closePopup();
+            this.openPopup();
+          }
+        });
+      marker._lookupDomId = lookupDomId;
+      if (reopenLookupDomId && lookupDomId === reopenLookupDomId) {
+        reopenMarker = marker;
+      }
+      return marker;
+    },
+  });
+
+  if (map.getZoom() > 9) {
+    if (!map.hasLayer(airportMarkers)) {
+      airportMarkers.addTo(map);
+    }
+    if (reopenMarker && typeof reopenMarker.openPopup === "function") {
+      setTimeout(function () {
+        programmaticPopupTimestamp = Date.now();
+        reopenMarker.openPopup();
+      }, 0);
+    }
+  } else {
+    if (map.hasLayer(airportMarkers)) {
+      map.removeLayer(airportMarkers);
+    }
+  }
+  if (panelState == "airports") {
+    listNavaids();
+  }
+}
+
+function getAirports(lat, lng) {
+  fetchOpenAipData({
+    lat: lat,
+    lng: lng,
+    type: "airports",
+    endpoint: "/api/openaip/airports",
+    transform: "airport",
+    render: renderAirportsLayer
+  });
+}
+
+function renderNavaidsLayer(featureCollection) {
+  navaids = cloneFeatureArray(featureCollection);
+  if (navaidMarkers && map && map.hasLayer && map.hasLayer(navaidMarkers)) {
+    map.removeLayer(navaidMarkers);
+  }
+  navaidMarkers = null;
+  if (!navaids.length) {
+    if (panelState == "navaids") {
+      listNavaids();
+    }
+    return;
+  }
+  navaidMarkers = L.geoJSON(navaids, {
+    pointToLayer: function (feature, latlng) {
+      ensureLookupKey(feature.properties, "navaid");
+      var lookupDomId =
+        feature.properties.lookupDomId ||
+        sanitizeDomId(feature.properties.lookupKey);
+      feature.properties.lookupDomId = lookupDomId;
+      var headerParts = [];
+      if (feature.properties.identifier) {
+        headerParts.push(feature.properties.identifier);
+      }
+      if (feature.properties.name) {
+        headerParts.push(String(feature.properties.name));
+      }
+      var popupTitle = headerParts.length ? headerParts.join(" - ") : "Navaid";
+      var tooltipLabel = headerParts.length
+        ? headerParts.join(" - ")
+        : popupTitle;
+
+      var type = "";
+      if (feature.properties.type) {
+        switch (feature.properties.type) {
+          case 0:
+            type = "DME";
+            break;
+          case 1:
+            type = "TACAN";
+            break;
+          case 2:
+            type = "NDB";
+            break;
+          case 3:
+            type = "VOR";
+            break;
+          case 4:
+            type = "VOR-DME";
+            break;
+          case 5:
+            type = "VORTAC";
+            break;
+          case 6:
+            type = "DVOR";
+            break;
+          case 7:
+            type = "DVOR-DME";
+            break;
+          case 8:
+            type = "DVORTAC";
+            break;
+        }
+      }
+
+      var freqLine = "";
+      var freqValue = null;
+      var freqUnit = 0;
+      if (feature.properties.frequency && feature.properties.frequency.value) {
+        freqValue = feature.properties.frequency.value;
+        freqUnit = feature.properties.frequency.unit;
+        var unit = "";
+        if (freqUnit === 1) {
+          freqValue = Math.ceil(freqValue);
+          unit = "kHz";
+        } else if (freqUnit === 2) {
+          unit = "MHz";
+        }
+        if (unit) {
+          freqLine = freqValue + "&nbsp;" + unit;
+        }
+      }
+
+      var detailLines = [];
+      if (type) {
+        detailLines.push(type);
+      }
+      if (freqLine) {
+        detailLines.push(freqLine);
+      }
+      var detailHtml = detailLines.length
+        ? "<p style='font-size: 0.8rem'>" +
+          detailLines.join("<br>") +
+          "<br></p>"
+        : "";
+
+      // Frequency button for navaids - NAV for VOR (MHz), ADF for NDB (kHz)
+      var navButtonHtml = "";
+      if (freqValue !== null) {
+        // Escape single quotes in popupTitle for use in onclick attribute
+        var escapedTitle = popupTitle.replace(/'/g, "\\'");
+        if (freqUnit === 2) {
+          // VOR-based navaids (MHz) - use NAV radio
+          navButtonHtml = "<tr><td><button style='margin-top:10px; text-align: center' class='marker-delete-button' onclick='showNavFrequencyMenu(event," + freqValue + ",\"" + escapedTitle + "\")'>&nbsp;Set NAV&nbsp;</button></td></tr>";
+        } else if (freqUnit === 1) {
+          // NDB navaids (kHz) - use ADF radio
+          navButtonHtml = "<tr><td><button style='margin-top:10px; text-align: center' class='marker-delete-button' onclick='showAdfFrequencyMenu(event," + freqValue + ",\"" + escapedTitle + "\")'>&nbsp;Set ADF&nbsp;</button></td></tr>";
+        }
+      }
+
+      const navaidPopup = L.popup({
+        closeOnClick: false,
+        autoClose: true,
+      });
+      navaidPopup.setContent(
+        "<p style='font-size: 1rem'><br>" +
+          popupTitle +
+          "</p>" +
+          detailHtml +
+          navButtonHtml +
+          "<tr><td><button style='margin-top:10px; text-align: center' class='marker-delete-button' onclick='showWaypointInsertMenuFromButton(event," +
+          latlng.lat +
+          "," +
+          latlng.lng +
+          ",\"navaid\");'>&nbsp;Add WP&nbsp;</button></td></tr>" +
+          "<tr><td><button style='margin-top:10px; text-align: center' class='marker-delete-button' onclick='teleport(" +
+          latlng.lat +
+          "," +
+          latlng.lng +
+          ")'>&nbsp;Teleport&nbsp;</button></td></tr>"
+      );
+      var marker = new L.CircleMarker(latlng, {
+        color: "transparent",
+        radius: 20,  // Increased from 14 for better click target
+        interactive: true,
+        bubblingMouseEvents: false
+      })
+        .bindPopup(navaidPopup)
+        .off('click')  // Remove Leaflet's automatic click handler
+        .bindTooltip(tooltipLabel, { permanent: false })  // Performance: show on hover only, not permanent
+        .on("popupopen", onPopupOpenNavaid)
+        .on("click", function(e) {
+          // Prevent Leaflet's default popup behavior
+          L.DomEvent.stopPropagation(e);
+          L.DomEvent.preventDefault(e);
+
+          // Skip toggle if this was a recent programmatic open
+          if (Date.now() - programmaticPopupTimestamp < 100) {
+            return;
+          }
+          // Toggle popup - if already open, close it; otherwise open it
+          if (this.isPopupOpen()) {
+            this.closePopup();
+          } else {
+            // Schließe alle offenen Popups bevor ein neues geöffnet wird
+            map.closePopup();
+            this.openPopup();
+          }
+        });
+      marker._lookupDomId = lookupDomId;
+      return marker;
+    },
+  });
+
+  if (map.getZoom() > 9) {
+    if (!map.hasLayer(navaidMarkers)) {
+      navaidMarkers.addTo(map);
+    }
+  } else {
+    if (map.hasLayer(navaidMarkers)) {
+      map.removeLayer(navaidMarkers);
+    }
+  }
+
+  if (panelState == "navaids") {
+    listNavaids();
+  }
+}
+
+function getNavaids(lat, lng) {
+  fetchOpenAipData({
+    lat: lat,
+    lng: lng,
+    type: "navaids",
+    endpoint: "/api/openaip/navaids",
+    transform: "navaid",
+    render: renderNavaidsLayer
+  });
+}
+
+function renderReportingPointsLayer(featureCollection) {
+  reportingPoints = cloneFeatureArray(featureCollection);
+  if (
+    reportingPointMarkers &&
+    map &&
+    map.hasLayer &&
+    map.hasLayer(reportingPointMarkers)
+  ) {
+    map.removeLayer(reportingPointMarkers);
+  }
+  reportingPointMarkers = null;
+  if (!reportingPoints.length) {
+    if (panelState == "reportingPoints") {
+      listNavaids();
+    }
+    return;
+  }
+  reportingPointMarkers = L.geoJSON(reportingPoints, {
+    pointToLayer: function (feature, latlng) {
+      ensureLookupKey(feature.properties, "reportingPoint");
+      var lookupDomId =
+        feature.properties.lookupDomId ||
+        sanitizeDomId(feature.properties.lookupKey);
+      feature.properties.lookupDomId = lookupDomId;
+      var headerParts = [];
+      if (feature.properties.name) {
+        headerParts.push(String(feature.properties.name));
+      }
+      if (feature.properties.identifier) {
+        headerParts.push(String(feature.properties.identifier));
+      }
+      var popupTitle = headerParts.length
+        ? headerParts.join(" - ")
+        : "Reporting Point";
+      var tooltipLabel = headerParts.length
+        ? headerParts.join(" - ")
+        : popupTitle;
+
+      var detailLines = [];
+      if (feature.properties.description) {
+        detailLines.push(feature.properties.description);
+      }
+      if (feature.properties.frequency && feature.properties.frequency.value) {
+        detailLines.push("Freq: " + feature.properties.frequency.value);
+      }
+      var detailHtml = detailLines.length
+        ? "<p style='font-size: 0.8rem'>" +
+          detailLines.join("<br>") +
+          "<br></p>"
+        : "";
+
+      const reportingPointPopup = L.popup({
+        closeOnClick: false,
+        autoClose: true,
+      });
+      reportingPointPopup.setContent(
+        "<p style='font-size: 1rem'><br>" +
+          popupTitle +
+          "</p>" +
+          detailHtml +
+          "<br><tr><td><span style='margin-top: 15px'><button style='margin-top:0px; text-align: center' class='marker-delete-button' onclick='showWaypointInsertMenuFromButton(event," +
+          latlng.lat +
+          "," +
+          latlng.lng +
+          ",\"navaid\");'>&nbsp;Add WP&nbsp;</button></span></td></tr><br><tr><td><span style='margin-top: 15px'><button style='margin-top:10px; text-align: center' class='marker-delete-button' onclick='teleport(" +
+          latlng.lat +
+          "," +
+          latlng.lng +
+          ")' >&nbsp;Teleport&nbsp;</button></span></tr></td>"
+      );
+      return new L.CircleMarker(latlng, {
+        color: "transparent",
+        radius: 20,  // Increased from 14 for better click target
+        interactive: true,
+        bubblingMouseEvents: false
+      })
+        .bindPopup(reportingPointPopup)
+        .off('click')  // Remove Leaflet's automatic click handler
+        .bindTooltip(tooltipLabel, { permanent: false })  // Performance: show on hover only, not permanent
+        .on("popupopen", onPopupOpenReportingPoint)
+        .on("click", function(e) {
+          // Prevent Leaflet's default popup behavior
+          L.DomEvent.stopPropagation(e);
+          L.DomEvent.preventDefault(e);
+
+          // Skip toggle if this was a recent programmatic open
+          if (Date.now() - programmaticPopupTimestamp < 100) {
+            return;
+          }
+          // Toggle popup - if already open, close it; otherwise open it
+          if (this.isPopupOpen()) {
+            this.closePopup();
+          } else {
+            // Schließe alle offenen Popups bevor ein neues geöffnet wird
+            map.closePopup();
+            this.openPopup();
+          }
+        });
+    },
+  });
+
+  if (map.getZoom() > 9) {
+    if (!map.hasLayer(reportingPointMarkers)) {
+      reportingPointMarkers.addTo(map);
+    }
+  } else {
+    if (map.hasLayer(reportingPointMarkers)) {
+      map.removeLayer(reportingPointMarkers);
+    }
+  }
+  if (panelState == "reportingPoints") {
+    listNavaids();
+  }
+}
+
+function getReportingPoints(lat, lng) {
+  fetchOpenAipData({
+    lat: lat,
+    lng: lng,
+    type: "reportingPoints",
+    endpoint: "/api/openaip/reporting-points",
+    transform: "reportingPoint",
+    render: renderReportingPointsLayer
+  });
+}
+
+function onPopupOpenAirport(e) {
+  tempWPName = this.feature.properties.name;
+  if (this.feature.properties.icaoCode) {
+    tempWPName = this.feature.properties.icaoCode;
+  }
+  // Get airport elevation in feet
+  if (this.feature.properties.elevation && this.feature.properties.elevation.value) {
+    tempWPElevation = Math.floor(this.feature.properties.elevation.value * 3.28084);
+  } else {
+    tempWPElevation = 0;
+  }
+  tempWPNavFrequency = null; // Airports don't have NAV frequencies
+  switch (this.feature.properties.type) {
+    case 0:
+      tempWPType = "Airport (civil/military)";
+      break;
+    case 1:
+      tempWPType = "Glider Site";
+      break;
+    case 2:
+      tempWPType = "Airfield Civil";
+      break;
+    case 3:
+      tempWPType = "International Airport";
+      break;
+    case 4:
+      tempWPType = "Heliport Military";
+      break;
+    case 5:
+      tempWPType = "Military Aerodrome";
+      break;
+    case 6:
+      tempWPType = "Ultra Light Flying Site";
+      break;
+    case 7:
+      tempWPType = "Heliport Civil";
+      break;
+    case 8:
+      tempWPType = "Aerodrome Closed";
+      break;
+    case 9:
+      tempWPType = "Airport resp. Airfield IFR";
+      break;
+    case 10:
+      tempWPType = "Airfield Water";
+      break;
+    case 11:
+      tempWPType = "Landing Strip";
+      break;
+    case 12:
+      tempWPType = "Agricultural Landing Strip";
+      break;
+    case 13:
+      tempWPType = "Altiport";
+  }
+  polylinepoints = [];
+  polyline = [];
+  follow = false;
+  toggle.enable();
+  if (map.hasLayer(polyline)) {
+    map.removeLayer(polyline);
+  }
+}
+
+function onPopupOpenNavaid(e) {
+  tempWPName = this.feature.properties.identifier;
+  tempWPElevation = 0; // Navaids don't have elevation for waypoint purposes
+  tempWPNavFrequency = null; // Reset NAV frequency
+  var navaidType = this.feature.properties.type;
+  switch (navaidType) {
+    case 0:
+      tempWPType = "DME";
+      break;
+    case 1:
+      tempWPType = "TACAN";
+      break;
+    case 2:
+      tempWPType = "NDB";
+      break;
+    case 3:
+      tempWPType = "VOR";
+      break;
+    case 4:
+      tempWPType = "VOR-DME";
+      break;
+    case 5:
+      tempWPType = "VORTAC";
+      break;
+    case 6:
+      tempWPType = "DVOR";
+      break;
+    case 7:
+      tempWPType = "DVOR-DME";
+      break;
+    case 8:
+      tempWPType = "DVORTAC";
+  }
+  var frequency = this.feature.properties.frequency.value;
+  var freqUnit;
+  switch (this.feature.properties.frequency.unit) {
+    case 1:
+      freqUnit = "kHz";
+      frequency = Math.ceil(frequency);
+      break;
+    case 2:
+      freqUnit = "MHz";
+      // Store NAV frequency for VOR-based navaids (types 3-8)
+      if (navaidType >= 3 && navaidType <= 8) {
+        tempWPNavFrequency = this.feature.properties.frequency.value;
+      }
+  }
+  tempWPType += "&nbsp;" + frequency + "&nbsp;" + freqUnit;
+  polylinepoints = [];
+  polyline = [];
+  follow = false;
+  toggle.enable();
+  if (map.hasLayer(polyline)) {
+    map.removeLayer(polyline);
+  }
+}
+
+function onPopupOpenReportingPoint(e) {
+  tempWPName = this.feature.properties.name;
+  tempWPElevation = 0; // Reporting points don't have elevation for waypoint purposes
+  tempWPNavFrequency = null; // Reporting points don't have NAV frequencies
+  tempWPType = "reportingPoint";
+  polylinepoints = [];
+  polyline = [];
+  follow = false;
+  toggle.enable();
+  if (map.hasLayer(polyline)) {
+    map.removeLayer(polyline);
+  }
+}
+
+// Get ground elevation for a single point (returns elevation in meters)
+async function getGroundElevationForPoint(lat, lng) {
+  try {
+    console.log('[getGroundElevationForPoint] Requesting elevation for:', lat, lng);
+    var results = await getElevationData([[lat, lng]]);
+    console.log('[getGroundElevationForPoint] Results:', results);
+    if (results && results.length > 0 && results[0].elevation !== undefined) {
+      console.log('[getGroundElevationForPoint] Returning elevation:', results[0].elevation, 'meters');
+      return results[0].elevation; // Returns meters
+    }
+    console.log('[getGroundElevationForPoint] No valid elevation in results');
+  } catch (error) {
+    console.warn('[getGroundElevationForPoint] Error:', error);
+  }
+  return null;
+}
+
+function appendWaypoint(lat, lng) {
+  var activePopup =
+    map && map._popup && map._popup._source && map._popup._map
+      ? map._popup
+      : null;
+
+  // Check if this is an airport type
+  var isAirportType = tempWPType && (
+    tempWPType.toLowerCase().indexOf("airport") !== -1 ||
+    tempWPType.toLowerCase().indexOf("airfield") !== -1 ||
+    tempWPType.toLowerCase().indexOf("aerodrome") !== -1 ||
+    tempWPType.toLowerCase().indexOf("heliport") !== -1 ||
+    tempWPType.toLowerCase().indexOf("altiport") !== -1 ||
+    tempWPType.toLowerCase().indexOf("landing") !== -1 ||
+    tempWPType.toLowerCase().indexOf("glider") !== -1 ||
+    tempWPType.toLowerCase().indexOf("ultra light") !== -1
+  );
+
+  var currentTempWPElevation = tempWPElevation; // Capture current value
+  var capturedTempWPName = tempWPName; // Capture for async callback
+  var capturedTempWPType = tempWPType; // Capture for async callback
+
+  // Determine altitude based on waypoint type:
+  // - Airport: use airport elevation (even if 0)
+  // - Non-airport: ground elevation + 1000 ft
+
+  if (isAirportType) {
+    // Airport - use airport elevation directly
+    var airportAltitude = currentTempWPElevation || 0;
+    if (MAP_DEBUG) console.log('[appendWaypoint] Airport waypoint, using elevation:', airportAltitude, 'ft');
+    wpNames.push(capturedTempWPName);
+    wpTypes.push(capturedTempWPType);
+    altitudes.push(String(airportAltitude));
+    finishAppendWaypoint(lat, lng, activePopup);
+  } else {
+    // Non-airport - FIRST fetch ground elevation, THEN create waypoint
+    console.log('[appendWaypoint] Non-airport waypoint, fetching ground elevation for:', lat, lng);
+    getGroundElevationForPoint(lat, lng).then(function(groundElevMeters) {
+      console.log('[appendWaypoint] Ground elevation received:', groundElevMeters, 'meters');
+      var altitudeFeet = 1000; // Default fallback
+      if (groundElevMeters !== null && groundElevMeters !== undefined) {
+        altitudeFeet = Math.round(groundElevMeters * 3.28084) + 1000; // Ground + 1000 ft
+      }
+      console.log('[appendWaypoint] Setting altitude to:', altitudeFeet, 'ft (ground + 1000)');
+      // Now push all arrays with correct altitude
+      wpNames.push(capturedTempWPName);
+      wpTypes.push(capturedTempWPType);
+      altitudes.push(String(altitudeFeet));
+      finishAppendWaypoint(lat, lng, activePopup);
+    }).catch(function(err) {
+      console.error('[appendWaypoint] Error fetching elevation:', err);
+      // Fallback: create waypoint with 1000 ft
+      wpNames.push(capturedTempWPName);
+      wpTypes.push(capturedTempWPType);
+      altitudes.push("1000");
+      finishAppendWaypoint(lat, lng, activePopup);
+    });
+  }
+}
+
+function finishAppendWaypoint(lat, lng, activePopup) {
+  atbls.push("");
+  var targetIndex = wpNames.length - 1;
+  nextWaypointInsertIndex = targetIndex;
+  nextWaypointUseExisting = true;
+  var latlngPoint = new L.LatLng(lat, lng);
+  map.fire("contextmenu", {
+    latlng: latlngPoint,
+    synthetic: true,
+  });
+  wpNum++;
+
+  if (activePopup && activePopup._source && activePopup._map) {
+    setTimeout(function () {
+      try {
+        programmaticPopupTimestamp = Date.now();
+        activePopup._source.openPopup();
+      } catch (err) {}
+    }, 0);
+  }
+}
+// ============================================================================
+// OVERLAY RESIZE FUNCTIONALITY
+// ============================================================================
+(function initOverlayResize() {
+  var elevationRedrawPending = false;
+
+  var configs = {
+    overlay: {
+      element: null,
+      handle: null,
+      minWidth: 200,
+      maxWidth: 600,
+      isResizing: false,
+      startX: 0,
+      startWidth: 0,
+      isRightAligned: true,
+      isVertical: false
+    },
+    controller: {
+      element: null,
+      handle: null,
+      minWidth: 200,
+      maxWidth: 600,
+      isResizing: false,
+      startX: 0,
+      startWidth: 0,
+      isRightAligned: false,
+      isVertical: false
+    },
+    metar: {
+      element: null,
+      handle: null,
+      minWidth: 220,
+      maxWidth: 600,
+      isResizing: false,
+      startX: 0,
+      startWidth: 0,
+      isRightAligned: false,
+      isVertical: false
+    },
+    elevationProfile: {
+      element: null,
+      handle: null,
+      minHeight: function() { return window.innerHeight * ELEVATION_PANEL_MIN_HEIGHT_RATIO; },
+      maxHeight: function() { return window.innerHeight * 0.8; }, // 80% of viewport
+      isResizing: false,
+      startY: 0,
+      startHeight: 0,
+      isVertical: true
+    }
+  };
+
+  function onMouseMove(e) {
+    // Debug: Log that onMouseMove is called
+    if (MAP_DEBUG && (configs.overlay.isResizing || configs.controller.isResizing || configs.metar.isResizing || configs.elevationProfile.isResizing)) {
+      console.log('[Map] onMouseMove called - elevation.isResizing:', configs.elevationProfile.isResizing);
+    }
+
+    var config = null;
+    var isElevationResizing = false;
+
+    if (configs.overlay.isResizing) {
+      config = configs.overlay;
+    } else if (configs.controller.isResizing) {
+      config = configs.controller;
+    } else if (configs.metar.isResizing) {
+      config = configs.metar;
+    } else if (configs.elevationProfile.isResizing) {
+      config = configs.elevationProfile;
+      isElevationResizing = true;
+      if (MAP_DEBUG) console.log('[Map] onMouseMove - Elevation resizing detected!');
+    }
+
+    if (!config) {
+      if (MAP_DEBUG && (configs.overlay.isResizing || configs.controller.isResizing || configs.metar.isResizing || configs.elevationProfile.isResizing)) {
+        console.log('[Map] onMouseMove - NO config found despite isResizing flags!');
+      }
+      return;
+    }
+
+    e.preventDefault();
+
+    if (config.isVertical) {
+      // Vertical resizing (height)
+      var deltaY = e.clientY - config.startY;
+      var newHeight = config.startHeight - deltaY;
+
+      var minH = typeof config.minHeight === 'function' ? config.minHeight() : config.minHeight;
+      var maxH = typeof config.maxHeight === 'function' ? config.maxHeight() : config.maxHeight;
+      if (newHeight < minH) newHeight = minH;
+      if (newHeight > maxH) newHeight = maxH;
+
+      if (MAP_DEBUG && isElevationResizing) console.log('[Map] Setting elevation height to:', newHeight, 'element:', config.element.id);
+      // CRITICAL: Use setProperty with priority 'important' to override flex layout!
+      config.element.style.setProperty('height', newHeight + 'px', 'important');
+      config.element.style.setProperty('flex', '0 0 auto', 'important');
+
+      // Redraw elevation canvas during resize - throttle to max once per 100ms
+      if (isElevationResizing && typeof redrawElevationCanvas === 'function') {
+        var now = Date.now();
+        if (!window.lastElevationRedraw || now - window.lastElevationRedraw > 100) {
+          window.lastElevationRedraw = now;
+          var canvas = document.getElementById('elevationCanvas');
+          var section = config.element;
+          if (canvas && section) {
+            // Calculate canvas height from section height minus header and info bar
+            var sectionRect = section.getBoundingClientRect();
+            var header = section.querySelector('.elevation-profile-header');
+            var info = section.querySelector('.elevation-info');
+            var headerHeight = header ? header.offsetHeight : 50;
+            var infoHeight = info ? info.offsetHeight : 30;
+            var canvasHeight = Math.max(50, sectionRect.height - headerHeight - infoHeight);
+            var canvasWidth = sectionRect.width;
+
+            if (canvasWidth > 0 && canvasHeight > 0) {
+              canvas.width = Math.floor(canvasWidth);
+              canvas.height = Math.floor(canvasHeight);
+              elevationCtx = canvas.getContext('2d');
+              redrawElevationCanvas(true);
+            }
+          }
+        }
+      }
+
+      if (MAP_DEBUG && isElevationResizing) console.log('[Map] After setting - element.style.height:', config.element.style.height);
+    } else {
+      // Horizontal resizing (width)
+      var deltaX = e.clientX - config.startX;
+      var newWidth;
+
+      if (config.isRightAligned) {
+        newWidth = config.startWidth - deltaX;
+      } else {
+        newWidth = config.startWidth + deltaX;
+      }
+
+      if (newWidth < config.minWidth) newWidth = config.minWidth;
+      if (newWidth > config.maxWidth) newWidth = config.maxWidth;
+
+      config.element.style.width = newWidth + 'px';
+    }
+  }
+
+  function onMouseEnd() {
+    var wasElevationResizing = configs.elevationProfile.isResizing;
+    var wasAnyResizing = configs.overlay.isResizing || configs.controller.isResizing ||
+                          configs.metar.isResizing || configs.elevationProfile.isResizing;
+
+    if (configs.overlay.isResizing) {
+      configs.overlay.isResizing = false;
+    }
+    if (configs.controller.isResizing) {
+      configs.controller.isResizing = false;
+    }
+    if (configs.metar.isResizing) {
+      configs.metar.isResizing = false;
+    }
+    if (configs.elevationProfile.isResizing) {
+      configs.elevationProfile.isResizing = false;
+      // Re-enable CSS transition after resize
+      if (configs.elevationProfile.element) {
+        configs.elevationProfile.element.style.transition = '';
+      }
+    }
+
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+
+    // Redraw elevation profile after resize (force=true to skip throttling)
+    if (wasElevationResizing && typeof redrawElevationCanvas === 'function') {
+      redrawElevationCanvas(true);
+    }
+
+    // Auto-save settings after resize
+    if (wasAnyResizing && typeof window.mapSettings !== 'undefined' && window.mapSettings.save) {
+      setTimeout(function() {
+        window.mapSettings.save();
+      }, 100);
+    }
+  }
+
+  function onTouchMove(e) {
+    var config = null;
+    var isElevationResizing = false;
+
+    if (configs.overlay.isResizing) {
+      config = configs.overlay;
+    } else if (configs.controller.isResizing) {
+      config = configs.controller;
+    } else if (configs.metar.isResizing) {
+      config = configs.metar;
+    } else if (configs.elevationProfile.isResizing) {
+      config = configs.elevationProfile;
+      isElevationResizing = true;
+    }
+
+    if (!config) return;
+
+    e.preventDefault();
+
+    if (config.isVertical) {
+      // Vertical resizing (height)
+      var clientY = e.touches[0].clientY;
+      var deltaY = clientY - config.startY;
+      var newHeight = config.startHeight - deltaY;
+
+      var minH = typeof config.minHeight === 'function' ? config.minHeight() : config.minHeight;
+      var maxH = typeof config.maxHeight === 'function' ? config.maxHeight() : config.maxHeight;
+      if (newHeight < minH) newHeight = minH;
+      if (newHeight > maxH) newHeight = maxH;
+
+      config.element.style.setProperty('height', newHeight + 'px', 'important');
+      config.element.style.setProperty('flex', '0 0 auto', 'important');
+
+      // Redraw elevation canvas during resize
+      if (isElevationResizing && typeof redrawElevationCanvas === 'function') {
+        if (!elevationRedrawPending) {
+          elevationRedrawPending = true;
+          requestAnimationFrame(function() {
+            // Force layout reflow first
+            var wrapper = document.querySelector('.elevation-canvas-wrapper');
+            if (wrapper) {
+              void wrapper.offsetHeight; // Force reflow
+              var wrapperRect = wrapper.getBoundingClientRect();
+              if (wrapperRect.width > 0 && wrapperRect.height > 0 && elevationCanvas) {
+                elevationCanvas.width = Math.floor(wrapperRect.width);
+                elevationCanvas.height = Math.floor(wrapperRect.height);
+                elevationCtx = elevationCanvas.getContext('2d');
+              }
+            }
+            redrawElevationCanvas(true);
+            elevationRedrawPending = false;
+          });
+        }
+      }
+    } else {
+      // Horizontal resizing (width)
+      var clientX = e.touches[0].clientX;
+      var deltaX = clientX - config.startX;
+      var newWidth;
+
+      if (config.isRightAligned) {
+        newWidth = config.startWidth - deltaX;
+      } else {
+        newWidth = config.startWidth + deltaX;
+      }
+
+      if (newWidth < config.minWidth) newWidth = config.minWidth;
+      if (newWidth > config.maxWidth) newWidth = config.maxWidth;
+
+      config.element.style.width = newWidth + 'px';
+    }
+  }
+
+  function onTouchEnd() {
+    var wasElevationResizing = configs.elevationProfile.isResizing;
+    var wasAnyResizing = configs.overlay.isResizing || configs.controller.isResizing ||
+                          configs.metar.isResizing || configs.elevationProfile.isResizing;
+
+    if (configs.overlay.isResizing) {
+      configs.overlay.isResizing = false;
+    }
+    if (configs.controller.isResizing) {
+      configs.controller.isResizing = false;
+    }
+    if (configs.metar.isResizing) {
+      configs.metar.isResizing = false;
+    }
+    if (configs.elevationProfile.isResizing) {
+      configs.elevationProfile.isResizing = false;
+    }
+
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+
+    // Remove touch listeners when done to not block map interactions
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
+
+    // Redraw elevation profile after resize (force=true to skip throttling)
+    if (wasElevationResizing && typeof redrawElevationCanvas === 'function') {
+      redrawElevationCanvas(true);
+    }
+
+    // Auto-save settings after resize
+    if (wasAnyResizing && typeof window.mapSettings !== 'undefined' && window.mapSettings.save) {
+      setTimeout(function() {
+        window.mapSettings.save();
+      }, 100);
+    }
+  }
+
+  function setupResizeHandle(config) {
+    if (!config.element || !config.handle) return;
+
+    function startMouseResize(e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (MAP_DEBUG) console.log('[Map] startMouseResize called for element:', config.element.id);
+
+      config.isResizing = true;
+
+      if (MAP_DEBUG) console.log('[Map] Set config.isResizing = true, checking globals:', {
+        overlay: configs.overlay.isResizing,
+        controller: configs.controller.isResizing,
+        metar: configs.metar.isResizing,
+        elevation: configs.elevationProfile.isResizing
+      });
+
+      if (config.isVertical) {
+        config.startY = e.clientY;
+        config.startHeight = config.element.offsetHeight;
+        document.body.style.cursor = 'ns-resize';
+      } else {
+        config.startX = e.clientX;
+        config.startWidth = config.element.offsetWidth;
+        document.body.style.cursor = 'ew-resize';
+      }
+
+      document.body.style.userSelect = 'none';
+    }
+
+    function startTouchResize(e) {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      e.stopPropagation();
+
+      config.isResizing = true;
+
+      if (config.isVertical) {
+        config.startY = e.touches[0].clientY;
+        config.startHeight = config.element.offsetHeight;
+        document.body.style.cursor = 'ns-resize';
+      } else {
+        config.startX = e.touches[0].clientX;
+        config.startWidth = config.element.offsetWidth;
+        document.body.style.cursor = 'ew-resize';
+      }
+
+      document.body.style.userSelect = 'none';
+
+      // Only add touch listeners when starting a resize
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+    }
+
+    // Double-click/tap handler for elevation profile to toggle collapsed state
+    if (config.element.id === 'elevationProfileSection') {
+      // Manual double-click detection for mouse
+      var lastMouseUp = 0;
+      var mouseDownTime = 0;
+
+      // COMBINED mousedown handler for BOTH resize AND double-click detection
+      config.handle.addEventListener('mousedown', function(e) {
+        mouseDownTime = Date.now();
+        if (MAP_DEBUG) console.log('[Map] Mousedown on elevation grabbar at:', mouseDownTime);
+
+        // Also start resize (from startMouseResize function)
+        e.preventDefault();
+        e.stopPropagation();
+
+        // CRITICAL: If collapsed, remove collapsed class so wrapper becomes visible for resize!
+        var wrapper = document.querySelector('.elevation-canvas-wrapper');
+        if (wrapper && wrapper.classList.contains('collapsed')) {
+          wrapper.classList.remove('collapsed');
+          config.element.classList.remove('elevation-collapsed');
+          elevationCanvasCollapsed = false;
+          // Force reflow so wrapper gets its dimensions
+          void wrapper.offsetHeight;
+        }
+
+        // CRITICAL: Set isResizing on the GLOBAL configs object, not the local config!
+        configs.elevationProfile.isResizing = true;
+
+        // CRITICAL: Disable CSS transition during resize for instant feedback!
+        config.element.style.transition = 'none';
+
+        if (config.isVertical) {
+          configs.elevationProfile.startY = e.clientY;
+          configs.elevationProfile.startHeight = config.element.offsetHeight;
+          document.body.style.cursor = 'ns-resize';
+          if (MAP_DEBUG) console.log('[Map] VERTICAL resize started, startY:', configs.elevationProfile.startY, 'startHeight:', configs.elevationProfile.startHeight, 'isResizing:', configs.elevationProfile.isResizing);
+        } else {
+          configs.elevationProfile.startX = e.clientX;
+          configs.elevationProfile.startWidth = config.element.offsetWidth;
+          document.body.style.cursor = 'ew-resize';
+        }
+        document.body.style.userSelect = 'none';
+      });
+    } else {
+      // For non-elevation panels, use the normal startMouseResize handler
+      config.handle.addEventListener('mousedown', startMouseResize);
+    }
+
+    // Touch events for EFB
+    config.handle.addEventListener('touchstart', startTouchResize, { passive: false });
+
+    // Continue with mouseup handler for elevation profile double-click detection
+    if (config.element.id === 'elevationProfileSection') {
+      config.handle.addEventListener('mouseup', function(e) {
+        var now = Date.now();
+        var clickDuration = now - mouseDownTime;
+        var timeSinceLastClick = now - lastMouseUp;
+
+        if (MAP_DEBUG) console.log('[Map] Mouseup - clickDuration:', clickDuration, 'timeSinceLastClick:', timeSinceLastClick);
+
+        // Only count as click if it was quick (< 200ms) and not a drag
+        if (clickDuration < 200) {
+          if (MAP_DEBUG) console.log('[Map] Quick click detected');
+          // Double-click detected if two clicks within 400ms
+          if (timeSinceLastClick < 400 && timeSinceLastClick > 0) {
+            if (MAP_DEBUG) console.log('[Map] Double-click detected on elevation profile grabbar - calling toggle');
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Cancel any ongoing resize to prevent unwanted panning
+            // Reset ALL panel resize states, not just elevation
+            configs.overlay.isResizing = false;
+            configs.controller.isResizing = false;
+            configs.metar.isResizing = false;
+            configs.elevationProfile.isResizing = false;
+
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+
+            toggleElevationCanvas();
+            lastMouseUp = 0; // Reset to prevent triple-click triggering
+          } else {
+            if (MAP_DEBUG) console.log('[Map] First click, waiting for second');
+            lastMouseUp = now;
+          }
+        } else {
+          if (MAP_DEBUG) console.log('[Map] Click too slow, probably a drag');
+        }
+      });
+
+      // Touch double-tap detection
+      var lastTouchEnd = 0;
+      var touchStartTime = 0;
+
+      config.handle.addEventListener('touchstart', function(e) {
+        touchStartTime = Date.now();
+      }, { passive: true });
+
+      config.handle.addEventListener('touchend', function(e) {
+        var now = Date.now();
+        var tapDuration = now - touchStartTime;
+        var timeSinceLastTap = now - lastTouchEnd;
+
+        // Only count as tap if it was quick (< 200ms)
+        if (tapDuration < 200) {
+          // Double-tap detected if two taps within 400ms
+          if (timeSinceLastTap < 400 && timeSinceLastTap > 0) {
+            if (MAP_DEBUG) console.log('[Map] Double-tap detected on elevation profile grabbar');
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Cancel any ongoing resize to prevent unwanted panning
+            // Reset ALL panel resize states, not just elevation
+            configs.overlay.isResizing = false;
+            configs.controller.isResizing = false;
+            configs.metar.isResizing = false;
+            configs.elevationProfile.isResizing = false;
+
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+
+            // Remove touch listeners since we're stopping propagation
+            // (prevents them from staying attached after double-tap)
+            document.removeEventListener('touchmove', onTouchMove);
+            document.removeEventListener('touchend', onTouchEnd);
+
+            toggleElevationCanvas();
+            lastTouchEnd = 0; // Reset to prevent triple-tap triggering
+          } else {
+            lastTouchEnd = now;
+          }
+        }
+      }, { passive: false });
+    }
+
+    // Debug-Log
+    if (MAP_DEBUG) console.log('Resize handle setup for:', config.element.id, 'Handle found:', !!config.handle);
+  }
+
+  var initialized = false;
+
+  function initializeResize() {
+    if (initialized) return;
+
+    // Overlay setup
+    configs.overlay.element = document.getElementById('overlay');
+    if (configs.overlay.element) {
+      configs.overlay.handle = configs.overlay.element.querySelector('.resize-handle');
+      setupResizeHandle(configs.overlay);
+    }
+
+    // Controller setup
+    configs.controller.element = document.getElementById('controllerContainer');
+    if (configs.controller.element) {
+      configs.controller.handle = configs.controller.element.querySelector('.resize-handle');
+      setupResizeHandle(configs.controller);
+    }
+
+    // Metar panel setup
+    configs.metar.element = document.getElementById('metarContainer');
+    if (configs.metar.element) {
+      configs.metar.handle = configs.metar.element.querySelector('.resize-handle');
+      setupResizeHandle(configs.metar);
+    }
+
+    // Elevation Profile setup
+    configs.elevationProfile.element = document.getElementById('elevationProfileSection');
+    if (configs.elevationProfile.element) {
+      configs.elevationProfile.handle = configs.elevationProfile.element.querySelector('.resize-handle');
+      setupResizeHandle(configs.elevationProfile);
+    }
+
+    var overlayFound = !!configs.overlay.element && !!configs.overlay.handle;
+    var controllerFound = !!configs.controller.element && !!configs.controller.handle;
+    var metarFound = !!configs.metar.element && !!configs.metar.handle;
+    var elevationProfileFound = !!configs.elevationProfile.element && !!configs.elevationProfile.handle;
+
+    if (MAP_DEBUG) console.log('Resize check - Overlay:', overlayFound, 'Controller:', controllerFound, 'Metar:', metarFound, 'ElevationProfile:', elevationProfileFound);
+
+    // Wenn mindestens einer gefunden, als initialisiert markieren
+    if (overlayFound || controllerFound || metarFound || elevationProfileFound) {
+      initialized = true;
+      if (MAP_DEBUG) console.log('Resize functionality initialized successfully');
+    }
+  }
+
+  // Mouse listeners are now added/removed dynamically, same pattern as touch events
+  // This prevents the bug where listeners were removed after first use
+
+  // MutationObserver um auf dynamisch geladene Elemente zu warten
+  var observer = new MutationObserver(function(mutations) {
+    if (initialized) {
+      observer.disconnect();
+      return;
+    }
+
+    // Pr�fen ob unsere Elemente jetzt existieren
+    var overlay = document.getElementById('overlay');
+    var controller = document.getElementById('controllerContainer');
+    var metar = document.getElementById('metarContainer');
+    var elevationProfile = document.getElementById('elevationProfileSection');
+
+    if (overlay || controller || metar || elevationProfile) {
+      initializeResize();
+      if (initialized) {
+        observer.disconnect();
+      }
+    }
+  });
+
+  // Observer starten
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+
+  // Auch direkt versuchen (falls Elemente schon da sind)
+  initializeResize();
+
+  // Fallback: Periodisch prüfen
+  var checkInterval = setInterval(function() {
+    if (initialized) {
+      clearInterval(checkInterval);
+      return;
+    }
+    initializeResize();
+  }, 500);
+
+  // Nach 10 Sekunden aufhören zu prüfen
+  setTimeout(function() {
+    clearInterval(checkInterval);
+    observer.disconnect();
+  }, 10000);
+
+  // Globale Event Listener nur f�r Mouse (Touch wird dynamisch hinzugef�gt/entfernt)
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseEnd);
+
+  // Expose re-initialization function for page reload/tab switch
+  window.reinitializePanelResizeHandles = function() {
+    if (MAP_DEBUG) console.log('[Map] Re-initializing panel resize handles...');
+    // Reset initialized flag to allow re-initialization of elevation profile resize
+    initialized = false;
+    initializeResize();
+    // Also reinitialize kneeboard panels
+    initializePanelResize();
+    if (MAP_DEBUG) console.log('[Map] Panel resize handles re-initialized successfully');
+  };
+})();
+
+// ============================================
+// ELEVATION PROFILE SECTION
+// ============================================
+
+var elevationCanvas = null;
+var elevationCtx = null;
+var elevationProfileLayer = null;
+var elevationProfileOffLayer = null;
+var elevationProfileVisible = false;
+var elevationProfileUserClosed = false; // Tracks if user manually closed the panel (via close button)
+var elevationCanvasCollapsed = false;
+var elevationSavedHeight = null; // Store height before collapsing
+var elevationLastToggleTime = 0; // Prevent double-toggle
+
+// Zoom state for elevation profile
+var elevationZoom = {
+  scale: 1.0,
+  offsetX: 0,
+  offsetY: 0,
+  isDragging: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  startOffsetX: 0,
+  startOffsetY: 0
+};
+
+// Store waypoint click areas for interaction
+var elevationWaypointClickAreas = [];
+
+// Store current aircraft position for elevation profile indicator
+var aircraftPositionOnRoute = null; // { distance: number, altitude: number }
+
+// Cache for elevation profile data (to avoid reloading on zoom/pan)
+var cachedElevationData = {
+  groundElevations: null,
+  waypointData: null,
+  distances: null,
+  usingFallbackData: false
+};
+
+// Throttling for canvas redraw during zoom/pan
+var lastRedrawTime = 0;
+var redrawThrottle = 16; // 60 FPS (1000ms / 60 = 16.67ms)
+
+// Update aircraft position indicator on elevation profile
+function updateAircraftPositionOnRoute(lat, lng, alt) {
+  // if (MAP_DEBUG) console.log('[Map] updateAircraftPositionOnRoute called - lat:', lat, 'lng:', lng, 'alt:', alt);
+  // Need at least 2 waypoints to calculate position along route
+  var waypointLayers = getWaypointLayersSorted();
+  // if (MAP_DEBUG) console.log('[Map] waypointLayers.length:', waypointLayers.length);
+  if (waypointLayers.length < 2) {
+    aircraftPositionOnRoute = null;
+    if (MAP_DEBUG) console.log('[Map] Not enough waypoints, setting aircraftPositionOnRoute to null');
+    return;
+  }
+
+  // Build route coordinates - filter out invalid coordinates
+  var routeCoords = [];
+  waypointLayers.forEach(function(layer) {
+    var latlng = layer.getLatLng();
+    // Only add valid coordinates (not NaN)
+    if (latlng && !isNaN(latlng.lat) && !isNaN(latlng.lng)) {
+      routeCoords.push([latlng.lat, latlng.lng]);
+    }
+  });
+
+  // Need at least 2 valid waypoints after filtering
+  if (routeCoords.length < 2) {
+    aircraftPositionOnRoute = null;
+    console.log('[Map] Not enough valid waypoints after filtering, setting aircraftPositionOnRoute to null');
+    return;
+  }
+
+  // Find closest point on route and calculate distance along route
+  var minDistance = Infinity;
+  var closestSegmentIndex = -1;
+  var closestPointOnSegment = null;
+  var closestT = 0;
+  var aircraftLatLng = [lat, lng];
+
+  // Check each segment of the route
+  for (var i = 0; i < routeCoords.length - 1; i++) {
+    var segmentStart = routeCoords[i];
+    var segmentEnd = routeCoords[i + 1];
+
+    // Find closest point on this segment
+    var result = getClosestPointOnSegment(aircraftLatLng, segmentStart, segmentEnd);
+    var distToSegment = map.distance(aircraftLatLng, result.point);
+
+    if (distToSegment < minDistance) {
+      minDistance = distToSegment;
+      closestSegmentIndex = i;
+      closestPointOnSegment = result.point;
+      closestT = result.t;
+    }
+  }
+
+  // Calculate total distance along route to the closest point
+  var distanceAlongRoute = 0;
+  for (var i = 0; i < closestSegmentIndex; i++) {
+    distanceAlongRoute += map.distance(routeCoords[i], routeCoords[i + 1]);
+  }
+  // Add distance from segment start to closest point
+  if (closestPointOnSegment) {
+    var segmentStart = routeCoords[closestSegmentIndex];
+    var segmentEnd = routeCoords[closestSegmentIndex + 1];
+    var segmentLength = map.distance(segmentStart, segmentEnd);
+
+    // Use t value to get signed distance along segment
+    // If t < 0 and we're on first segment, distance will be negative
+    if (closestSegmentIndex === 0 && closestT < 0) {
+      distanceAlongRoute = closestT * segmentLength;
+    } else {
+      distanceAlongRoute += closestT * segmentLength;
+    }
+  }
+
+  // Hide marker if aircraft is too far from the route (perpendicular distance)
+  // Reduced threshold from 50nm to 10nm to hide marker when aircraft is far from route
+  var maxDistanceFromRoute = 18520; // 10nm in meters
+  if (minDistance > maxDistanceFromRoute) {
+    aircraftPositionOnRoute = null;
+    console.log('[Map] *** Aircraft', (minDistance / 1852).toFixed(1), 'nm from route - HIDING MARKER ***');
+    return;
+  }
+
+  // Determine altitude to use
+  var altitudeToUse = alt;
+
+  // If no live data, use ground elevation at aircraft position
+  if (!window.aircraftPositionInitialized) {
+    // Get ground elevation from cached elevation data if available
+    var distNm = distanceAlongRoute / 1852; // Convert meters to nautical miles
+    if (cachedElevationData.groundElevations && cachedElevationData.distances) {
+      var groundElevMeters = interpolateGroundElevation(distNm, cachedElevationData.groundElevations, cachedElevationData.distances);
+      altitudeToUse = groundElevMeters * 3.28084; // Convert meters to feet
+      if (MAP_DEBUG) console.log('[Map] No live data - using ground elevation:', groundElevMeters, 'm =', altitudeToUse.toFixed(0), 'ft');
+    }
+  }
+
+  // Store position (altitude in feet)
+  aircraftPositionOnRoute = {
+    distance: distanceAlongRoute,
+    altitude: altitudeToUse
+  };
+  if (MAP_DEBUG) console.log('[Map] aircraftPositionOnRoute set to:', aircraftPositionOnRoute);
+
+  // Redraw elevation profile if visible
+  if (MAP_DEBUG) console.log('[Map] elevationProfileVisible:', elevationProfileVisible, 'cachedElevationData.groundElevations:', !!cachedElevationData.groundElevations);
+  if (elevationProfileVisible && cachedElevationData.groundElevations) {
+    if (MAP_DEBUG) console.log('[Map] Calling redrawElevationCanvas()');
+    redrawElevationCanvas();
+  }
+}
+
+// Helper function to find closest point on a line segment
+// Returns { point: [lat, lng], t: number }
+// t < 0: before segment start, t > 1: after segment end, 0 <= t <= 1: on segment
+function getClosestPointOnSegment(point, segmentStart, segmentEnd) {
+  // point, segmentStart, segmentEnd are [lat, lng]
+  // Use lng as x (east-west) and lat as y (north-south)
+  var px = point[1], py = point[0];
+  var ax = segmentStart[1], ay = segmentStart[0];
+  var bx = segmentEnd[1], by = segmentEnd[0];
+
+  var atob = { x: bx - ax, y: by - ay };
+  var atop = { x: px - ax, y: py - ay };
+  var len = atob.x * atob.x + atob.y * atob.y;
+  var dot = atop.x * atob.x + atop.y * atob.y;
+  var t = dot / len;
+  var tClamped = Math.min(1, Math.max(0, t));
+
+  // Return [lat, lng] and unclamped t value
+  return {
+    point: [ay + atob.y * tClamped, ax + atob.x * tClamped],
+    t: t
+  };
+}
+
+// Get ground elevation at a specific distance along the route (interpolated)
+// Returns elevation in FEET
+function getGroundElevationAtDistance(distanceMeters) {
+  if (!cachedElevationData.groundElevations || !cachedElevationData.distances) {
+    return null;
+  }
+
+  var distances = cachedElevationData.distances; // in nautical miles
+  var elevations = cachedElevationData.groundElevations; // objects with { elevation: meters }
+
+  // Convert distance from meters to nautical miles
+  var distanceNM = distanceMeters * 0.000539957;
+
+  // Handle edge cases
+  if (distanceNM <= 0) {
+    var elev = elevations[0];
+    var elevMeters = (typeof elev === 'object' && elev.elevation !== undefined) ? elev.elevation : elev;
+    return Math.round(elevMeters * 3.28084); // Convert meters to feet
+  }
+
+  var totalDistance = distances[distances.length - 1];
+  if (distanceNM >= totalDistance) {
+    var elev = elevations[elevations.length - 1];
+    var elevMeters = (typeof elev === 'object' && elev.elevation !== undefined) ? elev.elevation : elev;
+    return Math.round(elevMeters * 3.28084); // Convert meters to feet
+  }
+
+  // Find the two points to interpolate between
+  for (var i = 0; i < distances.length - 1; i++) {
+    if (distanceNM >= distances[i] && distanceNM <= distances[i + 1]) {
+      // Get elevation values (handle both object and number format)
+      var elev1 = elevations[i];
+      var elev2 = elevations[i + 1];
+      var elevMeters1 = (typeof elev1 === 'object' && elev1.elevation !== undefined) ? elev1.elevation : elev1;
+      var elevMeters2 = (typeof elev2 === 'object' && elev2.elevation !== undefined) ? elev2.elevation : elev2;
+
+      // Linear interpolation
+      var t = (distanceNM - distances[i]) / (distances[i + 1] - distances[i]);
+      var elevationMeters = elevMeters1 + t * (elevMeters2 - elevMeters1);
+
+      // Convert meters to feet and return
+      return Math.round(elevationMeters * 3.28084);
+    }
+  }
+
+  return null;
+}
+
+// Show elevation profile section
+function showElevationProfile() {
+  // EARLY RETURN: Don't show when controller mode is active
+  // Prüfe sowohl moverX als auch die tatsächliche Panel-Sichtbarkeit
+  var controllerEl = document.getElementById('controllerContainer');
+  var controllerVisible = controllerEl && controllerEl.style.visibility === 'visible';
+
+  if (moverX || controllerVisible) {
+    console.log('[Map] BLOCKED showElevationProfile - moverX=' + moverX + ', controllerVisible=' + controllerVisible);
+    return;
+  }
+
+  // EARLY RETURN: Don't show during flightplan animation/UI sequence
+  if (window.flightplanAnimationInProgress || window.flightplanUISequenceInProgress) {
+    if (MAP_DEBUG) console.log('[Map] Deferring elevation profile - animation/UI sequence in progress');
+    return;
+  }
+
+  // Check if we have at least 2 waypoints
+  var waypointLayers = getWaypointLayersSorted();
+  if (waypointLayers.length < 2) {
+    if (MAP_DEBUG) console.log('[Map] Cannot show elevation profile: need at least 2 waypoints');
+    hideElevationProfile();
+    return;
+  }
+
+  var section = document.getElementById('elevationProfileSection');
+  if (section) {
+    section.style.display = 'block';
+    elevationProfileVisible = true;
+    elevationProfileUserClosed = false; // Reset user-closed state when showing
+
+    // WICHTIG: Wenn Flugplan geladen wird, collapsed-Zustand zurücksetzen!
+    // Der Canvas soll beim Einblenden immer sichtbar sein
+    var wrapper = document.querySelector('.elevation-canvas-wrapper');
+    if (wrapper) {
+      wrapper.classList.remove('collapsed');
+      section.classList.remove('elevation-collapsed');
+      elevationCanvasCollapsed = false;
+      // Minimize button zurücksetzen
+      var minimizeBtn = document.getElementById('elevationMinimize');
+      if (minimizeBtn) minimizeBtn.innerHTML = '_';
+      if (MAP_DEBUG) console.log('[Map] Reset collapsed state when showing elevation profile');
+    }
+
+    // Set default height if not set or too small
+    var currentHeight = parseInt(section.style.height) || 0;
+    var minHeight = window.innerHeight * ELEVATION_PANEL_MIN_HEIGHT_RATIO;
+    if (currentHeight < minHeight || elevationCanvasCollapsed) {
+      var defaultHeight = minHeight;
+      section.style.setProperty('height', defaultHeight + 'px', 'important');
+      section.style.setProperty('flex', '0 0 auto', 'important');
+      if (MAP_DEBUG) console.log('[Map] Set default elevation panel height:', defaultHeight);
+    }
+
+    // Ensure resize handle is initialized
+    if (window.reinitializePanelResizeHandles) {
+      setTimeout(window.reinitializePanelResizeHandles, 100);
+    }
+
+    // Get canvas reference if not already set
+    if (!elevationCanvas) {
+      elevationCanvas = document.getElementById('elevationCanvas');
+      // Initialize zoom interactions once
+      initElevationZoom();
+    }
+
+    // Setup wrapper and canvas - use setTimeout to ensure layout is calculated
+    setTimeout(function() {
+      var wrapperInner = document.querySelector('.elevation-canvas-wrapper');
+      if (MAP_DEBUG) console.log('[Map] showElevationProfile - wrapper found:', !!wrapperInner, 'canvas found:', !!elevationCanvas);
+      if (wrapperInner && elevationCanvas) {
+        // Force browser to recalculate layout first
+        void wrapperInner.offsetHeight;
+
+        // Calculate canvas dimensions from section minus header and info bar
+        var sectionRect = section.getBoundingClientRect();
+        var header = section.querySelector('.elevation-profile-header');
+        var info = section.querySelector('.elevation-info');
+        var headerHeight = header ? header.offsetHeight : 50;
+        var infoHeight = info ? info.offsetHeight : 35;
+        var canvasHeight = Math.max(100, sectionRect.height - headerHeight - infoHeight);
+        var canvasWidth = Math.floor(sectionRect.width);
+
+        if (canvasWidth > 0 && canvasHeight > 0) {
+          elevationCanvas.width = canvasWidth;
+          elevationCanvas.height = Math.floor(canvasHeight);
+          elevationCtx = elevationCanvas.getContext('2d');
+          if (MAP_DEBUG) console.log('[Map] Canvas pixel dimensions set:', elevationCanvas.width, 'x', elevationCanvas.height);
+        }
+      } else {
+        console.error('[Map] Wrapper or canvas not found!');
+      }
+    }, 50);
+
+    // Reset zoom when showing
+    elevationZoom.scale = 1.0;
+    elevationZoom.offsetX = 0;
+    elevationZoom.offsetY = 0;
+
+    // Trigger map resize and update elevation profile (ohne setTimeout)
+    if (map) {
+      map.invalidateSize({ pan: false });
+      // Re-center on aircraft if follow mode is active AND no animation running
+      if (follow && !window.flightplanAnimationInProgress && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+        map.setView(new L.LatLng(pos_lat, pos_lng));
+      }
+    }
+
+    // Use requestAnimationFrame to ensure layout is recalculated
+    requestAnimationFrame(function() {
+      updateElevationProfile();
+      // Update aircraft position on elevation profile (uses ground elevation if no live data)
+      if (typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+        updateAircraftPositionOnRoute(pos_lat, pos_lng, altitude || 0);
+      }
+    });
+  }
+}
+
+// Hide elevation profile section
+// userAction: true if user manually closed via close button, false for programmatic hide
+function hideElevationProfile(userAction) {
+  var section = document.getElementById('elevationProfileSection');
+  if (section) {
+    section.style.display = 'none';
+    elevationProfileVisible = false;
+
+    // Track if user manually closed the panel
+    if (userAction === true) {
+      elevationProfileUserClosed = true;
+    }
+
+    // Trigger map resize (ohne setTimeout)
+    if (map) {
+      map.invalidateSize({ pan: false });
+      // Re-center on aircraft if follow mode is active AND no animation running
+      if (follow && !window.flightplanAnimationInProgress && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+        map.setView(new L.LatLng(pos_lat, pos_lng));
+      }
+    }
+  }
+}
+
+// Minimize/Maximize elevation profile panel - uses same logic as double-click on header
+function minimizeElevationProfile() {
+  // Use the existing toggle function
+  toggleElevationCanvas();
+
+  // Update button text based on state
+  var minimizeBtn = document.getElementById('elevationMinimize');
+  if (minimizeBtn) {
+    minimizeBtn.innerHTML = elevationCanvasCollapsed ? '+' : '_';
+  }
+}
+
+// Toggle elevation canvas collapsed/expanded state
+function toggleElevationCanvas() {
+  var now = Date.now();
+  // Prevent double-toggle within 100ms
+  if (now - elevationLastToggleTime < 100) {
+    if (MAP_DEBUG) console.log('[Map] Toggle called too soon, ignoring');
+    return;
+  }
+  elevationLastToggleTime = now;
+
+  var section = document.getElementById('elevationProfileSection');
+  var wrapper = document.querySelector('.elevation-canvas-wrapper');
+
+  if (!section || !wrapper) return;
+
+  elevationCanvasCollapsed = !elevationCanvasCollapsed;
+
+  // Handler f�r das Ende der CSS-Transition
+  var transitionHandler = function(e) {
+    // Nur auf die relevante Property reagieren
+    if (e.propertyName !== 'height' && e.propertyName !== 'max-height') return;
+    section.removeEventListener('transitionend', transitionHandler);
+
+    // Map resize nach Transition
+    if (map) {
+      map.invalidateSize({ pan: false });
+    }
+
+    // Canvas neu zeichnen wenn expanded
+    if (!elevationCanvasCollapsed && typeof redrawElevationCanvas === 'function') {
+      redrawElevationCanvas();
+    }
+
+    // Save state
+    if (typeof window.mapSettings !== 'undefined' && window.mapSettings.save) {
+      window.mapSettings.save();
+    }
+  };
+
+  section.addEventListener('transitionend', transitionHandler);
+
+  // Update minimize button text
+  var minimizeBtn = document.getElementById('elevationMinimize');
+
+  if (elevationCanvasCollapsed) {
+    // Collapse: Save current height and hide canvas, show only header + summary bar
+    elevationSavedHeight = section.style.height || section.offsetHeight + 'px';
+    wrapper.classList.add('collapsed');
+    section.classList.add('elevation-collapsed');
+    // Height = header (50px) + summary bar (40px) = 90px
+    section.style.setProperty('height', '70px', 'important');
+    if (minimizeBtn) {
+      minimizeBtn.innerHTML = '+';
+    }
+    if (MAP_DEBUG) console.log('[Map] Elevation canvas collapsed to 70px, minimizeBtn:', minimizeBtn ? 'found' : 'NOT FOUND');
+  } else {
+    // Expand: Restore height and show canvas
+    wrapper.classList.remove('collapsed');
+    section.classList.remove('elevation-collapsed');
+    if (elevationSavedHeight) {
+      section.style.setProperty('height', elevationSavedHeight, 'important');
+    }
+    if (minimizeBtn) {
+      minimizeBtn.innerHTML = '_';
+    }
+    if (MAP_DEBUG) console.log('[Map] Elevation canvas expanded, minimizeBtn:', minimizeBtn ? 'found' : 'NOT FOUND');
+
+    // Recalculate canvas dimensions and redraw after expansion
+    setTimeout(function() {
+      // Force layout recalc
+      void section.offsetHeight;
+      // Calculate canvas dimensions from section minus header and info bar
+      var sectionRect = section.getBoundingClientRect();
+      var header = section.querySelector('.elevation-profile-header');
+      var info = section.querySelector('.elevation-info');
+      var headerHeight = header ? header.offsetHeight : 50;
+      var infoHeight = info ? info.offsetHeight : 35;
+      var canvasHeight = Math.max(50, sectionRect.height - headerHeight - infoHeight);
+      var canvasWidth = Math.floor(sectionRect.width);
+
+      if (canvasWidth > 0 && canvasHeight > 0 && elevationCanvas) {
+        elevationCanvas.width = canvasWidth;
+        elevationCanvas.height = Math.floor(canvasHeight);
+        elevationCtx = elevationCanvas.getContext('2d');
+      }
+      if (typeof redrawElevationCanvas === 'function') {
+        redrawElevationCanvas(true);
+      }
+    }, 350); // Wait for transition to complete
+  }
+
+  // Trigger map resize
+  setTimeout(function() {
+    if (map) {
+      map.invalidateSize();
+    }
+  }, 350);
+
+  // Save state
+  if (typeof window.mapSettings !== 'undefined' && window.mapSettings.save) {
+    setTimeout(function() {
+      window.mapSettings.save();
+    }, 400);
+  }
+}
+
+// Reset elevation profile zoom
+function resetElevationZoom() {
+  elevationZoom.scale = 1.0;
+  elevationZoom.offsetX = 0;
+  elevationZoom.offsetY = 0;
+  updateElevationProfile();
+}
+
+// Initialize elevation profile zoom interactions
+function initElevationZoom() {
+  if (!elevationCanvas) return;
+
+  // Mouse wheel zoom
+  addTrackedEventListener(elevationCanvas, 'wheel', function(e) {
+    e.preventDefault();
+
+    var rect = elevationCanvas.getBoundingClientRect();
+    var mouseX = e.clientX - rect.left;
+    var mouseY = e.clientY - rect.top;
+
+    // Zoom factor
+    var zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+    var newScale = elevationZoom.scale * zoomFactor;
+
+    // Limit zoom range
+    if (newScale < 1.0) newScale = 1.0;
+    if (newScale > 10.0) newScale = 10.0;
+
+    // Adjust offset to zoom towards mouse position
+    if (newScale !== elevationZoom.scale) {
+      elevationZoom.offsetX = mouseX - (mouseX - elevationZoom.offsetX) * (newScale / elevationZoom.scale);
+      elevationZoom.offsetY = mouseY - (mouseY - elevationZoom.offsetY) * (newScale / elevationZoom.scale);
+      elevationZoom.scale = newScale;
+      redrawElevationCanvas();
+    }
+  }, { passive: false });
+
+  // Mouse down - start drag
+  addTrackedEventListener(elevationCanvas, 'mousedown', function(e) {
+    if (elevationZoom.scale > 1.0) {
+      elevationZoom.isDragging = true;
+      elevationZoom.dragStartX = e.clientX;
+      elevationZoom.dragStartY = e.clientY;
+      elevationZoom.startOffsetX = elevationZoom.offsetX;
+      elevationZoom.startOffsetY = elevationZoom.offsetY;
+      elevationCanvas.style.cursor = 'grabbing';
+    }
+  });
+
+  // Mouse move - drag
+  addTrackedEventListener(elevationCanvas, 'mousemove', function(e) {
+    if (elevationZoom.isDragging) {
+      var dx = e.clientX - elevationZoom.dragStartX;
+      var dy = e.clientY - elevationZoom.dragStartY;
+      elevationZoom.offsetX = elevationZoom.startOffsetX + dx;
+      elevationZoom.offsetY = elevationZoom.startOffsetY + dy;
+      redrawElevationCanvas();
+    } else if (elevationZoom.scale > 1.0) {
+        elevationCanvas.style.cursor = 'grab';
+    } else {
+        elevationCanvas.style.cursor = 'default';
+    }
+  });
+
+  // Mouse up - end drag
+  addTrackedEventListener(elevationCanvas, 'mouseup', function(e) {
+    elevationZoom.isDragging = false;
+    elevationCanvas.style.cursor = elevationZoom.scale > 1.0 ? 'grab' : 'default';
+  });
+
+  // Mouse leave - end drag
+  addTrackedEventListener(elevationCanvas, 'mouseleave', function(e) {
+    elevationZoom.isDragging = false;
+    elevationCanvas.style.cursor = 'default';
+  });
+
+  // Double click - reset zoom
+  addTrackedEventListener(elevationCanvas, 'dblclick', function(e) {
+    resetElevationZoom();
+  });
+
+  // Click - check for waypoint clicks
+  addTrackedEventListener(elevationCanvas, 'click', function(e) {
+    // Don't process clicks if we were dragging
+    if (elevationZoom.isDragging) {
+      if (MAP_DEBUG) console.log('[Map] Click ignored - was dragging');
+      return;
+    }
+
+    var rect = elevationCanvas.getBoundingClientRect();
+    var mouseX = e.clientX - rect.left;
+    var mouseY = e.clientY - rect.top;
+
+    if (MAP_DEBUG) console.log('[Map] Elevation canvas click at:', mouseX, mouseY);
+    if (MAP_DEBUG) console.log('[Map] Click areas count:', elevationWaypointClickAreas.length);
+
+    // No transformation needed - click areas are already in screen space
+    // since xScale() and yScale() now apply the zoom transformation
+
+    // Check if click is near any waypoint
+    for (var i = 0; i < elevationWaypointClickAreas.length; i++) {
+      var wp = elevationWaypointClickAreas[i];
+      var dx = mouseX - wp.x;
+      var dy = mouseY - wp.y;
+      var distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance <= wp.radius) {
+        // Found a waypoint click - open its popup
+        if (MAP_DEBUG) console.log('[Map] Waypoint click detected - waypointIndex:', wp.waypointIndex);
+        var waypointLayers = getWaypointLayersSorted();
+        if (MAP_DEBUG) console.log('[Map] Waypoint layers count:', waypointLayers.length);
+
+        if (waypointLayers[wp.waypointIndex]) {
+          var layer = waypointLayers[wp.waypointIndex];
+          if (MAP_DEBUG) console.log('[Map] Opening popup for waypoint', wp.waypointIndex);
+          // Only open popup if it's not already open
+          if (!layer.isPopupOpen()) {
+            programmaticPopupTimestamp = Date.now();
+            layer.openPopup();
+          }
+        } else {
+          console.warn('[Map] No layer found at index', wp.waypointIndex, '(total layers:', waypointLayers.length + ')');
+        }
+        break;
+      }
+    }
+  });
+}
+
+// Get elevation data from Open-Elevation API via proxy with caching
+async function getElevationData(coordinates) {
+  if (!coordinates || coordinates.length === 0) {
+    return [];
+  }
+
+  try {
+    // Limit to 100 points for API
+    var step = Math.max(1, Math.floor(coordinates.length / 100));
+    var sampledCoords = [];
+    for (var i = 0; i < coordinates.length; i += step) {
+      sampledCoords.push(coordinates[i]);
+    }
+    // Ensure last point is always included
+    var lastIdx = coordinates.length - 1;
+    if (lastIdx > 0 && sampledCoords.length > 0 && sampledCoords[sampledCoords.length - 1] !== coordinates[lastIdx]) {
+      sampledCoords.push(coordinates[lastIdx]);
+    }
+
+    var locations = sampledCoords.map(function(coord) {
+      return {
+        latitude: coord[0],
+        longitude: coord[1]
+      };
+    });
+
+    // Create cache key from coordinate hash
+    var cacheKey = 'elevation_' + JSON.stringify(locations).split('').reduce(function(a, b) {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+
+    // Check cache first (7 day TTL)
+    try {
+      var cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        var cacheData = JSON.parse(cached);
+        var cacheAge = Date.now() - cacheData.timestamp;
+        if (cacheAge < 7 * 24 * 60 * 60 * 1000) { // 7 days in milliseconds
+          if (MAP_DEBUG) console.log('Using cached elevation data');
+          // Validate cached data - first elevation should be reasonable (> 0 for most places)
+          if (cacheData.results && cacheData.results.length > 0 && cacheData.results[0].elevation !== undefined) {
+            return cacheData.results;
+          } else {
+            console.log('Cached elevation data invalid, refetching');
+            localStorage.removeItem(cacheKey);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Cache read error:', e);
+    }
+
+    // Use proxy endpoint to avoid CORS
+    var response = await fetch('/api/elevation', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ locations: locations })
+    });
+
+    if (!response.ok) {
+      console.warn('Elevation API returned:', response.status);
+      return null;
+    }
+
+    var data = await response.json();
+
+    // Cache the results
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({
+        timestamp: Date.now(),
+        results: data.results
+      }));
+    } catch (e) {
+      console.warn('Cache write error:', e);
+    }
+
+    return data.results;
+  } catch (error) {
+    console.error('Error fetching elevation data:', error);
+    return null;
+  }
+}
+
+// Calculate distance along route
+function calculateRouteDistances(coordinates) {
+  var distances = [0];
+  var totalDistance = 0;
+
+  for (var i = 1; i < coordinates.length; i++) {
+    var dist = map.distance(coordinates[i - 1], coordinates[i]);
+    totalDistance += dist;
+    distances.push(totalDistance);
+  }
+
+  // Convert from meters to nautical miles for consistency
+  return distances.map(d => d * 0.000539957);
+}
+
+// Throttled canvas redraw (for zoom/pan)
+function redrawElevationCanvas(force) {
+  // Skip throttling if force=true (e.g., during resize)
+  if (!force) {
+    var now = Date.now();
+    if (now - lastRedrawTime < redrawThrottle) {
+      return; // Skip this redraw, too soon
+    }
+    lastRedrawTime = now;
+  }
+
+  // WICHTIG: Zuerst collapsed-Klasse entfernen!
+  var wrapper = document.querySelector('.elevation-canvas-wrapper');
+  var section = document.getElementById('elevationProfileSection');
+  if (wrapper && wrapper.classList.contains('collapsed')) {
+    wrapper.classList.remove('collapsed');
+    if (section) section.classList.remove('elevation-collapsed');
+    elevationCanvasCollapsed = false;
+    void wrapper.offsetHeight;
+  }
+
+  // Update canvas dimensions before redrawing (important for resize)
+  if (typeof setupElevationCanvasDimensions === 'function') {
+    setupElevationCanvasDimensions();
+  }
+
+  // Redraw with cached data
+  if (cachedElevationData.groundElevations) {
+    drawElevationProfile(
+      cachedElevationData.groundElevations,
+      cachedElevationData.waypointData,
+      cachedElevationData.distances
+    );
+  }
+}
+
+/**
+ * Initializes elevation canvas element and gets 2D context
+ * @returns {Object|null} Object with canvas and ctx, or null if initialization fails
+ */
+function initializeElevationCanvas() {
+  if (!elevationCanvas) {
+    elevationCanvas = document.getElementById('elevationCanvas');
+    if (!elevationCanvas) {
+      console.error('[Map] Elevation canvas element not found');
+      return null;
+    }
+  }
+
+  // Always refresh context to prevent stale references after tab reloads
+  elevationCtx = elevationCanvas.getContext('2d');
+  if (!elevationCtx) {
+    console.error('[Map] Failed to get 2D context from elevation canvas');
+    return null;
+  }
+
+  return { canvas: elevationCanvas, ctx: elevationCtx };
+}
+
+/**
+ * Calculates and sets canvas dimensions based on section container
+ * @returns {Object} Object with width and height, or {width: 0, height: 0} if section not visible
+ */
+function setupElevationCanvasDimensions() {
+  var section = document.getElementById('elevationProfileSection');
+  var wrapper = document.querySelector('.elevation-canvas-wrapper');
+  if (!wrapper || !section) {
+    return { width: 0, height: 0 };
+  }
+
+  // WICHTIG: Collapsed-Klasse entfernen damit Canvas Dimensionen bekommt!
+  if (wrapper.classList.contains('collapsed')) {
+    wrapper.classList.remove('collapsed');
+    section.classList.remove('elevation-collapsed');
+    elevationCanvasCollapsed = false;
+    void wrapper.offsetHeight; // Force reflow
+  }
+
+  if (!elevationCanvas) {
+    return { width: 0, height: 0 };
+  }
+
+  // Setup ResizeObserver once to auto-redraw canvas when section size changes
+  if (!section._resizeObserverAttached && typeof ResizeObserver !== 'undefined') {
+    var resizeObserver = new ResizeObserver(function(entries) {
+      // Only redraw if visible (ignore collapsed state - canvas should always be ready)
+      if (elevationProfileVisible) {
+        requestAnimationFrame(function() {
+          // Calculate canvas dimensions from section minus header and info bar
+          var sectionRect = section.getBoundingClientRect();
+          var header = section.querySelector('.elevation-profile-header');
+          var info = section.querySelector('.elevation-info');
+          var headerHeight = header ? header.offsetHeight : 50;
+          var infoHeight = info ? info.offsetHeight : 35;
+          var newHeight = Math.max(50, Math.floor(sectionRect.height - headerHeight - infoHeight));
+          var newWidth = Math.floor(sectionRect.width);
+
+          if (newWidth > 0 && newHeight > 50) {
+            if (elevationCanvas.width !== newWidth || elevationCanvas.height !== newHeight) {
+              elevationCanvas.width = newWidth;
+              elevationCanvas.height = newHeight;
+              elevationCtx = elevationCanvas.getContext('2d');
+              if (typeof redrawElevationCanvas === 'function') {
+                redrawElevationCanvas(true);
+              }
+            }
+          }
+        });
+      }
+    });
+    resizeObserver.observe(section);
+    section._resizeObserverAttached = true;
+    if (MAP_DEBUG) console.log('[Map] ResizeObserver attached to elevation profile section');
+  }
+
+  // Force reflow to ensure layout is current
+  void section.offsetHeight;
+
+  // Calculate canvas dimensions from section minus header and info bar
+  var sectionRect = section.getBoundingClientRect();
+  var header = section.querySelector('.elevation-profile-header');
+  var info = section.querySelector('.elevation-info');
+  var headerHeight = header ? header.offsetHeight : 50;
+  var infoHeight = info ? info.offsetHeight : 35;
+
+  var canvasWidth = Math.floor(sectionRect.width);
+  var canvasHeight = Math.max(50, Math.floor(sectionRect.height - headerHeight - infoHeight));
+
+  if (canvasWidth <= 0 || canvasHeight <= 0) {
+    return { width: 0, height: 0 };
+  }
+
+  // Only update canvas dimensions if they changed (avoids clearing canvas unnecessarily)
+  if (elevationCanvas.width !== canvasWidth || elevationCanvas.height !== canvasHeight) {
+    elevationCanvas.width = canvasWidth;
+    elevationCanvas.height = canvasHeight;
+    // Re-initialize context after dimension change
+    elevationCtx = elevationCanvas.getContext('2d');
+  }
+
+  return { width: canvasWidth, height: canvasHeight };
+}
+
+/**
+ * Calculates min/max elevations and distance range from elevation data
+ * @param {Array} groundElevations - Array of ground elevation objects
+ * @param {Array} waypointData - Array of waypoint objects with altitude
+ * @param {Array} distances - Array of cumulative distances
+ * @returns {Object} Object with elevation stats
+ */
+function calculateElevationStats(groundElevations, waypointData, distances) {
+  var minGroundElev = Infinity;
+  var maxGroundElev = -Infinity;
+  var maxFlightElev = -Infinity;
+
+  groundElevations.forEach(function(e) {
+    if (e && typeof e.elevation === 'number') {
+      minGroundElev = Math.min(minGroundElev, e.elevation);
+      maxGroundElev = Math.max(maxGroundElev, e.elevation);
+    }
+  });
+
+  waypointData.forEach(function(wp) {
+    if (wp && typeof wp.altitude === 'number') {
+      maxFlightElev = Math.max(maxFlightElev, wp.altitude);
+    }
+  });
+
+  var maxElev = Math.max(maxGroundElev, maxFlightElev);
+  // Add 12.5% extra space at top for waypoint labels
+  var elevRange = (maxElev - minGroundElev) * 1.125;
+  if (elevRange < 100) elevRange = 100; // Minimum range
+  maxElev = minGroundElev + elevRange;
+
+  var maxDist = distances[distances.length - 1];
+
+  return {
+    minGroundElev: minGroundElev,
+    maxGroundElev: maxGroundElev,
+    maxFlightElev: maxFlightElev,
+    maxElev: maxElev,
+    elevRange: elevRange,
+    maxDist: maxDist
+  };
+}
+
+/**
+ * Draws grid lines and axis labels on elevation chart
+ * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
+ * @param {Object} dimensions - Chart dimensions and padding
+ * @param {Object} stats - Elevation statistics
+ * @param {Function} xScale - X coordinate scaling function (accounts for zoom)
+ * @param {Function} yScale - Y coordinate scaling function (accounts for zoom)
+ */
+function drawElevationGrid(ctx, dimensions, stats, xScale, yScale) {
+  var padding = dimensions.padding;
+  var width = dimensions.width;
+  var height = dimensions.height;
+  var maxElev = stats.maxElev;
+  var minGroundElev = stats.minGroundElev;
+  var elevRange = stats.elevRange;
+  var maxDist = stats.maxDist;
+
+  // Draw horizontal grid lines
+  ctx.strokeStyle = '#e0e0e0';
+  ctx.lineWidth = 1;
+  for (var i = 0; i <= 5; i++) {
+    var elev = maxElev - (elevRange / 5) * i;
+    var y = yScale(elev);
+
+    ctx.beginPath();
+    ctx.moveTo(xScale(0), y);
+    ctx.lineTo(xScale(maxDist), y);
+    ctx.stroke();
+  }
+
+  // Draw Y-axis labels - move with the chart when zooming/panning
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, padding.left, height);
+  ctx.clip();
+
+  ctx.font = '11px Roboto-Light';
+  ctx.fillStyle = colorLight;
+  ctx.textAlign = 'right';
+  for (var i = 0; i <= 5; i++) {
+    var elev = maxElev - (elevRange / 5) * i;
+    var y = yScale(elev);
+    var labelX = xScale(0) - 5; // Position relative to Y-axis (which moves with zoom)
+    var elevFt = elev * 3.28084;
+    ctx.fillText(Math.round(elevFt) + ' ft', labelX, y + 4);
+  }
+  ctx.restore();
+
+  // Draw X and Y axes using transformed coordinates
+  ctx.strokeStyle = colorDark;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(xScale(0), yScale(maxElev));
+  ctx.lineTo(xScale(0), yScale(minGroundElev));
+  ctx.lineTo(xScale(maxDist), yScale(minGroundElev));
+  ctx.stroke();
+
+  // Draw distance labels on X-axis in a clipped area (within chart horizontal bounds)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(padding.left - 10, height - padding.bottom, width - padding.left - padding.right + 20, padding.bottom);
+  ctx.clip();
+
+  ctx.font = '11px Roboto-Light';
+  ctx.fillStyle = colorLight;
+  ctx.textAlign = 'center';
+  for (var i = 0; i <= 5; i++) {
+    var dist = (maxDist / 5) * i;
+    var x = xScale(dist);
+    ctx.fillText(dist.toFixed(0) + ' nm', x, height - 5);
+  }
+  ctx.restore();
+}
+
+/**
+ * Draws ground elevation profile as filled area
+ * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
+ * @param {Array} groundElevations - Ground elevation data
+ * @param {Array} distances - Distance data
+ * @param {Function} xScale - X-axis scaling function
+ * @param {Function} yScale - Y-axis scaling function
+ * @param {Object} dimensions - Chart dimensions
+ */
+function drawGroundProfile(ctx, groundElevations, distances, xScale, yScale, dimensions, stats) {
+  // Validate input parameters
+  if (!groundElevations || !distances || groundElevations.length === 0) {
+    return;
+  }
+
+  // Validate array lengths match
+  if (groundElevations.length !== distances.length) {
+    console.error("Array length mismatch in drawGroundProfile: groundElevations=" + groundElevations.length +
+                 ", distances=" + distances.length);
+    return;
+  }
+
+  ctx.beginPath();
+  ctx.fillStyle = 'rgba(139, 90, 43, 0.3)'; // Brown fill
+  ctx.strokeStyle = '#8B5A2B';
+  ctx.lineWidth = 2;
+
+  // Get first elevation with null check
+  var firstElevation = groundElevations[0] && groundElevations[0].elevation !== undefined
+    ? groundElevations[0].elevation
+    : 0;
+  ctx.moveTo(xScale(0), yScale(firstElevation));
+
+  for (var i = 0; i < groundElevations.length; i++) {
+    // Null/undefined check for elevation data
+    var elevation = groundElevations[i] && groundElevations[i].elevation !== undefined
+      ? groundElevations[i].elevation
+      : 0;
+    var x = xScale(distances[i]);
+    var y = yScale(elevation);
+    ctx.lineTo(x, y);
+  }
+
+  // Close the ground profile at the bottom using yScale for consistent positioning
+  var maxDist = distances[distances.length - 1];
+  var bottomY = yScale(stats.minGroundElev);
+  ctx.lineTo(xScale(maxDist), bottomY);
+  ctx.lineTo(xScale(0), bottomY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+/**
+ * Draws waypoint altitude profile with markers and labels
+ * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
+ * @param {Array} waypointData - Waypoint data with altitudes
+ * @param {Function} xScale - X-axis scaling function
+ * @param {Function} yScale - Y-axis scaling function
+ */
+function drawWaypointProfile(ctx, waypointData, xScale, yScale, zoomScale) {
+  if (!waypointData || waypointData.length === 0) return;
+
+  // Clear click areas array
+  elevationWaypointClickAreas = [];
+
+  // Draw dashed line connecting waypoint altitudes
+  ctx.strokeStyle = colorDark;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+
+  var firstValidWp = waypointData.find(function(wp) { return wp && typeof wp.altitude === 'number'; });
+  if (firstValidWp) {
+    ctx.moveTo(xScale(firstValidWp.distance), yScale(firstValidWp.altitude));
+  }
+
+  for (var i = 0; i < waypointData.length; i++) {
+    var wp = waypointData[i];
+    if (wp && typeof wp.altitude === 'number') {
+      ctx.lineTo(xScale(wp.distance), yScale(wp.altitude));
+    }
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw waypoint markers and labels with smart positioning
+  var labelPositions = []; // Track label positions for collision detection
+
+  for (var i = 0; i < waypointData.length; i++) {
+    var wp = waypointData[i];
+    if (!wp || typeof wp.altitude !== 'number') continue;
+
+    var x = xScale(wp.distance);
+    var y = yScale(wp.altitude);
+
+    // Use stored layer index if available (handles skipped waypoints), fallback to loop index
+    var layerIdx = (typeof wp.layerIndex === 'number') ? wp.layerIndex : i;
+
+    // Store click area
+    elevationWaypointClickAreas.push({
+      x: x,
+      y: y,
+      radius: 8,
+      waypointIndex: layerIdx
+    });
+
+    if (MAP_DEBUG) console.log('[Map] Added click area for waypoint', i, '- layerIdx:', layerIdx, 'position:', x, y, 'name:', wp.name);
+
+    // Check if this is the active/target waypoint (targetMarker can be string or number)
+    var isActiveWaypoint = (parseInt(targetMarker) >= 0 && parseInt(targetMarker) === layerIdx);
+    var waypointColor = isActiveWaypoint ? '#ff0000' : colorDark;
+
+    // Draw marker circle - larger if active
+    ctx.fillStyle = waypointColor;
+    ctx.beginPath();
+    var markerRadius = isActiveWaypoint ? 6 : 5;
+    ctx.arc(x, y, markerRadius, 0, 2 * Math.PI);
+    ctx.fill();
+
+    // Prepare label
+    ctx.font = isActiveWaypoint ? 'bold 10px Roboto-Light' : '10px Roboto-Light';
+    ctx.fillStyle = waypointColor;
+    ctx.textAlign = 'center';
+    var altFt = wp.altitude * 3.28084;
+    var nameText = wp.name;
+    var altText = Math.round(altFt) + ' ft';
+
+    // Measure label dimensions
+    var nameWidth = ctx.measureText(nameText).width;
+    var labelWidth = nameWidth;
+    var labelHeight = 12; // One line of text
+
+    // Try different label positions: above, then below, with horizontal shifts
+    var positions = [
+      { yOff: -12, xOff: 0 },    // Above center
+      { yOff: -12, xOff: 20 },   // Above right
+      { yOff: -12, xOff: -20 },  // Above left
+      { yOff: 18, xOff: 0 },     // Below center
+      { yOff: 18, xOff: 20 },    // Below right
+      { yOff: 18, xOff: -20 },   // Below left
+      { yOff: -12, xOff: 40 },   // Above far right
+      { yOff: -12, xOff: -40 },  // Above far left
+    ];
+
+    var bestPos = positions[0];
+    var foundFree = false;
+
+    for (var p = 0; p < positions.length; p++) {
+      var testX = x + positions[p].xOff;
+      var testY = y + positions[p].yOff;
+      var hasCollision = false;
+
+      for (var j = 0; j < labelPositions.length; j++) {
+        var prev = labelPositions[j];
+        var xOverlap = Math.abs(testX - prev.x) < (labelWidth + prev.width) / 2 + 8;
+        var yOverlap = Math.abs(testY - prev.y) < (labelHeight + prev.height) / 2;
+        if (xOverlap && yOverlap) {
+          hasCollision = true;
+          break;
+        }
+      }
+
+      if (!hasCollision) {
+        bestPos = positions[p];
+        foundFree = true;
+        break;
+      }
+    }
+
+    var finalX = x + bestPos.xOff;
+    var finalY = y + bestPos.yOff;
+
+    // Draw label (name only) - no clamping, labels move with markers
+    ctx.fillText(nameText, finalX, finalY);
+
+    // Store label position for future collision checks
+    labelPositions.push({
+      x: finalX,
+      y: finalY,
+      width: labelWidth,
+      height: labelHeight
+    });
+  }
+}
+
+/**
+ * Draws aircraft position indicator on elevation profile
+ * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
+ * @param {Object} aircraftPos - Aircraft position object with distance and altitude
+ * @param {Function} xScale - X-axis scaling function
+ * @param {Function} yScale - Y-axis scaling function
+ * @param {Object} dimensions - Chart dimensions
+ * @param {Object} stats - Elevation statistics including maxDist
+ */
+function drawAircraftPosition(ctx, aircraftPos, xScale, yScale, dimensions, stats, groundElevations, distances) {
+  if (aircraftPos === null || aircraftPos === undefined) return;
+
+  // Convert distance from meters to nautical miles first
+  var aircraftDistRaw = aircraftPos.distance / 1852;
+  // Erlaube auch negative Distanzen (Flugzeug vor erstem Waypoint)
+  // Aber begrenze auf sichtbaren Bereich (links: -5nm, rechts: maxDist + 5nm)
+  var aircraftDist = Math.max(-5, Math.min(aircraftDistRaw, stats.maxDist + 5));
+  var aircraftAltFeet = aircraftPos.altitude; // Altitude in feet directly from simulator
+
+  // Convert feet to meters for yScale (which works in meters)
+  var aircraftAltMeters = aircraftAltFeet * 0.3048;
+
+  var x = xScale(aircraftDist);
+  var y = yScale(aircraftAltMeters);
+
+  // Prüfe ob Position außerhalb des sichtbaren Bereichs ist
+  var isOutsideRoute = aircraftDistRaw < 0 || aircraftDistRaw > stats.maxDist;
+
+  if (MAP_DEBUG) console.log('[Map] drawAircraftPosition - raw distance:', aircraftPos.distance, 'm =', aircraftDistRaw.toFixed(1), 'nm, x:', x, 'altitude:', aircraftAltFeet.toFixed(0), 'ft (', aircraftAltMeters.toFixed(0), 'm), y:', y, 'outsideRoute:', isOutsideRoute);
+
+  // Draw vertical dashed line from bottom of chart to aircraft position
+  var bottomY = yScale(stats.minGroundElev);
+  ctx.strokeStyle = '#ff0000';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(x, bottomY);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw aircraft marker at correct altitude
+  ctx.fillStyle = '#ff0000';
+  ctx.beginPath();
+  ctx.arc(x, y, 6, 0, 2 * Math.PI);
+  ctx.fill();
+
+  // Draw distance label - zeige negative Werte wenn vor der Route
+  ctx.font = '11px Roboto-Light';
+  ctx.fillStyle = '#ff0000';
+  ctx.textAlign = 'center';
+  var distLabel = aircraftDistRaw.toFixed(1) + ' nm';
+  if (aircraftDistRaw < 0) {
+    distLabel = '(' + Math.abs(aircraftDistRaw).toFixed(1) + ' nm vor Start)';
+  }
+  ctx.fillText(distLabel, x, dimensions.height - 5);
+}
+
+// Interpolate ground elevation at a given distance (in nautical miles)
+// Returns elevation in METERS
+function interpolateGroundElevation(distNm, groundElevations, distances) {
+  if (!groundElevations || !distances || groundElevations.length === 0) {
+    return 0;
+  }
+
+  var elevationMeters = 0;
+
+  // Find the two points to interpolate between
+  var found = false;
+  for (var i = 0; i < distances.length - 1; i++) {
+    if (distNm >= distances[i] && distNm <= distances[i + 1]) {
+      // Linear interpolation
+      var t = (distNm - distances[i]) / (distances[i + 1] - distances[i]);
+      var elev1 = groundElevations[i].elevation;
+      var elev2 = groundElevations[i + 1].elevation;
+      elevationMeters = elev1 + t * (elev2 - elev1);
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    // If before first point, return first elevation
+    if (distNm < distances[0]) {
+      elevationMeters = groundElevations[0].elevation;
+    } else {
+      // If after last point, return last elevation
+      elevationMeters = groundElevations[groundElevations.length - 1].elevation;
+    }
+  }
+
+  return elevationMeters;
+}
+
+// Draw elevation profile on canvas
+function drawElevationProfile(groundElevations, waypointData, distances, retryCount) {
+  retryCount = retryCount || 0;
+
+  var wrapper = document.querySelector('.elevation-canvas-wrapper');
+  var section = document.getElementById('elevationProfileSection');
+
+  // WICHTIG: Panel muss sichtbar sein damit Canvas Dimensionen bekommt!
+  if (section) {
+    if (section.style.display === 'none') {
+      section.style.display = 'block';
+      elevationProfileVisible = true;
+    }
+    section.classList.remove('elevation-collapsed');
+  }
+
+  // Collapsed-Klasse entfernen
+  if (wrapper) {
+    wrapper.classList.remove('collapsed');
+    // Force reflow
+    void wrapper.offsetHeight;
+  }
+  elevationCanvasCollapsed = false;
+
+  // Cache the data for zoom/pan operations
+  cachedElevationData.groundElevations = groundElevations;
+  cachedElevationData.waypointData = waypointData;
+  cachedElevationData.distances = distances;
+
+  // Initialize canvas and context
+  var canvasInfo = initializeElevationCanvas();
+  if (!canvasInfo) return;
+
+  // Setup canvas dimensions
+  var dims = setupElevationCanvasDimensions();
+  var width = dims.width || elevationCanvas.width;
+  var height = dims.height || elevationCanvas.height;
+
+  // If canvas has no size, retry with exponential backoff
+  if (width === 0 || height === 0) {
+    if (retryCount < 5) {
+      setTimeout(function() {
+        drawElevationProfile(groundElevations, waypointData, distances, retryCount + 1);
+      }, 100 * (retryCount + 1));
+      return;
+    } else {
+      console.error('[Map] Elevation canvas has no size after 5 retries');
+      return;
+    }
+  }
+
+  // Calculate chart dimensions with padding
+  var padding = { top: 10, right: 5, bottom: 25, left: 55 };
+  var chartWidth = width - padding.left - padding.right;
+  var chartHeight = height - padding.top - padding.bottom;
+
+  var dimensions = {
+    width: width,
+    height: height,
+    padding: padding,
+    chartWidth: chartWidth,
+    chartHeight: chartHeight
+  };
+
+  // Clear canvas and reset transformations
+  elevationCtx.setTransform(1, 0, 0, 1, 0, 0);
+  elevationCtx.clearRect(0, 0, width, height);
+
+  // Validate elevation data
+  if (!groundElevations || groundElevations.length === 0) {
+    elevationCtx.font = '14px Roboto-Light';
+    elevationCtx.fillStyle = '#999';
+    elevationCtx.textAlign = 'center';
+    elevationCtx.fillText('No elevation data available', width / 2, height / 2);
+    return;
+  }
+
+  try {
+    // Constrain zoom offsets to prevent excessive panning
+    // xScale() and yScale() now handle the zoom transformation
+    var maxOffsetX = chartWidth * (elevationZoom.scale - 1) / 2;
+    var maxOffsetY = chartHeight * (elevationZoom.scale - 1) / 2;
+
+    elevationZoom.offsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, elevationZoom.offsetX));
+    elevationZoom.offsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, elevationZoom.offsetY));
+
+    // Calculate elevation statistics
+    var stats = calculateElevationStats(groundElevations, waypointData, distances);
+
+    // Create scaling functions
+    var chartStartOffset = 5;
+    var chartEndOffset = 5;
+    // Extra offset for flight path to keep waypoint labels inside chart area
+    var flightPathOffset = 25;
+
+    function xScale(distance) {
+      // Basis-Position im unskalierten Raum berechnen
+      var baseX = padding.left + chartStartOffset + (distance / stats.maxDist) * (chartWidth - chartStartOffset - chartEndOffset);
+
+      // Zoom-Transformation anwenden
+      var centerX = width / 2;
+      return (baseX - centerX) * elevationZoom.scale + centerX + elevationZoom.offsetX;
+    }
+
+    // Separate xScale for flight path with extra offset for waypoint labels
+    function xScaleFlightPath(distance) {
+      var totalOffset = chartStartOffset + flightPathOffset;
+      var baseX = padding.left + totalOffset + (distance / stats.maxDist) * (chartWidth - totalOffset * 2);
+
+      var centerX = width / 2;
+      return (baseX - centerX) * elevationZoom.scale + centerX + elevationZoom.offsetX;
+    }
+
+    function yScale(elevation) {
+      // Basis-Position im unskalierten Raum berechnen
+      var baseY = padding.top + chartHeight - ((elevation - stats.minGroundElev) / stats.elevRange) * chartHeight;
+
+      // Zoom-Transformation anwenden
+      var centerY = height / 2;
+      return (baseY - centerY) * elevationZoom.scale + centerY + elevationZoom.offsetY;
+    }
+
+    // Draw chart components
+    drawElevationGrid(elevationCtx, dimensions, stats, xScale, yScale);
+
+    // Set up clipping region for ground profile (full width when zoomed)
+    elevationCtx.save();
+    elevationCtx.beginPath();
+    elevationCtx.rect(0, 0, width, height - padding.bottom);
+    elevationCtx.clip();
+
+    drawGroundProfile(elevationCtx, groundElevations, distances, xScale, yScale, dimensions, stats);
+
+    // Restore context before drawing waypoints (so labels aren't clipped)
+    elevationCtx.restore();
+
+    // Draw waypoints with extra offset so labels stay inside chart area
+    drawWaypointProfile(elevationCtx, waypointData, xScaleFlightPath, yScale, elevationZoom.scale);
+
+    // Draw aircraft position if available and startline is active
+    if (MAP_DEBUG) console.log('[Map] Checking aircraft position - aircraftPositionOnRoute:', aircraftPositionOnRoute, 'startlineShow:', startlineShow);
+    if (aircraftPositionOnRoute !== null && aircraftPositionOnRoute !== undefined) {
+      if (MAP_DEBUG) console.log('[Map] Drawing aircraft position on elevation profile');
+      drawAircraftPosition(elevationCtx, aircraftPositionOnRoute, xScaleFlightPath, yScale, dimensions, stats, groundElevations, distances);
+    } else {
+      if (MAP_DEBUG) console.log('[Map] NOT drawing aircraft position - aircraftPositionOnRoute null?:', aircraftPositionOnRoute === null, 'startlineShow false?:', startlineShow === false);
+    }
+
+    // Draw zoom indicator
+    if (elevationZoom.scale > 1) {
+      elevationCtx.font = '12px Roboto-Light';
+      elevationCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      elevationCtx.textAlign = 'right';
+      elevationCtx.fillText('Zoom: ' + elevationZoom.scale.toFixed(1) + 'x', width - 10, 20);
+    }
+
+    // Draw visual warning if using fallback elevation data
+    if (cachedElevationData.usingFallbackData) {
+      elevationCtx.font = 'bold 14px Roboto';
+      elevationCtx.fillStyle = '#ff0000';
+      elevationCtx.textAlign = 'left';
+      elevationCtx.fillText('? H�hendaten nicht verf�gbar - Fallback zu 0m', 10, 20);
+    }
+
+    // Update elevation info display
+    updateElevationInfo(stats.minGroundElev, stats.maxElev, stats.maxFlightElev, stats.maxDist);
+  } catch (e) {
+    console.error('[Map] Error rendering elevation profile:', e);
+    elevationCtx.font = '14px Roboto-Light';
+    elevationCtx.fillStyle = '#ff0000';
+    elevationCtx.textAlign = 'center';
+    elevationCtx.fillText('Error rendering elevation profile: ' + e.message, width / 2, height / 2);
+  }
+}
+
+function updateElevationInfo(minElev, maxElev, maxFlightElev, totalDist) {
+  var infoDiv = document.getElementById('elevationInfo');
+  if (!infoDiv) return;
+
+  // Convert to feet and nautical miles
+  var minElevFt = Math.round(minElev * 3.28084);
+  var maxElevFt = Math.round(maxElev * 3.28084);
+  var maxFlightElevFt = Math.round(maxFlightElev * 3.28084);
+  var totalDistNm = totalDist.toFixed(1); // Already in NM from calculateRouteDistances
+
+  var html = '';
+  html += '<div class="info-item"><span class="info-label">Min Elevation:</span>' + minElevFt + ' ft</div>';
+  html += '<div class="info-item"><span class="info-label">Max Ground:</span>' + maxElevFt + ' ft</div>';
+  if (maxFlightElev > 0) {
+    html += '<div class="info-item"><span class="info-label">Max Flight Alt:</span>' + maxFlightElevFt + ' ft</div>';
+  }
+  html += '<div class="info-item"><span class="info-label">Distance:</span>' + totalDistNm + ' nm</div>';
+
+  infoDiv.innerHTML = html;
+}
+
+// Debounce timer for elevation profile updates
+var elevationUpdateTimer = null;
+var elevationUpdateDelay = 500; // 500ms delay to prevent rapid API calls
+
+// Debounced wrapper for elevation profile updates
+function scheduleElevationUpdate() {
+  return new Promise(function(resolve, reject) {
+    if (elevationUpdateTimer) {
+      clearTimeout(elevationUpdateTimer);
+    }
+    elevationUpdateTimer = setTimeout(function() {
+      updateElevationProfileImmediate()
+        .then(resolve)
+        .catch(reject);
+    }, elevationUpdateDelay);
+  });
+}
+
+// Debounced elevation update with custom delay
+var elevationUpdateDebounceTimer = null;
+function updateElevationProfileDebounced(delay) {
+  delay = delay || 300;
+  clearTimeout(elevationUpdateDebounceTimer);
+  elevationUpdateDebounceTimer = setTimeout(function() {
+    scheduleElevationUpdate();
+  }, delay);
+}
+
+async function updateElevationProfileImmediate() {
+  if (MAP_DEBUG) console.log('[Map] updateElevationProfileImmediate called');
+  var waypointLayers = getWaypointLayersSorted();
+  if (MAP_DEBUG) console.log('[Map] Waypoint layers:', waypointLayers.length, 'Layer on map:', map && elevationProfileLayer && map.hasLayer(elevationProfileLayer), 'Panel visible:', elevationProfileVisible);
+
+  // Validate waypoint array synchronization
+  if (typeof altitudes !== 'undefined' && waypointLayers.length !== altitudes.length) {
+    console.warn('[Map] Waypoint array synchronization issue: layers=' + waypointLayers.length +
+                ', altitudes=' + altitudes.length);
+  }
+  if (typeof wpNames !== 'undefined' && waypointLayers.length !== wpNames.length) {
+    console.warn('[Map] Waypoint array synchronization issue: layers=' + waypointLayers.length +
+                ', wpNames=' + wpNames.length);
+  }
+
+  if (waypointLayers.length < 2) {
+    if (MAP_DEBUG) console.log('[Map] Need at least 2 waypoints for elevation profile (have ' + waypointLayers.length + ')');
+    // Hide the elevation profile panel
+    hideElevationProfile();
+    return { success: true, panelVisible: false, reason: 'insufficient_waypoints' };
+  }
+
+  // Auto-show elevation profile if layer is active but panel is hidden
+  // ABER: Nicht einblenden wenn Controller Modus aktiv ist
+  var controllerEl = document.getElementById('controllerContainer');
+  var controllerVisible = controllerEl && controllerEl.style.visibility === 'visible';
+
+  if (moverX || controllerVisible) {
+    if (MAP_DEBUG) console.log('[Map] BLOCKED updateElevationProfileImmediate - controller mode active');
+    return { success: true, panelVisible: false, reason: 'controller_mode_active' };
+  }
+
+  if (map && elevationProfileLayer && map.hasLayer(elevationProfileLayer) && !elevationProfileVisible) {
+    if (MAP_DEBUG) console.log('[Map] Auto-showing elevation profile (layer active, 2+ waypoints)');
+    var section = document.getElementById('elevationProfileSection');
+    if (section) {
+      section.style.display = 'block';
+      elevationProfileVisible = true;
+
+      // Get canvas reference if not already set
+      if (!elevationCanvas) {
+        elevationCanvas = document.getElementById('elevationCanvas');
+        initElevationZoom();
+      }
+
+      // Set default height if not set or too small
+      var currentHeight = parseInt(section.style.height) || 0;
+      var minHeight = window.innerHeight * ELEVATION_PANEL_MIN_HEIGHT_RATIO;
+      if (currentHeight < minHeight) {
+        var defaultHeight = minHeight;
+        section.style.setProperty('height', defaultHeight + 'px', 'important');
+        section.style.setProperty('flex', '0 0 auto', 'important');
+        if (MAP_DEBUG) console.log('[Map] Set default elevation panel height:', defaultHeight);
+      }
+
+      // Setup wrapper and canvas - SYNCHRON setzen (kein setTimeout!)
+      var wrapper = document.querySelector('.elevation-canvas-wrapper');
+      // Collapsed-Klasse entfernen falls noch gesetzt!
+      if (wrapper) {
+        wrapper.classList.remove('collapsed');
+      }
+      section.classList.remove('elevation-collapsed');
+      elevationCanvasCollapsed = false;
+
+      // Force reflow nach display:block um korrekte Dimensionen zu erhalten
+      void section.offsetHeight;
+
+      if (MAP_DEBUG) console.log('[Map] updateElevationProfileImmediate - wrapper found:', !!wrapper, 'canvas found:', !!elevationCanvas);
+      if (wrapper && elevationCanvas) {
+        var wrapperRect = wrapper.getBoundingClientRect();
+        if (MAP_DEBUG) console.log('[Map] Wrapper rect:', wrapperRect.width, 'x', wrapperRect.height);
+        if (wrapperRect.width > 0 && wrapperRect.height > 0) {
+          elevationCanvas.width = Math.floor(wrapperRect.width);
+          elevationCanvas.height = Math.floor(wrapperRect.height);
+          elevationCtx = elevationCanvas.getContext('2d');
+        } else {
+          // Fallback - section direkt verwenden
+          var secRect = section.getBoundingClientRect();
+          var canvasHeight = Math.max(100, secRect.height - 85);
+          elevationCanvas.width = Math.floor(secRect.width);
+          elevationCanvas.height = Math.floor(canvasHeight);
+          elevationCtx = elevationCanvas.getContext('2d');
+          if (MAP_DEBUG) console.log('[Map] Wrapper rect fallback:', secRect.width, 'x', canvasHeight);
+        }
+      }
+
+      // Reset zoom only when loading a NEW flight plan (not just showing the panel)
+      if (window.flightplanJustChanged) {
+        if (MAP_DEBUG) console.log('[Map] Resetting elevation zoom for new flight plan');
+        elevationZoom.scale = 1.0;
+        elevationZoom.offsetX = 0;
+        elevationZoom.offsetY = 0;
+        window.flightplanJustChanged = false; // Clear flag
+      } else {
+        if (MAP_DEBUG) console.log('[Map] Preserving elevation zoom (flight plan unchanged)');
+      }
+
+      // Trigger map resize - MOVED to Promise resolution below
+      // (Promise must wait for invalidateSize to complete)
+    }
+  }
+
+  // Get waypoint coordinates and altitudes
+  var routeCoordinates = [];
+  var waypointData = [];
+
+  waypointLayers.forEach(function(layer, index) {
+    var latlng = layer.getLatLng();
+
+    // Validate coordinates
+    if (!latlng || latlng.lat === undefined || latlng.lng === undefined) {
+      console.warn('[Map] Skipping waypoint ' + index + ' with invalid coordinates:', latlng);
+      return; // Skip this waypoint
+    }
+
+    routeCoordinates.push([latlng.lat, latlng.lng]);
+
+    var alt = 0;
+    if (typeof altitudes !== 'undefined' && altitudes[index] !== undefined) {
+      alt = parseFloat(altitudes[index]);
+      if (isNaN(alt)) alt = 0;
+    }
+
+    waypointData.push({
+      name: wpNames[index] || 'WP' + (index + 1),
+      lat: latlng.lat,
+      lng: latlng.lng,
+      altitude: alt * 0.3048, // Convert feet to meters
+      distance: 0, // Will be calculated
+      layerIndex: index // Store original layer index for click handling
+    });
+  });
+
+  // Validate we have enough valid waypoints after filtering
+  if (routeCoordinates.length < 2) {
+    console.warn('[Map] Not enough valid waypoints after filtering (have ' + routeCoordinates.length + ')');
+    hideElevationProfile();
+    return { success: true, panelVisible: false, reason: 'insufficient_valid_waypoints' };
+  }
+
+  // Calculate distances
+  var distances = calculateRouteDistances(routeCoordinates);
+  waypointData.forEach(function(wp, i) {
+    wp.distance = distances[i];
+  });
+
+  // Interpolate points between waypoints for smoother profile
+  var interpolatedCoords = [];
+  var interpolatedDists = [];
+
+  for (var i = 0; i < routeCoordinates.length - 1; i++) {
+    var start = routeCoordinates[i];
+    var end = routeCoordinates[i + 1];
+    var startDist = distances[i];
+    var endDist = distances[i + 1];
+    var segmentDist = endDist - startDist;
+    var numPoints = Math.max(5, Math.floor(segmentDist / 2.7)); // Point every ~2.7nm (5km)
+
+    for (var j = 0; j < numPoints; j++) {
+      var t = j / numPoints;
+      interpolatedCoords.push([
+        start[0] + (end[0] - start[0]) * t,
+        start[1] + (end[1] - start[1]) * t
+      ]);
+      interpolatedDists.push(startDist + segmentDist * t);
+    }
+  }
+
+  // Add the final waypoint point
+  if (routeCoordinates.length > 0) {
+    interpolatedCoords.push(routeCoordinates[routeCoordinates.length - 1]);
+    interpolatedDists.push(distances[distances.length - 1]);
+  }
+
+  // Fetch elevation data
+  if (MAP_DEBUG) console.log('Fetching elevation data for ' + interpolatedCoords.length + ' points...');
+  var groundElevations = await getElevationData(interpolatedCoords);
+
+  // Sample distances to match sampled coordinates (same step as getElevationData uses)
+  // This ensures groundElevations.length === sampledDists.length
+  var step = Math.max(1, Math.floor(interpolatedCoords.length / 100));
+  var sampledDists = [];
+  for (var si = 0; si < interpolatedDists.length; si += step) {
+    sampledDists.push(interpolatedDists[si]);
+  }
+  // Ensure last point is always included for complete profile
+  var lastIdx = interpolatedDists.length - 1;
+  if (lastIdx > 0 && sampledDists.length > 0 && sampledDists[sampledDists.length - 1] !== interpolatedDists[lastIdx]) {
+    sampledDists.push(interpolatedDists[lastIdx]);
+  }
+  if (MAP_DEBUG) console.log('[Map] Sampled distances: ' + sampledDists.length + ' (step=' + step + ', original=' + interpolatedDists.length + ')');
+
+  if (!groundElevations) {
+    console.warn('Could not fetch elevation data, using zero elevation fallback');
+    // Use fallback with zero elevation - match sampledDists length
+    groundElevations = sampledDists.map(function() {
+      return { elevation: 0 };
+    });
+    // Set flag for visual warning
+    cachedElevationData.usingFallbackData = true;
+  } else {
+    // Clear flag when data is successfully fetched
+    cachedElevationData.usingFallbackData = false;
+  }
+
+  // Draw profile with sampled distances that match groundElevations length
+  drawElevationProfile(groundElevations, waypointData, sampledDists);
+
+  // Update aircraft position on elevation profile
+  // (uses ground elevation if no live data available)
+  if (typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+    updateAircraftPositionOnRoute(pos_lat, pos_lng, altitude || 0);
+  }
+
+  // Return result after elevation profile is ready AND map.invalidateSize() is complete
+  // Await the Promise to ensure proper resolution in async function
+  return await new Promise(function(resolve) {
+    // Wait for map resize to complete BEFORE resolving (ohne setTimeout)
+    if (map && elevationProfileVisible) {
+      map.invalidateSize({ pan: false });
+      // Re-center on aircraft if follow mode is active AND no animation running
+      if (follow && !window.flightplanAnimationInProgress && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+        map.setView(new L.LatLng(pos_lat, pos_lng));
+      }
+
+      // Wait one frame for map to fully update after invalidateSize
+      requestAnimationFrame(function() {
+        resolve({
+          success: true,
+          panelVisible: elevationProfileVisible,
+          canvasReady: !!(elevationCanvas && elevationCanvas.width > 0)
+        });
+      });
+    } else {
+      // No panel shown or no map - resolve immediately
+      requestAnimationFrame(function() {
+        resolve({
+          success: true,
+          panelVisible: elevationProfileVisible,
+          canvasReady: !!(elevationCanvas && elevationCanvas.width > 0)
+        });
+      });
+    }
+  });
+}
+
+// Alias to debounced version by default - prevents multiple rapid API calls
+var updateElevationProfile = scheduleElevationUpdate;
+
+// Elevation Profile Button wird direkt in initializeMapWithLayers() erstellt
+
+// ============================================================================
+// MAP SETTINGS SAVE/LOAD FUNCTIONALITY
+// ============================================================================
+(function initMapSettings() {
+  var SETTINGS_KEY = 'kneeboardMapSettings';
+  var AUTOSAVE_DELAY = 1000; // 1 second delay for autosave
+  var autosaveTimer = null;
+
+  // Collect current map settings
+  function collectMapSettings() {
+    var settings = {
+      version: 1,
+      timestamp: new Date().toISOString()
+    };
+
+    // Map position and zoom - only save if flightplan exists
+    if (typeof map !== 'undefined' && map) {
+      // Don't save map position when no flightplan (aircraft tracking mode)
+      var hasFlightplan = typeof flightplan !== 'undefined' && flightplan && flightplan.length > 0;
+      if (hasFlightplan) {
+        var center = map.getCenter();
+        settings.map = {
+          center: {
+            lat: center.lat,
+            lng: center.lng
+          },
+          zoom: map.getZoom()
+        };
+      } else {
+        // No flightplan - don't save map position (use aircraft position on reload)
+        settings.map = null;
+        if (MAP_DEBUG) console.log('[Map] Not saving map position - no flightplan');
+      }
+    }
+
+    // Flight path trail points
+    if (typeof polylinepoints !== 'undefined' && polylinepoints && polylinepoints.length > 0) {
+      // Limit saved points to prevent localStorage overflow (max 2000 points)
+      var maxPoints = 2000;
+      var pointsToSave = polylinepoints.length > maxPoints
+        ? polylinepoints.slice(-maxPoints)
+        : polylinepoints;
+      settings.flightPath = {
+        points: pointsToSave,
+        showPath: showPath
+      };
+    }
+
+    // Panel sizes
+    settings.panels = {};
+
+    var overlayEl = document.getElementById('overlay');
+    if (overlayEl) {
+      settings.panels.overlay = {
+        visible: overlayEl.style.visibility !== 'hidden' &&
+                 window.getComputedStyle(overlayEl).visibility !== 'hidden'
+      };
+    }
+
+    var controllerEl = document.getElementById('controllerContainer');
+    if (controllerEl) {
+      // Preserve existing panelState from localStorage if current one is empty (fixes timing issue on page load)
+      var savedPanelState = panelState;
+      if (!savedPanelState || savedPanelState === '') {
+        try {
+          var existingSettings = localStorage.getItem(SETTINGS_KEY);
+          if (existingSettings) {
+            var parsed = JSON.parse(existingSettings);
+            if (parsed && parsed.panels && parsed.panels.controller && parsed.panels.controller.panelState) {
+              savedPanelState = parsed.panels.controller.panelState;
+              if (MAP_DEBUG) console.log('[Map] Preserving existing panelState from localStorage:', savedPanelState);
+            }
+          }
+        } catch (e) {
+          console.error('[Map] Failed to preserve panelState:', e);
+        }
+      }
+
+      settings.panels.controller = {
+        visible: false,  // IMMER false - Controller Panel soll beim Laden NIE aktiv sein
+        panelState: savedPanelState || ''  // Save current panel type (vatsim, ivao, airports, navaids, reportingPoints)
+      };
+      if (MAP_DEBUG) console.log('[Map] Saving controller panel state:', savedPanelState, ', visible: always false');
+    }
+
+    var metarEl = document.getElementById('metarContainer');
+    if (metarEl) {
+      settings.panels.metar = {
+        visible: metarEl.style.display !== 'none' &&
+                 window.getComputedStyle(metarEl).display !== 'none'
+      };
+    }
+
+    var elevationEl = document.getElementById('elevationProfileSection');
+    if (elevationEl) {
+      settings.panels.elevationProfile = {
+        height: elevationEl.style.height || null,
+        visible: elevationEl.style.display !== 'none',
+        collapsed: false,  // IMMER false speichern - Panel soll beim Laden expanded sein
+        savedHeight: elevationSavedHeight || null,
+        userClosed: elevationProfileUserClosed || false
+      };
+    }
+
+    // Elevation zoom/pan state
+    if (typeof elevationZoom !== 'undefined') {
+      settings.elevationZoom = {
+        scale: elevationZoom.scale,
+        offsetX: elevationZoom.offsetX,
+        offsetY: elevationZoom.offsetY
+      };
+    }
+
+    // Active layers
+    settings.layers = {
+      activeLayers: []
+    };
+
+    if (typeof map !== 'undefined' && map && typeof layerRegistry !== 'undefined') {
+      try {
+        // Collect all active layers from layerRegistry
+        for (var layerName in layerRegistry) {
+          if (layerRegistry.hasOwnProperty(layerName)) {
+            try {
+              var layer = layerRegistry[layerName];
+              // Validate layer before checking
+              if (layer && typeof layer === 'object' && map.hasLayer(layer)) {
+                settings.layers.activeLayers.push(layerName);
+              }
+            } catch (e) {
+              console.warn('Error checking layer "' + layerName + '":', e);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error collecting active layers:', e);
+      }
+    }
+
+    return settings;
+  }
+
+  // Save settings to localStorage
+  function saveMapSettings() {
+    try {
+      var settings = collectMapSettings();
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      if (MAP_DEBUG) console.log('Map settings saved:', settings);
+      return true;
+    } catch (e) {
+      console.error('Failed to save map settings:', e);
+      return false;
+    }
+  }
+
+  // Load settings from localStorage
+  function loadMapSettings() {
+    try {
+      var settingsJson = localStorage.getItem(SETTINGS_KEY);
+      if (!settingsJson) {
+        MAP_DEBUG && console.log('No saved map settings found');
+        return null;
+      }
+
+      var settings = JSON.parse(settingsJson);
+      if (MAP_DEBUG) console.log('Loaded map settings:', settings);
+      return settings;
+    } catch (e) {
+      console.error('Failed to load map settings:', e);
+      return null;
+    }
+  }
+
+  // Apply loaded settings
+  function applyMapSettings(settings) {
+    if (!settings) return;
+
+    try {
+      // Apply panel visibility FIRST (immediately, no delay) to prevent flashing
+      if (settings.panels) {
+        if (settings.panels.overlay && typeof settings.panels.overlay.visible !== 'undefined') {
+          var overlayEl = document.getElementById('overlay');
+          var overlayContainer = document.getElementById('overlayContainer');
+          var overlayList = document.getElementById('overlayList');
+          var banner = document.getElementById('banner');
+          var visibility = settings.panels.overlay.visible ? 'visible' : 'hidden';
+          if (overlayEl) overlayEl.style.visibility = visibility;
+          if (overlayContainer) overlayContainer.style.visibility = visibility;
+          if (overlayList) overlayList.style.visibility = visibility;
+          if (banner) banner.style.visibility = visibility;
+        }
+
+        if (settings.panels.controller && typeof settings.panels.controller.visible !== 'undefined') {
+          var controllerEl = document.getElementById('controllerContainer');
+          if (controllerEl) {
+            controllerEl.style.visibility = settings.panels.controller.visible ? 'visible' : 'hidden';
+          }
+        }
+
+        if (settings.panels.metar && typeof settings.panels.metar.visible !== 'undefined') {
+          var metarEl = document.getElementById('metarContainer');
+          if (metarEl) {
+            metarEl.style.display = settings.panels.metar.visible ? 'flex' : 'none';
+          }
+        }
+      }
+
+      // Restore flight path trail points
+      if (settings.flightPath && settings.flightPath.points && settings.flightPath.points.length > 0) {
+        if (typeof polylinepoints !== 'undefined' && typeof polyline !== 'undefined') {
+          polylinepoints = settings.flightPath.points.slice();
+          if (typeof settings.flightPath.showPath !== 'undefined') {
+            showPath = settings.flightPath.showPath;
+          }
+          // Update polyline with restored points
+          if (polyline && polyline.setLatLngs) {
+            polyline.setLatLngs(polylinepoints);
+            if (showPath && map && !map.hasLayer(polyline)) {
+              map.addLayer(polyline);
+            }
+          }
+          if (MAP_DEBUG) console.log('[Map] Restored flight path with', polylinepoints.length, 'points');
+        }
+      }
+
+      // Apply map position and zoom - but wait for autoload to complete first
+      // If a flightplan exists, center on first waypoint instead
+      if (typeof map !== 'undefined' && map) {
+        if (settings.map && MAP_DEBUG) {
+          console.log('[Map] Settings map center/zoom:', settings.map.center, settings.map.zoom);
+        }
+        function applyMapPositionWhenReady() {
+          // Wait for autoload check to complete
+          if (window.autoloadCheckInProgress) {
+            if (MAP_DEBUG) console.log('[Map] Waiting for autoload check to complete before applying map position...');
+            setTimeout(applyMapPositionWhenReady, 200);
+            return;
+          }
+
+          // Skip if flightplan animation is in progress - fitBounds will handle centering
+          if (window.flightplanAnimationInProgress) {
+            if (MAP_DEBUG) console.log('[Map] Skipping saved map position - flightplan animation will center the map');
+            return;
+          }
+
+          var hasFlightplan = typeof flightplan !== 'undefined' && flightplan && flightplan.length > 0;
+          var savedZoom = (settings.map && settings.map.zoom) ? settings.map.zoom : 10;
+
+          // If flightplan exists, center on FIRST waypoint (user choice: option 1)
+          if (hasFlightplan) {
+            var firstWp = flightplan[0];
+            if (MAP_DEBUG) console.log('[Map] Centering on first waypoint:', firstWp.name || 'WP1', 'at', firstWp.lat, firstWp.lng);
+            map.setView([firstWp.lat, firstWp.lng], savedZoom);
+            return;
+          }
+
+          // No flightplan - always center on aircraft position (live, cached, or fallback)
+          var source = window.aircraftPositionInitialized ? 'live' : (hasCachedAircraftPosition ? 'cached' : 'fallback');
+          map.setView([pos_lat, pos_lng], savedZoom);
+          if (MAP_DEBUG) console.log('[Map] No flightplan - centered on aircraft (' + source + ') at', pos_lat, pos_lng);
+        }
+
+        setTimeout(applyMapPositionWhenReady, 100);
+      }
+
+      // Apply panel sizes and positions
+      if (settings.panels) {
+        if (settings.panels.overlay) {
+          var overlayEl = document.getElementById('overlay');
+          if (overlayEl) {
+            if (typeof settings.panels.overlay.visible !== 'undefined') {
+              overlayEl.style.visibility = settings.panels.overlay.visible ? 'visible' : 'hidden';
+            }
+          }
+        }
+
+        if (settings.panels.controller) {
+          var controllerEl = document.getElementById('controllerContainer');
+          var controllerList = document.getElementById('controllerList');
+          if (controllerEl) {
+            // Controller Panel soll NIEMALS beim Laden aktiv sein
+            // Egal was in den Settings steht - immer hidden starten
+            var shouldShow = false;
+            if (typeof settings.panels.controller.visible !== 'undefined') {
+              controllerEl.style.visibility = shouldShow ? 'visible' : 'hidden';
+              if (controllerList) {
+                controllerList.style.visibility = shouldShow ? 'visible' : 'hidden';
+              }
+            }
+
+            // Restore panel state and trigger data loading
+            if (shouldShow) {
+              if (MAP_DEBUG) console.log('[Map] Restoring controller panel state in applyMapSettings:', settings.panels.controller.panelState);
+              panelState = settings.panels.controller.panelState;
+              moverX = true;
+
+              // Reset state variables (same as openControllerPanel)
+              if (panelState === 'vatsim' || panelState === 'ivao') {
+                lastIvao = "";
+                lastVatsim = "";
+                lastSelected = -1;
+                lastSelectedElement = null;
+                // Reset last rendered prefixes to force re-render when controller data loads
+                // This ensures control zones appear after map reload
+                window._lastRenderedControllerPrefixes = null;
+              }
+
+              // Set panel header based on panel state
+              var controllerHeader = document.getElementById('controllerHeader');
+              if (controllerHeader) {
+                switch(panelState) {
+                  case 'vatsim':
+                    controllerHeader.innerHTML = 'VATSIM';
+                    vatsim = true;
+                    airportsPanel = false;
+                    // Close any open popups when switching networks
+                    closeAllPopups();
+                    // Update radio button state to match
+                    if (typeof toggle10 !== 'undefined') toggle10.state('vatsim');
+                    // Enable control zones for VATSIM
+                    setControlZonesNetwork('VATSIM');
+                    setControlZonesEnabled(true);
+                    break;
+                  case 'ivao':
+                    controllerHeader.innerHTML = 'IVAO';
+                    vatsim = false;
+                    airportsPanel = false;
+                    // Close any open popups when switching networks
+                    closeAllPopups();
+                    // Update radio button state to match
+                    if (typeof toggle10 !== 'undefined') toggle10.state('ivao');
+                    // Enable control zones for IVAO
+                    setControlZonesNetwork('IVAO');
+                    setControlZonesEnabled(true);
+                    break;
+                  case 'airports':
+                    controllerHeader.innerHTML = 'Airports';
+                    airportsToggle = 'airports';
+                    airportsPanel = false;
+                    // Close any open popups when switching panels
+                    closeAllPopups();
+                    // Update airports button state to match
+                    if (typeof toggle11 !== 'undefined') toggle11.state('airports');
+                    // Disable control zones for airports panel
+                    setControlZonesEnabled(false);
+                    break;
+                  case 'navaids':
+                    controllerHeader.innerHTML = 'Navaids';
+                    airportsToggle = 'navaids';
+                    airportsPanel = true;
+                    // Update airports button state to match
+                    if (typeof toggle11 !== 'undefined') toggle11.state('navaids');
+                    // Disable control zones for navaids panel
+                    setControlZonesEnabled(false);
+                    break;
+                  case 'reportingPoints':
+                    controllerHeader.innerHTML = 'Reporting Points';
+                    airportsPanel = false;
+                    // Update airports button state to match
+                    if (typeof toggle11 !== 'undefined') toggle11.state('reportingPoints');
+                    // Disable control zones for reporting points panel
+                    setControlZonesEnabled(false);
+                    break;
+                }
+                if (MAP_DEBUG) console.log('[Map] Panel header set to:', controllerHeader.innerHTML);
+              }
+
+              // Trigger data loading immediately (map is ready now)
+              if (MAP_DEBUG) console.log('[Map] Loading data for panel state:', panelState);
+              if (panelState === 'vatsim' || panelState === 'ivao') {
+                if (MAP_DEBUG) console.log('[Map] Calling getVatsimData()');
+                getVatsimData();
+              } else if (panelState === 'airports' || panelState === 'navaids' || panelState === 'reportingPoints') {
+                if (MAP_DEBUG) console.log('[Map] Calling getWPData() and listNavaids()');
+                getWPData();
+                listNavaids();
+              }
+            } else {
+              // Panel not visible - ensure radio button is in "radio" state and control zones are disabled
+              if (typeof toggle10 !== 'undefined') toggle10.state('radio');
+              setControlZonesEnabled(false);
+            }
+          }
+        }
+
+        // WICHTIG: Controller Button IMMER auf radio setzen beim Laden
+        // Unabhängig davon ob settings.panels.controller existiert oder nicht
+        if (typeof toggle10 !== 'undefined') {
+          toggle10.state('radio');
+          if (MAP_DEBUG) console.log('[Map] Controller button forced to radio state on load (applyMapSettings)');
+        }
+
+        if (settings.panels.metar) {
+          var metarEl = document.getElementById('metarContainer');
+          if (metarEl) {
+            // Restore visibility state
+            if (typeof settings.panels.metar.visible !== 'undefined') {
+              metarEl.style.display = settings.panels.metar.visible ? 'flex' : 'none';
+            }
+          }
+        }
+
+        if (settings.panels.elevationProfile) {
+          var elevationEl = document.getElementById('elevationProfileSection');
+          if (elevationEl && settings.panels.elevationProfile.height) {
+            // Ensure saved height is at least minimum
+            var savedHeight = parseInt(settings.panels.elevationProfile.height) || 0;
+            var minHeight = window.innerHeight * ELEVATION_PANEL_MIN_HEIGHT_RATIO;
+            if (savedHeight < minHeight) {
+              savedHeight = minHeight;
+            }
+            elevationEl.style.height = savedHeight + 'px';
+          }
+
+          // NICHT den collapsed-Zustand wiederherstellen!
+          // Das Panel soll beim Laden immer expanded sein.
+          // Nur savedHeight merken für manuelle collapse/expand durch Benutzer
+          elevationCanvasCollapsed = false;
+          elevationSavedHeight = settings.panels.elevationProfile.savedHeight || null;
+
+          var wrapper = document.querySelector('.elevation-canvas-wrapper');
+          if (wrapper && elevationEl) {
+            wrapper.classList.remove('collapsed');
+            elevationEl.classList.remove('elevation-collapsed');
+            if (MAP_DEBUG) console.log('[Map] Elevation canvas always starts expanded');
+          }
+        }
+      }
+
+      // Apply elevation zoom state with validation
+      if (settings.elevationZoom && typeof elevationZoom !== 'undefined') {
+        var scale = settings.elevationZoom.scale || 1.0;
+        var offsetX = settings.elevationZoom.offsetX || 0;
+        var offsetY = settings.elevationZoom.offsetY || 0;
+
+        // Validate scale
+        if (scale < 1.0 || scale > 10.0) {
+          console.warn('[Map] Invalid saved zoom scale:', scale, '- resetting to 1.0');
+          scale = 1.0;
+          offsetX = 0;
+          offsetY = 0;
+        }
+
+        // Validate offsets (use reasonable default canvas size for validation)
+        var estimatedCanvasWidth = 1200;
+        var estimatedCanvasHeight = 150;
+        var maxOffsetX = estimatedCanvasWidth * (scale - 1);
+        var maxOffsetY = estimatedCanvasHeight * (scale - 1);
+
+        if (Math.abs(offsetX) > maxOffsetX * 2 || Math.abs(offsetY) > maxOffsetY * 2) {
+          console.warn('[Map] Invalid saved zoom offsets:', offsetX, offsetY, '- resetting to 0');
+          offsetX = 0;
+          offsetY = 0;
+        }
+
+        elevationZoom.scale = scale;
+        elevationZoom.offsetX = offsetX;
+        elevationZoom.offsetY = offsetY;
+
+        if (MAP_DEBUG) console.log('[Map] Restored elevation zoom - scale:', scale, 'offset:', offsetX, offsetY);
+      }
+
+      // Apply active layers
+      if (settings.layers && settings.layers.activeLayers && typeof map !== 'undefined' && map && typeof layerRegistry !== 'undefined') {
+        setTimeout(function() {
+          try {
+            var activeLayers = settings.layers.activeLayers;
+            var appliedLayers = [];
+            var skippedLayers = [];
+
+            // First, remove all layers from the map
+            for (var layerName in layerRegistry) {
+              if (layerRegistry.hasOwnProperty(layerName)) {
+                var layer = layerRegistry[layerName];
+                try {
+                  if (map.hasLayer(layer)) {
+                    map.removeLayer(layer);
+                  }
+                } catch (e) {
+                  console.warn('Failed to remove layer:', layerName, e);
+                }
+              }
+            }
+
+            // Then, add back the saved active layers
+            for (var i = 0; i < activeLayers.length; i++) {
+              var layerName = activeLayers[i];
+
+              // Check if layer exists in registry
+              if (!layerRegistry[layerName]) {
+                skippedLayers.push(layerName);
+                console.warn('Layer "' + layerName + '" not found in registry (might have been removed from config)');
+                continue;
+              }
+
+              // Skip wind layer - it will be activated by onFlightplanAnimationComplete()
+              // This prevents the wind layer from being shown during flightplan loading
+              // Check for all possible wind layer names (v1.24h fix)
+              if (layerName === 'Wind' || layerName === 'OpenWeatherMap' ||
+                  layerName === 'OpenWeatherMap (10m / Boden)' ||
+                  layerName.toLowerCase().indexOf('wind') !== -1 ||
+                  layerName.toLowerCase().indexOf('openweathermap') !== -1 ||
+                  (typeof owmWindLayer !== 'undefined' && layerRegistry[layerName] === owmWindLayer)) {
+                if (MAP_DEBUG) console.log('[Map] Skipping wind layer "' + layerName + '" in applyMapSettings - will be activated after flightplan load');
+                continue;
+              }
+
+              // Try to add the layer
+              try {
+                var layer = layerRegistry[layerName];
+                if (layer && typeof layer.addTo === 'function') {
+                  map.addLayer(layer);
+                  appliedLayers.push(layerName);
+                } else {
+                  skippedLayers.push(layerName);
+                  console.warn('Layer "' + layerName + '" is invalid or not a valid Leaflet layer');
+                }
+              } catch (e) {
+                skippedLayers.push(layerName);
+                console.error('Failed to add layer "' + layerName + '":', e);
+              }
+            }
+
+            if (MAP_DEBUG) console.log('Applied active layers:', appliedLayers);
+            if (skippedLayers.length > 0) {
+              console.log('Skipped layers (not found or invalid):', skippedLayers);
+            }
+          } catch (e) {
+            console.error('Error applying active layers:', e);
+          }
+        }, 300);
+      }
+
+      if (MAP_DEBUG) console.log('Map settings applied successfully');
+    } catch (e) {
+      console.error('Failed to apply map settings:', e);
+    }
+  }
+
+  // Schedule autosave (debounced)
+  function scheduleAutosave() {
+    if (autosaveTimer) {
+      clearTimeout(autosaveTimer);
+    }
+    autosaveTimer = setTimeout(function() {
+      saveMapSettings();
+    }, AUTOSAVE_DELAY);
+  }
+
+  // Auto-save on map move/zoom
+  function setupAutosave() {
+    if (typeof map !== 'undefined' && map) {
+      map.on('moveend', function() {
+        // Don't autosave position if no flightplan (aircraft should stay centered)
+        if (typeof flightplan === 'undefined' || !flightplan || flightplan.length === 0) {
+          if (MAP_DEBUG) console.log('[Map] Skipping autosave - no flightplan (aircraft tracking mode)');
+          return;
+        }
+        scheduleAutosave();
+        // Update controller list after panning to reflect visible control zones
+        if (controllersWithCoordArray && controllersWithCoordArray.length > 0) {
+          checkInRange(controllersWithCoordArray);
+        }
+      });
+      map.on('zoomend', function() {
+        scheduleAutosave();
+        // Update controller list after zoom to reflect visible control zones
+        if (controllersWithCoordArray && controllersWithCoordArray.length > 0) {
+          checkInRange(controllersWithCoordArray);
+        }
+      });
+      map.on('baselayerchange', scheduleAutosave);
+      map.on('overlayadd', scheduleAutosave);
+      map.on('overlayremove', scheduleAutosave);
+    }
+
+    // Save on window unload
+    addTrackedEventListener(window, 'beforeunload', function() {
+      saveMapSettings();
+    });
+  }
+
+  // Apply ONLY panel visibility from settings (can be done before map is ready)
+  function applyPanelVisibilityOnly(settings) {
+    if (MAP_DEBUG) console.log('[Map] applyPanelVisibilityOnly called, settings:', settings);
+    if (!settings || !settings.panels) {
+      if (MAP_DEBUG) console.log('[Map] No settings or no panels - returning');
+      return;
+    }
+    if (MAP_DEBUG) console.log('[Map] Settings panels:', settings.panels);
+
+    try {
+      // Overlay panel
+      if (settings.panels.overlay && typeof settings.panels.overlay.visible !== 'undefined') {
+        var overlayEl = document.getElementById('overlay');
+        var overlayContainer = document.getElementById('overlayContainer');
+        var overlayList = document.getElementById('overlayList');
+        var banner = document.getElementById('banner');
+        var visibility = settings.panels.overlay.visible ? 'visible' : 'hidden';
+        if (overlayEl) overlayEl.style.visibility = visibility;
+        if (overlayContainer) overlayContainer.style.visibility = visibility;
+        if (overlayList) overlayList.style.visibility = visibility;
+        if (banner) banner.style.visibility = visibility;
+      }
+
+      // Controller panel
+      if (settings.panels.controller && typeof settings.panels.controller.visible !== 'undefined') {
+        if (MAP_DEBUG) console.log('[Map] Controller panel settings:', settings.panels.controller);
+        var controllerEl = document.getElementById('controllerContainer');
+        var controllerList = document.getElementById('controllerList');
+        if (controllerEl) {
+          // Controller Panel soll NIEMALS beim Laden aktiv sein
+          // Egal was in den Settings steht - immer hidden starten
+          if (MAP_DEBUG) console.log('[Map] Controller panel - forcing hidden on load (never restore as active)');
+
+          var shouldShow = false;
+          controllerEl.style.visibility = 'hidden';
+          if (controllerList) {
+            controllerList.style.visibility = 'hidden';
+          }
+
+          // NIEMALS das Panel beim Laden wiederherstellen
+          if (shouldShow) {
+            if (MAP_DEBUG) console.log('[Map] Restoring controller panel state:', settings.panels.controller.panelState);
+            panelState = settings.panels.controller.panelState;
+            moverX = true;
+
+            // Reset state variables (same as openControllerPanel)
+            if (panelState === 'vatsim' || panelState === 'ivao') {
+              lastIvao = "";
+              lastVatsim = "";
+              lastSelected = -1;
+              lastSelectedElement = null;
+              // Reset last rendered prefixes to force re-render when controller data loads
+              // This ensures control zones appear after map reload
+              window._lastRenderedControllerPrefixes = null;
+            }
+
+            // Set panel header based on panel state
+            var controllerHeader = document.getElementById('controllerHeader');
+            if (controllerHeader) {
+              switch(panelState) {
+                case 'vatsim':
+                  controllerHeader.innerHTML = 'VATSIM';
+                  vatsim = true;
+                  airportsPanel = false;
+                  // Close any open popups when switching networks
+                  closeAllPopups();
+                  // Update radio button state to match
+                  if (typeof toggle10 !== 'undefined') toggle10.state('vatsim');
+                  // Enable control zones for VATSIM
+                  setControlZonesNetwork('VATSIM');
+                  setControlZonesEnabled(true);
+                  break;
+                case 'ivao':
+                  controllerHeader.innerHTML = 'IVAO';
+                  vatsim = false;
+                  airportsPanel = false;
+                  // Close any open popups when switching networks
+                  closeAllPopups();
+                  // Update radio button state to match
+                  if (typeof toggle10 !== 'undefined') toggle10.state('ivao');
+                  // Enable control zones for IVAO
+                  setControlZonesNetwork('IVAO');
+                  setControlZonesEnabled(true);
+                  break;
+                case 'airports':
+                  controllerHeader.innerHTML = 'Airports';
+                  airportsToggle = 'airports';
+                  airportsPanel = false;
+                  // Close any open popups when switching panels
+                  closeAllPopups();
+                  // Update airports button state to match
+                  if (typeof toggle11 !== 'undefined') toggle11.state('airports');
+                  // Disable control zones for airports panel
+                  setControlZonesEnabled(false);
+                  break;
+                case 'navaids':
+                  controllerHeader.innerHTML = 'Navaids';
+                  airportsToggle = 'navaids';
+                  airportsPanel = true;
+                  // Close any open popups when switching panels
+                  closeAllPopups();
+                  // Update airports button state to match
+                  if (typeof toggle11 !== 'undefined') toggle11.state('navaids');
+                  // Disable control zones for navaids panel
+                  setControlZonesEnabled(false);
+                  break;
+                case 'reportingPoints':
+                  controllerHeader.innerHTML = 'Reporting Points';
+                  airportsPanel = false;
+                  // Update airports button state to match
+                  if (typeof toggle11 !== 'undefined') toggle11.state('reportingPoints');
+                  // Disable control zones for reporting points panel
+                  setControlZonesEnabled(false);
+                  break;
+              }
+              if (MAP_DEBUG) console.log('[Map] Panel header set to:', controllerHeader.innerHTML);
+            }
+
+            // Schedule data loading after map is fully initialized
+            setTimeout(function() {
+              if (MAP_DEBUG) console.log('[Map] Loading data for panel state:', panelState);
+              if (panelState === 'vatsim' || panelState === 'ivao') {
+                if (MAP_DEBUG) console.log('[Map] Calling getVatsimData()');
+                getVatsimData();
+              } else if (panelState === 'airports' || panelState === 'navaids' || panelState === 'reportingPoints') {
+                if (MAP_DEBUG) console.log('[Map] Calling getWPData() and listNavaids()');
+                getWPData();
+                listNavaids();
+              }
+            }, 1000);
+          } else {
+            // Panel not visible - ensure radio button is in "radio" state and control zones are disabled
+            if (typeof toggle10 !== 'undefined') toggle10.state('radio');
+            setControlZonesEnabled(false);
+            if (MAP_DEBUG) console.log('[Map] Panel not restored - forcing radio state');
+          }
+        }
+      }
+
+      // WICHTIG: Controller Button IMMER auf radio setzen beim Laden
+      // Unabhängig davon ob settings.panels.controller existiert oder nicht
+      if (typeof toggle10 !== 'undefined') {
+        toggle10.state('radio');
+        if (MAP_DEBUG) console.log('[Map] Controller button forced to radio state on load');
+      }
+
+      // METAR panel
+      if (settings.panels.metar && typeof settings.panels.metar.visible !== 'undefined') {
+        var metarEl = document.getElementById('metarContainer');
+        if (metarEl) {
+          metarEl.style.display = settings.panels.metar.visible ? 'flex' : 'none';
+        }
+      }
+
+      // Elevation profile panel - removed from config restore
+      // The elevation profile is now only shown when flightplan animation completes
+      // and NOT when controller mode is active
+    } catch (e) {
+      console.error('Error applying panel visibility:', e);
+    }
+  }
+
+  // Initialize on page load
+  function initialize() {
+    // Load settings immediately (before map is ready)
+    var settings = loadMapSettings();
+
+    // Apply panel visibility RIGHT NOW to prevent flash
+    if (settings) {
+      applyPanelVisibilityOnly(settings);
+    }
+
+    // Wait for map to be ready for the rest of the settings
+    var checkMapReady = setInterval(function() {
+      if (typeof map !== 'undefined' && map) {
+        clearInterval(checkMapReady);
+
+        // Apply remaining settings (map position, zoom, layers, sizes, etc.)
+        if (settings) {
+          applyMapSettings(settings);
+        }
+
+        // Setup autosave
+        setupAutosave();
+
+        if (MAP_DEBUG) console.log('Map settings system initialized');
+      }
+    }, 100);
+
+    // Timeout after 10 seconds
+    setTimeout(function() {
+      clearInterval(checkMapReady);
+    }, 10000);
+  }
+
+  // Public API
+  window.mapSettings = {
+    save: saveMapSettings,
+    load: loadMapSettings,
+    apply: applyMapSettings,
+    collect: collectMapSettings,
+    clear: function() {
+      localStorage.removeItem(SETTINGS_KEY);
+      if (MAP_DEBUG) console.log('Map settings cleared');
+    }
+  };
+
+  // Initialize
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initialize);
+  } else {
+    initialize();
+  }
+})();
+
+// Custom Tooltip System
+(function() {
+  let tooltipElement = null;
+  let tooltipTimeout = null;
+  let currentTooltipTarget = null;
+  const TOOLTIP_DELAY = 800; // 800ms delay before showing tooltip
+
+  function createTooltipElement() {
+    if (!tooltipElement) {
+      tooltipElement = document.createElement('div');
+      tooltipElement.className = 'custom-tooltip';
+      document.body.appendChild(tooltipElement);
+    }
+    return tooltipElement;
+  }
+
+  function showTooltip(text, targetElement) {
+    const tooltip = createTooltipElement();
+    tooltip.textContent = text;
+
+    // Reset classes and force visibility for measurement
+    tooltip.classList.remove('show', 'below', 'right', 'left');
+    tooltip.style.visibility = 'hidden';
+    tooltip.style.display = 'block';
+
+    // Force reflow to get correct dimensions
+    tooltip.offsetHeight;
+
+    const rect = targetElement.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+
+    // Position tooltip to the right of the button, vertically centered
+    let left = rect.right + 10;
+    let top = rect.top + (rect.height / 2) - (tooltipRect.height / 2);
+
+    // Check if tooltip fits on the right
+    if (left + tooltipRect.width > window.innerWidth - 5) {
+      // Show on the left instead
+      left = rect.left - tooltipRect.width - 10;
+      tooltip.classList.add('left');
+    } else {
+      tooltip.classList.add('right');
+    }
+
+    // Keep tooltip within vertical viewport
+    if (top < 5) top = 5;
+    if (top + tooltipRect.height > window.innerHeight - 5) {
+      top = window.innerHeight - tooltipRect.height - 5;
+    }
+
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+    tooltip.style.visibility = '';
+    tooltip.style.opacity = '';
+    tooltip.classList.add('show');
+  }
+
+  function hideTooltip() {
+    if (tooltipElement) {
+      tooltipElement.classList.remove('show', 'below', 'right', 'left');
+      tooltipElement.style.opacity = '0';
+      tooltipElement.style.visibility = 'hidden';
+    }
+    if (tooltipTimeout) {
+      clearTimeout(tooltipTimeout);
+      tooltipTimeout = null;
+    }
+    currentTooltipTarget = null;
+  }
+
+  function handleMouseEnter(event) {
+    const target = event.currentTarget;
+    const tooltipText = target.getAttribute('data-tooltip') || target.getAttribute('title');
+
+    if (tooltipText) {
+      // Clear any existing timeout
+      if (tooltipTimeout) {
+        clearTimeout(tooltipTimeout);
+      }
+
+      currentTooltipTarget = target;
+
+      // Set new timeout to show tooltip after delay
+      tooltipTimeout = setTimeout(() => {
+        showTooltip(tooltipText, target);
+      }, TOOLTIP_DELAY);
+    }
+  }
+
+  function handleMouseLeave() {
+    hideTooltip();
+  }
+
+  function initializeTooltips() {
+    // Initialize tooltips for all elements with title or data-tooltip attribute
+    const elements = document.querySelectorAll('[title], [data-tooltip]');
+    elements.forEach(element => {
+      // Copy title to data-tooltip if exists
+      if (element.hasAttribute('title') && !element.hasAttribute('data-tooltip')) {
+        element.setAttribute('data-tooltip', element.getAttribute('title'));
+        element.removeAttribute('title'); // Remove title to prevent browser tooltip
+      }
+
+      element.addEventListener('mouseenter', handleMouseEnter);
+      element.addEventListener('mouseleave', handleMouseLeave);
+    });
+
+    // Special handling for Leaflet easy buttons
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === 1) { // Element node
+            // Check if it's a Leaflet button or contains one
+            const buttons = node.querySelectorAll ?
+              node.querySelectorAll('.easy-button-button, button, .leaflet-control a') : [];
+
+            if (node.classList && (node.classList.contains('easy-button-button') ||
+                node.tagName === 'BUTTON' || node.tagName === 'A')) {
+              if (node.hasAttribute('title') || node.hasAttribute('data-tooltip')) {
+                if (node.hasAttribute('title') && !node.hasAttribute('data-tooltip')) {
+                  node.setAttribute('data-tooltip', node.getAttribute('title'));
+                  node.removeAttribute('title');
+                }
+                node.addEventListener('mouseenter', handleMouseEnter);
+                node.addEventListener('mouseleave', handleMouseLeave);
+              }
+            }
+
+            buttons.forEach(button => {
+              if (button.hasAttribute('title') || button.hasAttribute('data-tooltip')) {
+                if (button.hasAttribute('title') && !button.hasAttribute('data-tooltip')) {
+                  button.setAttribute('data-tooltip', button.getAttribute('title'));
+                  button.removeAttribute('title');
+                }
+                button.addEventListener('mouseenter', handleMouseEnter);
+                button.addEventListener('mouseleave', handleMouseLeave);
+              }
+            });
+          }
+        });
+      });
+    });
+
+    // Observe the entire document for dynamically added elements
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    // Global click and touch handler to hide tooltip
+    document.addEventListener('click', hideTooltip);
+    document.addEventListener('touchstart', hideTooltip);
+
+    // Global mousemove handler to check if mouse left the target
+    document.addEventListener('mousemove', function(event) {
+      if (currentTooltipTarget) {
+        const rect = currentTooltipTarget.getBoundingClientRect();
+        const mouseX = event.clientX;
+        const mouseY = event.clientY;
+        const tolerance = 5; // Small tolerance for edge cases
+
+        // Check if mouse is outside the target element (with tolerance)
+        if (mouseX < rect.left - tolerance || mouseX > rect.right + tolerance ||
+            mouseY < rect.top - tolerance || mouseY > rect.bottom + tolerance) {
+          hideTooltip();
+        }
+      }
+    });
+  }
+
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeTooltips);
+  } else {
+    initializeTooltips();
+  }
+})();
+
+/**
+ * Panel Position Manager - Verwaltet Panel-Positionen und Snap-to-Corners
+ */
+var PanelPositionManager = (function() {
+    var SNAP_THRESHOLD = 80; // Pixel-Abstand f�r Snap
+    var STORAGE_KEY = 'kneeboardPanelPositions';
+
+    // Ecken-Definitionen
+    var CORNERS = {
+        'top-left': { left: 10, top: 10 },
+        'top-right': { right: 10, top: 10 },
+        'bottom-left': { left: 10, bottom: 60 },
+        'bottom-right': { right: 10, bottom: 60 }
+    };
+
+    var positions = {};
+    var dragState = null;
+
+    function init() {
+        loadPositions();
+        initializePanelDragging();
+        applyStoredPositions();
+    }
+
+    function loadPositions() {
+        try {
+            var stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                positions = JSON.parse(stored);
+            }
+        } catch (e) {
+            console.warn('Failed to load panel positions:', e);
+        }
+    }
+
+    function savePositions() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
+        } catch (e) {
+            console.warn('Failed to save panel positions:', e);
+        }
+    }
+
+    function findNearestCorner(x, y, panelWidth, panelHeight) {
+        var viewportWidth = window.innerWidth;
+        var viewportHeight = window.innerHeight;
+
+        var cornerPositions = {
+            'top-left': { x: 10, y: 10 },
+            'top-right': { x: viewportWidth - panelWidth - 10, y: 10 },
+            'bottom-left': { x: 10, y: viewportHeight - panelHeight - 60 },
+            'bottom-right': { x: viewportWidth - panelWidth - 10, y: viewportHeight - panelHeight - 60 }
+        };
+
+        var nearest = null;
+        var minDistance = Infinity;
+
+        for (var corner in cornerPositions) {
+            var pos = cornerPositions[corner];
+            var distance = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(y - pos.y, 2));
+
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearest = corner;
+            }
+        }
+
+        return (minDistance <= SNAP_THRESHOLD) ? nearest : null;
+    }
+
+    function applyPosition(panelId, corner) {
+        var panel = document.getElementById(panelId);
+        if (!panel) return;
+
+        var cornerPos = CORNERS[corner];
+
+        // Reset
+        panel.style.left = '';
+        panel.style.right = '';
+        panel.style.top = '';
+        panel.style.bottom = '';
+
+        // Apply new position
+        for (var prop in cornerPos) {
+            panel.style[prop] = cornerPos[prop] + 'px';
+        }
+
+        // Update resize handle
+        panel.classList.remove('resize-left', 'resize-right');
+        panel.classList.add(corner.includes('left') ? 'resize-right' : 'resize-left');
+
+        positions[panelId] = { corner: corner };
+        savePositions();
+    }
+
+    function applyStoredPositions() {
+        for (var panelId in positions) {
+            if (positions[panelId].corner) {
+                applyPosition(panelId, positions[panelId].corner);
+            }
+        }
+    }
+
+    function initializePanelDragging() {
+        var panels = document.querySelectorAll('.kneeboard-panel');
+
+        panels.forEach(function(panel) {
+            var header = panel.querySelector('.kneeboard-panel-header');
+            if (!header) return;
+
+            header.addEventListener('mousedown', function(e) {
+                // Ignoriere Buttons
+                if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+
+                dragState = {
+                    panel: panel,
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    initialX: panel.getBoundingClientRect().left,
+                    initialY: panel.getBoundingClientRect().top
+                };
+
+                panel.classList.add('dragging');
+                e.preventDefault();
+            });
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!dragState) return;
+
+            var deltaX = e.clientX - dragState.startX;
+            var deltaY = e.clientY - dragState.startY;
+
+            var newX = dragState.initialX + deltaX;
+            var newY = dragState.initialY + deltaY;
+
+            dragState.panel.style.left = newX + 'px';
+            dragState.panel.style.top = newY + 'px';
+            dragState.panel.style.right = '';
+            dragState.panel.style.bottom = '';
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (!dragState) return;
+
+            var panel = dragState.panel;
+            panel.classList.remove('dragging');
+
+            var rect = panel.getBoundingClientRect();
+            var corner = findNearestCorner(rect.left, rect.top, rect.width, rect.height);
+
+            if (corner) {
+                panel.style.transition = 'all 0.2s ease';
+                applyPosition(panel.id, corner);
+                setTimeout(function() {
+                    panel.style.transition = '';
+                }, 200);
+            } else {
+                // Free position
+                positions[panel.id] = {
+                    corner: null,
+                    left: rect.left,
+                    top: rect.top
+                };
+                savePositions();
+            }
+
+            dragState = null;
+        });
+    }
+
+    return {
+        init: init,
+        applyPosition: applyPosition
+    };
+})();
+
+/**
+ * Panel Resize - Verwaltet Panel-Größen (ohne Persistenz - CSS vw-Werte werden verwendet)
+ */
+function initializePanelResize() {
+    var panels = document.querySelectorAll('.kneeboard-panel');
+
+    panels.forEach(function(panel) {
+        var handle = panel.querySelector('.resize-handle');
+        if (!handle) return;
+
+        var isResizing = false;
+        var startX, startWidth;
+
+        handle.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = parseInt(window.getComputedStyle(panel).width, 10);
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+
+            var delta = e.clientX - startX;
+            if (panel.classList.contains('resize-left')) {
+                delta = -delta;
+            }
+
+            var newWidth = Math.max(200, Math.min(600, startWidth + delta));
+            panel.style.width = newWidth + 'px';
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (!isResizing) return;
+            isResizing = false;
+        });
+    });
+}
+
+// ============================================================================
+// GT Coherent Compatibility: Layer Control Toggle Handler
+// Replaces CSS :has() selector which is not supported in GT Coherent
+// ============================================================================
+function handleLayerControlToggle() {
+    // Use MutationObserver to detect when layer control expands/collapses
+    var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                var isExpanded = document.querySelector('.leaflet-control-layers-expanded');
+                if (isExpanded) {
+                    document.body.classList.add('layer-control-expanded');
+                } else {
+                    document.body.classList.remove('layer-control-expanded');
+                }
+            }
+        });
+    });
+
+    // Start observing when layer control is available
+    function startObserving() {
+        var layerControl = document.querySelector('.leaflet-control-layers');
+        if (layerControl) {
+            observer.observe(layerControl, { attributes: true, attributeFilter: ['class'] });
+        } else {
+            // Retry after a short delay if layer control not yet available
+            setTimeout(startObserving, 500);
+        }
+    }
+
+    startObserving();
+}
+
+// Initialisierung wenn DOM ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        PanelPositionManager.init();
+        initializePanelResize();
+        handleLayerControlToggle();
+
+        // WICHTIG: Elevation Profile immer im expanded-Zustand starten!
+        var wrapper = document.querySelector('.elevation-canvas-wrapper');
+        var section = document.getElementById('elevationProfileSection');
+        if (wrapper) {
+            wrapper.classList.remove('collapsed');
+        }
+        if (section) {
+            section.classList.remove('elevation-collapsed');
+        }
+        elevationCanvasCollapsed = false;
+    });
+} else {
+    PanelPositionManager.init();
+    initializePanelResize();
+    handleLayerControlToggle();
+
+    // WICHTIG: Elevation Profile immer im expanded-Zustand starten!
+    var wrapper = document.querySelector('.elevation-canvas-wrapper');
+    var section = document.getElementById('elevationProfileSection');
+    if (wrapper) {
+        wrapper.classList.remove('collapsed');
+    }
+    if (section) {
+        section.classList.remove('elevation-collapsed');
+    }
+    elevationCanvasCollapsed = false;
+}
+
+// ============================================================================
+// SimConnect Position Polling
+// ============================================================================
+
+function startSimConnectPolling() {
+  if (simConnectPollingInterval) {
+    clearInterval(simConnectPollingInterval);
+  }
+
+  console.log('[SimConnect] Starting position polling');
+  fetchSimConnectPosition(); // Initial fetch
+  simConnectPollingInterval = setInterval(fetchSimConnectPosition, simConnectPollRate);
+}
+
+function stopSimConnectPolling() {
+  if (simConnectPollingInterval) {
+    clearInterval(simConnectPollingInterval);
+    simConnectPollingInterval = null;
+    console.log('[SimConnect] Position polling stopped');
+  }
+}
+
+function fetchSimConnectPosition() {
+  if (!simConnectEnabled) return;
+
+  fetch(window.KneeboardApiProxyUrl + '/api/simconnect/position')
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+      if (data.connected && data.latitude !== undefined && data.longitude !== undefined) {
+        if (!simConnectConnectionStatus) {
+          simConnectConnectionStatus = true;
+          console.log('[SimConnect] Connected to simulator');
+          updateSimConnectStatusUI(true);
+        }
+        updateAircraftPositionFromSimConnect(data);
+        simConnectLastUpdate = Date.now();
+      } else {
+        if (simConnectConnectionStatus) {
+          simConnectConnectionStatus = false;
+          console.log('[SimConnect] Disconnected from simulator');
+          updateSimConnectStatusUI(false);
+        }
+      }
+    })
+    .catch(function(error) {
+      if (simConnectConnectionStatus) {
+        console.warn('[SimConnect] Fetch error:', error);
+        simConnectConnectionStatus = false;
+        updateSimConnectStatusUI(false);
+      }
+    });
+}
+
+function updateAircraftPositionFromSimConnect(data) {
+  var lat = parseFloat(data.latitude);
+  var lng = parseFloat(data.longitude);
+  var alt = parseFloat(data.altitude);
+  var hdg = parseFloat(data.heading);
+  var spd = parseFloat(data.indicatedAirspeed);  // IAS, not ground speed
+
+  // Debug: Log incoming SimConnect data (einmal pro 10 Sekunden)
+  if (!window._lastSimConnectLog || Date.now() - window._lastSimConnectLog > 10000) {
+    console.log('[SimConnect] Data: IAS=' + spd + ' HDG=' + hdg + ' ALT=' + alt);
+    window._lastSimConnectLog = Date.now();
+  }
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    console.warn('[SimConnect] Invalid position:', data);
+    return;
+  }
+
+  // Update global position
+  pos_lat = lat;
+  pos_lng = lng;
+  window.aircraftPositionInitialized = true;
+
+  if (Number.isFinite(alt)) altitude = alt;
+  if (Number.isFinite(spd)) speed = spd;
+
+  // Update heading and rotate icon
+  if (Number.isFinite(hdg)) {
+    heading = hdg;
+    setRotation(hdg);
+  }
+
+  // Move aircraft marker
+  if (airplane) {
+    airplane.setLatLng(new L.LatLng(lat, lng)).update();
+  }
+
+  // Update elevation profile
+  if (Number.isFinite(alt)) {
+    updateAircraftPositionOnRoute(lat, lng, alt);
+  }
+
+  // Follow aircraft if enabled
+  if (follow && map && !window.flightplanAnimationInProgress) {
+    map.setView(new L.LatLng(lat, lng));
+  }
+
+  // Update banner with SimConnect data
+  updateBannerWithSimConnect(spd, hdg, alt);
+
+  // Persist to localStorage
+  try {
+    localStorage.setItem("mapCenterLat", lat);
+    localStorage.setItem("mapCenterLng", lng);
+  } catch (e) {}
+}
+
+function updateBannerWithSimConnect(spd, hdg, alt) {
+  // Skip wenn Wegpunkt aktiv - Wegpunkt-Funktion aktualisiert Banner
+  if (startlineShow) return;
+
+  var overlay2El = document.getElementById('overlay2');
+  if (!overlay2El) return;
+
+  var vel = Number.isFinite(spd) ? parseFloat(spd).toFixed(0) : '0';
+  var heading = Number.isFinite(hdg) ? parseFloat(hdg).toFixed(0) : '0';
+  var altitude = Number.isFinite(alt) ? parseFloat(alt).toFixed(0) : '0';
+
+  overlay2El.innerHTML =
+    '<table class="overlay2Table" style="text-align: center;"><tr><td>IAS:&nbsp;' +
+    vel +
+    'kts  &nbsp;I&nbsp;&nbsp;HEAD:&nbsp;' +
+    heading +
+    '°  I&nbsp;&nbsp;ALT:&nbsp;' +
+    altitude +
+    'ft</td></tr></table>';
+}
+
+function updateSimConnectStatusUI(connected) {
+  // Control banner visibility based on SimConnect connection status
+  var bannerEl = document.getElementById('banner');
+  if (bannerEl) {
+    bannerEl.style.visibility = connected ? 'visible' : 'hidden';
+  }
+}
+
+// SimConnect polling is started after map initialization (see line ~8380)

@@ -103,10 +103,14 @@ namespace Kneeboard_Server.Navigraph
             // Convert length from feet to nautical miles
             double lengthNm = Length / 6076.12;
 
+            Console.WriteLine($"[Runway DEBUG] {Identifier}: Threshold=({ThresholdLat:F6},{ThresholdLon:F6}), Heading={Heading:F1}°, Length={Length}ft");
+
             // Calculate end point
             var endPoint = CalculateDestination(ThresholdLat, ThresholdLon, Heading, lengthNm);
             EndLat = endPoint.Item1;
             EndLon = endPoint.Item2;
+
+            Console.WriteLine($"[Runway DEBUG] {Identifier}: Calculated End=({EndLat:F6},{EndLon:F6})");
         }
 
         private static (double, double) CalculateDestination(double lat, double lon, double bearing, double distanceNm)

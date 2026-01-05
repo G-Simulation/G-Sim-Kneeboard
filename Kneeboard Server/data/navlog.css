@@ -1,0 +1,540 @@
+/* Navlog - Fully Responsive */
+#navlog{
+  padding-bottom: 5px !important;
+}
+
+.flightType {
+  background-color: var(--light);
+  color: var(--fontLight);
+  height: 100%;
+  width: 100%;
+  border: none;
+  outline: none;
+  display: block;
+  font-size: 1.5vmin;
+  margin: 0;
+  padding: 0;
+}
+
+/* Flight Type Button aktiv */
+.flightType-active {
+  background-color: #ffffff;
+  color: var(--light);
+  margin: 0;
+  padding: 0;
+}
+
+.flightType:hover{
+  font-size: 1.6vmin;
+}
+
+tr{
+  vertical-align: middle;
+  padding-top: 0.3vmin;
+  padding-bottom: 0.3vmin;
+  border-collapse: collapse;
+  font-size: 1.4vmin;
+  height: 1.5em;
+}
+
+th{
+  vertical-align: middle;
+  padding-top: 0.3vmin;
+  padding-bottom: 0.3vmin;
+  text-align: left;
+  border-collapse: collapse;
+  color: var(--fontLight);
+  font-size: 1.4vmin;
+}
+
+td{
+  text-align: left;
+  vertical-align: top;
+  padding: 0.2vmin 0.4vmin;
+  border-collapse: collapse;
+  font-size: 1.2vmin;
+  color: var(--fontLight);
+}
+
+.rect{
+  -webkit-clip-path: polygon(0% 0%, 0% 100%, 100% 50%);
+  clip-path: polygon(0% 0%, 0% 100%, 100% 50%);
+  background-color: var(--dark);
+  width: 10px;
+  height: 10px;
+}
+
+table{
+  display: inline-table;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  vertical-align: middle;
+  border-spacing: 0;
+  border-collapse: collapse;
+  background-color: white;
+  table-layout: fixed;
+}
+
+tbody{
+  padding-bottom: 5px;
+}
+
+textarea{
+  border: none;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  resize: none;
+  outline: none;
+  font-size: 1.4vmin;
+  vertical-align: middle;
+  text-align: center;
+  color: var(--fontDark);
+  overflow: auto;
+  scrollbar-width: none;     /* Firefox */
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar {      /* Chrome, Edge */
+  width: 0;
+  height: 0;
+}
+
+.routeTable{
+  table-layout: fixed;
+  overflow-wrap: break-word;
+}
+
+.routeTable td{
+  border: 1px solid black;
+  font-size: 1.2vmin;
+  text-align: center;
+  vertical-align: middle;
+  overflow: hidden;
+  word-wrap: break-word;
+  height: 2.5vh;
+}
+
+.routeTable th{
+  border: 1px solid black;
+  font-size: 1.4vmin;
+  text-align: center;
+}
+
+.routeTable tr{
+  border: 1px solid black;
+  font-size: 1.4vmin;
+}
+
+.routeTable table{
+  table-layout: fixed;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  min-width: 100%;
+  width: 100%;
+  overflow: hidden;
+  border-collapse: collapse;
+}
+
+.waypoint-placeholder td{
+  background-color: var(--dark) !important;
+}
+
+.waypoint-placeholder textarea{
+  color: var(--fontLight);
+}
+
+.waypoint-placeholder td.waypoint-placeholder-add-cell{
+  background-color: #ffffff !important;
+}
+
+.waypoint-placeholder td.waypoint-placeholder-add-cell textarea,
+.waypoint-placeholder td.waypoint-placeholder-add-cell textarea:disabled{
+  color: var(--fontDark);
+}
+
+.waypoint-placeholder-field{
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.waypoint-placeholder textarea:disabled{
+  color: var(--fontLight);
+}
+
+.waypoint-placeholder textarea::placeholder{
+  color: var(--fontLight);
+}
+
+.waypoint-placeholder td.waypoint-placeholder-add-cell textarea::placeholder{
+  color: var(--fontDark);
+}
+
+.waypoint-add-row td{
+  background-color: var(--light);
+  padding: 0.3vmin;
+  font-style: italic;
+  border-top: 2px solid var(--dark);
+  border-bottom: 2px solid var(--dark);
+  height: 2vmin;
+}
+
+.waypoint-add-label{
+  color: var(--fontDark);
+  font-weight: bold;
+}
+
+.waypoint-placeholder-target-cell{
+  background-color: var(--dark) !important;
+}
+
+.waypoint-placeholder-target-cell textarea,
+.waypoint-placeholder-target-cell textarea:disabled{
+  color: var(--fontLight);
+}
+
+.waypoint-placeholder-target-cell textarea::placeholder{
+  color: var(--fontLight);
+}
+
+/* Responsive table header styling */
+.routeTable th[colspan] {
+  font-size: 1.4vmin !important;
+}
+
+/* Ensure min-width values are responsive */
+.routeTable td[style*="min-width"] {
+  min-width: unset !important;
+}
+
+/* Responsive textarea heights */
+.routeTable textarea[style*="height: 1.5em"] {
+  height: 1.5em !important;
+}
+
+.routeTable textarea[style*="height: 2.5em"] {
+  height: 2.5em !important;
+}
+
+.routeTable textarea[style*="height: 3.5em"] {
+  height: 3.5em !important;
+}
+
+.routeTable textarea[style*="height: 4em"] {
+  height: 4em !important;
+}
+
+.routeTable textarea[style*="height: 6em"] {
+  height: 6em !important;
+}
+
+.routeTable textarea[style*="height: 20em"] {
+  height: 20em !important;
+}
+
+/* Override inline font-size styles in HTML */
+.routeTable td[style*="font-size: 2vw"],
+.routeTable th[style*="font-size: 2vw"] {
+  font-size: 1.4vmin !important;
+}
+
+/* === Neue Klassen für Inline-Style-Ersetzung === */
+
+/* Textarea Höhen */
+.textarea-sm {
+  height: 1.5em;
+}
+
+.textarea-sm-left {
+  height: 1.5em;
+  text-align: left;
+}
+
+.textarea-md {
+  height: 2.5em;
+}
+
+.textarea-md-ifr {
+  height: 4%;
+  max-height: 4em;
+  overflow: hidden;
+}
+
+/* Waypoint Checkpoint Textarea - feste Höhe für gleichmäßige Zeilen */
+.waypoint-checkpoint {
+  overflow: hidden !important;
+  line-height: 1.2em;
+}
+
+/* IFR/ZY Checkpoint */
+#waypointsVFRWaypoints .waypoint-checkpoint,
+#waypointsIFRWaypoints .waypoint-checkpoint,
+#waypointsZYWaypoints .waypoint-checkpoint {
+  height: 4em !important;
+  max-height: 4em !important;
+}
+
+.textarea-notes {
+  height: 4em;
+  text-align: left;
+  overflow-y: hidden;
+}
+
+.textarea-clearance {
+  height: 1em;
+  text-align: left;
+  overflow-y: hidden;
+}
+
+.textarea-route {
+  height: 6em;
+  text-align: left;
+}
+
+.textarea-remarks {
+  height: 5em;
+  text-align: left;
+}
+
+.textarea-notam {
+  height: 20em;
+  text-align: left;
+}
+
+.textarea-ident {
+  height: 1.5em;
+  min-width: 4.5em;
+  resize: none;
+  white-space: nowrap;
+  overflow-x: hidden;
+}
+
+/* Hintergrundfarben für Zellen */
+.bg-dark,
+.routeTable td.bg-dark,
+.routeTable th.bg-dark {
+  background-color: var(--dark) !important;
+  color: var(--fontLight) !important;
+}
+
+.bg-light,
+.routeTable td.bg-light,
+.routeTable th.bg-light {
+  background-color: var(--light) !important;
+  color: var(--fontLight) !important;
+}
+
+.bg-white,
+.routeTable td.bg-white,
+.routeTable th.bg-white {
+  background-color: #ffffff !important;
+  color: var(--fontDark) !important;
+}
+
+/* Section Headers */
+.section-header {
+  background-color: var(--dark);
+  color: var(--fontLight);
+  font-size: 2vw;
+}
+
+/* Tabellen */
+.table-no-border {
+  border: none;
+}
+
+/* Innere Tabellen ohne routeTable-Borders */
+.table-no-border td,
+.table-no-border th {
+  border: 1px solid black;
+}
+
+.routeTable .table-no-border {
+  border: none;
+}
+
+.routeTable > tbody > tr > td.td-no-border {
+  border: none;
+}
+
+.table-mt {
+  margin-top: 5px;
+}
+
+.table-hidden {
+  display: none;
+}
+
+/* TDs */
+.td-no-border {
+  border: none;
+  padding: 0;
+}
+
+.td-no-padding {
+  padding: 0;
+  margin: 0;
+}
+
+.td-text-right {
+  text-align: right;
+}
+
+.td-border-none-right {
+  border-right: 0;
+}
+
+.td-border-none-left {
+  border-left: 0;
+}
+
+/* Breiten */
+.w-12 {
+  width: 12%;
+}
+
+.w-15 {
+  width: 15%;
+}
+
+.w-15px,
+.routeTable td.w-15px,
+.routeTable th.w-15px {
+  width: 15px !important;
+  min-width: 15px !important;
+  max-width: 15px !important;
+}
+
+.w-30 {
+  width: 30%;
+}
+
+.w-half {
+  width: calc(50% - 0.5vw);
+}
+
+.w-half-pl {
+  width: calc(50% - 0.55vw);
+  padding-left: 0.55vw;
+}
+
+/* Min-widths */
+.min-w-4em {
+  min-width: 4em;
+}
+
+.min-w-2-5em {
+  min-width: 2.5em;
+}
+
+.min-w-3-5em {
+  min-width: 3.5em;
+}
+
+
+
+/* Tbody ohne Border */
+.tbody-no-border {
+  border: none;
+}
+
+/* ========================================================================
+   IFR WAYPOINT TYPE VISUAL DISTINCTION
+   DEP (green) - Departure/SID Waypoints
+   ENR (blue) - Enroute Waypoints
+   ARR (orange) - Arrival/STAR Waypoints
+   APP (red) - Approach Waypoints
+   ======================================================================== */
+
+/* Waypoint Type Indicators - Border left colored bar */
+.waypoint-type-dep td:first-child {
+  border-left: 4px solid #28a745 !important;
+}
+
+.waypoint-type-enr td:first-child {
+  border-left: 4px solid #007bff !important;
+}
+
+.waypoint-type-arr td:first-child {
+  border-left: 4px solid #fd7e14 !important;
+}
+
+.waypoint-type-app td:first-child {
+  border-left: 4px solid #dc3545 !important;
+}
+
+/* Waypoint Type Badge/Label styling */
+.waypoint-type-badge {
+  display: inline-block;
+  padding: 0.1em 0.3em;
+  font-size: 0.8em;
+  font-weight: bold;
+  border-radius: 2px;
+  margin-left: 0.3em;
+  vertical-align: middle;
+}
+
+.waypoint-type-badge-dep {
+  background-color: #28a745;
+  color: white;
+}
+
+.waypoint-type-badge-enr {
+  background-color: #007bff;
+  color: white;
+}
+
+.waypoint-type-badge-arr {
+  background-color: #fd7e14;
+  color: white;
+}
+
+.waypoint-type-badge-app {
+  background-color: #dc3545;
+  color: white;
+}
+
+/* Airway indicator */
+.waypoint-airway {
+  font-style: italic;
+  color: #6c757d;
+  font-size: 0.9em;
+}
+
+/* Procedure indicator (SID/STAR name) */
+.waypoint-procedure {
+  font-weight: bold;
+  color: #495057;
+}
+
+/* Altitude constraint indicators */
+.altitude-at {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.altitude-above {
+  color: #007bff;
+}
+
+.altitude-below {
+  color: #fd7e14;
+}
+
+.altitude-between {
+  color: #6f42c1;
+}
+
+/* Speed constraint */
+.speed-constraint {
+  color: #17a2b8;
+  font-weight: bold;
+}
+
+/* Overfly waypoint indicator */
+.waypoint-overfly td:first-child::before {
+  content: "●";
+  color: #dc3545;
+  margin-right: 0.3em;
+}

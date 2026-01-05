@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Reflection;
-using System.Security.Principal;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -34,16 +33,7 @@ namespace Kneeboard_Server
                 m_Mutex = new Mutex(true, "KneeboardServerMutex", out createdNew);
                 if (createdNew)
                 {
-                    if (!IsAdministrator())
-                    {
-                        Console.WriteLine("Restarting as admin");
-                        StartAsAdmin(Assembly.GetExecutingAssembly().Location);
-                        return;
-                    }
-                    else
-                    {
                         Application.Run(new Kneeboard_Server());
-                    }
                 }
                 else
                 {
@@ -59,27 +49,6 @@ namespace Kneeboard_Server
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new Kneeboard_Server());
             }
-        }
-
-        public static bool IsAdministrator()
-        {
-            var identity = WindowsIdentity.GetCurrent();
-            var principal = new WindowsPrincipal(identity);
-            return principal.IsInRole(WindowsBuiltInRole.Administrator);
-        }
-
-        public static void StartAsAdmin(string fileName)
-        {
-            var proc = new Process
-            {
-                StartInfo =
-        {
-            FileName = fileName,
-            UseShellExecute = true,
-            Verb = "runas"
-        }
-            };
-            proc.Start();
         }
 
         /// <summary>

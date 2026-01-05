@@ -1,0 +1,59 @@
+<div id="Documents" class="tabcontent">
+	<div id="toolbar">
+		<div id="document_controls">
+			<button id="go_previous_doc" onclick="go_previous_doc()">Doc -</button>
+			<input id="current_doc" class="use-keyboard-input" value="1/1" onchange="docInput(this.value)" type="text" />
+			<button id="go_next_doc" onclick="go_next_doc()">Doc +</button>
+		</div>
+		<div id="page_controls">
+			<button id="go_previous" onclick="go_previous()">Page -</button>
+			<input id="current_page" class="use-keyboard-input" value="1/1" onchange="pageInput(this.value)" ondblclick="resetDoc" type="text" />
+			<button id="go_next" onclick="go_next()">Page +</button>
+		</div>
+		<div id="zoom_controls">
+			<button id="zoomout" value="Zoom out" onclick="ezoom(-1,0);">Zoom -</button>
+			<button id="rotate" value="Rotate" onclick="rotate();">Rotate</button>
+			<button id="zoomin" value="Zoom in" onclick="ezoom(1,0);">Zoom +</button>
+		</div>
+	</div>
+	<div><span style="visibility: hidden;" id="zoomSpan"></span></div>
+	<div id="doc" class="kneeboard-panel resize-left" style="visibility: hidden;">
+		<div class="resize-handle"></div>
+		<div class="kneeboard-panel-buttons">
+			<button class="kneeboard-panel-btn" id="docListMinimize" type="button" onclick="minimizeDocList()" title="Minimize document list">_</button>
+			<button class="kneeboard-panel-btn" id="docListClose" type="button" onclick="hidedocList()" title="Close document list">×</button>
+		</div>
+		<div id="docContainer">
+			<div id="docHeaderDiv" class="kneeboard-panel-header">
+				<h3 id="docHeader" class="kneeboard-panel-title">Documents</h3>
+			</div>
+			<div class="kneeboard-panel-content" id="docList">
+				<ul class="kneeboard-panel-list"></ul>
+			</div>
+		</div>
+	</div>
+	<div id="spinner" class="lds-spinner">
+		<div></div>
+		<div></div>
+		<div></div>
+		<div></div>
+		<div></div>
+		<div></div>
+		<div></div>
+		<div></div>
+		<div></div>
+		<div></div>
+		<div></div>
+		<div></div>
+	</div>
+	<div id="noDocumentsLabel">No Documents</div>
+	<div id="noDocumentsLabel">No Documents</div>
+	
+	<div id="body"></div>
+
+	<div id="container">
+		<img id="eimg" alt="Document page" draggable="false" />
+		<div id="doc-scroll-spacer"></div>
+		<div id="imageMessage" class="doc-message" aria-live="polite"></div>
+	</div>
+</div>

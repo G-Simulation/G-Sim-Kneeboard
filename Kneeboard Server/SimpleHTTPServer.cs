@@ -14,6 +14,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Kneeboard_Server.Navigraph;
 using static Kneeboard_Server.Kneeboard_Server;
+using EmbedIO;
+using EmbedIO.Actions;
+using EmbedIO.Files;
 
 namespace Kneeboard_Server
 {
@@ -303,9 +306,8 @@ namespace Kneeboard_Server
         {".zip", "application/zip"},
         #endregion
     };
-        Thread _serverThread;
         private string _rootDirectory;
-        HttpListener _listener;
+        private WebServer _server;
         private int _port;
         public string values = "";
         public long valuesTimestamp = 0;
@@ -330,18 +332,14 @@ namespace Kneeboard_Server
 
 
 
-        private volatile bool _isRunning = true;
-
         /// <summary>
         /// Stop server and dispose all functions.
         /// </summary>
         public void Stop()
         {
-            _isRunning = false;
             try
             {
-                _listener?.Stop();
-                _listener?.Close();
+                _server?.Dispose();
             }
             catch (Exception ex)
             {
@@ -349,93 +347,57 @@ namespace Kneeboard_Server
             }
         }
 
-        private void Listen()
+        private WebServer CreateWebServer()
         {
-            _listener = new HttpListener();
-            _listener.Prefixes.Add($"http://*:{_port}/");
+            Console.WriteLine($"[EmbedIO] Creating WebServer on port {_port} with root: {_rootDirectory}");
 
+            var server = new WebServer(o => o
+                .WithUrlPrefix($"http://localhost:{_port}/")
+                .WithMode(HttpListenerMode.EmbedIO))
+                .WithCors()
+                .WithModule(new ActionModule("/", HttpVerbs.Any, ProcessRequestAsync));
+
+            // Note: Static files are handled in ProcessRequestAsync
+            // No need for separate StaticFolder module
+
+            return server;
+        }
+
+        private async Task StartServerAsync()
+        {
             try
             {
-                _listener.Start();
+                _server = CreateWebServer();
+                await _server.RunAsync();
             }
-            catch (HttpListenerException ex)
+            catch (Exception ex)
             {
-                Console.WriteLine($"Failed to start HTTP listener: {ex.Message}");
+                Console.WriteLine($"Failed to start HTTP server: {ex.Message}");
                 Console.WriteLine("Try running as Administrator or use a different port.");
-                return;
-            }
-
-            while (_isRunning)
-            {
-                try
-                {
-                    var context = _listener.GetContext();
-                    // Handle each request in a thread pool thread for better concurrency
-                    ThreadPool.QueueUserWorkItem(_ =>
-                    {
-                        try
-                        {
-                            Process(context);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Error processing request: {ex.Message}");
-                            try
-                            {
-                                context.Response.StatusCode = 500;
-                                context.Response.OutputStream.Close();
-                            }
-                            catch { }
-                        }
-                    });
-                }
-                catch (HttpListenerException)
-                {
-                    // Listener was stopped
-                    if (!_isRunning) break;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Server error: {ex.Message}");
-                }
             }
         }
 
-        private void ResponseString(HttpListenerContext context, string text)
+        private async Task ResponseStringAsync(IHttpContext ctx, string text)
         {
             try
             {
-                byte[] buffer = Encoding.UTF8.GetBytes(text ?? string.Empty);
-                context.Response.ContentType = "text/plain; charset=utf-8";
-                context.Response.ContentLength64 = buffer.Length;
-                context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                await ctx.SendStringAsync(text ?? string.Empty, "text/plain", Encoding.UTF8);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error sending response: {ex.Message}");
             }
-            finally
-            {
-                try { context.Response.OutputStream.Close(); } catch { }
-            }
         }
 
-        private void ResponseJson(HttpListenerContext context, string json)
+        private async Task ResponseJsonAsync(IHttpContext ctx, string json)
         {
             try
             {
-                byte[] buffer = Encoding.UTF8.GetBytes(json ?? "{}");
-                context.Response.ContentType = "application/json; charset=utf-8";
-                context.Response.ContentLength64 = buffer.Length;
-                context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                await ctx.SendStringAsync(json ?? "{}", "application/json", Encoding.UTF8);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error sending JSON response: {ex.Message}");
-            }
-            finally
-            {
-                try { context.Response.OutputStream.Close(); } catch { }
             }
         }
 
@@ -445,14 +407,14 @@ namespace Kneeboard_Server
         /// Handle request for procedure details: api/procedure/{airport}/{type}/{name}
         /// Returns detailed waypoints with coordinates, altitudes, and speeds
         /// </summary>
-        private void HandleProcedureRequest(HttpListenerContext context, string path)
+        private async Task HandleProcedureRequest(IHttpContext ctx, string path)
         {
             try
             {
                 var parts = path.Split('/');
                 if (parts.Length < 3)
                 {
-                    ResponseJson(context, "{\"error\":\"Invalid path. Use: api/procedure/{airport}/{SID|STAR}/{name}\"}");
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Invalid path. Use: api/procedure/{airport}/{SID|STAR}/{name}\"}");
                     return;
                 }
 
@@ -463,7 +425,7 @@ namespace Kneeboard_Server
 
                 if (type != "SID" && type != "STAR")
                 {
-                    ResponseJson(context, "{\"error\":\"Type must be SID or STAR\"}");
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Type must be SID or STAR\"}");
                     return;
                 }
 
@@ -473,17 +435,17 @@ namespace Kneeboard_Server
                 if (procedureDetail != null)
                 {
                     string json = Newtonsoft.Json.JsonConvert.SerializeObject(procedureDetail);
-                    ResponseJson(context, json);
+                    await ResponseJsonAsync(ctx, json);
                 }
                 else
                 {
-                    ResponseJson(context, $"{{\"error\":\"Procedure {procedureName} not found for {airport}\"}}");
+                    await ResponseJsonAsync(ctx, $"{{\"error\":\"Procedure {procedureName} not found for {airport}\"}}");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Procedure API] Error: {ex.Message}");
-                ResponseJson(context, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\"}}" );
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\"}}" );
             }
         }
 
@@ -491,7 +453,7 @@ namespace Kneeboard_Server
         /// Handle request for all procedures at an airport: api/procedures/{airport}
         /// Returns list of SIDs and STARs with basic info
         /// </summary>
-        private void HandleProceduresListRequest(HttpListenerContext context, string airportIcao)
+        private async Task HandleProceduresListRequest(IHttpContext ctx, string airportIcao)
         {
             try
             {
@@ -539,12 +501,12 @@ namespace Kneeboard_Server
                 }
 
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(result);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Procedure API] Error: {ex.Message}");
-                ResponseJson(context, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\"}}" );
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\"}}" );
             }
         }
 
@@ -580,13 +542,13 @@ namespace Kneeboard_Server
 
         #endregion
 
-        private void HandleNoaaProxy(HttpListenerContext context, string icaoRaw, bool isTaf)
+        private async Task HandleNoaaProxy(IHttpContext ctx, string icaoRaw, bool isTaf)
         {
             string icao = (icaoRaw ?? string.Empty).Trim().ToUpperInvariant();
             if (icao.Length != 4 || !icao.All(char.IsLetter))
             {
-                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                context.Response.OutputStream.Close();
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                // EmbedIO manages stream
                 return;
             }
 
@@ -602,16 +564,16 @@ namespace Kneeboard_Server
                     client.Encoding = Encoding.UTF8;
                     string payload = client.DownloadString(endpoint);
                     byte[] buffer = Encoding.UTF8.GetBytes(payload);
-                    context.Response.StatusCode = (int)HttpStatusCode.OK;
-                    context.Response.ContentType = "application/json";
-                    context.Response.ContentLength64 = buffer.Length;
-                    context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                    ctx.Response.StatusCode = (int)HttpStatusCode.OK;
+                    ctx.Response.ContentType = "application/json";
+                    // ctx.Response.ContentLength = buffer.Length;
+                    await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                 }
             }
             catch (WebException ex)
             {
                 var httpResponse = ex.Response as HttpWebResponse;
-                context.Response.StatusCode = httpResponse != null
+                ctx.Response.StatusCode = httpResponse != null
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
 
@@ -637,39 +599,38 @@ namespace Kneeboard_Server
                 }
 
                 byte[] buffer = Encoding.UTF8.GetBytes(errorPayload);
-                context.Response.ContentType = "application/json";
-                context.Response.ContentLength64 = buffer.Length;
-                context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                ctx.Response.ContentType = "application/json";
+                // ctx.Response.ContentLength = buffer.Length;
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
             }
             finally
             {
-                context.Response.OutputStream.Close();
+                // EmbedIO manages stream
             }
         }
-        private void HandleElevationProxy(HttpListenerContext context)
+        private async Task HandleElevationProxy(IHttpContext ctx)
         {
-            var request = context.Request;
+            var request = ctx.Request;
 
             if (request.HttpMethod != "POST")
             {
-                context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
-                context.Response.OutputStream.Close();
+                ctx.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                // EmbedIO manages stream
                 return;
             }
 
             string requestBody;
             try
             {
-                using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
+                using (var reader = ctx.OpenRequestText())
                 {
-                    requestBody = reader.ReadToEnd();
+                    requestBody = await reader.ReadToEndAsync();
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error reading elevation request body: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                context.Response.OutputStream.Close();
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 return;
             }
 
@@ -684,11 +645,11 @@ namespace Kneeboard_Server
                 if (locations == null || locations.Count == 0)
                 {
                     Console.WriteLine($"[Elevation] ERROR: No locations in request. Body length: {requestBody.Length}");
-                    context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                     var errorBuffer = Encoding.UTF8.GetBytes("{\"error\":\"No locations provided\"}");
-                    context.Response.ContentType = "application/json";
-                    context.Response.ContentLength64 = errorBuffer.Length;
-                    context.Response.OutputStream.Write(errorBuffer, 0, errorBuffer.Length);
+                    ctx.Response.ContentType = "application/json";
+                    // ctx.Response.ContentLength = errorBuffer.Length;
+                    await ctx.Response.OutputStream.WriteAsync(errorBuffer, 0, errorBuffer.Length);
                     return;
                 }
                 Console.WriteLine($"[Elevation] Processing {locations.Count} locations");
@@ -769,15 +730,15 @@ namespace Kneeboard_Server
                 string payload = Newtonsoft.Json.JsonConvert.SerializeObject(new { results = allResults });
                 var buffer = Encoding.UTF8.GetBytes(payload);
 
-                context.Response.StatusCode = 200;
-                context.Response.ContentType = "application/json";
-                context.Response.ContentLength64 = buffer.Length;
-                context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType = "application/json";
+                // ctx.Response.ContentLength = buffer.Length;
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
             }
             catch (WebException ex)
             {
                 var httpResponse = ex.Response as HttpWebResponse;
-                context.Response.StatusCode = httpResponse != null
+                ctx.Response.StatusCode = httpResponse != null
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
 
@@ -789,37 +750,37 @@ namespace Kneeboard_Server
 
                 string payload = "{\"error\":\"Unable to reach elevation service\"}";
                 var buffer = Encoding.UTF8.GetBytes(payload);
-                context.Response.ContentType = "application/json";
-                context.Response.ContentLength64 = buffer.Length;
-                context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                ctx.Response.ContentType = "application/json";
+                // ctx.Response.ContentLength = buffer.Length;
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Elevation Proxy Error: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 string payload = "{\"error\":\"Internal server error\"}";
                 var buffer = Encoding.UTF8.GetBytes(payload);
-                context.Response.ContentType = "application/json";
-                context.Response.ContentLength64 = buffer.Length;
-                context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                ctx.Response.ContentType = "application/json";
+                // ctx.Response.ContentLength = buffer.Length;
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
             }
             finally
             {
-                context.Response.OutputStream.Close();
+                // EmbedIO manages stream
             }
         }
 
-        private void HandleDfsProxy(HttpListenerContext context)
+        private async Task HandleDfsProxy(IHttpContext ctx)
         {
-            var request = context.Request;
+            var request = ctx.Request;
             var path = request.Url.AbsolutePath;
 
             // Extract the tile path (z/x/y.png) from the URL
             var idx = path.IndexOf("/api/dfs/tiles/", StringComparison.OrdinalIgnoreCase);
             if (idx < 0)
             {
-                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                context.Response.OutputStream.Close();
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                // EmbedIO manages stream
                 return;
             }
 
@@ -836,19 +797,19 @@ namespace Kneeboard_Server
 
                 using (var upstreamResponse = (HttpWebResponse)outboundRequest.GetResponse())
                 {
-                    context.Response.StatusCode = (int)upstreamResponse.StatusCode;
-                    context.Response.ContentType = upstreamResponse.ContentType ?? "image/png";
+                    ctx.Response.StatusCode = (int)upstreamResponse.StatusCode;
+                    ctx.Response.ContentType = upstreamResponse.ContentType ?? "image/png";
 
                     using (var upstreamStream = upstreamResponse.GetResponseStream())
                     {
-                        upstreamStream.CopyTo(context.Response.OutputStream);
+                        await upstreamStream.CopyToAsync(ctx.Response.OutputStream);
                     }
                 }
             }
             catch (WebException ex)
             {
                 var httpResponse = ex.Response as HttpWebResponse;
-                context.Response.StatusCode = httpResponse != null
+                ctx.Response.StatusCode = httpResponse != null
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
 
@@ -860,25 +821,25 @@ namespace Kneeboard_Server
                 }
 
                 // Return empty PNG for failed tile requests
-                context.Response.ContentType = "image/png";
+                ctx.Response.ContentType = "image/png";
             }
             finally
             {
-                context.Response.OutputStream.Close();
+                // EmbedIO manages stream
             }
         }
 
-        private void HandleOfmProxy(HttpListenerContext context)
+        private async Task HandleOfmProxy(IHttpContext ctx)
         {
-            var request = context.Request;
+            var request = ctx.Request;
             var path = request.Url.AbsolutePath;
 
             // Extract the tile path (z/x/y.png) from the URL
             var idx = path.IndexOf("/api/ofm/tiles/", StringComparison.OrdinalIgnoreCase);
             if (idx < 0)
             {
-                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                context.Response.OutputStream.Close();
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                // EmbedIO manages stream
                 return;
             }
 
@@ -897,19 +858,19 @@ namespace Kneeboard_Server
 
                 using (var upstreamResponse = (HttpWebResponse)outboundRequest.GetResponse())
                 {
-                    context.Response.StatusCode = (int)upstreamResponse.StatusCode;
-                    context.Response.ContentType = upstreamResponse.ContentType ?? "image/png";
+                    ctx.Response.StatusCode = (int)upstreamResponse.StatusCode;
+                    ctx.Response.ContentType = upstreamResponse.ContentType ?? "image/png";
 
                     using (var upstreamStream = upstreamResponse.GetResponseStream())
                     {
-                        upstreamStream.CopyTo(context.Response.OutputStream);
+                        await upstreamStream.CopyToAsync(ctx.Response.OutputStream);
                     }
                 }
             }
             catch (WebException ex)
             {
                 var httpResponse = ex.Response as HttpWebResponse;
-                context.Response.StatusCode = httpResponse != null
+                ctx.Response.StatusCode = httpResponse != null
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
 
@@ -917,27 +878,33 @@ namespace Kneeboard_Server
                 Console.WriteLine($"Requested URL: {targetUrl}");
 
                 // Return empty PNG for failed tile requests
-                context.Response.ContentType = "image/png";
+                ctx.Response.ContentType = "image/png";
             }
             finally
             {
-                context.Response.OutputStream.Close();
+                // EmbedIO manages stream
             }
         }
 
-        private void HandleVatsimBoundariesProxy(HttpListenerContext context)
+        private async Task HandleVatsimBoundariesProxy(IHttpContext ctx)
         {
             try
             {
                 // Check memory cache first
+                string cachedData = null;
                 lock (_boundariesCacheLock)
                 {
                     if (_cachedVatsimBoundaries != null && (DateTime.Now - _vatsimBoundariesCacheTime) < BOUNDARIES_CACHE_TTL)
                     {
-                        context.Response.AddHeader("X-Cache", "HIT");
-                        ResponseJson(context, _cachedVatsimBoundaries);
-                        return;
+                        cachedData = _cachedVatsimBoundaries;
                     }
+                }
+
+                if (cachedData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "HIT");
+                    await ResponseJsonAsync(ctx, cachedData);
+                    return;
                 }
 
                 // Check permanent data directory first (preferred)
@@ -953,9 +920,9 @@ namespace Kneeboard_Server
                             _cachedVatsimBoundaries = data;
                             _vatsimBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
-                        context.Response.AddHeader("X-Cache", "DATA");
+                        ctx.Response.Headers.Add("X-Cache", "DATA");
                         Console.WriteLine("VATSIM Boundaries: loaded from data directory");
-                        ResponseJson(context, data);
+                        await ResponseJsonAsync(ctx, data);
                         return;
                     }
                 }
@@ -967,15 +934,15 @@ namespace Kneeboard_Server
                     var fileInfo = new FileInfo(diskCachePath);
                     if ((DateTime.Now - fileInfo.LastWriteTime) < BOUNDARIES_CACHE_TTL)
                     {
-                        string cachedData = File.ReadAllText(diskCachePath);
+                        string diskData = File.ReadAllText(diskCachePath);
                         lock (_boundariesCacheLock)
                         {
-                            _cachedVatsimBoundaries = cachedData;
+                            _cachedVatsimBoundaries = diskData;
                             _vatsimBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
-                        context.Response.AddHeader("X-Cache", "DISK");
+                        ctx.Response.Headers.Add("X-Cache", "DISK");
                         Console.WriteLine("VATSIM Boundaries: loaded from disk cache");
-                        ResponseJson(context, cachedData);
+                        await ResponseJsonAsync(ctx, diskData);
                         return;
                     }
                 }
@@ -1005,8 +972,8 @@ namespace Kneeboard_Server
                         Console.WriteLine($"VATSIM Boundaries: failed to save disk cache: {cacheEx.Message}");
                     }
 
-                    context.Response.AddHeader("X-Cache", "MISS");
-                    ResponseJson(context, boundaries);
+                    ctx.Response.Headers.Add("X-Cache", "MISS");
+                    await ResponseJsonAsync(ctx, boundaries);
                 }
             }
             catch (Exception ex)
@@ -1014,34 +981,46 @@ namespace Kneeboard_Server
                 Console.WriteLine($"VATSIM Boundaries fetch error: {ex.Message}");
 
                 // Try to return cached data even if expired
+                string staleData = null;
                 lock (_boundariesCacheLock)
                 {
                     if (_cachedVatsimBoundaries != null)
                     {
-                        context.Response.AddHeader("X-Cache", "STALE");
-                        ResponseJson(context, _cachedVatsimBoundaries);
-                        return;
+                        staleData = _cachedVatsimBoundaries;
                     }
                 }
 
-                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                ResponseJson(context, "{\"error\":\"Unable to fetch VATSIM boundaries\"}");
+                if (staleData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "STALE");
+                    await ResponseJsonAsync(ctx, staleData);
+                    return;
+                }
+
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                await ResponseJsonAsync(ctx, "{\"error\":\"Unable to fetch VATSIM boundaries\"}");
             }
         }
 
-        private void HandleVatsimTraconBoundariesProxy(HttpListenerContext context)
+        private async Task HandleVatsimTraconBoundariesProxy(IHttpContext ctx)
         {
             try
             {
                 // Check memory cache first
+                string cachedData = null;
                 lock (_boundariesCacheLock)
                 {
                     if (_cachedVatsimTraconBoundaries != null && (DateTime.Now - _vatsimTraconBoundariesCacheTime) < BOUNDARIES_CACHE_TTL)
                     {
-                        context.Response.AddHeader("X-Cache", "HIT");
-                        ResponseJson(context, _cachedVatsimTraconBoundaries);
-                        return;
+                        cachedData = _cachedVatsimTraconBoundaries;
                     }
+                }
+
+                if (cachedData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "HIT");
+                    await ResponseJsonAsync(ctx, cachedData);
+                    return;
                 }
 
                 // Check permanent data directory first (preferred)
@@ -1057,9 +1036,9 @@ namespace Kneeboard_Server
                             _cachedVatsimTraconBoundaries = data;
                             _vatsimTraconBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
-                        context.Response.AddHeader("X-Cache", "DATA");
+                        ctx.Response.Headers.Add("X-Cache", "DATA");
                         Console.WriteLine("VATSIM TRACON Boundaries: loaded from data directory");
-                        ResponseJson(context, data);
+                        await ResponseJsonAsync(ctx, data);
                         return;
                     }
                 }
@@ -1071,15 +1050,15 @@ namespace Kneeboard_Server
                     var fileInfo = new FileInfo(diskCachePath);
                     if ((DateTime.Now - fileInfo.LastWriteTime) < BOUNDARIES_CACHE_TTL)
                     {
-                        string cachedData = File.ReadAllText(diskCachePath);
+                        string diskData = File.ReadAllText(diskCachePath);
                         lock (_boundariesCacheLock)
                         {
-                            _cachedVatsimTraconBoundaries = cachedData;
+                            _cachedVatsimTraconBoundaries = diskData;
                             _vatsimTraconBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
-                        context.Response.AddHeader("X-Cache", "DISK");
+                        ctx.Response.Headers.Add("X-Cache", "DISK");
                         Console.WriteLine("VATSIM TRACON Boundaries: loaded from disk cache");
-                        ResponseJson(context, cachedData);
+                        await ResponseJsonAsync(ctx, diskData);
                         return;
                     }
                 }
@@ -1117,8 +1096,8 @@ namespace Kneeboard_Server
                         Console.WriteLine($"VATSIM TRACON Boundaries: failed to save disk cache: {cacheEx.Message}");
                     }
 
-                    context.Response.AddHeader("X-Cache", "MISS");
-                    ResponseJson(context, boundaries);
+                    ctx.Response.Headers.Add("X-Cache", "MISS");
+                    await ResponseJsonAsync(ctx, boundaries);
                 }
             }
             catch (Exception ex)
@@ -1126,18 +1105,24 @@ namespace Kneeboard_Server
                 Console.WriteLine($"VATSIM TRACON Boundaries fetch error: {ex.Message}");
 
                 // Try to return cached data even if expired
+                string staleData = null;
                 lock (_boundariesCacheLock)
                 {
                     if (_cachedVatsimTraconBoundaries != null)
                     {
-                        context.Response.AddHeader("X-Cache", "STALE");
-                        ResponseJson(context, _cachedVatsimTraconBoundaries);
-                        return;
+                        staleData = _cachedVatsimTraconBoundaries;
                     }
                 }
 
-                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                ResponseJson(context, "{\"error\":\"Unable to fetch VATSIM TRACON boundaries\"}");
+                if (staleData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "STALE");
+                    await ResponseJsonAsync(ctx, staleData);
+                    return;
+                }
+
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                await ResponseJsonAsync(ctx, "{\"error\":\"Unable to fetch VATSIM TRACON boundaries\"}");
             }
         }
 
@@ -1356,19 +1341,25 @@ namespace Kneeboard_Server
             }
         }
 
-        private void HandleVatspyFirNamesProxy(HttpListenerContext context)
+        private async Task HandleVatspyFirNamesProxy(IHttpContext ctx)
         {
             try
             {
                 // Check memory cache first
+                string cachedData = null;
                 lock (_boundariesCacheLock)
                 {
                     if (_cachedVatspyFirNames != null && (DateTime.Now - _vatspyFirNamesCacheTime) < BOUNDARIES_CACHE_TTL)
                     {
-                        context.Response.AddHeader("X-Cache", "HIT");
-                        ResponseJson(context, _cachedVatspyFirNames);
-                        return;
+                        cachedData = _cachedVatspyFirNames;
                     }
+                }
+
+                if (cachedData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "HIT");
+                    await ResponseJsonAsync(ctx, cachedData);
+                    return;
                 }
 
                 // Check disk cache
@@ -1378,15 +1369,15 @@ namespace Kneeboard_Server
                     var fileInfo = new FileInfo(diskCachePath);
                     if ((DateTime.Now - fileInfo.LastWriteTime) < BOUNDARIES_CACHE_TTL)
                     {
-                        string cachedData = File.ReadAllText(diskCachePath);
+                        string diskData = File.ReadAllText(diskCachePath);
                         lock (_boundariesCacheLock)
                         {
-                            _cachedVatspyFirNames = cachedData;
+                            _cachedVatspyFirNames = diskData;
                             _vatspyFirNamesCacheTime = fileInfo.LastWriteTime;
                         }
-                        context.Response.AddHeader("X-Cache", "DISK");
+                        ctx.Response.Headers.Add("X-Cache", "DISK");
                         Console.WriteLine("VATSpy FIR names: loaded from disk cache");
-                        ResponseJson(context, cachedData);
+                        await ResponseJsonAsync(ctx, diskData);
                         return;
                     }
                 }
@@ -1476,8 +1467,8 @@ namespace Kneeboard_Server
                     }
 
                     Console.WriteLine($"VATSpy FIR names loaded: {firNames.Count} entries");
-                    context.Response.AddHeader("X-Cache", "MISS");
-                    ResponseJson(context, jsonResult);
+                    ctx.Response.Headers.Add("X-Cache", "MISS");
+                    await ResponseJsonAsync(ctx, jsonResult);
                 }
             }
             catch (Exception ex)
@@ -1485,34 +1476,46 @@ namespace Kneeboard_Server
                 Console.WriteLine($"VATSpy FIR names fetch error: {ex.Message}");
 
                 // Try to return cached data even if expired
+                string staleData = null;
                 lock (_boundariesCacheLock)
                 {
                     if (_cachedVatspyFirNames != null)
                     {
-                        context.Response.AddHeader("X-Cache", "STALE");
-                        ResponseJson(context, _cachedVatspyFirNames);
-                        return;
+                        staleData = _cachedVatspyFirNames;
                     }
                 }
 
-                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                ResponseJson(context, "{}");
+                if (staleData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "STALE");
+                    await ResponseJsonAsync(ctx, staleData);
+                    return;
+                }
+
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                await ResponseJsonAsync(ctx, "{}");
             }
         }
 
-        private void HandleIvaoBoundariesProxy(HttpListenerContext context)
+        private async Task HandleIvaoBoundariesProxy(IHttpContext ctx)
         {
             try
             {
                 // Check memory cache first
+                string cachedData = null;
                 lock (_boundariesCacheLock)
                 {
                     if (_cachedIvaoBoundaries != null && (DateTime.Now - _ivaoBoundariesCacheTime) < BOUNDARIES_CACHE_TTL)
                     {
-                        context.Response.AddHeader("X-Cache", "HIT");
-                        ResponseJson(context, _cachedIvaoBoundaries);
-                        return;
+                        cachedData = _cachedIvaoBoundaries;
                     }
+                }
+
+                if (cachedData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "HIT");
+                    await ResponseJsonAsync(ctx, cachedData);
+                    return;
                 }
 
                 // Check permanent data directory first (preferred)
@@ -1528,9 +1531,9 @@ namespace Kneeboard_Server
                             _cachedIvaoBoundaries = data;
                             _ivaoBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
-                        context.Response.AddHeader("X-Cache", "DATA");
+                        ctx.Response.Headers.Add("X-Cache", "DATA");
                         Console.WriteLine("IVAO Boundaries: loaded from data directory");
-                        ResponseJson(context, data);
+                        await ResponseJsonAsync(ctx, data);
                         return;
                     }
                 }
@@ -1542,15 +1545,15 @@ namespace Kneeboard_Server
                     var fileInfo = new FileInfo(diskCachePath);
                     if ((DateTime.Now - fileInfo.LastWriteTime) < BOUNDARIES_CACHE_TTL)
                     {
-                        string cachedData = File.ReadAllText(diskCachePath);
+                        string diskData = File.ReadAllText(diskCachePath);
                         lock (_boundariesCacheLock)
                         {
-                            _cachedIvaoBoundaries = cachedData;
+                            _cachedIvaoBoundaries = diskData;
                             _ivaoBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
-                        context.Response.AddHeader("X-Cache", "DISK");
+                        ctx.Response.Headers.Add("X-Cache", "DISK");
                         Console.WriteLine("IVAO Boundaries: loaded from disk cache");
-                        ResponseJson(context, cachedData);
+                        await ResponseJsonAsync(ctx, diskData);
                         return;
                     }
                 }
@@ -1595,8 +1598,8 @@ namespace Kneeboard_Server
                         Console.WriteLine($"IVAO Boundaries: failed to save disk cache: {cacheEx.Message}");
                     }
 
-                    context.Response.AddHeader("X-Cache", "MISS");
-                    ResponseJson(context, geoJsonContent);
+                    ctx.Response.Headers.Add("X-Cache", "MISS");
+                    await ResponseJsonAsync(ctx, geoJsonContent);
                 }
             }
             catch (Exception ex)
@@ -1604,18 +1607,24 @@ namespace Kneeboard_Server
                 Console.WriteLine($"IVAO Boundaries fetch error: {ex.Message}");
 
                 // Try to return cached data even if expired
+                string staleData = null;
                 lock (_boundariesCacheLock)
                 {
                     if (_cachedIvaoBoundaries != null)
                     {
-                        context.Response.AddHeader("X-Cache", "STALE");
-                        ResponseJson(context, _cachedIvaoBoundaries);
-                        return;
+                        staleData = _cachedIvaoBoundaries;
                     }
                 }
 
-                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                ResponseJson(context, "{\"error\":\"Unable to fetch IVAO boundaries\"}");
+                if (staleData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "STALE");
+                    await ResponseJsonAsync(ctx, staleData);
+                    return;
+                }
+
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                await ResponseJsonAsync(ctx, "{\"error\":\"Unable to fetch IVAO boundaries\"}");
             }
         }
 
@@ -2141,22 +2150,22 @@ namespace Kneeboard_Server
             return sb.ToString();
         }
 
-        private void HandleNominatimProxy(HttpListenerContext context)
+        private async Task HandleNominatimProxy(IHttpContext ctx)
         {
-            var request = context.Request;
+            var request = ctx.Request;
             var queryString = request.Url.Query;
 
             // Check if query is too short (Nominatim blocks very short queries)
             var queryParam = request.QueryString["q"] ?? string.Empty;
             if (queryParam.Length < 2)
             {
-                context.Response.StatusCode = (int)HttpStatusCode.OK;
+                ctx.Response.StatusCode = (int)HttpStatusCode.OK;
                 string payload = "[]"; // Return empty results for very short queries
                 var buffer = Encoding.UTF8.GetBytes(payload);
-                context.Response.ContentType = "application/json";
-                context.Response.ContentLength64 = buffer.Length;
-                context.Response.OutputStream.Write(buffer, 0, buffer.Length);
-                context.Response.OutputStream.Close();
+                ctx.Response.ContentType = "application/json";
+                // ctx.Response.ContentLength = buffer.Length;
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                // EmbedIO manages stream
                 return;
             }
 
@@ -2175,19 +2184,19 @@ namespace Kneeboard_Server
 
                 using (var upstreamResponse = (HttpWebResponse)outboundRequest.GetResponse())
                 {
-                    context.Response.StatusCode = (int)upstreamResponse.StatusCode;
-                    context.Response.ContentType = upstreamResponse.ContentType ?? "application/json";
+                    ctx.Response.StatusCode = (int)upstreamResponse.StatusCode;
+                    ctx.Response.ContentType = upstreamResponse.ContentType ?? "application/json";
 
                     using (var upstreamStream = upstreamResponse.GetResponseStream())
                     {
-                        upstreamStream.CopyTo(context.Response.OutputStream);
+                        await upstreamStream.CopyToAsync(ctx.Response.OutputStream);
                     }
                 }
             }
             catch (WebException ex)
             {
                 var httpResponse = ex.Response as HttpWebResponse;
-                context.Response.StatusCode = httpResponse != null
+                ctx.Response.StatusCode = httpResponse != null
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
 
@@ -2201,13 +2210,13 @@ namespace Kneeboard_Server
                 // Return JSON error instead of HTML from Nominatim
                 string payload = "{\"error\":\"Nominatim service unavailable or request blocked. Try a more specific search query.\"}";
                 var buffer = Encoding.UTF8.GetBytes(payload);
-                context.Response.ContentType = "application/json";
-                context.Response.ContentLength64 = buffer.Length;
-                context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                ctx.Response.ContentType = "application/json";
+                // ctx.Response.ContentLength = buffer.Length;
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
             }
             finally
             {
-                context.Response.OutputStream.Close();
+                // EmbedIO manages stream
             }
         }
 
@@ -2232,9 +2241,9 @@ namespace Kneeboard_Server
             _windHttpClient.DefaultRequestHeaders.Add("Accept", "*/*");
         }
 
-        private void HandleWindProxy(HttpListenerContext context)
+        private async Task HandleWindProxy(IHttpContext ctx)
         {
-            var request = context.Request;
+            var request = ctx.Request;
             var path = request.Url.AbsolutePath;
             var queryString = request.Url.Query;
 
@@ -2242,8 +2251,8 @@ namespace Kneeboard_Server
             var idx = path.IndexOf("/api/wind/", StringComparison.OrdinalIgnoreCase);
             if (idx < 0)
             {
-                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                context.Response.OutputStream.Close();
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                // EmbedIO manages stream
                 return;
             }
 
@@ -2300,34 +2309,34 @@ namespace Kneeboard_Server
                     contentTask.Wait();
                     var content = contentTask.Result;
 
-                    context.Response.StatusCode = (int)response.StatusCode;
-                    context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "text/plain";
-                    context.Response.ContentLength64 = content.Length;
-                    context.Response.OutputStream.Write(content, 0, content.Length);
+                    ctx.Response.StatusCode = (int)response.StatusCode;
+                    ctx.Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "text/plain";
+                    // ctx.Response.ContentLength = content.Length;
+                    await ctx.Response.OutputStream.WriteAsync(content, 0, content.Length);
                 }
                 else
                 {
                     Console.WriteLine($"[Wind Proxy] Non-success status: {response.StatusCode}");
-                    context.Response.StatusCode = (int)response.StatusCode;
-                    context.Response.ContentType = "text/plain";
+                    ctx.Response.StatusCode = (int)response.StatusCode;
+                    ctx.Response.ContentType = "text/plain";
                 }
             }
             catch (AggregateException ae)
             {
                 var innerEx = ae.InnerException ?? ae;
                 Console.WriteLine($"[Wind Proxy] Error: {innerEx.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                context.Response.ContentType = "text/plain";
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                ctx.Response.ContentType = "text/plain";
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Wind Proxy] Error: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                context.Response.ContentType = "text/plain";
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                ctx.Response.ContentType = "text/plain";
             }
             finally
             {
-                context.Response.OutputStream.Close();
+                // EmbedIO manages stream
             }
         }
 
@@ -2335,7 +2344,7 @@ namespace Kneeboard_Server
         // SimConnect API Handlers
         // ============================================================================
 
-        private void HandleSimConnectPositionRequest(HttpListenerContext context)
+        private async Task HandleSimConnectPositionRequest(IHttpContext ctx)
         {
             try
             {
@@ -2360,22 +2369,22 @@ namespace Kneeboard_Server
                     };
 
                     string jsonString = Newtonsoft.Json.JsonConvert.SerializeObject(json);
-                    ResponseJson(context, jsonString);
+                    await ResponseJsonAsync(ctx, jsonString);
                 }
                 else
                 {
-                    ResponseJson(context, "{\"connected\":false}");
+                    await ResponseJsonAsync(ctx, "{\"connected\":false}");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[SimConnect API] Position request error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, "{\"connected\":false,\"error\":\"Internal error\"}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, "{\"connected\":false,\"error\":\"Internal error\"}");
             }
         }
 
-        private void HandleSimConnectStatusRequest(HttpListenerContext context)
+        private async Task HandleSimConnectStatusRequest(IHttpContext ctx)
         {
             try
             {
@@ -2388,28 +2397,28 @@ namespace Kneeboard_Server
                     timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 };
 
-                ResponseJson(context, Newtonsoft.Json.JsonConvert.SerializeObject(json));
+                await ResponseJsonAsync(ctx, Newtonsoft.Json.JsonConvert.SerializeObject(json));
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[SimConnect API] Status request error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, "{\"connected\":false}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, "{\"connected\":false}");
             }
         }
 
-        private void HandleSimConnectTeleportRequest(HttpListenerContext context)
+        private async Task HandleSimConnectTeleportRequest(IHttpContext ctx)
         {
-            if (context.Request.HttpMethod != "POST")
+            if (ctx.Request.HttpMethod != "POST")
             {
-                context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
-                ResponseJson(context, "{\"success\":false,\"error\":\"Method not allowed\"}");
+                ctx.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                await ResponseJsonAsync(ctx, "{\"success\":false,\"error\":\"Method not allowed\"}");
                 return;
             }
 
             try
             {
-                string requestBody = GetPostedText(context.Request);
+                string requestBody = await GetPostedTextAsync(ctx);
                 var data = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(requestBody);
 
                 double lat = data.lat;
@@ -2420,29 +2429,29 @@ namespace Kneeboard_Server
 
                 _kneeboardServer.SimConnectTeleport(lat, lng, altitude, heading, speed);
 
-                ResponseJson(context, "{\"success\":true,\"error\":null}");
+                await ResponseJsonAsync(ctx, "{\"success\":true,\"error\":null}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[SimConnect API] Teleport error: {ex.Message}");
-                context.Response.StatusCode = 500;
+                ctx.Response.StatusCode = 500;
                 string errorJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { success = false, error = ex.Message });
-                ResponseJson(context, errorJson);
+                await ResponseJsonAsync(ctx, errorJson);
             }
         }
 
-        private void HandleSimConnectPauseRequest(HttpListenerContext context)
+        private async Task HandleSimConnectPauseRequest(IHttpContext ctx)
         {
-            if (context.Request.HttpMethod != "POST")
+            if (ctx.Request.HttpMethod != "POST")
             {
-                context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
-                ResponseJson(context, "{\"success\":false,\"error\":\"Method not allowed\"}");
+                ctx.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                await ResponseJsonAsync(ctx, "{\"success\":false,\"error\":\"Method not allowed\"}");
                 return;
             }
 
             try
             {
-                string requestBody = GetPostedText(context.Request);
+                string requestBody = await GetPostedTextAsync(ctx);
                 var data = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(requestBody);
 
                 bool paused = data.paused;
@@ -2454,29 +2463,29 @@ namespace Kneeboard_Server
                 Console.WriteLine($"[SimConnect API] Pause request received (paused={paused}) - IGNORED (MSFS 2024 bug)");
 
                 string responseJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { success = true, paused = paused });
-                ResponseJson(context, responseJson);
+                await ResponseJsonAsync(ctx, responseJson);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[SimConnect API] Pause error: {ex.Message}");
-                context.Response.StatusCode = 500;
+                ctx.Response.StatusCode = 500;
                 string errorJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { success = false, error = ex.Message });
-                ResponseJson(context, errorJson);
+                await ResponseJsonAsync(ctx, errorJson);
             }
         }
 
-        private void HandleSimConnectRadioFrequencyRequest(HttpListenerContext context)
+        private async Task HandleSimConnectRadioFrequencyRequest(IHttpContext ctx)
         {
-            if (context.Request.HttpMethod != "POST")
+            if (ctx.Request.HttpMethod != "POST")
             {
-                context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
-                ResponseJson(context, "{\"success\":false,\"error\":\"Method not allowed\"}");
+                ctx.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                await ResponseJsonAsync(ctx, "{\"success\":false,\"error\":\"Method not allowed\"}");
                 return;
             }
 
             try
             {
-                string requestBody = GetPostedText(context.Request);
+                string requestBody = await GetPostedTextAsync(ctx);
                 var data = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(requestBody);
 
                 string radio = data.radio;
@@ -2484,14 +2493,14 @@ namespace Kneeboard_Server
 
                 _kneeboardServer.SimConnectSetRadioFrequency(radio, frequencyHz);
 
-                ResponseJson(context, "{\"success\":true,\"error\":null}");
+                await ResponseJsonAsync(ctx, "{\"success\":true,\"error\":null}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[SimConnect API] Radio frequency error: {ex.Message}");
-                context.Response.StatusCode = 500;
+                ctx.Response.StatusCode = 500;
                 string errorJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { success = false, error = ex.Message });
-                ResponseJson(context, errorJson);
+                await ResponseJsonAsync(ctx, errorJson);
             }
         }
 
@@ -2503,15 +2512,15 @@ namespace Kneeboard_Server
         /// Get list of SIDs for an airport
         /// URL: /api/procedures/sids/{icao}
         /// </summary>
-        private void HandleGetSIDListRequest(HttpListenerContext context, string command)
+        private async Task HandleGetSIDListRequest(IHttpContext ctx, string command)
         {
             try
             {
                 string icao = command.Replace("/api/procedures/sids/", "").Trim('/').ToUpper();
                 if (string.IsNullOrEmpty(icao))
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"error\":\"ICAO code required\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO code required\"}");
                     return;
                 }
 
@@ -2527,20 +2536,20 @@ namespace Kneeboard_Server
                         Sids = sids
                     };
                     string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                    ResponseJson(context, json);
+                    await ResponseJsonAsync(ctx, json);
                     return;
                 }
 
                 // Fallback to SimBrief
                 var sidData = Kneeboard_Server.GetSidWaypointsFromSimbrief();
                 string fallbackJson = Newtonsoft.Json.JsonConvert.SerializeObject(sidData, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, fallbackJson);
+                await ResponseJsonAsync(ctx, fallbackJson);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Procedure API] SID list error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -2548,15 +2557,15 @@ namespace Kneeboard_Server
         /// Get list of STARs for an airport
         /// URL: /api/procedures/stars/{icao}
         /// </summary>
-        private void HandleGetSTARListRequest(HttpListenerContext context, string command)
+        private async Task HandleGetSTARListRequest(IHttpContext ctx, string command)
         {
             try
             {
                 string icao = command.Replace("/api/procedures/stars/", "").Trim('/').ToUpper();
                 if (string.IsNullOrEmpty(icao))
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"error\":\"ICAO code required\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO code required\"}");
                     return;
                 }
 
@@ -2572,20 +2581,20 @@ namespace Kneeboard_Server
                         Stars = stars
                     };
                     string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                    ResponseJson(context, json);
+                    await ResponseJsonAsync(ctx, json);
                     return;
                 }
 
                 // Fallback to SimBrief
                 var starData = Kneeboard_Server.GetStarWaypointsFromSimbrief();
                 string fallbackJson = Newtonsoft.Json.JsonConvert.SerializeObject(starData, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, fallbackJson);
+                await ResponseJsonAsync(ctx, fallbackJson);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Procedure API] STAR list error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -2593,15 +2602,15 @@ namespace Kneeboard_Server
         /// Get list of approaches for an airport
         /// URL: /api/procedures/approaches/{icao}
         /// </summary>
-        private void HandleGetApproachListRequest(HttpListenerContext context, string command)
+        private async Task HandleGetApproachListRequest(IHttpContext ctx, string command)
         {
             try
             {
                 string icao = command.Replace("/api/procedures/approaches/", "").Trim('/').ToUpper();
                 if (string.IsNullOrEmpty(icao))
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"error\":\"ICAO code required\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO code required\"}");
                     return;
                 }
 
@@ -2617,19 +2626,19 @@ namespace Kneeboard_Server
                         Approaches = approaches
                     };
                     string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                    ResponseJson(context, json);
+                    await ResponseJsonAsync(ctx, json);
                     return;
                 }
 
                 // No fallback for approaches
-                context.Response.StatusCode = 503;
-                ResponseJson(context, "{\"error\":\"Approach data requires Navigraph authentication. Please log in via the Info panel.\"}");
+                ctx.Response.StatusCode = 503;
+                await ResponseJsonAsync(ctx, "{\"error\":\"Approach data requires Navigraph authentication. Please log in via the Info panel.\"}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Procedure API] Approach list error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -2637,7 +2646,7 @@ namespace Kneeboard_Server
         /// Get detailed procedure with waypoints
         /// URL: /api/procedures/procedure/{icao}/{name}?transition=xxx&type=SID|STAR|Approach
         /// </summary>
-        private void HandleGetProcedureRequest(HttpListenerContext context, string command)
+        private async Task HandleGetProcedureRequest(IHttpContext ctx, string command)
         {
             try
             {
@@ -2647,8 +2656,8 @@ namespace Kneeboard_Server
 
                 if (parts.Length < 2)
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"error\":\"Format: /api/procedures/procedure/{icao}/{name}\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Format: /api/procedures/procedure/{icao}/{name}\"}");
                     return;
                 }
 
@@ -2656,7 +2665,7 @@ namespace Kneeboard_Server
                 string procedureName = parts[1].ToUpper();
 
                 // Parse query parameters
-                var query = context.Request.QueryString;
+                var query = ctx.Request.QueryString;
                 string transition = query["transition"];
                 string typeStr = query["type"] ?? "SID";
                 ProcedureType type = ProcedureType.SID;
@@ -2672,64 +2681,64 @@ namespace Kneeboard_Server
                     if (detail != null && detail.Waypoints.Count > 0)
                     {
                         string json = Newtonsoft.Json.JsonConvert.SerializeObject(detail, Newtonsoft.Json.Formatting.Indented);
-                        ResponseJson(context, json);
+                        await ResponseJsonAsync(ctx, json);
                         return;
                     }
 
-                    context.Response.StatusCode = 404;
-                    ResponseJson(context, $"{{\"error\":\"Procedure {procedureName} not found at {icao}\"}}");
+                    ctx.Response.StatusCode = 404;
+                    await ResponseJsonAsync(ctx, $"{{\"error\":\"Procedure {procedureName} not found at {icao}\"}}");
                     return;
                 }
 
                 // Fallback: return SimBrief procedures if available
                 var simbrief = Kneeboard_Server.GetSimbriefProcedures();
                 string fallbackJson = Newtonsoft.Json.JsonConvert.SerializeObject(simbrief, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, fallbackJson);
+                await ResponseJsonAsync(ctx, fallbackJson);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Procedure API] Procedure detail error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
         /// <summary>
         /// Alias for approach list
         /// </summary>
-        private void HandleGetApproachRequest(HttpListenerContext context, string command)
+        private async Task HandleGetApproachRequest(IHttpContext ctx, string command)
         {
             // Redirect to approach list handler
             string newCommand = command.Replace("/api/procedures/approach/", "/api/procedures/approaches/");
-            HandleGetApproachListRequest(context, newCommand);
+            await HandleGetApproachListRequest(ctx, newCommand);
         }
 
         /// <summary>
         /// Get Navigraph status
         /// URL: /api/navigraph/status
         /// </summary>
-        private void HandleNavigraphStatusRequest(HttpListenerContext context)
+        private async Task HandleNavigraphStatusRequest(IHttpContext ctx)
         {
             try
             {
                 var status = _navigraphData?.GetStatus() ?? new NavigraphStatus { Authenticated = false };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(status, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Navigraph API] Status error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
-        private void HandleProcedureStatusRequest(HttpListenerContext context)
+        private async Task HandleProcedureStatusRequest(IHttpContext ctx)
         {
-            HandleNavigraphStatusRequest(context);
+            await HandleNavigraphStatusRequest(ctx);
         }
 
-        private void HandleNavdataFolderInfoRequest(HttpListenerContext context)
+        private async Task HandleNavdataFolderInfoRequest(IHttpContext ctx)
         {
             try
             {
@@ -2742,16 +2751,16 @@ namespace Kneeboard_Server
                     isDataAvailable = _navigraphData?.IsDataAvailable ?? false
                 };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(info, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
-        private void HandleProcedureDebugRequest(HttpListenerContext context, string command)
+        private async Task HandleProcedureDebugRequest(IHttpContext ctx, string command)
         {
             // Debug: return procedure info for an airport
             string icao = command.Replace("/api/procedures/debug/", "").Trim('/').ToUpper();
@@ -2766,37 +2775,37 @@ namespace Kneeboard_Server
                     approachesCount = _navigraphData?.GetApproaches(icao)?.Count ?? 0
                 };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(debug, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
-        private void HandleAllProceduresDebugRequest(HttpListenerContext context)
+        private async Task HandleAllProceduresDebugRequest(IHttpContext ctx)
         {
-            HandleNavdataFolderInfoRequest(context);
+            await HandleNavdataFolderInfoRequest(ctx);
         }
 
         /// <summary>
         /// Gets combined SID and STAR waypoints from SimBrief navlog
         /// URL: /api/procedures/simbrief
         /// </summary>
-        private void HandleSimbriefProceduresRequest(HttpListenerContext context)
+        private async Task HandleSimbriefProceduresRequest(IHttpContext ctx)
         {
             try
             {
                 var procedures = Kneeboard_Server.GetSimbriefProcedures();
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(procedures, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Procedure API] SimBrief procedures error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -2804,19 +2813,19 @@ namespace Kneeboard_Server
         /// Gets SID waypoints from SimBrief navlog
         /// URL: /api/procedures/simbrief/sid
         /// </summary>
-        private void HandleSimbriefSidRequest(HttpListenerContext context)
+        private async Task HandleSimbriefSidRequest(IHttpContext ctx)
         {
             try
             {
                 var sidData = Kneeboard_Server.GetSidWaypointsFromSimbrief();
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(sidData, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Procedure API] SimBrief SID error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -2824,19 +2833,19 @@ namespace Kneeboard_Server
         /// Gets STAR waypoints from SimBrief navlog
         /// URL: /api/procedures/simbrief/star
         /// </summary>
-        private void HandleSimbriefStarRequest(HttpListenerContext context)
+        private async Task HandleSimbriefStarRequest(IHttpContext ctx)
         {
             try
             {
                 var starData = Kneeboard_Server.GetStarWaypointsFromSimbrief();
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(starData, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Procedure API] SimBrief STAR error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -2848,15 +2857,15 @@ namespace Kneeboard_Server
         /// Get ILS data for an airport
         /// URL: /api/ils/{icao}
         /// </summary>
-        private void HandleIlsRequest(HttpListenerContext context, string command)
+        private async Task HandleIlsRequest(IHttpContext ctx, string command)
         {
             try
             {
                 string icao = command.Replace("/api/ils/", "").Trim('/').ToUpper();
                 if (string.IsNullOrEmpty(icao))
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"error\":\"ICAO code required\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO code required\"}");
                     return;
                 }
 
@@ -2875,19 +2884,19 @@ namespace Kneeboard_Server
                         runways = runways
                     };
                     string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                    ResponseJson(context, json);
+                    await ResponseJsonAsync(ctx, json);
                     return;
                 }
 
                 // No fallback for ILS data
-                context.Response.StatusCode = 503;
-                ResponseJson(context, "{\"error\":\"ILS data requires Navigraph authentication. Please log in via the Info panel.\"}");
+                ctx.Response.StatusCode = 503;
+                await ResponseJsonAsync(ctx, "{\"error\":\"ILS data requires Navigraph authentication. Please log in via the Info panel.\"}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[ILS API] Error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -2895,7 +2904,7 @@ namespace Kneeboard_Server
         /// Get runway data for flight path drawing
         /// URL: /api/navigraph/runway/{icao}/{runway}
         /// </summary>
-        private void HandleRunwayRequest(HttpListenerContext context, string command)
+        private async Task HandleRunwayRequest(IHttpContext ctx, string command)
         {
             try
             {
@@ -2905,8 +2914,8 @@ namespace Kneeboard_Server
 
                 if (parts.Length < 2)
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"error\":\"Format: /api/navigraph/runway/{icao}/{runway}\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Format: /api/navigraph/runway/{icao}/{runway}\"}");
                     return;
                 }
 
@@ -2915,16 +2924,16 @@ namespace Kneeboard_Server
 
                 if (_navigraphData?.IsDataAvailable != true)
                 {
-                    context.Response.StatusCode = 503;
-                    ResponseJson(context, "{\"error\":\"Navigraph data not available\"}");
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
                     return;
                 }
 
-                var runway = _navigraphData.GetRunway(icao, runwayId);
+                var runway = _navigraphData.DbService.GetRunwayWithOppositeEnd(icao, runwayId);
                 if (runway == null)
                 {
-                    context.Response.StatusCode = 404;
-                    ResponseJson(context, $"{{\"error\":\"Runway {runwayId} not found at {icao}\"}}");
+                    ctx.Response.StatusCode = 404;
+                    await ResponseJsonAsync(ctx, $"{{\"error\":\"Runway {runwayId} not found at {icao}\"}}");
                     return;
                 }
 
@@ -2944,13 +2953,13 @@ namespace Kneeboard_Server
                 };
 
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Navigraph API] Runway error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -2958,7 +2967,7 @@ namespace Kneeboard_Server
         /// Get all runways for an airport
         /// URL: /api/navigraph/runways/{icao}
         /// </summary>
-        private void HandleRunwaysRequest(HttpListenerContext context, string command)
+        private async Task HandleRunwaysRequest(IHttpContext ctx, string command)
         {
             try
             {
@@ -2966,15 +2975,15 @@ namespace Kneeboard_Server
 
                 if (string.IsNullOrEmpty(icao))
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"error\":\"ICAO code required\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO code required\"}");
                     return;
                 }
 
                 if (_navigraphData?.IsDataAvailable != true)
                 {
-                    context.Response.StatusCode = 503;
-                    ResponseJson(context, "{\"error\":\"Navigraph data not available\"}");
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
                     return;
                 }
 
@@ -2998,13 +3007,13 @@ namespace Kneeboard_Server
                 };
 
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Navigraph API] Runways error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -3012,7 +3021,7 @@ namespace Kneeboard_Server
         /// Get airport information
         /// URL: /api/navigraph/airport/{icao}
         /// </summary>
-        private void HandleAirportRequest(HttpListenerContext context, string command)
+        private async Task HandleAirportRequest(IHttpContext ctx, string command)
         {
             try
             {
@@ -3020,23 +3029,23 @@ namespace Kneeboard_Server
 
                 if (string.IsNullOrEmpty(icao))
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"error\":\"ICAO code required\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO code required\"}");
                     return;
                 }
 
                 if (_navigraphData?.IsDataAvailable != true)
                 {
-                    context.Response.StatusCode = 503;
-                    ResponseJson(context, "{\"error\":\"Navigraph data not available\"}");
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
                     return;
                 }
 
                 var airport = _navigraphData.GetAirport(icao);
                 if (airport == null)
                 {
-                    context.Response.StatusCode = 404;
-                    ResponseJson(context, $"{{\"error\":\"Airport {icao} not found\"}}");
+                    ctx.Response.StatusCode = 404;
+                    await ResponseJsonAsync(ctx, $"{{\"error\":\"Airport {icao} not found\"}}");
                     return;
                 }
 
@@ -3091,13 +3100,13 @@ namespace Kneeboard_Server
                 };
 
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Navigraph API] Airport error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -3105,7 +3114,7 @@ namespace Kneeboard_Server
         /// Get waypoint information
         /// URL: /api/navigraph/waypoint/{ident}
         /// </summary>
-        private void HandleWaypointRequest(HttpListenerContext context, string command)
+        private async Task HandleWaypointRequest(IHttpContext ctx, string command)
         {
             try
             {
@@ -3113,23 +3122,23 @@ namespace Kneeboard_Server
 
                 if (string.IsNullOrEmpty(ident))
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"error\":\"Waypoint identifier required\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Waypoint identifier required\"}");
                     return;
                 }
 
                 if (_navigraphData?.IsDataAvailable != true)
                 {
-                    context.Response.StatusCode = 503;
-                    ResponseJson(context, "{\"error\":\"Navigraph data not available\"}");
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
                     return;
                 }
 
                 var waypoint = _navigraphData.GetWaypoint(ident);
                 if (waypoint == null)
                 {
-                    context.Response.StatusCode = 404;
-                    ResponseJson(context, $"{{\"error\":\"Waypoint {ident} not found\"}}");
+                    ctx.Response.StatusCode = 404;
+                    await ResponseJsonAsync(ctx, $"{{\"error\":\"Waypoint {ident} not found\"}}");
                     return;
                 }
 
@@ -3145,13 +3154,13 @@ namespace Kneeboard_Server
                 };
 
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Navigraph API] Waypoint error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -3159,7 +3168,7 @@ namespace Kneeboard_Server
         /// Get navaid information
         /// URL: /api/navigraph/navaid/{ident}
         /// </summary>
-        private void HandleNavaidRequest(HttpListenerContext context, string command)
+        private async Task HandleNavaidRequest(IHttpContext ctx, string command)
         {
             try
             {
@@ -3167,23 +3176,23 @@ namespace Kneeboard_Server
 
                 if (string.IsNullOrEmpty(ident))
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"error\":\"Navaid identifier required\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navaid identifier required\"}");
                     return;
                 }
 
                 if (_navigraphData?.IsDataAvailable != true)
                 {
-                    context.Response.StatusCode = 503;
-                    ResponseJson(context, "{\"error\":\"Navigraph data not available\"}");
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
                     return;
                 }
 
                 var navaid = _navigraphData.GetNavaid(ident);
                 if (navaid == null)
                 {
-                    context.Response.StatusCode = 404;
-                    ResponseJson(context, $"{{\"error\":\"Navaid {ident} not found\"}}");
+                    ctx.Response.StatusCode = 404;
+                    await ResponseJsonAsync(ctx, $"{{\"error\":\"Navaid {ident} not found\"}}");
                     return;
                 }
 
@@ -3201,13 +3210,13 @@ namespace Kneeboard_Server
                 };
 
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Navigraph API] Navaid error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -3216,7 +3225,7 @@ namespace Kneeboard_Server
         /// URL: GET /api/debug/config
         /// Returns: JSON with all debug flags and their status
         /// </summary>
-        private void HandleGetDebugConfig(HttpListenerContext context)
+        private async Task HandleGetDebugConfig(IHttpContext ctx)
         {
             try
             {
@@ -3239,13 +3248,13 @@ namespace Kneeboard_Server
                 };
 
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(config, Newtonsoft.Json.Formatting.Indented);
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
                 Logging.KneeboardLogger.Debug("API", "Debug config retrieved");
             }
             catch (Exception ex)
             {
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
                 Logging.KneeboardLogger.Error("API", $"Error getting debug config: {ex.Message}");
             }
         }
@@ -3256,17 +3265,17 @@ namespace Kneeboard_Server
         /// Body: { "RUNWAY": true, "MAP": false, ... }
         /// Returns: Updated config
         /// </summary>
-        private void HandleSetDebugConfig(HttpListenerContext context)
+        private async Task HandleSetDebugConfig(IHttpContext ctx)
         {
             try
             {
-                using (var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
+                using (var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding))
                 {
                     string body = reader.ReadToEnd();
                     if (string.IsNullOrEmpty(body))
                     {
-                        context.Response.StatusCode = 400;
-                        ResponseJson(context, "{\"error\":\"Empty request body\"}");
+                        ctx.Response.StatusCode = 400;
+                        await ResponseJsonAsync(ctx, "{\"error\":\"Empty request body\"}");
                         return;
                     }
 
@@ -3278,15 +3287,15 @@ namespace Kneeboard_Server
                     };
 
                     string responseJson = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                    ResponseJson(context, responseJson);
+                    await ResponseJsonAsync(ctx, responseJson);
                     
                     Logging.KneeboardLogger.Info("API", $"Debug config updated: {body}");
                 }
             }
             catch (Exception ex)
             {
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
                 Logging.KneeboardLogger.Error("API", $"Error setting debug config: {ex.Message}");
             }
         }
@@ -3296,17 +3305,17 @@ namespace Kneeboard_Server
         /// URL: POST /api/log
         /// Body: { "level": "INFO", "module": "Map", "message": "Log message" }
         /// </summary>
-        private void HandleClientLogRequest(HttpListenerContext context)
+        private async Task HandleClientLogRequest(IHttpContext ctx)
         {
             try
             {
-                using (var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
+                using (var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding))
                 {
                     string body = reader.ReadToEnd();
                     if (string.IsNullOrEmpty(body))
                     {
-                        context.Response.StatusCode = 400;
-                        ResponseJson(context, "{\"error\":\"Empty request body\"}");
+                        ctx.Response.StatusCode = 400;
+                        await ResponseJsonAsync(ctx, "{\"error\":\"Empty request body\"}");
                         return;
                     }
 
@@ -3320,14 +3329,14 @@ namespace Kneeboard_Server
                         Logging.KneeboardLogger.ClientLog(level, module, message);
                     }
 
-                    ResponseJson(context, "{\"success\":true}");
+                    await ResponseJsonAsync(ctx, "{\"success\":true}");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Log API] Error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message}\"}}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
         }
 
@@ -3628,21 +3637,27 @@ namespace Kneeboard_Server
         /// <summary>
         /// Holt und cached VATSIM Piloten-Daten mit Server-seitiger Vorverarbeitung
         /// </summary>
-        private void HandleVatsimPilots(HttpListenerContext context)
+        private async Task HandleVatsimPilots(IHttpContext ctx)
         {
             try
             {
                 string pilotsJson;
 
                 // Check cache
+                string cachedData = null;
                 lock (_pilotsCacheLock)
                 {
                     if (_cachedVatsimPilots != null && (DateTime.Now - _vatsimPilotsCacheTime) < PILOTS_CACHE_TTL)
                     {
-                        context.Response.AddHeader("X-Cache", "HIT");
-                        ResponseJson(context, _cachedVatsimPilots);
-                        return;
+                        cachedData = _cachedVatsimPilots;
                     }
+                }
+
+                if (cachedData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "HIT");
+                    await ResponseJsonAsync(ctx, cachedData);
+                    return;
                 }
 
                 // Fetch fresh data
@@ -3722,35 +3737,41 @@ namespace Kneeboard_Server
                     }
                 }
 
-                context.Response.AddHeader("X-Cache", "MISS");
-                ResponseJson(context, pilotsJson);
+                ctx.Response.Headers.Add("X-Cache", "MISS");
+                await ResponseJsonAsync(ctx, pilotsJson);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"VATSIM pilots error: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                try { context.Response.OutputStream.Close(); } catch { }
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                // EmbedIO manages stream lifecycle
             }
         }
 
         /// <summary>
         /// Holt und cached IVAO Piloten-Daten mit Server-seitiger Vorverarbeitung
         /// </summary>
-        private void HandleIvaoPilots(HttpListenerContext context)
+        private async Task HandleIvaoPilots(IHttpContext ctx)
         {
             try
             {
                 string pilotsJson;
 
                 // Check cache
+                string cachedData = null;
                 lock (_pilotsCacheLock)
                 {
                     if (_cachedIvaoPilots != null && (DateTime.Now - _ivaoPilotsCacheTime) < PILOTS_CACHE_TTL)
                     {
-                        context.Response.AddHeader("X-Cache", "HIT");
-                        ResponseJson(context, _cachedIvaoPilots);
-                        return;
+                        cachedData = _cachedIvaoPilots;
                     }
+                }
+
+                if (cachedData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "HIT");
+                    await ResponseJsonAsync(ctx, cachedData);
+                    return;
                 }
 
                 // Fetch fresh data
@@ -3831,14 +3852,14 @@ namespace Kneeboard_Server
                     }
                 }
 
-                context.Response.AddHeader("X-Cache", "MISS");
-                ResponseJson(context, pilotsJson);
+                ctx.Response.Headers.Add("X-Cache", "MISS");
+                await ResponseJsonAsync(ctx, pilotsJson);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"IVAO pilots error: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                try { context.Response.OutputStream.Close(); } catch { }
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                // EmbedIO manages stream lifecycle
             }
         }
 
@@ -4118,19 +4139,25 @@ namespace Kneeboard_Server
         /// <summary>
         /// Liefert VATSIM Boundaries mit vorberechneten Bounding-Boxes
         /// </summary>
-        private void HandleVatsimBoundariesWithBbox(HttpListenerContext context)
+        private async Task HandleVatsimBoundariesWithBbox(IHttpContext ctx)
         {
             try
             {
                 // Check preprocessed cache
+                string cachedData = null;
                 lock (_boundariesCacheLock)
                 {
                     if (_preprocessedVatsimBoundaries != null && (DateTime.Now - _preprocessedVatsimBoundariesTime) < BOUNDARIES_CACHE_TTL)
                     {
-                        context.Response.AddHeader("X-Cache", "HIT");
-                        ResponseJson(context, _preprocessedVatsimBoundaries);
-                        return;
+                        cachedData = _preprocessedVatsimBoundaries;
                     }
+                }
+
+                if (cachedData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "HIT");
+                    await ResponseJsonAsync(ctx, cachedData);
+                    return;
                 }
 
                 // Get raw boundaries (from existing cache or fetch)
@@ -4170,14 +4197,14 @@ namespace Kneeboard_Server
                 }
 
                 Console.WriteLine("VATSIM Boundaries: preprocessed with bounding boxes");
-                context.Response.AddHeader("X-Cache", "PREPROCESSED");
-                ResponseJson(context, preprocessed);
+                ctx.Response.Headers.Add("X-Cache", "PREPROCESSED");
+                await ResponseJsonAsync(ctx, preprocessed);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"VATSIM Boundaries preprocessing error: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                try { context.Response.OutputStream.Close(); } catch { }
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                // EmbedIO manages stream lifecycle
             }
         }
 
@@ -4185,7 +4212,7 @@ namespace Kneeboard_Server
         /// Liefert vereinfachten VATSIM Offline-FIR-Layer
         /// Generiert aus VATSIM Boundaries.geojson, gefiltert auf FIR-Grenzen
         /// </summary>
-        private void HandleVatsimOfflineFir(HttpListenerContext context)
+        private async Task HandleVatsimOfflineFir(IHttpContext ctx)
         {
             try
             {
@@ -4194,8 +4221,8 @@ namespace Kneeboard_Server
                 if (File.Exists(offlineFilePath))
                 {
                     string content = File.ReadAllText(offlineFilePath);
-                    context.Response.AddHeader("X-Cache", "STATIC");
-                    ResponseJson(context, content);
+                    ctx.Response.Headers.Add("X-Cache", "STATIC");
+                    await ResponseJsonAsync(ctx, content);
                     return;
                 }
 
@@ -4230,20 +4257,20 @@ namespace Kneeboard_Server
                         Console.WriteLine($"VATSIM Offline FIR: could not save cache: {cacheEx.Message}");
                     }
 
-                    context.Response.AddHeader("X-Cache", "GENERATED");
-                    ResponseJson(context, offlineFir);
+                    ctx.Response.Headers.Add("X-Cache", "GENERATED");
+                    await ResponseJsonAsync(ctx, offlineFir);
                     return;
                 }
 
                 // Letzter Fallback: leere FeatureCollection
                 Console.WriteLine("VATSIM Offline FIR: no source data available, returning empty collection");
-                ResponseJson(context, "{\"type\":\"FeatureCollection\",\"features\":[]}");
+                await ResponseJsonAsync(ctx, "{\"type\":\"FeatureCollection\",\"features\":[]}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"VATSIM Offline FIR error: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                try { context.Response.OutputStream.Close(); } catch { }
+                ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                // EmbedIO manages stream lifecycle
             }
         }
 
@@ -4372,7 +4399,7 @@ namespace Kneeboard_Server
         /// Liefert vereinfachten IVAO Offline-FIR-Layer (165 FIRs statt 4103 Features)
         /// Reduziert Serverlast um ~96%
         /// </summary>
-        private void HandleIvaoOfflineFir(HttpListenerContext context)
+        private async Task HandleIvaoOfflineFir(IHttpContext ctx)
         {
             try
             {
@@ -4381,9 +4408,9 @@ namespace Kneeboard_Server
                 if (File.Exists(offlineFilePath))
                 {
                     string content = File.ReadAllText(offlineFilePath);
-                    context.Response.AddHeader("X-Cache", "STATIC");
-                    context.Response.AddHeader("X-FIR-Count", "165");
-                    ResponseJson(context, content);
+                    ctx.Response.Headers.Add("X-Cache", "STATIC");
+                    ctx.Response.Headers.Add("X-FIR-Count", "165");
+                    await ResponseJsonAsync(ctx, content);
                     return;
                 }
 
@@ -4407,20 +4434,20 @@ namespace Kneeboard_Server
                         Console.WriteLine($"IVAO Offline FIR: could not save cache: {cacheEx.Message}");
                     }
 
-                    context.Response.AddHeader("X-Cache", "GENERATED");
-                    ResponseJson(context, offlineFir);
+                    ctx.Response.Headers.Add("X-Cache", "GENERATED");
+                    await ResponseJsonAsync(ctx, offlineFir);
                     return;
                 }
 
                 // Letzter Fallback: leere FeatureCollection
                 Console.WriteLine("IVAO Offline FIR: no source data available, returning empty collection");
-                ResponseJson(context, "{\"type\":\"FeatureCollection\",\"features\":[]}");
+                await ResponseJsonAsync(ctx, "{\"type\":\"FeatureCollection\",\"features\":[]}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"IVAO Offline FIR error: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                try { context.Response.OutputStream.Close(); } catch { }
+                ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                // EmbedIO manages stream lifecycle
             }
         }
 
@@ -4558,19 +4585,25 @@ namespace Kneeboard_Server
         /// <summary>
         /// Liefert IVAO Boundaries mit vorberechneten Bounding-Boxes
         /// </summary>
-        private void HandleIvaoBoundariesWithBbox(HttpListenerContext context)
+        private async Task HandleIvaoBoundariesWithBbox(IHttpContext ctx)
         {
             try
             {
                 // Check preprocessed cache
+                string cachedData = null;
                 lock (_boundariesCacheLock)
                 {
                     if (_preprocessedIvaoBoundaries != null && (DateTime.Now - _preprocessedIvaoBoundariesTime) < BOUNDARIES_CACHE_TTL)
                     {
-                        context.Response.AddHeader("X-Cache", "HIT");
-                        ResponseJson(context, _preprocessedIvaoBoundaries);
-                        return;
+                        cachedData = _preprocessedIvaoBoundaries;
                     }
+                }
+
+                if (cachedData != null)
+                {
+                    ctx.Response.Headers.Add("X-Cache", "HIT");
+                    await ResponseJsonAsync(ctx, cachedData);
+                    return;
                 }
 
                 // Get raw boundaries (from existing cache or fetch)
@@ -4610,57 +4643,62 @@ namespace Kneeboard_Server
                 }
 
                 Console.WriteLine("IVAO Boundaries: preprocessed with bounding boxes");
-                context.Response.AddHeader("X-Cache", "PREPROCESSED");
-                ResponseJson(context, preprocessed);
+                ctx.Response.Headers.Add("X-Cache", "PREPROCESSED");
+                await ResponseJsonAsync(ctx, preprocessed);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"IVAO Boundaries preprocessing error: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                try { context.Response.OutputStream.Close(); } catch { }
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                // EmbedIO manages stream lifecycle
             }
         }
 
         /// <summary>
         /// Load pilot favorites from disk
         /// </summary>
-        private void HandleGetFavorites(HttpListenerContext context)
+        private async Task HandleGetFavorites(IHttpContext ctx)
         {
             try
             {
+                string json = null;
                 lock (_favoritesLock)
                 {
                     if (File.Exists(FAVORITES_FILE))
                     {
-                        string json = File.ReadAllText(FAVORITES_FILE, Encoding.UTF8);
+                        json = File.ReadAllText(FAVORITES_FILE, Encoding.UTF8);
                         // Remove UTF-8 BOM if present (backwards compatibility)
                         if (json.Length > 0 && json[0] == '\uFEFF')
                         {
                             json = json.Substring(1);
                         }
-                        ResponseJson(context, json);
                     }
-                    else
-                    {
-                        ResponseJson(context, "{}");
-                    }
+                }
+
+                if (json != null)
+                {
+                    await ResponseJsonAsync(ctx, json);
+                }
+                else
+                {
+                    await ResponseJsonAsync(ctx, "{}");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error loading favorites: {ex.Message}");
-                ResponseJson(context, "{}");
+                await ResponseJsonAsync(ctx, "{}");
             }
         }
 
         /// <summary>
         /// Save pilot favorites to disk
         /// </summary>
-        private void HandleSaveFavorites(HttpListenerContext context)
+        private async Task HandleSaveFavorites(IHttpContext ctx)
         {
             try
             {
-                using (var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
+                using (var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding))
                 {
                     string json = reader.ReadToEnd();
 
@@ -4677,14 +4715,14 @@ namespace Kneeboard_Server
                         File.WriteAllText(FAVORITES_FILE, json, new UTF8Encoding(false));
                     }
 
-                    ResponseJson(context, "{\"success\":true}");
+                    await ResponseJsonAsync(ctx, "{\"success\":true}");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error saving favorites: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                ResponseJson(context, "{\"error\":\"" + ex.Message.Replace("\"", "\\\"") + "\"}");
+                ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                await ResponseJsonAsync(ctx, "{\"error\":\"" + ex.Message.Replace("\"", "\\\"") + "\"}");
             }
         }
 
@@ -4693,12 +4731,12 @@ namespace Kneeboard_Server
         /// Returns airport coordinates for a given ICAO code.
         /// Endpoint: api/openaip/airport-by-icao/{ICAO}
         /// </summary>
-        private void HandleOpenAipAirportByIcao(HttpListenerContext context, string icaoCode)
+        private async Task HandleOpenAipAirportByIcao(IHttpContext ctx, string icaoCode)
         {
             if (string.IsNullOrWhiteSpace(icaoCode) || icaoCode.Length < 3 || icaoCode.Length > 4)
             {
-                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                ResponseJson(context, "{\"error\":\"Invalid ICAO code\"}");
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                await ResponseJsonAsync(ctx, "{\"error\":\"Invalid ICAO code\"}");
                 return;
             }
 
@@ -4706,6 +4744,7 @@ namespace Kneeboard_Server
             var cachePath = Path.Combine(CACHE_DIR, "icao", $"{icaoCode}.json");
 
             // Check cache first
+            byte[] cachedData = null;
             lock (_cacheLock)
             {
                 if (File.Exists(cachePath))
@@ -4715,14 +4754,7 @@ namespace Kneeboard_Server
                     {
                         try
                         {
-                            var cachedData = File.ReadAllBytes(cachePath);
-                            context.Response.StatusCode = 200;
-                            context.Response.ContentType = "application/json";
-                            context.Response.ContentLength64 = cachedData.Length;
-                            context.Response.AddHeader("X-Cache", "HIT");
-                            context.Response.OutputStream.Write(cachedData, 0, cachedData.Length);
-                            context.Response.OutputStream.Close();
-                            return;
+                            cachedData = File.ReadAllBytes(cachePath);
                         }
                         catch (Exception ex)
                         {
@@ -4730,6 +4762,17 @@ namespace Kneeboard_Server
                         }
                     }
                 }
+            }
+
+            if (cachedData != null)
+            {
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType = "application/json";
+                // ctx.Response.ContentLength = cachedData.Length;
+                ctx.Response.Headers.Add("X-Cache", "HIT");
+                await ctx.Response.OutputStream.WriteAsync(cachedData, 0, cachedData.Length);
+                // EmbedIO manages stream
+                return;
             }
 
             // Build OpenAIP API URL with search parameter
@@ -4817,31 +4860,31 @@ namespace Kneeboard_Server
                     });
                 }
 
-                context.Response.StatusCode = 200;
-                context.Response.ContentType = "application/json";
-                context.Response.ContentLength64 = resultBytes.Length;
-                context.Response.AddHeader("X-Cache", "MISS");
-                context.Response.OutputStream.Write(resultBytes, 0, resultBytes.Length);
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType = "application/json";
+                // ctx.Response.ContentLength = resultBytes.Length;
+                ctx.Response.Headers.Add("X-Cache", "MISS");
+                await ctx.Response.OutputStream.WriteAsync(resultBytes, 0, resultBytes.Length);
             }
             catch (WebException ex)
             {
                 var httpResponse = ex.Response as HttpWebResponse;
                 Console.WriteLine($"[OpenAIP ICAO] Error fetching {icaoCode}: {ex.Message}");
-                context.Response.StatusCode = httpResponse != null
+                ctx.Response.StatusCode = httpResponse != null
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icaoCode}\",\"found\":false}}");
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icaoCode}\",\"found\":false}}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[OpenAIP ICAO] Unexpected error: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icaoCode}\",\"found\":false}}");
+                ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icaoCode}\",\"found\":false}}");
             }
             finally
             {
                 upstreamResponse?.Close();
-                try { context.Response.OutputStream.Close(); } catch { }
+                // EmbedIO manages stream lifecycle
             }
         }
 
@@ -4850,12 +4893,12 @@ namespace Kneeboard_Server
         /// Endpoint: api/openaip/runway/{icao}/{runwayId}
         /// Example: api/openaip/runway/KPDX/10L
         /// </summary>
-        private void HandleOpenAipRunway(HttpListenerContext context, string icao, string runwayId)
+        private async Task HandleOpenAipRunway(IHttpContext ctx, string icao, string runwayId)
         {
             if (string.IsNullOrWhiteSpace(icao) || icao.Length < 3 || icao.Length > 4)
             {
-                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                ResponseJson(context, "{\"error\":\"Invalid ICAO code\"}");
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                await ResponseJsonAsync(ctx, "{\"error\":\"Invalid ICAO code\"}");
                 return;
             }
 
@@ -4863,6 +4906,7 @@ namespace Kneeboard_Server
             var cachePath = Path.Combine(CACHE_DIR, "runways", $"{icao}_{runwayId}.json");
 
             // Check cache first
+            byte[] cachedData = null;
             lock (_cacheLock)
             {
                 if (File.Exists(cachePath))
@@ -4872,14 +4916,7 @@ namespace Kneeboard_Server
                     {
                         try
                         {
-                            var cachedData = File.ReadAllBytes(cachePath);
-                            context.Response.StatusCode = 200;
-                            context.Response.ContentType = "application/json";
-                            context.Response.ContentLength64 = cachedData.Length;
-                            context.Response.AddHeader("X-Cache", "HIT");
-                            context.Response.OutputStream.Write(cachedData, 0, cachedData.Length);
-                            context.Response.OutputStream.Close();
-                            return;
+                            cachedData = File.ReadAllBytes(cachePath);
                         }
                         catch (Exception ex)
                         {
@@ -4887,6 +4924,17 @@ namespace Kneeboard_Server
                         }
                     }
                 }
+            }
+
+            if (cachedData != null)
+            {
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType = "application/json";
+                // ctx.Response.ContentLength = cachedData.Length;
+                ctx.Response.Headers.Add("X-Cache", "HIT");
+                await ctx.Response.OutputStream.WriteAsync(cachedData, 0, cachedData.Length);
+                // EmbedIO manages stream
+                return;
             }
 
             HttpWebResponse upstreamResponse = null;
@@ -4929,8 +4977,8 @@ namespace Kneeboard_Server
                 if (matchedRunway == null)
                 {
                     Console.WriteLine($"[OpenAIP Runway] Runway {runwayId} not found at {icao}");
-                    context.Response.StatusCode = (int)HttpStatusCode.NotFound;
-                    ResponseJson(context, $"{{\"error\":\"Runway {runwayId} not found at {icao}\"}}");
+                    ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                    await ResponseJsonAsync(ctx, $"{{\"error\":\"Runway {runwayId} not found at {icao}\"}}");
                     return;
                 }
 
@@ -4982,31 +5030,31 @@ namespace Kneeboard_Server
                     }
                 });
 
-                context.Response.StatusCode = 200;
-                context.Response.ContentType = "application/json";
-                context.Response.ContentLength64 = resultBytes.Length;
-                context.Response.AddHeader("X-Cache", "MISS");
-                context.Response.OutputStream.Write(resultBytes, 0, resultBytes.Length);
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType = "application/json";
+                // ctx.Response.ContentLength = resultBytes.Length;
+                ctx.Response.Headers.Add("X-Cache", "MISS");
+                await ctx.Response.OutputStream.WriteAsync(resultBytes, 0, resultBytes.Length);
             }
             catch (WebException ex)
             {
                 var httpResponse = ex.Response as HttpWebResponse;
                 Console.WriteLine($"[OpenAIP Runway] Error fetching {icao}/{runwayId}: {ex.Message}");
-                context.Response.StatusCode = httpResponse != null
+                ctx.Response.StatusCode = httpResponse != null
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icao}\",\"runway\":\"{runwayId}\",\"found\":false}}");
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icao}\",\"runway\":\"{runwayId}\",\"found\":false}}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[OpenAIP Runway] Unexpected error: {ex.Message}");
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                ResponseJson(context, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icao}\",\"runway\":\"{runwayId}\",\"found\":false}}");
+                ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icao}\",\"runway\":\"{runwayId}\",\"found\":false}}");
             }
             finally
             {
                 upstreamResponse?.Close();
-                try { context.Response.OutputStream.Close(); } catch { }
+                // EmbedIO manages stream lifecycle
             }
         }
 
@@ -5209,32 +5257,32 @@ namespace Kneeboard_Server
         /// Handles IATA to ICAO conversion request.
         /// Endpoint: api/openaip/iata-to-icao/{IATA}
         /// </summary>
-        private void HandleIataToIcao(HttpListenerContext context, string iataCode)
+        private async Task HandleIataToIcao(IHttpContext ctx, string iataCode)
         {
             try
             {
                 if (string.IsNullOrEmpty(iataCode) || iataCode.Length != 3)
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"found\":false,\"error\":\"Invalid IATA code\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"found\":false,\"error\":\"Invalid IATA code\"}");
                     return;
                 }
 
                 string icao = null;
                 if (_iataToIcaoIndex != null && _iataToIcaoIndex.TryGetValue(iataCode, out icao))
                 {
-                    ResponseJson(context, $"{{\"found\":true,\"iata\":\"{iataCode}\",\"icao\":\"{icao}\"}}");
+                    await ResponseJsonAsync(ctx, $"{{\"found\":true,\"iata\":\"{iataCode}\",\"icao\":\"{icao}\"}}");
                 }
                 else
                 {
-                    ResponseJson(context, $"{{\"found\":false,\"iata\":\"{iataCode}\"}}");
+                    await ResponseJsonAsync(ctx, $"{{\"found\":false,\"iata\":\"{iataCode}\"}}");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[API] IATA-to-ICAO error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, "{\"found\":false,\"error\":\"Internal error\"}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, "{\"found\":false,\"error\":\"Internal error\"}");
             }
         }
 
@@ -5242,13 +5290,13 @@ namespace Kneeboard_Server
         /// Returns the full IATA->ICAO mapping for frontend caching.
         /// Endpoint: api/openaip/iata-icao-mapping
         /// </summary>
-        private void HandleIataIcaoMapping(HttpListenerContext context)
+        private async Task HandleIataIcaoMapping(IHttpContext ctx)
         {
             try
             {
                 if (_iataToIcaoIndex == null || _iataToIcaoIndex.Count == 0)
                 {
-                    ResponseJson(context, "{\"ready\":false,\"count\":0,\"mapping\":{}}");
+                    await ResponseJsonAsync(ctx, "{\"ready\":false,\"count\":0,\"mapping\":{}}");
                     return;
                 }
 
@@ -5258,13 +5306,13 @@ namespace Kneeboard_Server
                     count = _iataToIcaoIndex.Count,
                     mapping = _iataToIcaoIndex
                 });
-                ResponseJson(context, json);
+                await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[API] IATA-ICAO-mapping error: {ex.Message}");
-                context.Response.StatusCode = 500;
-                ResponseJson(context, "{\"ready\":false,\"error\":\"Internal error\"}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, "{\"ready\":false,\"error\":\"Internal error\"}");
             }
         }
 
@@ -5336,7 +5384,7 @@ namespace Kneeboard_Server
         /// Uses the global airport index for instant O(1) lookup.
         /// Endpoint: api/openaip/airports-batch?dep=KMIA&arr=LIPE
         /// </summary>
-        private void HandleOpenAipAirportsBatch(HttpListenerContext context)
+        private async Task HandleOpenAipAirportsBatch(IHttpContext ctx)
         {
             // If index is still loading, return a "loading" status
             if (_globalAirportIndex == null)
@@ -5349,21 +5397,21 @@ namespace Kneeboard_Server
 
                 var loadingResponse = Newtonsoft.Json.JsonConvert.SerializeObject(new { loading = true, message = "Airport database is being loaded..." });
                 var loadingBytes = System.Text.Encoding.UTF8.GetBytes(loadingResponse);
-                context.Response.StatusCode = 200;
-                context.Response.ContentType = "application/json";
-                context.Response.ContentLength64 = loadingBytes.Length;
-                context.Response.OutputStream.Write(loadingBytes, 0, loadingBytes.Length);
-                try { context.Response.OutputStream.Close(); } catch { }
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType = "application/json";
+                // ctx.Response.ContentLength = loadingBytes.Length;
+                await ctx.Response.OutputStream.WriteAsync(loadingBytes, 0, loadingBytes.Length);
+                // EmbedIO manages stream lifecycle
                 return;
             }
 
-            var depIcao = (context.Request.QueryString["dep"] ?? "").Trim().ToUpperInvariant();
-            var arrIcao = (context.Request.QueryString["arr"] ?? "").Trim().ToUpperInvariant();
+            var depIcao = (ctx.Request.QueryString["dep"] ?? "").Trim().ToUpperInvariant();
+            var arrIcao = (ctx.Request.QueryString["arr"] ?? "").Trim().ToUpperInvariant();
 
             if (string.IsNullOrEmpty(depIcao) && string.IsNullOrEmpty(arrIcao))
             {
-                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                ResponseJson(context, "{\"error\":\"At least one of dep or arr is required\"}");
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                await ResponseJsonAsync(ctx, "{\"error\":\"At least one of dep or arr is required\"}");
                 return;
             }
 
@@ -5400,16 +5448,16 @@ namespace Kneeboard_Server
             var resultJson = Newtonsoft.Json.JsonConvert.SerializeObject(result);
             var resultBytes = System.Text.Encoding.UTF8.GetBytes(resultJson);
 
-            context.Response.StatusCode = 200;
-            context.Response.ContentType = "application/json";
-            context.Response.ContentLength64 = resultBytes.Length;
-            context.Response.OutputStream.Write(resultBytes, 0, resultBytes.Length);
-            try { context.Response.OutputStream.Close(); } catch { }
+            ctx.Response.StatusCode = 200;
+            ctx.Response.ContentType = "application/json";
+            // ctx.Response.ContentLength = resultBytes.Length;
+            await ctx.Response.OutputStream.WriteAsync(resultBytes, 0, resultBytes.Length);
+            // EmbedIO manages stream lifecycle
         }
 
-        private void HandleOpenAipProxy(HttpListenerContext context, string endpoint)
+        private async Task HandleOpenAipProxy(IHttpContext ctx, string endpoint)
         {
-            var request = context.Request;
+            var request = ctx.Request;
             var lat = (request.QueryString["lat"] ?? string.Empty).Trim();
             var lng = (request.QueryString["lng"] ?? string.Empty).Trim();
             var dist = (request.QueryString["dist"] ?? string.Empty).Trim();
@@ -5417,8 +5465,8 @@ namespace Kneeboard_Server
 
             if (!isTilesEndpoint && (string.IsNullOrWhiteSpace(lat) || string.IsNullOrWhiteSpace(lng) || string.IsNullOrWhiteSpace(dist)))
             {
-                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                context.Response.OutputStream.Close();
+                ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                // EmbedIO manages stream
                 return;
             }
 
@@ -5470,12 +5518,12 @@ namespace Kneeboard_Server
                 try
                 {
                     byte[] cachedData = ReadFromCache(cachePath);
-                    context.Response.StatusCode = (int)HttpStatusCode.OK;
-                    context.Response.ContentType = isTilesEndpoint ? "image/png" : "application/json";
-                    context.Response.ContentLength64 = cachedData.Length;
-                    context.Response.AddHeader("X-Cache", "HIT");
-                    context.Response.OutputStream.Write(cachedData, 0, cachedData.Length);
-                    context.Response.OutputStream.Close();
+                    ctx.Response.StatusCode = (int)HttpStatusCode.OK;
+                    ctx.Response.ContentType = isTilesEndpoint ? "image/png" : "application/json";
+                    // ctx.Response.ContentLength = cachedData.Length;
+                    ctx.Response.Headers.Add("X-Cache", "HIT");
+                    await ctx.Response.OutputStream.WriteAsync(cachedData, 0, cachedData.Length);
+                    // EmbedIO manages stream
                     return;
                 }
                 catch (Exception ex)
@@ -5544,16 +5592,16 @@ namespace Kneeboard_Server
                     ThreadPool.QueueUserWorkItem(_ => WriteToCache(cachePath, responseData));
                 }
 
-                context.Response.StatusCode = (int)upstreamResponse.StatusCode;
-                context.Response.ContentType = upstreamResponse.ContentType ?? (isTilesEndpoint ? "image/png" : "application/json");
-                context.Response.ContentLength64 = responseData.Length;
-                context.Response.AddHeader("X-Cache", "MISS");
-                context.Response.OutputStream.Write(responseData, 0, responseData.Length);
+                ctx.Response.StatusCode = (int)upstreamResponse.StatusCode;
+                ctx.Response.ContentType = upstreamResponse.ContentType ?? (isTilesEndpoint ? "image/png" : "application/json");
+                // ctx.Response.ContentLength = responseData.Length;
+                ctx.Response.Headers.Add("X-Cache", "MISS");
+                await ctx.Response.OutputStream.WriteAsync(responseData, 0, responseData.Length);
             }
             catch (WebException ex)
             {
                 var httpResponse = ex.Response as HttpWebResponse;
-                context.Response.StatusCode = httpResponse != null
+                ctx.Response.StatusCode = httpResponse != null
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
 
@@ -5599,21 +5647,21 @@ namespace Kneeboard_Server
                 // For tiles, return empty PNG instead of JSON error
                 if (isTilesEndpoint)
                 {
-                    context.Response.ContentType = "image/png";
-                    context.Response.ContentLength64 = 0;
+                    ctx.Response.ContentType = "image/png";
+                    // ctx.Response.ContentLength = 0;
                 }
                 else
                 {
                     var buffer = Encoding.UTF8.GetBytes(payload);
-                    context.Response.ContentType = "application/json";
-                    context.Response.ContentLength64 = buffer.Length;
-                    context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                    ctx.Response.ContentType = "application/json";
+                    // ctx.Response.ContentLength = buffer.Length;
+                    await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                 }
             }
             finally
             {
                 upstreamResponse?.Close();
-                context.Response.OutputStream.Close();
+                // EmbedIO manages stream
             }
         }
 
@@ -5684,22 +5732,22 @@ namespace Kneeboard_Server
         /// Proxies baselayer tiles with local caching
         /// Supports: osm, google-hybrid, google-satellite, opentopomap
         /// </summary>
-        private void HandleBaselayerTileProxy(HttpListenerContext context, string provider)
+        private async Task HandleBaselayerTileProxy(IHttpContext ctx, string provider)
         {
             HttpWebResponse upstreamResponse = null;
             bool responseClosed = false;
 
             try
             {
-                var request = context.Request;
+                var request = ctx.Request;
                 var path = request.Url.AbsolutePath;
 
                 // Parse tile coordinates from path: /api/tiles/{provider}/{z}/{x}/{y}.png
                 string prefix = $"/api/tiles/{provider}/";
                 if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                    try { context.Response.OutputStream.Close(); } catch { }
+                    ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    // EmbedIO manages stream lifecycle
                     responseClosed = true;
                     return;
                 }
@@ -5713,17 +5761,17 @@ namespace Kneeboard_Server
                     try
                     {
                         byte[] cachedData = ReadFromBaselayerCache(cachePath);
-                        context.Response.StatusCode = (int)HttpStatusCode.OK;
-                        context.Response.ContentType = "image/png";
-                        context.Response.ContentLength64 = cachedData.Length;
-                        context.Response.AddHeader("X-Cache", "HIT");
-                        context.Response.AddHeader("Cache-Control", "public, max-age=2592000"); // 30 days
-                        context.Response.OutputStream.Write(cachedData, 0, cachedData.Length);
-                        context.Response.OutputStream.Close();
+                        ctx.Response.StatusCode = (int)HttpStatusCode.OK;
+                        ctx.Response.ContentType = "image/png";
+                        // ctx.Response.ContentLength = cachedData.Length;
+                        ctx.Response.Headers.Add("X-Cache", "HIT");
+                        ctx.Response.Headers.Add("Cache-Control", "public, max-age=2592000"); // 30 days
+                        await ctx.Response.OutputStream.WriteAsync(cachedData, 0, cachedData.Length);
+                        // EmbedIO manages stream
                         responseClosed = true;
                         return;
                     }
-                    catch (System.Net.HttpListenerException)
+                    catch (System.Net.Sockets.SocketException)
                     {
                         // Client disconnected - silently abort
                         responseClosed = true;
@@ -5746,8 +5794,8 @@ namespace Kneeboard_Server
                 {
                     try
                     {
-                        context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                        context.Response.OutputStream.Close();
+                        ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                        // EmbedIO manages stream
                     }
                     catch { }
                     responseClosed = true;
@@ -5788,8 +5836,8 @@ namespace Kneeboard_Server
                     default:
                         try
                         {
-                            context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                            context.Response.OutputStream.Close();
+                            ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                            // EmbedIO manages stream
                         }
                         catch { }
                         responseClosed = true;
@@ -5822,14 +5870,14 @@ namespace Kneeboard_Server
                     ThreadPool.QueueUserWorkItem(_ => WriteToBaselayerCache(cachePath, responseData));
                 }
 
-                context.Response.StatusCode = (int)HttpStatusCode.OK;
-                context.Response.ContentType = "image/png";
-                context.Response.ContentLength64 = responseData.Length;
-                context.Response.AddHeader("X-Cache", "MISS");
-                context.Response.AddHeader("Cache-Control", "public, max-age=2592000");
-                context.Response.OutputStream.Write(responseData, 0, responseData.Length);
+                ctx.Response.StatusCode = (int)HttpStatusCode.OK;
+                ctx.Response.ContentType = "image/png";
+                // ctx.Response.ContentLength = responseData.Length;
+                ctx.Response.Headers.Add("X-Cache", "MISS");
+                ctx.Response.Headers.Add("Cache-Control", "public, max-age=2592000");
+                await ctx.Response.OutputStream.WriteAsync(responseData, 0, responseData.Length);
             }
-            catch (System.Net.HttpListenerException)
+            catch (System.Net.Sockets.SocketException)
             {
                 // Client disconnected - silently ignore
                 responseClosed = true;
@@ -5840,7 +5888,7 @@ namespace Kneeboard_Server
                 try
                 {
                     if (!responseClosed)
-                        context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                        ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                 }
                 catch { }
             }
@@ -5855,7 +5903,7 @@ namespace Kneeboard_Server
                 try
                 {
                     if (!responseClosed)
-                        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                        ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 }
                 catch { }
             }
@@ -5864,39 +5912,25 @@ namespace Kneeboard_Server
                 upstreamResponse?.Close();
                 if (!responseClosed)
                 {
-                    try { context.Response.OutputStream.Close(); } catch { }
+                    // EmbedIO manages stream lifecycle
                 }
             }
         }
 
-        private void Process(HttpListenerContext context)
+        private async Task ProcessRequestAsync(IHttpContext ctx)
         {
+            var request = ctx.Request;
+            var response = ctx.Response;
 
-            HttpListenerRequest request = context.Request;
-
-
-
-            HttpListenerResponse response = context.Response;
-
-            // ✅ Allow CORS
-            response.AddHeader("Access-Control-Allow-Origin", "*");
-            response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-            response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
-
-            // ✅ Handle preflight OPTIONS request
-            if (request.HttpMethod == "OPTIONS")
-            {
-                response.StatusCode = (int)HttpStatusCode.OK;
-                response.OutputStream.Close();
-                return;
-            }
+            // Note: CORS is handled by EmbedIO's WithCors() middleware
+            // Note: OPTIONS requests are handled by EmbedIO's CORS middleware
 
             // ✅ Handle HEAD requests for file existence checks (avoids 404 console errors)
             if (request.HttpMethod == "HEAD")
             {
                 try
                 {
-                    string headCommand = context.Request.Url.AbsolutePath.Substring(1);
+                    string headCommand = ctx.Request.Url.AbsolutePath.Substring(1);
                     // Replace forward slashes with backslashes for Windows path compatibility
                     headCommand = headCommand.Replace('/', '\\');
                     string headFilePath = Path.Combine(_rootDirectory, headCommand);
@@ -5905,7 +5939,7 @@ namespace Kneeboard_Server
                     {
                         response.StatusCode = (int)HttpStatusCode.OK;
                         response.ContentType = _mimeTypeMappings.TryGetValue(Path.GetExtension(headFilePath), out string headMime) ? headMime : "application/octet-stream";
-                        response.ContentLength64 = new FileInfo(headFilePath).Length;
+                        // response.ContentLength = new FileInfo(headFilePath).Length;  // EmbedIO sets this automatically
                     }
                     else
                     {
@@ -5916,11 +5950,10 @@ namespace Kneeboard_Server
                 {
                     response.StatusCode = (int)HttpStatusCode.NotFound;
                 }
-                response.OutputStream.Close();
                 return;
             }
 
-            string command = context.Request.Url.AbsolutePath;
+            string command = ctx.Request.Url.AbsolutePath;
 
             command = command.Substring(1);
             //Console.WriteLine("Command: " + command);
@@ -5938,11 +5971,11 @@ namespace Kneeboard_Server
             }
             else if (command == "checkServerConnection")
             {
-                ResponseString(context, "true");
+                await ResponseStringAsync(ctx, "true");
             }
             else if (command == "setNavlogValues")
             {
-                string postedText = GetPostedText(request);
+                string postedText = await GetPostedTextAsync(ctx);
                 Console.WriteLine($"[NavlogSync] Server received navlog POST, length: {postedText.Length}");
 
                 // Store the new values with timestamp
@@ -5953,19 +5986,19 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.Save();
 
                 Console.WriteLine($"[NavlogSync] Server stored navlog data, new length: {values.Length}, timestamp: {valuesTimestamp}");
-                ResponseString(context, valuesTimestamp.ToString());
+                await ResponseStringAsync(ctx, valuesTimestamp.ToString());
             }
             else if (command == "synchronizeFlightplan")
             {
                 string flightplan = Kneeboard_Server.syncFlightplan();
                 if (flightplan != "")
                 {
-                    ResponseString(context, flightplan);
+                    await ResponseStringAsync(ctx, flightplan);
                     // Don't clear flightplan - keep it available for map auto-load
                 }
                 else
                 {
-                    ResponseString(context, "");
+                    await ResponseStringAsync(ctx, "");
                 }
             }
             else if (command == "getNavlogValues")
@@ -5975,13 +6008,13 @@ namespace Kneeboard_Server
                 Console.WriteLine($"[NavlogSync] Server sending navlog data, length: {navlogData.Length}, timestamp: {timestamp}");
 
                 // Send data with timestamp as header
-                context.Response.Headers.Add("X-Navlog-Timestamp", timestamp.ToString());
-                ResponseString(context, navlogData);
+                ctx.Response.Headers.Add("X-Navlog-Timestamp", timestamp.ToString());
+                await ResponseStringAsync(ctx, navlogData);
             }
             else if (command == "getNavlogTimestamp")
             {
                 long timestamp = Properties.Settings.Default.valuesTimestamp;
-                ResponseString(context, timestamp.ToString());
+                await ResponseStringAsync(ctx, timestamp.ToString());
             }
             else if (command == "clearNavlogValues")
             {
@@ -5992,18 +6025,18 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.valuesTimestamp = valuesTimestamp;
                 Properties.Settings.Default.Save();
                 Console.WriteLine($"[NavlogSync] Server navlog data cleared, timestamp: {valuesTimestamp}");
-                ResponseString(context, "OK");
+                await ResponseStringAsync(ctx, "OK");
             }
             else if (command == "getFlightplan")
             {
                 if (Kneeboard_Server.flightplan != null)
                 {
-                    ResponseString(context, Kneeboard_Server.flightplan);
+                    await ResponseStringAsync(ctx, Kneeboard_Server.flightplan);
                     // Don't clear flightplan - keep it available for map auto-load
                 }
                 else
                 {
-                    ResponseString(context, "");
+                    await ResponseStringAsync(ctx, "");
                 }
             }
             else if (command == "clearFlightplan")
@@ -6022,7 +6055,7 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.Save();
                 Console.WriteLine("[NavlogSync] Navlog data and SimBrief cache cleared along with flight plan");
 
-                ResponseString(context, "cleared");
+                await ResponseStringAsync(ctx, "cleared");
             }
             else if (command == "clearLocalFlightplan")
             {
@@ -6039,27 +6072,27 @@ namespace Kneeboard_Server
                 bool hasServerFlightplan = !string.IsNullOrEmpty(Kneeboard_Server.flightplan);
                 Console.WriteLine("[NavlogSync] Local navlog cleared, OFP hidden, SimBrief cache preserved: " + hasServerFlightplan);
 
-                ResponseJson(context, $"{{\"cleared\":true,\"hasServerFlightplan\":{hasServerFlightplan.ToString().ToLower()}}}");
+                await ResponseJsonAsync(ctx, $"{{\"cleared\":true,\"hasServerFlightplan\":{hasServerFlightplan.ToString().ToLower()}}}");
             }
             else if (command == "hasFlightplan")
             {
-                ResponseString(context, Kneeboard_Server.flightplan != null ? "true" : "false");
+                await ResponseStringAsync(ctx, Kneeboard_Server.flightplan != null ? "true" : "false");
             }
             else if (command == "hasSimbriefId")
             {
                 bool hasId = !string.IsNullOrEmpty(Properties.Settings.Default.simbriefId);
-                ResponseJson(context, $"{{\"hasSimbriefId\":{hasId.ToString().ToLower()}}}");
+                await ResponseJsonAsync(ctx, $"{{\"hasSimbriefId\":{hasId.ToString().ToLower()}}}");
             }
             else if (command == "checkSimbriefUpdate")
             {
                 bool updateAvailable = Kneeboard_Server.CheckSimbriefUpdateAvailable();
-                ResponseJson(context, $"{{\"updateAvailable\":{updateAvailable.ToString().ToLower()}}}");
+                await ResponseJsonAsync(ctx, $"{{\"updateAvailable\":{updateAvailable.ToString().ToLower()}}}");
             }
             else if (command == "hasServerFlightplan")
             {
                 // Check if server has a flightplan loaded (from background sync or previous session)
                 bool hasFlightplan = !string.IsNullOrEmpty(Kneeboard_Server.flightplan);
-                ResponseJson(context, $"{{\"hasFlightplan\":{hasFlightplan.ToString().ToLower()}}}");
+                await ResponseJsonAsync(ctx, $"{{\"hasFlightplan\":{hasFlightplan.ToString().ToLower()}}}");
             }
             else if (command == "getFlightplanHash")
             {
@@ -6070,58 +6103,58 @@ namespace Kneeboard_Server
                     {
                         byte[] hash = md5.ComputeHash(Encoding.UTF8.GetBytes(Kneeboard_Server.flightplan));
                         string hashString = Convert.ToBase64String(hash).Substring(0, 16);
-                        ResponseJson(context, $"{{\"exists\":true,\"hash\":\"{hashString}\"}}");
+                        await ResponseJsonAsync(ctx, $"{{\"exists\":true,\"hash\":\"{hashString}\"}}");
                     }
                 }
                 else
                 {
-                    ResponseJson(context, "{\"exists\":false}");
+                    await ResponseJsonAsync(ctx, "{\"exists\":false}");
                 }
             }
             else if (command.StartsWith("api/procedure/", StringComparison.OrdinalIgnoreCase))
             {
                 // Get SID/STAR procedure details: api/procedure/{airport}/{type}/{name}
                 // Example: api/procedure/EDDM/SID/GIVMI1N
-                HandleProcedureRequest(context, command.Substring("api/procedure/".Length));
+                await HandleProcedureRequest(ctx, command.Substring("api/procedure/".Length));
                 return;
             }
             else if (command.StartsWith("api/procedures/", StringComparison.OrdinalIgnoreCase))
             {
                 // Get all SID/STAR procedures for an airport: api/procedures/{airport}
                 // Example: api/procedures/EDDM
-                HandleProceduresListRequest(context, command.Substring("api/procedures/".Length));
+                await HandleProceduresListRequest(ctx, command.Substring("api/procedures/".Length));
                 return;
             }
             else if (command.StartsWith("api/metar/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleNoaaProxy(context, command.Substring("api/metar/".Length), false);
+                await HandleNoaaProxy(ctx, command.Substring("api/metar/".Length), false);
                 return;
             }
             else if (command.StartsWith("api/taf/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleNoaaProxy(context, command.Substring("api/taf/".Length), true);
+                await HandleNoaaProxy(ctx, command.Substring("api/taf/".Length), true);
                 return;
             }
             else if (command == "api/boundaries/vatsim")
             {
-                HandleVatsimBoundariesProxy(context);
+                await HandleVatsimBoundariesProxy(ctx);
                 return;
             }
             else if (command == "api/boundaries/ivao")
             {
                 // IVAO bietet KEINE öffentliche API für FIR-Boundaries!
                 // Little Navmap ist die einzige funktionierende Quelle
-                HandleIvaoBoundariesProxy(context);
+                await HandleIvaoBoundariesProxy(ctx);
                 return;
             }
             else if (command == "api/boundaries/vatsim-tracon")
             {
-                HandleVatsimTraconBoundariesProxy(context);
+                await HandleVatsimTraconBoundariesProxy(ctx);
                 return;
             }
             else if (command == "api/vatspy/firnames")
             {
-                HandleVatspyFirNamesProxy(context);
+                await HandleVatspyFirNamesProxy(ctx);
                 return;
             }
             else if (command == "synchronizeControllers")
@@ -6132,14 +6165,14 @@ namespace Kneeboard_Server
                     {
                         client.Encoding = Encoding.UTF8;
                         string controllers = client.DownloadString("https://data.vatsim.net/v3/vatsim-data.json");
-                        ResponseJson(context, controllers);
+                        await ResponseJsonAsync(ctx, controllers);
                     }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"VATSIM sync error: {ex.Message}");
-                    context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                    try { context.Response.OutputStream.Close(); } catch { }
+                    ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                    // EmbedIO manages stream lifecycle
                 }
                 return;
             }
@@ -6151,14 +6184,14 @@ namespace Kneeboard_Server
                     {
                         client.Encoding = Encoding.UTF8;
                         string transceivers = client.DownloadString("https://data.vatsim.net/v3/transceivers-data.json");
-                        ResponseJson(context, transceivers);
+                        await ResponseJsonAsync(ctx, transceivers);
                     }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"VATSIM transceivers sync error: {ex.Message}");
-                    context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                    try { context.Response.OutputStream.Close(); } catch { }
+                    ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                    // EmbedIO manages stream lifecycle
                 }
                 return;
             }
@@ -6170,67 +6203,67 @@ namespace Kneeboard_Server
                     {
                         client.Encoding = Encoding.UTF8;
                         string controllers = client.DownloadString("https://api.ivao.aero/v2/tracker/whazzup");
-                        ResponseJson(context, controllers);
+                        await ResponseJsonAsync(ctx, controllers);
                     }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"IVAO sync error: {ex.Message}");
-                    context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-                    try { context.Response.OutputStream.Close(); } catch { }
+                    ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
+                    // EmbedIO manages stream lifecycle
                 }
                 return;
             }
             // ===== HYBRID-ANSATZ: Vorverarbeitete Piloten-Daten =====
             else if (command == "api/pilots/vatsim")
             {
-                HandleVatsimPilots(context);
+                await HandleVatsimPilots(ctx);
                 return;
             }
             else if (command == "api/pilots/ivao")
             {
-                HandleIvaoPilots(context);
+                await HandleIvaoPilots(ctx);
                 return;
             }
             // ===== HYBRID-ANSATZ: Boundaries mit vorberechneten Bounding-Boxes =====
             else if (command == "api/boundaries/vatsim")
             {
-                HandleVatsimBoundariesWithBbox(context);
+                await HandleVatsimBoundariesWithBbox(ctx);
                 return;
             }
             else if (command == "api/boundaries/ivao")
             {
-                HandleIvaoBoundariesWithBbox(context);
+                await HandleIvaoBoundariesWithBbox(ctx);
                 return;
             }
             else if (command == "api/boundaries/ivao-offline")
             {
-                HandleIvaoOfflineFir(context);
+                await HandleIvaoOfflineFir(ctx);
                 return;
             }
             else if (command == "api/boundaries/vatsim-offline")
             {
-                HandleVatsimOfflineFir(context);
+                await HandleVatsimOfflineFir(ctx);
                 return;
             }
             else if (command.StartsWith("api/openaip/iata-to-icao/", StringComparison.OrdinalIgnoreCase))
             {
                 // Convert IATA to ICAO: api/openaip/iata-to-icao/JFK -> KJFK
                 var iataCode = command.Substring("api/openaip/iata-to-icao/".Length).ToUpperInvariant();
-                HandleIataToIcao(context, iataCode);
+                await HandleIataToIcao(ctx, iataCode);
                 return;
             }
             else if (command == "api/openaip/iata-icao-mapping")
             {
                 // Return full IATA->ICAO mapping for frontend caching
-                HandleIataIcaoMapping(context);
+                await HandleIataIcaoMapping(ctx);
                 return;
             }
             else if (command.StartsWith("api/openaip/airport-by-icao/", StringComparison.OrdinalIgnoreCase))
             {
                 // Extract ICAO code from URL: api/openaip/airport-by-icao/KMIA
                 var icaoCode = command.Substring("api/openaip/airport-by-icao/".Length).ToUpperInvariant();
-                HandleOpenAipAirportByIcao(context, icaoCode);
+                await HandleOpenAipAirportByIcao(ctx, icaoCode);
                 return;
             }
             else if (command.StartsWith("api/openaip/runway/", StringComparison.OrdinalIgnoreCase))
@@ -6242,41 +6275,41 @@ namespace Kneeboard_Server
                 {
                     var icaoCode = parts[0].ToUpperInvariant();
                     var runwayId = string.Join("/", parts.Skip(1)).ToUpperInvariant();
-                    HandleOpenAipRunway(context, icaoCode, runwayId);
+                    await HandleOpenAipRunway(ctx, icaoCode, runwayId);
                 }
                 else
                 {
-                    context.Response.StatusCode = 400;
-                    ResponseJson(context, "{\"error\":\"Format: /api/openaip/runway/{icao}/{runway}\"}");
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Format: /api/openaip/runway/{icao}/{runway}\"}");
                 }
                 return;
             }
             else if (command.StartsWith("api/openaip/airports-batch", StringComparison.OrdinalIgnoreCase))
             {
                 // Batch endpoint: api/openaip/airports-batch?dep=KMIA&arr=LIPE
-                HandleOpenAipAirportsBatch(context);
+                await HandleOpenAipAirportsBatch(ctx);
                 return;
             }
             else if (command.StartsWith("api/openaip/airports", StringComparison.OrdinalIgnoreCase))
             {
-                HandleOpenAipProxy(context, "airports");
+                await HandleOpenAipProxy(ctx, "airports");
                 return;
             }
             else if (command.StartsWith("api/openaip/navaids", StringComparison.OrdinalIgnoreCase))
             {
-                HandleOpenAipProxy(context, "navaids");
+                await HandleOpenAipProxy(ctx, "navaids");
                 return;
             }
             else if (command == "api/favorites")
             {
                 // GET: Load favorites, POST: Save favorites
-                if (context.Request.HttpMethod == "GET")
+                if (ctx.Request.HttpMethod == "GET")
                 {
-                    HandleGetFavorites(context);
+                    await HandleGetFavorites(ctx);
                 }
-                else if (context.Request.HttpMethod == "POST")
+                else if (ctx.Request.HttpMethod == "POST")
                 {
-                    HandleSaveFavorites(context);
+                    await HandleSaveFavorites(ctx);
                 }
                 return;
             }
@@ -6287,207 +6320,207 @@ namespace Kneeboard_Server
                     vatsimCid = Properties.Settings.Default.vatsimCid ?? "",
                     ivaoVid = Properties.Settings.Default.ivaoVid ?? ""
                 };
-                ResponseJson(context, Newtonsoft.Json.JsonConvert.SerializeObject(userIds));
+                await ResponseJsonAsync(ctx, Newtonsoft.Json.JsonConvert.SerializeObject(userIds));
                 return;
             }
             else if (command.StartsWith("api/openaip/reporting-points", StringComparison.OrdinalIgnoreCase))
             {
-                HandleOpenAipProxy(context, "reporting-points");
+                await HandleOpenAipProxy(ctx, "reporting-points");
                 return;
             }
             else if (command.StartsWith("api/openaip/tiles/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleOpenAipProxy(context, "tiles");
+                await HandleOpenAipProxy(ctx, "tiles");
                 return;
             }
             // Baselayer Tile Proxy with Caching
             else if (command.StartsWith("api/tiles/osm/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleBaselayerTileProxy(context, "osm");
+                await HandleBaselayerTileProxy(ctx, "osm");
                 return;
             }
             else if (command.StartsWith("api/tiles/google-hybrid/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleBaselayerTileProxy(context, "google-hybrid");
+                await HandleBaselayerTileProxy(ctx, "google-hybrid");
                 return;
             }
             else if (command.StartsWith("api/tiles/google-satellite/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleBaselayerTileProxy(context, "google-satellite");
+                await HandleBaselayerTileProxy(ctx, "google-satellite");
                 return;
             }
             else if (command.StartsWith("api/tiles/opentopomap/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleBaselayerTileProxy(context, "opentopomap");
+                await HandleBaselayerTileProxy(ctx, "opentopomap");
                 return;
             }
             else if (command == "api/elevation")
             {
-                HandleElevationProxy(context);
+                await HandleElevationProxy(ctx);
                 return;
             }
             else if (command.StartsWith("api/dfs/tiles/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleDfsProxy(context);
+                await HandleDfsProxy(ctx);
                 return;
             }
             else if (command.StartsWith("api/ofm/tiles/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleOfmProxy(context);
+                await HandleOfmProxy(ctx);
                 return;
             }
             else if (command.StartsWith("api/nominatim/search", StringComparison.OrdinalIgnoreCase))
             {
-                HandleNominatimProxy(context);
+                await HandleNominatimProxy(ctx);
                 return;
             }
             else if (command.StartsWith("api/wind/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleWindProxy(context);
+                await HandleWindProxy(ctx);
                 return;
             }
             else if (command == "api/simconnect/position")
             {
-                HandleSimConnectPositionRequest(context);
+                await HandleSimConnectPositionRequest(ctx);
                 return;
             }
             else if (command == "api/simconnect/status")
             {
-                HandleSimConnectStatusRequest(context);
+                await HandleSimConnectStatusRequest(ctx);
                 return;
             }
             else if (command == "api/simconnect/teleport")
             {
-                HandleSimConnectTeleportRequest(context);
+                await HandleSimConnectTeleportRequest(ctx);
                 return;
             }
             else if (command == "api/simconnect/pause")
             {
-                HandleSimConnectPauseRequest(context);
+                await HandleSimConnectPauseRequest(ctx);
                 return;
             }
             else if (command == "api/simconnect/radio/frequency")
             {
-                HandleSimConnectRadioFrequencyRequest(context);
+                await HandleSimConnectRadioFrequencyRequest(ctx);
                 return;
             }
             // Procedure API Endpoints (SID/STAR data from Little Navmap)
             else if (command.StartsWith("api/procedures/sids/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleGetSIDListRequest(context, command);
+                await HandleGetSIDListRequest(ctx, command);
                 return;
             }
             else if (command.StartsWith("api/procedures/stars/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleGetSTARListRequest(context, command);
+                await HandleGetSTARListRequest(ctx, command);
                 return;
             }
             else if (command.StartsWith("api/procedures/approaches/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleGetApproachListRequest(context, command);
+                await HandleGetApproachListRequest(ctx, command);
                 return;
             }
             else if (command.StartsWith("api/procedures/approach/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleGetApproachRequest(context, command);
+                await HandleGetApproachRequest(ctx, command);
                 return;
             }
             else if (command.StartsWith("api/procedures/procedure/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleGetProcedureRequest(context, command);
+                await HandleGetProcedureRequest(ctx, command);
                 return;
             }
             else if (command == "api/procedures/status")
             {
-                HandleProcedureStatusRequest(context);
+                await HandleProcedureStatusRequest(ctx);
                 return;
             }
             else if (command.StartsWith("api/procedures/debug/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleProcedureDebugRequest(context, command);
+                await HandleProcedureDebugRequest(ctx, command);
                 return;
             }
             else if (command == "api/procedures/allprocedures")
             {
-                HandleAllProceduresDebugRequest(context);
+                await HandleAllProceduresDebugRequest(ctx);
                 return;
             }
             else if (command == "api/procedures/folderinfo")
             {
-                HandleNavdataFolderInfoRequest(context);
+                await HandleNavdataFolderInfoRequest(ctx);
                 return;
             }
             else if (command == "api/procedures/simbrief")
             {
-                HandleSimbriefProceduresRequest(context);
+                await HandleSimbriefProceduresRequest(ctx);
                 return;
             }
             else if (command == "api/procedures/simbrief/sid")
             {
-                HandleSimbriefSidRequest(context);
+                await HandleSimbriefSidRequest(ctx);
                 return;
             }
             else if (command == "api/procedures/simbrief/star")
             {
-                HandleSimbriefStarRequest(context);
+                await HandleSimbriefStarRequest(ctx);
                 return;
             }
             // ILS API Endpoints
             else if (command.StartsWith("api/ils/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleIlsRequest(context, command);
+                await HandleIlsRequest(ctx, command);
                 return;
             }
             // Navigraph API Endpoints
             else if (command == "api/navigraph/status")
             {
-                HandleNavigraphStatusRequest(context);
+                await HandleNavigraphStatusRequest(ctx);
                 return;
             }
             else if (command.StartsWith("api/navigraph/runway/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleRunwayRequest(context, command);
+                await HandleRunwayRequest(ctx, command);
                 return;
             }
             else if (command.StartsWith("api/navigraph/runways/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleRunwaysRequest(context, command);
+                await HandleRunwaysRequest(ctx, command);
                 return;
             }
             else if (command.StartsWith("api/navigraph/airport/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleAirportRequest(context, command);
+                await HandleAirportRequest(ctx, command);
                 return;
             }
             else if (command.StartsWith("api/navigraph/waypoint/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleWaypointRequest(context, command);
+                await HandleWaypointRequest(ctx, command);
                 return;
             }
             else if (command.StartsWith("api/navigraph/navaid/", StringComparison.OrdinalIgnoreCase))
             {
-                HandleNavaidRequest(context, command);
+                await HandleNavaidRequest(ctx, command);
                 return;
             }
-            else if (command == "api/debug/config" && context.Request.HttpMethod == "GET")
+            else if (command == "api/debug/config" && ctx.Request.HttpMethod == "GET")
             {
-                HandleGetDebugConfig(context);
+                await HandleGetDebugConfig(ctx);
                 return;
             }
-            else if (command == "api/debug/config" && context.Request.HttpMethod == "POST")
+            else if (command == "api/debug/config" && ctx.Request.HttpMethod == "POST")
             {
-                HandleSetDebugConfig(context);
+                await HandleSetDebugConfig(ctx);
                 return;
             }
-            else if (command == "api/log" && context.Request.HttpMethod == "POST")
+            else if (command == "api/log" && ctx.Request.HttpMethod == "POST")
             {
-                HandleClientLogRequest(context);
+                await HandleClientLogRequest(ctx);
                 return;
             }
             else if (command == "getDocumentsList")
             {
                 string documentsString = _kneeboardServer.GetFileList();
-                ResponseString(context, documentsString);
+                await ResponseStringAsync(ctx, documentsString);
             }
             else if (command == "getMapLayers")
             {
@@ -6497,19 +6530,19 @@ namespace Kneeboard_Server
                     if (System.IO.File.Exists(layersFilePath))
                     {
                         string layersJson = System.IO.File.ReadAllText(layersFilePath, Encoding.UTF8);
-                        ResponseJson(context, layersJson);
+                        await ResponseJsonAsync(ctx, layersJson);
                     }
                     else
                     {
-                        context.Response.StatusCode = (int)HttpStatusCode.NotFound;
-                        ResponseJson(context, "{\"error\":\"map-layers.json not found\"}");
+                        ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                        await ResponseJsonAsync(ctx, "{\"error\":\"map-layers.json not found\"}");
                     }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error loading map layers: {ex.Message}");
-                    context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                    ResponseJson(context, "{\"error\":\"Failed to load map layers\"}");
+                    ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Failed to load map layers\"}");
                 }
                 return;
             }
@@ -6518,9 +6551,9 @@ namespace Kneeboard_Server
                 string[] parts = command.Split(new[] { '-' }, 2);
                 if (parts.Length < 2)
                 {
-                    context.Response.StatusCode = 400;
-                    context.Response.ContentLength64 = 0;
-                    context.Response.OutputStream.Close();   // ✅
+                    ctx.Response.StatusCode = 400;
+                    // ctx.Response.ContentLength = 0;
+                    // EmbedIO manages stream   // ✅
                     return;
                 }
 
@@ -6550,9 +6583,9 @@ namespace Kneeboard_Server
 
                 if (fileEntry == null)
                 {
-                    context.Response.StatusCode = 404;
-                    context.Response.ContentLength64 = 0;
-                    context.Response.OutputStream.Close();   // ✅
+                    ctx.Response.StatusCode = 404;
+                    // ctx.Response.ContentLength = 0;
+                    // EmbedIO manages stream   // ✅
                     return;
                 }
 
@@ -6563,24 +6596,15 @@ namespace Kneeboard_Server
                 }
                 catch (Exception)
                 {
-                    context.Response.StatusCode = 500;
-                    context.Response.ContentLength64 = 0;
-                    context.Response.OutputStream.Close();   // ✅
+                    ctx.Response.StatusCode = 500;
+                    // ctx.Response.ContentLength = 0;
+                    // EmbedIO manages stream   // ✅
                     return;
                 }
 
-                // Erfolgspfad
+                // Erfolgspfad - Send PDF as base64 text
                 string base64 = Convert.ToBase64String(pdfFile);
-
-                byte[] buffer = System.Text.Encoding.UTF8.GetBytes(base64);
-                context.Response.StatusCode = (int)HttpStatusCode.OK;
-                context.Response.ContentType = "text/plain";
-                context.Response.ContentLength64 = buffer.Length;
-
-                using (System.IO.Stream output = context.Response.OutputStream)
-                {
-                    output.Write(buffer, 0, buffer.Length);
-                }
+                await ctx.SendStringAsync(base64, "text/plain", Encoding.UTF8);
                 return;
             }
             else
@@ -6609,55 +6633,44 @@ namespace Kneeboard_Server
                 {
                     try
                     {
-                        using (var input = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                        // Read file completely first (EmbedIO handles response better this way)
+                        byte[] fileContent = File.ReadAllBytes(filePath);
+                        string contentType = _mimeTypeMappings.TryGetValue(Path.GetExtension(filePath), out string mime) ? mime : "application/octet-stream";
+
+                        // For text-based files, use SendStringAsync
+                        string ext = Path.GetExtension(filePath).ToLowerInvariant();
+                        if (ext == ".html" || ext == ".htm" || ext == ".css" || ext == ".js" || ext == ".json" || ext == ".xml" || ext == ".txt" || ext == ".svg")
                         {
-                            // Set response headers
-                            context.Response.ContentType = _mimeTypeMappings.TryGetValue(Path.GetExtension(filePath), out string mime) ? mime : "application/octet-stream";
-                            context.Response.ContentLength64 = input.Length;
-                            context.Response.AddHeader("Date", DateTime.Now.ToString("r"));
-                            context.Response.AddHeader("Last-Modified", File.GetLastWriteTime(filePath).ToString("r"));
-
-                            // Add cache headers for static assets
-                            string ext = Path.GetExtension(filePath).ToLowerInvariant();
-                            if (ext == ".jpg" || ext == ".png" || ext == ".gif" || ext == ".ico")
-                            {
-                                context.Response.AddHeader("Cache-Control", "public, max-age=3600");
-                            }
-
-                            // Stream file with larger buffer for better performance
-                            byte[] buffer = new byte[64 * 1024]; // 64KB buffer
-                            int bytesRead;
-                            while ((bytesRead = input.Read(buffer, 0, buffer.Length)) > 0)
-                            {
-                                context.Response.OutputStream.Write(buffer, 0, bytesRead);
-                            }
+                            string textContent = Encoding.UTF8.GetString(fileContent);
+                            await ctx.SendStringAsync(textContent, contentType, Encoding.UTF8);
                         }
-
-                        context.Response.StatusCode = (int)HttpStatusCode.OK;
+                        else
+                        {
+                            // For binary files (images, etc.), write directly to OutputStream
+                            ctx.Response.ContentType = contentType;
+                            await ctx.Response.OutputStream.WriteAsync(fileContent, 0, fileContent.Length);
+                        }
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"Error serving file {filePath}: {ex.Message}");
-                        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                        ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                     }
                 }
                 else
                 {
-                    context.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                    ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
                 }
             }
 
-            try { context.Response.OutputStream.Close(); } catch { }
         }
 
-        private static string GetPostedText(HttpListenerRequest request)
+        private static async Task<string> GetPostedTextAsync(IHttpContext ctx)
         {
-            string text = "";
-            using (StreamReader reader = new StreamReader(request.InputStream, request.ContentEncoding))
+            using (var reader = ctx.OpenRequestText())
             {
-                text = reader.ReadToEnd();
+                return await reader.ReadToEndAsync();
             }
-            return text;
         }
 
         private void Initialize(string path, int port)
@@ -6669,11 +6682,9 @@ namespace Kneeboard_Server
 
             this._rootDirectory = path;
             this._port = port;
-            _serverThread = new Thread(this.Listen)
-            {
-                IsBackground = true
-            };
-            _serverThread.Start();
+
+            // Start EmbedIO WebServer (fire-and-forget, runs in background)
+            _ = StartServerAsync();
         }
     }
 

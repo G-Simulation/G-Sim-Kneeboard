@@ -1,0 +1,4201 @@
+@media only screen and (-webkit-min-device-pixel-ratio : 2),
+only screen and (min-device-pixel-ratio : 2) {
+    .wpHeader {
+        font-size: 30px;
+    }
+}
+
+:root {
+    --buttonSize: 7vmin;
+    --iconScale: 0.18; /* Responsive icon scale multiplier - reduziert fuer MSFS Panel */
+    --buttonTextSize: 1.5vmin; /* Button label text size */
+ }
+
+.leaflet-container .leaflet-touch .leaflet-fade-anim .leaflet-grab .leaflet-touch-drag .leaflet-touch-zoom {
+    background-color: white;
+}
+
+/* Cursor styles for Coherent GT browser compatibility (MSFS) */
+/* Coherent GT hat eingeschränkte CSS-Unterstützung - Fallbacks nötig */
+
+/* Map Container - Standard-Cursor ist Hand/Grab */
+.leaflet-container {
+    cursor: grab !important;
+    cursor: -webkit-grab !important;
+    cursor: -moz-grab !important;
+}
+
+/* Interaktive Elemente (Marker, Buttons, etc.) - Pointer/Hand */
+.leaflet-interactive {
+    cursor: pointer !important;
+}
+
+/* Map beim Ziehen */
+.leaflet-grab {
+    cursor: grab !important;
+    cursor: -webkit-grab !important;
+    cursor: -moz-grab !important;
+}
+
+.leaflet-dragging,
+.leaflet-dragging .leaflet-container,
+.leaflet-dragging .leaflet-grab,
+.leaflet-dragging .leaflet-interactive {
+    cursor: grabbing !important;
+    cursor: -webkit-grabbing !important;
+    cursor: -moz-grabbing !important;
+}
+
+/* Polyline (Route) - Pointer bei Hover für Long-Press Hinweis */
+.leaflet-interactive.leaflet-polyline-layer {
+    cursor: pointer !important;
+}
+
+#mapContainer {
+    position: relative;
+    width: 100%;
+    height: calc(100% - 15px);
+    min-height: 0;
+    margin: 0;
+    padding: 5px 5px 5px 5px; /* minimal padding on all sides */
+    overflow: hidden;
+    box-sizing: border-box;
+    background-color: transparent;
+    display: flex;
+    flex-direction: column;
+}
+
+#map {
+    flex: 1;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+}
+
+.currentAirplane .airplane-icon {
+  color: var(--colorLight); /* beliebige Farbe */
+}
+
+.leaflet-left {
+    margin-left: 5px !important;
+    margin-top: 5px !important;
+}
+
+.leaflet-top.leaflet-left {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    align-items: flex-start;
+    gap: 6px;
+    max-height: calc(100% - 20px);
+    padding-right: 6px;
+}
+
+.leaflet-bottom.leaflet-left {
+    padding-left: 5px !important;
+}
+
+.leaflet-top.leaflet-left .leaflet-control {
+    margin: 0 !important;
+    flex-grow: 0 !important;
+    flex-shrink: 0 !important;
+}
+
+/* Geosearch-Control aus Flexbox-Layout entfernen aber Container erlauben */
+.leaflet-top.leaflet-left .leaflet-control-geosearch {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: visible !important;
+}
+
+.leaflet-right {
+    margin-right: 5px !important;
+    margin-top: 5px !important;
+}
+
+.leaflet-top.leaflet-right {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    direction: rtl;
+    gap: 6px;
+    max-height: calc(100% - 20px);
+    padding-left: 6px;
+}
+
+.leaflet-top.leaflet-right::-webkit-scrollbar {
+    width: 0px;
+    display: none;
+}
+
+.leaflet-bottom.leaflet-right {
+    padding-right: 12px !important;
+    z-index: 500;
+}
+
+.leaflet-top.leaflet-right .leaflet-control {
+    margin: 0 !important;
+    flex-grow: 0 !important;
+    flex-shrink: 0 !important;
+    width: 7vmin !important; /* Responsive width for all controls */
+}
+
+/* Layer control needs auto width when expanded */
+.leaflet-top.leaflet-right .leaflet-control-layers {
+    width: auto !important;
+}
+  
+.leaflet-bar button {
+    height: 7vmin;
+    width: 7vmin;
+}
+
+.leaflet-left .leaflet-bar button {
+    text-align: center;
+}
+
+.leaflet-right .leaflet-bar button {
+    text-align: center;
+}
+
+/* Universal centering for CSS.gg icons in LEFT leaflet buttons only */
+/* Right buttons have text labels below icons and need special positioning */
+.leaflet-left .leaflet-bar button [class^="gg-"],
+.leaflet-left .leaflet-bar button [class*=" gg-"],
+.leaflet-left .easy-button-button [class^="gg-"],
+.leaflet-left .easy-button-button [class*=" gg-"] {
+    position: relative !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    bottom: auto !important;
+    margin: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    vertical-align: middle !important;
+    transform-origin: center center !important;
+}
+
+/* Pin icon visual correction - asymmetric shape needs offset to appear centered */
+.leaflet-left .leaflet-bar button .gg-pin,
+.leaflet-left .easy-button-button .gg-pin {
+    top: -1px !important;
+    left: 1px !important;
+}
+
+/* Trash icon visual correction - lid extends above body */
+.leaflet-left .leaflet-bar button .gg-trash,
+.leaflet-left .easy-button-button .gg-trash {
+    top: 1px !important;
+}
+
+/* Hidden scrollbars */
+::-webkit-scrollbar {
+    width: 0px;
+    height: 0px;
+    display: none;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: none;
+}
+
+label {
+    padding: 1px;
+    font-size: 18px;
+}
+
+.leaflet-control-layers-selector {
+    margin-top: 0px !important;
+}
+
+/* Layer Control Toggle - Styled like Easy Buttons with icon + "Settings" text */
+.leaflet-touch .leaflet-control-layers-toggle {
+    background-image: none !important;
+    width: 7vmin !important;
+    height: 7vmin !important;
+    position: relative !important;
+    border-bottom: 1px solid #ccc !important;
+    border-radius: 4px !important;
+    text-decoration: none !important;
+}
+
+/* Hide toggle button when layer control is expanded */
+.leaflet-control-layers-expanded .leaflet-control-layers-toggle {
+    display: none !important;
+}
+
+/* Layer Control Toggle Icon - SVG layers icon */
+/* Icon color updated dynamically via updateSettingsIconColor() in map.js */
+.leaflet-touch .leaflet-control-layers-toggle::before {
+    content: '';
+    position: absolute !important;
+    top: calc(50% - 0.8vmin) !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    display: block !important;
+    width: 18px !important;
+    height: 18px !important;
+    /* Fallback icon in default blue, JS will override with theme color */
+    background-image: var(--settings-icon, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23205d8e'%3E%3Cpath d='M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z'/%3E%3C/svg%3E"));
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+/* Layer Control Toggle Text - "Settings" via ::after (same as span.backButton) */
+.leaflet-touch .leaflet-control-layers-toggle::after {
+    content: 'Settings';
+    position: absolute !important;
+    display: inline-block !important;
+    bottom: 4px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    font-size: var(--buttonTextSize) !important;
+    font-weight: 700 !important;
+    color: var(--dark) !important;
+    line-height: 1 !important;
+    letter-spacing: 0.5px !important;
+    text-shadow:
+        -1px -1px 0 white,
+        1px -1px 0 white,
+        -1px 1px 0 white,
+        1px 1px 0 white !important;
+    text-decoration: none !important;
+    transition: color 0.3s ease;
+}
+
+.leaflet-touch .leaflet-control-layers-toggle:hover {
+    background-color: #f4f4f4 !important;
+}
+
+.leaflet-touch .leaflet-control-layers-toggle:hover::before {
+    background-color: var(--light) !important;
+}
+
+.leaflet-touch .leaflet-control-layers-toggle:hover::after {
+    color: var(--light) !important;
+}
+
+/* CSS.gg Search Icon - Scaled using --iconScale variable */
+.leaflet-control-geosearch a.leaflet-bar-part::before {
+    display: block !important;
+    content: '' !important;
+    box-sizing: border-box !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 16px !important;
+    height: 16px !important;
+    border: 2px solid !important;
+    border-radius: 100% !important;
+    color: gray !important;
+    transform: translate(-50%, -50%) scale(calc(var(--iconScale) * 7)) !important;
+    transform-origin: center center !important;
+}
+
+.leaflet-control-geosearch a.leaflet-bar-part::after {
+    display: block !important;
+    content: '' !important;
+    box-sizing: border-box !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 2px !important;
+    height: 8px !important;
+    border-radius: 3px !important;
+    background: currentColor !important;
+    color: gray !important;
+    transform: translate(-50%, -50%) scale(calc(var(--iconScale) * 7)) translate(5px, 6px) rotate(-45deg) !important;
+    transform-origin: center center !important;
+}
+
+.leaflet-control-geosearch a.leaflet-bar-part {
+    color: gray !important;
+}
+
+/* Reset for pending and error states */
+.leaflet-control-geosearch.pending a.leaflet-bar-part::before,
+.leaflet-control-geosearch.error a.leaflet-bar-part::before {
+    display: none !important;
+}
+
+.leaflet-control-geosearch.pending a.leaflet-bar-part::after,
+.leaflet-control-geosearch.error a.leaflet-bar-part::after {
+    display: block !important;
+    transform: translate(-50%, -50%) !important;
+    width: 2.5vmin !important;
+    height: 2.5vmin !important;
+    margin: -1.25vmin 0 0 -1.25vmin !important;
+    border-radius: 50% !important;
+    border: 0.3vmin solid #555 !important;
+    border-top: 0.3vmin solid #f3f3f3 !important;
+    animation: spin 1s linear infinite !important;
+}
+
+.leaflet-control-geosearch.error a.leaflet-bar-part::after {
+    content: '!' !important;
+    border: none !important;
+    font-family: "Roboto-Light" !important;
+    font-size: 2.5vmin !important;
+    line-height: 2.5vmin !important;
+    text-align: center !important;
+    animation: none !important;
+}
+
+.leaflet-control-geosearch a.leaflet-bar-part,
+.leaflet-control-geosearch a.leaflet-bar-part:focus,
+.leaflet-control-geosearch a.leaflet-bar-part:active,
+.leaflet-control-geosearch.active a.leaflet-bar-part {
+    background: white !important;
+    box-shadow: none !important;
+    outline: none !important;
+    position: relative !important;
+    width: 7vmin !important;
+    height: 7vmin !important;
+    color: gray !important;
+}
+
+.leaflet-control-geosearch.pending a.leaflet-bar-part::after,
+.leaflet-control-geosearch.error a.leaflet-bar-part::after {
+    display: block !important;
+}
+
+.leaflet-control-geosearch form input {
+    min-width: 200px;
+    width: 100%;
+    background-color: white;
+    height: 100% !important;
+    outline: none;
+    border: none;
+    margin: 0;
+    padding: 0;
+    font-family: "Roboto-Light" !important;
+    font-size: 12px;
+    height: 26px;
+    border: none;
+    border-radius: 0 4px 4px 0;
+    text-indent: 20px !important;
+}
+
+.results.active {
+    margin-left: 30px;
+}
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+    font-size: 3.5vmin !important;
+    line-height: 7vmin !important;
+    font-weight: 700 !important;
+    color: var(--dark) !important;
+    transition: color 0.3s ease;
+}
+
+.leaflet-control-zoom-in:hover,
+.leaflet-control-zoom-out:hover {
+    color: var(--light) !important;
+}
+
+.easy-button-button .button-state {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    font-size: 1.6vmin;
+    font-weight: 700;
+    color: gray;
+}
+
+
+/* METAR Button Styling */
+
+
+.easy-button-button.getMetar,
+button.getMetar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-family: "Roboto-Light" !important;
+    font-size: 2vmin !important;
+    font-weight: 600 !important;
+    color: gray !important;
+    text-align: center !important;
+    line-height: 1 !important;
+    letter-spacing: 0.5px !important;
+    text-shadow:
+        -1px -1px 0 white,
+        1px -1px 0 white,
+        -1px 1px 0 white,
+        1px 1px 0 white !important;
+}
+
+.easy-button-button.getMetar i,
+button.getMetar i {
+    display: none !important;
+}
+
+.leaflet-touch .leaflet-bar a {
+    color: var(--dark);
+    font-family: "Roboto-Light";
+    transition: color 0.3s ease;
+}
+
+.leaflet-touch .leaflet-bar a:hover {
+    color: var(--light);
+}
+
+.leaflet-control-zoom-out .leaflet-control-zoom-in {
+    color: var(--dark);
+    font-family: "Roboto-Light";
+}
+
+.leaflet-control-layers-expanded {
+    color: var(--fontDark);
+    font-family: "Roboto-Light";
+}
+
+/* Layer Control Checkboxes and Radio Buttons - Theme accent color */
+.leaflet-control-layers input[type="checkbox"],
+.leaflet-control-layers input[type="radio"] {
+    accent-color: var(--dark);
+}
+
+.leaflet-touch:hover .leaflet-bar a:hover {
+    color: var(--light);
+}
+
+.leaflet-control-layers-expanded:hover {
+    color: dimgray;
+}
+
+.leaflet-touch .leaflet-control-geosearch a.reset {
+    color: gray;
+    font-family: "Roboto-Light";
+}
+
+.leaflet-touch:hover .leaflet-control-geosearch a.reset:hover {
+    color: dimgray;
+}
+
+.leaflet-control-geosearch form input {
+    background-color: white;
+    height: 30px;
+}
+
+.leaflet-popup-content p {
+    width: 100%;
+    text-align: center;
+    margin: 0;
+    color: inherit;
+}
+
+.leaflet-bar a:last-child {
+    border-bottom: none;
+}
+
+.leaflet-touch .leaflet-bar a:last-child {
+    border-bottom-left-radius: 4px;
+    border-bottom-right-radius: 4px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+    background: var(--dark);
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+    background: var(--light);
+}
+
+.leaflet-touch .leaflet-bar button {
+    width: 7vmin;
+    height: 7vmin;
+    line-height: 7vmin;
+}
+
+.leaflet-touch .leaflet-left .leaflet-bar button {
+    text-align: center;
+}
+
+.leaflet-touch .leaflet-right .leaflet-bar button {
+    text-align: center;
+}
+
+.leaflet-touch .leaflet-bar a {
+    width: 7vmin;
+    height: 7vmin;
+    line-height: 7vmin;
+}
+
+.leaflet-popup-content-wrapper {
+    color: var(--fontDark);;
+}
+
+#metarContainer {
+    display: none;
+    position: absolute;
+    width: 250px;
+    min-width: 200px;
+    max-width: 600px;
+    min-height: 25%;
+    max-height: 40%;
+    left: 100px;
+    background-color: white;
+    z-index: 2000;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+    font-family: "Roboto-Light", sans-serif;
+}
+
+#metarContainer .resize-handle {
+    position: absolute;
+    right: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 80px;
+    cursor: ew-resize;
+    background: transparent;
+    z-index: 1500;
+    pointer-events: all;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#metarContainer .resize-handle::after {
+    content: '';
+    width: 6px;
+    height: 48px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+    transition: all 0.15s ease;
+}
+
+#metarContainer .resize-handle:hover::after,
+#metarContainer .resize-handle:active::after {
+    background: rgba(28, 94, 214, 0.4);
+    height: 60px;
+}
+
+h1#metarTop {
+    text-align: center;
+    font-family: "Roboto-Light", sans-serif;
+    font-size: clamp(0.9vw, 1.4vh, 13px);
+    font-weight: 600;
+    margin: 0;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    color: var(--fontDark);
+    background-color: white;
+}
+
+#metarContainer #wpListClose {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    color: #999;
+    background-color: transparent;
+    border: 0;
+    border-radius: 3px;
+    font-family: "Roboto-Light", sans-serif;
+    font-size: 20px;
+    font-weight: 300;
+    cursor: pointer;
+    padding: 2px 6px;
+    margin: 0;
+    line-height: 1;
+    min-width: 24px;
+    text-align: center;
+    z-index: 10;
+}
+
+#metarContainer #wpListClose:hover {
+    color: #333;
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+
+table#MetarInputTable {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+}
+
+table#MetarInputTable td {
+    display: flex;
+    gap: 5vh;
+    padding: 0 30px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+table.popupTable td{
+    color: var(--fontDark);
+}
+
+.overlay2Table td{
+    color: var(--fontDark);
+    font-size: 2.5vmin;
+}
+
+#MetarPanel {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow-y: hidden;
+    min-height: 0;
+    padding: 0 10px 10px 10px;
+}
+
+p#metarPanel {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding-left: 30px;
+    padding-right: 30px;
+    font-size: 2vh;
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+strong {
+    padding-left: 10px;
+    padding-right: 10px;
+    font-size: 2vh;
+}
+
+#MetarPanel #boton.metar-panel-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-width: 110px;
+    padding: 0 20px;
+    margin-top: 0;
+    box-sizing: border-box;
+}
+
+.metar-error {
+    display: block;
+    color: var(--fontDark);
+    font-weight: 600;
+    padding: 0.5em 0;
+}
+
+input#aeropuerto {
+    font-size: 2vh;
+    width: 13vw;
+    max-width: 160px;
+    min-width: 110px;
+}
+
+input#aeropuerto2 {
+    font-size: 2vh;
+    width: 13vw;
+    max-width: 160px;
+    min-width: 110px;
+}
+
+input#reset {
+    color: black;
+    font-family: "Roboto-Light";
+    font-weight: normal;
+    background-color: #ffffff;
+    border: solid #ddd;
+    border-width: 2px;
+    height: 1.6rem;
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+h4#depArrTop {
+    position: relative;
+    left: 50%;
+    -webkit-transform: translate(-50%, 0%);
+    transform: translate(-50%, 0%);
+}
+
+
+td#start,
+td#target {
+    padding-top: 5px;
+    font-size: 20px;
+    color: var(--fontDark);
+    text-align: center;
+}
+
+td#dep,
+td#arr {
+    padding-top: 5px;
+    font-size: 15px;
+    color: var(--fontDark);
+    text-align: center;
+}
+
+#MetarPanel input[type="text"] {
+    padding: 10px 14px;
+    border-radius: 6px;
+    border: 1px solid rgba(0,0,0,0.25);
+    background: rgba(255,255,255,0.9);
+    color: var(--fontDark);
+    font-family: "Roboto-Light";
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#MetarPanel input[type="text"]::placeholder {
+    color: rgba(0,0,0,0.4);
+}
+
+#MetarPanel input[type="text"]:focus {
+    outline: none;
+    border-color: #1c5ed6;
+    box-shadow: 0 0 0 2px rgba(28, 94, 214, 0.25);
+}
+
+.metar-input-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8rem;
+    padding-top: 16px;
+}
+
+.metar-input-row {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.metar-input-row input[type="text"] {
+    flex: 0 1 160px;
+    max-width: 160px;
+    width: 100%;
+    text-align: center;
+}
+
+.metar-button-row {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 0.6rem;
+}
+
+.metar-button-row .metar-panel-button {
+    margin-top: 0;
+    width: 140px;
+    height: 2.4rem;
+    font-size: 2vh;
+    padding: 0 10px;
+}
+
+#wpHeaderDiv {
+    padding-top: 1vh;
+    position: relative;
+    height: 100px;
+    font-weight: 600;
+}
+
+#wpHeader {
+    margin: 0.4vh 0 0.2vh 0;
+    text-align: center;
+    font-size: clamp(1.0vw, 1.5vh, 14px) !important;
+}
+
+#depArrTop {
+    margin-top: 0;
+    padding-bottom: 0.4vh;
+}
+
+table#depArrTable {
+    display: inline-table;
+    width: 90%;
+    margin: 0 auto;
+}
+
+#depArrTop td.depArrSide {
+    width: calc((100% - 20%) / 2);
+}
+
+#depArrTop td.depArrMid {
+    width: 5%;
+}
+
+ul {
+    margin-top: -1vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    text-align: left;
+}
+
+#controllerListUl {
+    overflow-x: hidden;
+    overflow-y: auto;
+    text-align: left;
+    padding-left: 0px;
+    padding-top: 0vh;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+}
+
+h3 {
+    margin-top: 1vh;
+    margin-block-start: 0;
+}
+
+h4 {
+    padding-bottom: 5%;
+    margin-block-start: 0;
+}
+
+#banner {
+    position: absolute;
+    top: 2vh;
+    left: 50%;
+    -webkit-transform: translate(-50%, 0%);
+    transform: translate(-50%, 0%);
+    height: auto;
+    background-color: transparent;
+    z-index: 500;
+    text-align: center;
+}
+
+#stationContextMenu {
+    position: absolute;
+    min-width: 200px;
+    background: #ffffff;
+    border: 1px solid rgba(0,0,0,0.2);
+    border-radius: 4px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+    padding: 12px;
+    z-index: 5000;
+    font-family: "Roboto-Light";
+}
+
+#stationContextMenu h4,
+#stationContextTitle,
+#waypointContextMenu h4,
+#waypointContextTitle {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: var(--fontDark);
+    font-weight: 600;
+}
+
+#stationContextMenu .context-btn,
+#waypointContextMenu .context-btn {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 8px;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: center;
+}
+
+#stationContextMenu .context-btn.primary,
+#waypointContextMenu .context-btn.primary {
+    background: #1c5ed6;
+    color: #fff;
+}
+
+#stationContextMenu .context-btn.primary:hover,
+#waypointContextMenu .context-btn.primary:hover {
+    background: #1549a5;
+}
+
+#stationContextMenu .context-btn.danger,
+#waypointContextMenu .context-btn.danger {
+    background: #d94b4b;
+    color: #fff;
+}
+
+#stationContextMenu .context-btn.danger:hover,
+#waypointContextMenu .context-btn.danger:hover {
+    background: #ad3939;
+}
+
+#waypointContextMenu {
+    position: absolute;
+    min-width: 200px;
+    background: #ffffff;
+    border: 1px solid rgba(0,0,0,0.2);
+    border-radius: 4px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+    padding: 12px;
+    z-index: 5000;
+    font-family: "Roboto-Light";
+}
+
+#frequencyContextMenu {
+    position: fixed;
+    min-width: 180px;
+    background: white;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+    padding: 10px;
+    z-index: 5000;
+    font-family: "Roboto-Light";
+}
+
+#frequencyContextTitle {
+    margin: 0 0 8px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--fontDark);
+}
+
+/* Frequency Context Menu - 2x2 Grid Layout */
+.freq-button-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin: -2px;
+}
+
+/* Frequency Button - matches controller popup button style */
+.freqButton {
+    color: var(--fontDark);
+    padding: 4px 6px;
+    font-family: "Roboto-Light";
+    font-weight: normal;
+    background-color: #ffffff;
+    border: solid #ddd;
+    border-width: 2px;
+    border-radius: 0;
+    height: 1.6rem;
+    font-size: 0.75rem;
+    margin: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.freqButton:hover {
+    background-color: #f0f0f0;
+}
+
+.freqButton:active {
+    background-color: #f0f0f0;
+}
+
+/* Active frequency buttons - accent color like controller popups */
+.freqButton.freq-active {
+    background-color: var(--fontDark);
+    color: white;
+    border-color: var(--fontDark);
+}
+
+.freqButton.freq-active:hover {
+    background-color: var(--fontDark);
+    opacity: 0.85;
+}
+
+.freqButton.freq-active:active {
+    background-color: var(--fontDark);
+    opacity: 0.85;
+}
+
+#overlay {
+    position: absolute;
+    width: 25vw;
+    min-width: 15vw;
+    max-width: 35vw;
+    height: 50vh;
+    min-height: 17vh;
+    right: 10px;
+    bottom: 3vh;
+    background-color: white;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    max-height: 60vh;
+    z-index: 1000;
+}
+
+/* Flightplan Panel Grabbar - auf gleicher Z-Ebene wie das Panel */
+#overlay .resize-handle {
+    z-index: 1000;
+}
+
+/* Container für Header + Liste + Summe */
+#overlayContainer {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Scrollbarer Bereich */
+#overlayList {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+#overlayList > ul {
+    margin-left: 0;
+}
+
+/* Fixer Summenbereich unten */
+#overlayListSum {
+    flex: 0 0 auto;
+    text-align: center;
+    font-family: "Roboto-Light", sans-serif;
+    font-size: clamp(0.9vw, 1.5vh, 15px);
+    border-top: 1px solid rgba(0, 0, 0, 0.2);
+    padding: 0.5vh;
+    background-color: white;
+}
+
+#controllerListSum:empty {
+    display: none;
+}
+
+#controllerListSum {
+    flex: 0 0 auto;
+    text-align: center;
+    background-color: white;
+    cursor: pointer;
+}
+
+#controllerListSum:not(:empty) {
+    border-top: 1px solid rgba(0, 0, 0, 0.2);
+    padding: 0.5vh;
+}
+
+#controllerContainer {
+    position: absolute;
+    width: 280px;
+    min-width: 250px;
+    max-width: 35vw;
+    height: 50vh;
+    max-height: 60vh;
+    left: 10px;
+    bottom: 3vh;
+    background-color: white;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#controllerListClose {
+    position: absolute;
+    top: 5px !important;
+    right: 0 !important;
+    color: gray;
+    background-color: transparent;
+    border: 0;
+    border-radius: 4px;
+    font-size: 20px !important;
+}
+
+#controllerListClose:hover {
+    color: lightgray;
+}
+
+#controllerList {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 8px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+#controllerList ul p {
+    padding-bottom: 5px;
+    color: var(--fontDark);
+    margin-left: 20px;
+
+}
+
+#controllerList li {
+    padding-bottom: 5px;
+    margin-left: 15px;
+    color: var(--fontDark);
+}
+
+/* Bullet Points für .station Items (VATSIM/IVAO Controller) */
+#controllerList .station {
+    position: relative;
+    padding-left: 20px;
+}
+
+#controllerList .station i {
+    display: block;
+    position: absolute;
+    margin-left: -20px;
+    margin-top: 4px;
+    float: left;
+}
+
+/* Bullet Points für .station2 Items (Airports/Navaids/Reporting Points) */
+#controllerList .station2 {
+    position: relative;
+    padding-left: 20px;
+}
+
+#controllerList .station2 i {
+    display: block;
+    position: absolute;
+    margin-left: -20px;
+    margin-top: 4px;
+    float: left;
+}
+
+/* Bullet Point Icon Definition */
+.gg-shape-circle {
+    color: #035869;
+    box-sizing: border-box;
+    display: inline-block;
+    transform: scale(calc(var(--iconScale) * 4));
+    width: 10px;
+    height: 10px;
+    background-color: #035869;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+div#controllerHeaderDiv {
+    height: 6vh;
+}
+
+#overlay2 {
+    width: 100%;
+    min-height: 4vh;
+    max-height: 6vh;                 /* viewport-basiert wie andere Panels */
+    left: 1vh;
+    bottom: 8vh;
+    background-color: white;
+    z-index: 500;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+table.overlay2Table {
+    width: 100%;
+    min-height: 90%;
+    top: 5%;
+    right: 5%;
+    bottom: 5%;
+    font-size: 3.5vmin;
+    text-align: center;
+    z-index: 500;
+
+}
+
+span#date-time-waypoint, span#date-time-metar {
+    display: inline-block;
+    position: relative;
+    top: 1vh;
+}
+
+/* Legacy - kept for backward compatibility */
+span#counter {
+    display: block;
+    text-align: center;
+}
+
+#overlay ul li .flightplan-type-label {
+    font-size: 0.85em;
+    text-align: center;
+    margin-top: 3px;
+    margin-bottom: 3px;
+    color: #666;
+}
+
+#overlay ul li p {
+    padding-bottom: 0;
+    text-align: center;
+    margin-top: 3px;
+    margin-bottom: 3px;
+}
+
+#overlayList > ul > li > a {
+    text-align: center;
+    display: block;
+    margin-top: 3px;
+    margin-bottom: 3px;
+}
+
+#wpListClose {
+    position: absolute;
+    top: 5px;
+    right: 0px;
+    color: gray;
+    background-color: white;
+    border: 0;
+    border-radius: 4px;
+    font-size: 20px;
+    z-index: 1000;
+}
+
+#wpListClose:hover {
+    color: lightgray;
+}
+
+#wpListMinimize {
+    position: absolute;
+    right: 20px;
+    color: gray;
+    background-color: white;
+    border: 0;
+    border-radius: 4px;
+    font-size: 20px;
+    z-index: 1000;
+}
+
+#wpListMinimize:hover {
+    color: lightgray;
+}
+
+p {
+    font-family: "Roboto-Light";
+    padding: 0;
+    margin: 0;
+}
+
+.resaultLabel {
+    padding-bottom: 15px;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+    position: absolute;
+    top: 0px;
+    right: 10px;
+    padding: 4px 4px 0px 0;
+    padding-top: 4px;
+    padding-right: 4px;
+    padding-bottom: 0px;
+    padding-left: 0px;
+    border: none;
+    text-align: center;
+    width: 18px;
+    height: 14px;
+    font: 20px Tahoma, Verdana, sans-serif;
+    font-size: 20px;
+    font-family: Tahoma, Verdana, sans-serif;
+    color: #c3c3c3;
+    text-decoration: none;
+    font-weight: bold;
+    background: transparent;
+    font-size: 20px;
+}
+
+.leaflet-control-geosearch a.leaflet-bar-part:before {
+    top: 19px;
+    left: 14px;
+    width: 10px;
+    border-top: 2px solid gray;
+    transform: rotateZ(45deg);
+}
+
+.leaflet-control-zoom-out {
+    border-top-left-radius: 0px;
+    border-top-right-radius: 0px;
+    border-bottom-left-radius: 4px;
+    border-bottom-right-radius: 4px;
+    background-color: white;
+}
+
+.leaflet-control-zoom-in {
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    background-color: white;
+}
+
+.leaflet-control-geosearch a.leaflet-bar-part:after {
+    top: 6px;
+    left: 6px;
+    height: 12px;
+    width: 12px;
+    border-radius: 50%;
+    border: 2px solid gray;
+}
+
+/* Geosearch-Button im Container verstecken (wird durch SEARCH EasyButton ersetzt) */
+.leaflet-control-geosearch a.leaflet-bar-part {
+    display: none !important;
+}
+
+/* Formular - NUR Basis-Styles, display wird KOMPLETT via JavaScript gesteuert */
+.leaflet-control-geosearch form {
+    display: none;
+    position: fixed;
+    border-radius: 0 4px 4px 0;
+    background-color: #fff;
+    z-index: 10000;
+    height: 7vmin;
+    margin: 0;
+    padding: 0 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    font-family: "Roboto-Light";
+    pointer-events: auto;
+    min-width: 200px;
+    max-width: min(400px, 40vw);
+}
+
+/* Input-Feld responsive */
+.leaflet-control-geosearch form input {
+    width: 100%;
+    min-width: 150px;
+}
+
+/* KEIN display: none mehr - wird nur via JavaScript gesteuert! */
+
+/* Close-Button (X) in Suchleiste verstecken - wird nur über SEARCH Button geschlossen */
+.leaflet-control-geosearch a.reset {
+    display: none !important;
+}
+
+/* Suchergebnis-Container - positioniert direkt unter dem Suchfeld */
+.leaflet-control-geosearch .results {
+    position: fixed !important;
+    width: 250px !important;
+    min-width: 250px !important;
+    max-width: 250px !important;
+    background: white !important;
+    border: 1px solid #ccc !important;
+    border-top: none !important;
+    border-radius: 0 0 4px 4px !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+    max-height: 300px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    z-index: 10001 !important;
+    padding: 0 !important;
+}
+
+/* Suchergebnis Items linksbündig */
+.leaflet-control-geosearch .results > * {
+    text-align: left !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+input .glass {
+    font-family: "Roboto-Light";
+}
+
+.leaflet-popup-content {
+    margin: 0;
+    line-height: 1.4;
+    min-width: 200px;
+    color: var(--fontDark);
+}
+
+.leaflet-popup-content * {
+    color: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+    margin: 3px;
+    padding: 5px;
+    text-align: left;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    color: var(--fontDark);
+}
+
+.leaflet-popup-content p {
+    width: 100%;
+    text-align: center;
+    margin: 0;
+    padding: 0 8px;
+    box-sizing: border-box;
+    word-wrap: break-word;
+}
+
+.leaflet-control-scale-line {
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    background-color: #ffffff;
+}
+
+.leaflet-control-scale-line:not(:first-child) {
+    border: 2px solid rgba(0, 0, 0, 0.2);
+}
+
+.leaflet-popup-close-button {
+    color: black;
+    font-family: "Roboto-Light";
+}
+
+.leaflet-geosearch-bar {
+    font-family: "Roboto-Light";
+}
+
+.leaflet-control-geosearch .results>* {
+    font-family: "Roboto-Light";
+    color: black;
+}
+
+.leaflet-tooltip.my-labels {
+    background-color: transparent;
+    border: transparent;
+    box-shadow: none;
+    font-weight: normal;
+    font-size: 14px;
+    font-family: "Roboto-Light";
+}
+
+.quantityTeleport {
+    max-width: 5rem;
+}
+
+.triangle-up {
+    width: 0;
+    height: 0;
+    border-left: 11px solid transparent;
+    border-right: 11px solid transparent;
+    border-bottom: 21px solid darkblue;
+    margin-bottom: 4px;
+}
+
+.label {
+    position: absolute;
+    background-color: transparent;
+    border: transparent;
+    box-shadow: none;
+    font-weight: normal;
+    font-size: 20px;
+    font-family: "Roboto-Light";
+    color: darkblue;
+    left: -32.5px;
+    bottom: -25px;
+    width: 100px;
+    text-align: center;
+    background-color: transparent;
+}
+
+.labelLabel {
+    display: inline-block;
+    position: relative;
+    background-color: transparent;
+    border: transparent;
+    box-shadow: none;
+    font-weight: normal;
+    font-size: 20px;
+    font-family: "Roboto-Light";
+    color: darkblue;
+    text-align: center;
+    min-width: 20px;
+    text-shadow: -2px 0 white, 0 2px white, 2px 0 white, 0 -2px white;
+    border-radius: 5px;
+    padding: 0 5px;
+}
+
+.nameInput {
+    border: 2px solid #ddd;
+    background-color: #ffffff;
+    border-radius: 0;
+    text-align: center;
+    font-size: 1.3em;
+    color: var(--fontDark);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.atisText {
+    padding-top:5px;
+    word-wrap: break-word;
+    font-size: 15px;
+}
+
+a.reset {
+    font-size: 20px;
+}
+
+.leaflet-control-geosearch a.reset {
+    line-height: 30px;
+    text-align: right;
+    padding-right: 10px;
+}
+
+span.backButton {
+    position: absolute;
+    display: inline-block;
+    color: var(--dark) !important;
+    line-height: 1;
+    font-size: var(--buttonTextSize) !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.5px;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-shadow:
+        -1px -1px 0 white,
+        1px -1px 0 white,
+        -1px 1px 0 white,
+        1px 1px 0 white !important;
+    transition: color 0.3s ease;
+}
+
+/* Button label hover - lighter theme color */
+.leaflet-bar button:hover span.backButton {
+    color: var(--light) !important;
+}
+
+span.backButton2 {
+    position: absolute;
+    display: inline-block;
+    color: var(--dark);
+    line-height: 1;
+    font-size: 1.0vmin;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover span.backButton2 {
+    color: var(--light);
+}
+
+i.gg-arrow-down {
+    position: absolute;
+    top: 43%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(calc(var(--iconScale) * 4.5));
+    display: inline-block;
+}
+
+i.gg-controller {
+    position: absolute;
+    top: 43%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(calc(var(--iconScale) * 4.5));
+    display: inline-block;
+}
+
+/* Left toolbar button icons with text labels */
+i.gg-track,
+i.gg-pin,
+i.gg-globe-alt,
+i.gg-repeat,
+i.gg-trash,
+i.gg-cloud {
+    position: absolute;
+    top: 43%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(calc(var(--iconScale) * 4.5));
+    display: inline-block;
+}
+
+/* ============================================================================
+   THEME-COLORED MAP BUTTON ICONS & LABELS
+   Icons and labels use theme colors with hover effect (like tab buttons)
+   ============================================================================ */
+
+/* All CSS.gg icons - Theme color with transition */
+.leaflet-bar button i[class*="gg-"],
+.leaflet-bar button i[class*="gg-"]::before,
+.leaflet-bar button i[class*="gg-"]::after {
+    color: var(--dark) !important;
+    background: var(--dark) !important;
+    border-color: var(--dark) !important;
+    transition: all 0.3s ease;
+}
+
+/* Hover state - lighter theme color */
+.leaflet-bar button:hover i[class*="gg-"],
+.leaflet-bar button:hover i[class*="gg-"]::before,
+.leaflet-bar button:hover i[class*="gg-"]::after {
+    color: var(--light) !important;
+    background: var(--light) !important;
+    border-color: var(--light) !important;
+}
+
+/* SVG Icon container - controls color via currentColor */
+.leaflet-bar button .btn-icon {
+    color: var(--dark);
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .btn-icon {
+    color: var(--light);
+}
+
+/* SVG icons inherit color from parent */
+.leaflet-bar button .btn-icon svg {
+    fill: currentColor;
+}
+
+td {
+    margin: 0;
+    padding: 2px;
+    font-size: larger;
+    text-align: center;
+}
+
+input[type="number"] {
+    -webkit-appearance: textfield;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+}
+
+.number-input {
+    border: 2px solid #ddd;
+    display: inline-flex;
+    background-color: #ffffff;
+    color: var(--fontDark);
+}
+
+.number-input,
+.number-input * {
+    box-sizing: border-box;
+    width: 100%;
+    width: 100%;
+    color: var(--fontDark);
+}
+
+.number-input button {
+    outline: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: transparent;
+    border: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    cursor: pointer;
+    margin: 0;
+    position: relative;
+    color: var(--fontDark);
+}
+
+.number-input button:before,
+.number-input button:after {
+    display: inline-block;
+    position: absolute;
+    content: '';
+    width: 0.9rem;
+    height: 2px;
+    background-color: var(--fontDark);
+    transform: translate(-50%, -50%);
+    color: var(--fontDark);
+}
+
+.number-input button.plus:after {
+    transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.number-input input[type=text] {
+    font-family: "Roboto-Light";
+    /* padding: 0.5rem; */
+    min-width: 5rem;
+    border: solid #ddd;
+    border-width: 0 2px;
+    font-size: 0.9rem;
+    height: 1.5rem;
+    font-weight: bold;
+    text-align: center;
+    background-color: #ffffff;
+    color: var(--fontDark);
+}
+
+.teleportButton {
+    color: var(--fontDark);
+    width: 100%;
+    padding: 0;
+    font-family: "Roboto-Light";
+    font-weight: normal;
+    background-color: #ffffff;
+    border: solid #ddd;
+    border-width: 2px;
+    height: 1.6rem;
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.searchboxTable {
+    display: contents;
+    width: 100%;
+}
+
+.marker-delete-button {
+    color: var(--fontDark);
+    width: 100%;
+    margin-top: 3px;
+    padding: 0;
+    font-family: "Roboto-Light";
+    font-weight: normal;
+    background-color: #ffffff;
+    border: solid #ddd;
+    border-width: 2px;
+    height: 1.6rem;
+    font-size: 0.9rem;
+}
+
+.gg-track {
+    color: var(--dark);
+    box-sizing: border-box;
+    position: relative;
+    display: inline-block;
+    transform: scale(calc(var(--iconScale) * 7));
+    width: 10px;
+    height: 10px;
+    border: 2px solid transparent;
+    box-shadow: 0 0 0 2px, inset 0 0 0 10px;
+    border-radius: 100px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-track {
+    color: var(--light);
+}
+
+.gg-track::after,
+.gg-track::before {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute;
+    border-radius: 3px
+}
+
+.gg-track::before {
+    border-left: 4px solid;
+    border-right: 4px solid;
+    width: 18px;
+    height: 2px;
+    left: -6px;
+    top: 2px
+}
+
+.gg-track::after {
+    width: 2px;
+    height: 18px;
+    border-top: 4px solid;
+    border-bottom: 4px solid;
+    left: 2px;
+    top: -6px
+}
+
+.gg-track-gray {
+    color: lightgrey;
+    box-sizing: border-box;
+    position: relative;
+    display: block;
+    transform: scale(calc(var(--iconScale) * 7));
+    width: 10px;
+    height: 10px;
+    border: 2px solid transparent;
+    box-shadow: 0 0 0 2px, inset 0 0 0 10px;
+    border-radius: 100px;
+    margin-top: 47%;
+    margin-left: 23%;
+}
+
+.gg-track-gray::after,
+.gg-track-gray::before {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute;
+    border-radius: 3px
+}
+
+.gg-track-gray::before {
+    border-left: 4px solid;
+    border-right: 4px solid;
+    width: 18px;
+    height: 2px;
+    left: -6px;
+    top: 2px
+}
+
+.gg-track-gray::after {
+    width: 2px;
+    height: 18px;
+    border-top: 4px solid;
+    border-bottom: 4px solid;
+    left: 2px;
+    top: -6px
+}
+
+.gg-arrow-down {
+    color: var(--dark);
+    box-sizing: border-box;
+    position: absolute;
+    display: block;
+    top: 35%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(calc(var(--iconScale) * 4.5));
+    width: 22px;
+    height: 22px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-arrow-down {
+    color: var(--light);
+}
+
+.gg-arrow-down::after,
+.gg-arrow-down::before {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute;
+    bottom: 4px
+}
+
+.gg-arrow-down::after {
+    width: 8px;
+    height: 8px;
+    border-bottom: 2px solid;
+    border-left: 2px solid;
+    transform: rotate(-45deg);
+    left: 7px
+}
+
+.gg-arrow-down::before {
+    width: 2px;
+    height: 16px;
+    left: 10px;
+    background: currentColor
+}
+
+
+.gg-controller {
+    color: var(--dark);
+    box-sizing: border-box;
+    position: relative;
+    display: block;
+    width: 8px;
+    height: 8px;
+    border: 2px solid;
+    border-radius: 100px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-controller {
+    color: var(--light);
+}
+
+.gg-controller::before {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    box-shadow: -6px -6px 0 -4px, 6px 6px 0 -4px, 6px -6px 0 -4px, -6px 6px 0 -4px;
+    left: -5px;
+    top: -5px;
+    transform: rotate(45deg)
+}
+
+.gg-erase {
+    color: var(--dark);
+    box-sizing: border-box;
+    position: relative;
+    display: block;
+    transform: scale(calc(var(--iconScale) * 7));
+    width: 22px;
+    height: 18px;
+    left: -6px;
+    top: 3px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-erase {
+    color: var(--light);
+}
+
+.gg-erase::after,
+.gg-erase::before {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute
+}
+
+.gg-erase::before {
+    width: 6px;
+    height: 14px;
+    border-bottom: 4px solid transparent;
+    border-radius: 1px;
+    box-shadow: 0 0 0 2px, inset 0 -2px 0 0;
+    left: 7px;
+    top: 2px;
+    transform: rotate(45deg)
+}
+
+.gg-erase::after {
+    background: currentColor;
+    width: 22px;
+    height: 2px;
+    bottom: 0;
+    border-radius: 20px
+}
+
+.gg-edit-markup {
+    color: var(--dark);
+    box-sizing: border-box;
+    position: relative;
+    display: block;
+    transform: scale(calc(var(--iconScale) * 8.3));
+    width: 22px;
+    height: 22px;
+    border: 2px solid;
+    border-radius: 22px;
+    overflow: hidden;
+    perspective: 20px;
+    left: -6px;
+    top: 2px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-edit-markup {
+    color: var(--light);
+}
+
+.gg-edit-markup::after,
+.gg-edit-markup::before {
+    content: "";
+    display: block;
+    position: absolute;
+    box-sizing: border-box
+}
+
+.gg-edit-markup::before {
+    width: 0;
+    height: 6px;
+    border-bottom: 6px solid;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    bottom: 9px;
+    left: 6px
+}
+
+.gg-edit-markup::after {
+    width: 10px;
+    height: 12px;
+    border: 2px solid;
+    border-top: 4px solid;
+    border-bottom: 0;
+    bottom: 0;
+    left: 4px;
+    transform: rotateX(60deg)
+}
+
+/* Custom ruler icon for polyline measure control */
+.gg-ruler {
+    color: var(--dark);
+    box-sizing: border-box;
+    position: relative;
+    display: inline-block;
+    transform: scale(calc(var(--iconScale) * 6.25));
+    width: 24px;
+    height: 13px;
+    border: 2px solid;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-top: -3px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-ruler {
+    color: var(--light);
+}
+
+.gg-ruler::after,
+.gg-ruler::before {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute;
+    border-radius: 3px;
+    width: 2px;
+    height: 5px;
+    background: currentColor;
+    left: 7px;
+    top: -1px;
+    box-shadow: 8px 0 0;
+}
+
+.gg-ruler::before {
+    height: 7px;
+    left: 3px;
+}
+
+.gg-globe-alt,
+.gg-globe-alt::after,
+.gg-globe-alt::before {
+    color: var(--dark);
+    display: inline-block;
+    box-sizing: border-box;
+    height: 18px;
+    border: 2px solid;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-globe-alt,
+.leaflet-bar button:hover .gg-globe-alt::after,
+.leaflet-bar button:hover .gg-globe-alt::before {
+    color: var(--light);
+}
+
+.gg-globe-alt {
+    position: relative;
+    display: inline-block;
+    transform: scale(calc(var(--iconScale) * 7));
+    width: 18px;
+    height: 18px;
+    border-radius: 22px;
+    top: 3px;
+}
+
+.gg-globe-alt::after,
+.gg-globe-alt::before {
+    content: "";
+    position: absolute;
+    width: 8px;
+    border-radius: 100%;
+    top: -2px;
+    left: 3px
+}
+
+.gg-globe-alt::after {
+    width: 24px;
+    height: 20px;
+    border: 2px solid transparent;
+    border-bottom: 2px solid;
+    top: -11px;
+    left: -5px
+}
+
+.gg-trash {
+    color: var(--dark);
+    box-sizing: border-box;
+    position: relative;
+    display: inline-block;
+    transform: scale(calc(var(--iconScale) * 7));
+    width: 10px;
+    height: 12px;
+    border: 2px solid transparent;
+    box-shadow: 0 0 0 2px, inset -2px 0 0, inset 2px 0 0;
+    border-bottom-left-radius: 1px;
+    border-bottom-right-radius: 1px;
+    top: 1px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-trash {
+    color: var(--light);
+}
+
+.gg-trash::after,
+.gg-trash::before {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute
+}
+
+.gg-trash::after {
+    background: currentColor;
+    border-radius: 3px;
+    width: 16px;
+    height: 2px;
+    top: -4px;
+    left: -5px
+}
+
+.gg-trash::before {
+    width: 10px;
+    height: 4px;
+    border: 2px solid;
+    border-bottom: transparent;
+    border-top-left-radius: 2px;
+    border-top-right-radius: 2px;
+    top: -7px;
+    left: -2px
+}
+
+.gg-attribution {
+    color: var(--dark);
+    position: relative;
+    left: -3px;
+    top: 3px;
+    display: block;
+    box-sizing: border-box;
+    transform: scale(calc(var(--iconScale) * 7));
+    width: 16px;
+    height: 18px;
+    background: linear-gradient(to left, currentColor 14px, transparent 0) no-repeat 1px 2px/8px 2px, linear-gradient(to left, currentColor 14px, transparent 0) no-repeat 6px 14px/6px 2px, radial-gradient(circle, currentColor 60%, transparent 40%) no-repeat 10px 12px/6px 6px, radial-gradient(circle, currentColor 60%, transparent 40%) no-repeat 0 0/6px 6px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-attribution {
+    color: var(--light);
+}
+
+.gg-attribution::after,
+.gg-attribution::before {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border: 2px solid;
+}
+
+.gg-attribution::before {
+    border-right: 0;
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
+    top: 8px;
+    left: 2px
+}
+
+.gg-attribution::after {
+    border-left: 0;
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+    right: 2px;
+    top: 2px
+}
+
+.gg-pin {
+    color: var(--dark);
+    box-sizing: border-box;
+    position: relative;
+    display: inline-block;
+    transform: rotate(45deg) scale(calc(var(--iconScale) * 7));
+    width: 18px;
+    height: 18px;
+    border-radius: 100% 100% 0 100%;
+    border: 2px solid;
+    margin-top: -4px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-pin {
+    color: var(--light);
+}
+
+.gg-pin::before {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border: 2px solid;
+    top: 3px;
+    left: 3px;
+    border-radius: 40px
+}
+
+.gg-repeat {
+    color: var(--dark);
+    box-sizing: border-box;
+    position: relative;
+    display: block;
+    transform: scale(calc(var(--iconScale) * 7));
+    box-shadow: -2px -2px 0 0, 2px 2px 0 0;
+    width: 14px;
+    height: 6px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-repeat {
+    color: var(--light);
+}
+
+.gg-repeat::after,
+.gg-repeat::before {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-top: 3px solid transparent;
+    border-bottom: 3px solid transparent
+}
+
+.gg-repeat::before {
+    border-left: 5px solid;
+    top: -4px;
+    right: 0
+}
+
+.gg-repeat::after {
+    border-right: 5px solid;
+    bottom: -4px;
+    left: 0
+}
+
+/* Sync button pulsing animation during autoload - webkit prefix for MSFS Coherent GT */
+@-webkit-keyframes sync-pulse {
+    0% {
+        color: gray;
+        opacity: 0.7;
+        -webkit-transform: scale(calc(var(--iconScale) * 7));
+        transform: scale(calc(var(--iconScale) * 7));
+    }
+    25% {
+        color: #6b7280;
+        opacity: 0.85;
+        -webkit-transform: scale(calc(var(--iconScale) * 7 * 1.1));
+        transform: scale(calc(var(--iconScale) * 7 * 1.1));
+    }
+    50% {
+        color: #22c55e;
+        opacity: 1;
+        -webkit-transform: scale(calc(var(--iconScale) * 7 * 1.2));
+        transform: scale(calc(var(--iconScale) * 7 * 1.2));
+    }
+    75% {
+        color: #6b7280;
+        opacity: 0.85;
+        -webkit-transform: scale(calc(var(--iconScale) * 7 * 1.1));
+        transform: scale(calc(var(--iconScale) * 7 * 1.1));
+    }
+    100% {
+        color: gray;
+        opacity: 0.7;
+        -webkit-transform: scale(calc(var(--iconScale) * 7));
+        transform: scale(calc(var(--iconScale) * 7));
+    }
+}
+@keyframes sync-pulse {
+    0% {
+        color: gray;
+        opacity: 0.7;
+        -webkit-transform: scale(calc(var(--iconScale) * 7));
+        transform: scale(calc(var(--iconScale) * 7));
+    }
+    25% {
+        color: #6b7280;
+        opacity: 0.85;
+        -webkit-transform: scale(calc(var(--iconScale) * 7 * 1.1));
+        transform: scale(calc(var(--iconScale) * 7 * 1.1));
+    }
+    50% {
+        color: #22c55e;
+        opacity: 1;
+        -webkit-transform: scale(calc(var(--iconScale) * 7 * 1.2));
+        transform: scale(calc(var(--iconScale) * 7 * 1.2));
+    }
+    75% {
+        color: #6b7280;
+        opacity: 0.85;
+        -webkit-transform: scale(calc(var(--iconScale) * 7 * 1.1));
+        transform: scale(calc(var(--iconScale) * 7 * 1.1));
+    }
+    100% {
+        color: gray;
+        opacity: 0.7;
+        -webkit-transform: scale(calc(var(--iconScale) * 7));
+        transform: scale(calc(var(--iconScale) * 7));
+    }
+}
+
+.gg-repeat.sync-pulsing {
+    -webkit-animation: sync-pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: sync-pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.refreshIcon {
+    color: gray;
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    background: url("data:image/svg+xml,%3C%3Fxml version='1.0'%3F%3E%3Csvg fill='gray' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' width='48px' height='48px'%3E%3Cpath d='M 9 3 C 8.448 3 8 3.448 8 4 C 8 4.552 8.448 5 9 5 L 18 5 C 18.552 5 19 5.448 19 6 L 19 15 L 17 15 C 16.596 15 16.231172 15.243188 16.076172 15.617188 C 16.025172 15.741187 16 15.871 16 16 C 16 16.26 16.101969 16.516031 16.292969 16.707031 L 19.292969 19.707031 C 19.683969 20.098031 20.317031 20.098031 20.707031 19.707031 L 23.707031 16.707031 C 23.993031 16.421031 24.077828 15.992188 23.923828 15.617188 C 23.768828 15.243187 23.404 15 23 15 L 21 15 L 21 6 C 21 4.343 19.657 3 18 3 L 9 3 z M 4 4 C 3.744125 4 3.4879687 4.0974687 3.2929688 4.2929688 L 0.29296875 7.2929688 C 0.00696875 7.5789687 -0.077828125 8.0078125 0.076171875 8.3828125 C 0.23117187 8.7568125 0.596 9 1 9 L 3 9 L 3 18 C 3 19.657 4.343 21 6 21 L 15 21 C 15.552 21 16 20.552 16 20 C 16 19.448 15.552 19 15 19 L 6 19 C 5.448 19 5 18.552 5 18 L 5 9 L 7 9 C 7.404 9 7.7688281 8.7568125 7.9238281 8.3828125 C 7.9748281 8.2588125 8 8.129 8 8 C 8 7.74 7.8980312 7.4839687 7.7070312 7.2929688 L 4.7070312 4.2929688 C 4.5115312 4.0974687 4.255875 4 4 4 z'/%3E%3C/svg%3E");
+    background-size: 100%;
+    position: relative;
+    left: -5px;
+    top: 2px;
+}
+
+.gg-stopwatch {
+    color: var(--dark);
+    background: linear-gradient(to left, currentColor 7px, transparent 0) no-repeat 6px 2px/2px 6px;
+    box-sizing: border-box;
+    position: relative;
+    display: block;
+    transform: scale(calc(var(--iconScale) * 7));
+    width: 18px;
+    height: 18px;
+    border-radius: 100%;
+    border: 2px solid transparent;
+    box-shadow: 0 0 0 2px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-stopwatch {
+    color: var(--light);
+}
+
+.gg-stopwatch::after {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute;
+    width: 4px;
+    height: 2px;
+    background: currentColor;
+    transform: rotate(45deg);
+    right: -4px;
+    top: -3px
+}
+
+
+.gg-play-pause-o {
+    box-sizing: border-box;
+    position: relative;
+    display: block;
+    transform: scale(calc(var(--iconScale) * 7));
+    width: 22px;
+    height: 22px;
+    border: 2px solid;
+    border-radius: 22px
+}
+
+.gg-play-pause-o::before {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    left: 6px;
+    top: 6px;
+    border-left: 2px solid;
+    border-right: 2px solid
+}
+
+.gg-data {
+    color: var(--dark);
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-data {
+    color: var(--light);
+}
+
+i.gg-data{
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(calc(var(--iconScale) * 4.5));
+    display: inline-block;
+}
+
+.gg-data,
+.gg-data::after,
+.gg-data::before {
+    box-sizing: border-box;
+    position: relative;
+    display: block;
+    border: 2px solid;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px
+}
+
+.gg-data::after,
+.gg-data::before {
+    content: "";
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    top: 2px;
+    left: 2px
+}
+
+.gg-data::after {
+    background: linear-gradient(to left, currentColor 8px, transparent 0) no-repeat bottom center/2px 8px;
+    width: 22px;
+    height: 22px;
+    top: -6px;
+    left: -6px
+}
+
+.gg-data,
+.gg-data::after {
+    border-top-color: transparent;
+    border-bottom-color: transparent
+}
+
+/* METAR Cloud Icon */
+.gg-cloud {
+    color: var(--dark);
+    box-sizing: border-box;
+    position: relative;
+    display: block;
+    width: 24px;
+    height: 12px;
+    background: currentColor;
+    border-radius: 10px;
+    transition: color 0.3s ease;
+}
+
+.leaflet-bar button:hover .gg-cloud {
+    color: var(--light);
+}
+
+.gg-cloud::before {
+    content: "";
+    position: absolute;
+    box-sizing: border-box;
+    width: 10px;
+    height: 10px;
+    background: currentColor;
+    border-radius: 50%;
+    top: -5px;
+    left: 3px;
+}
+
+.gg-cloud::after {
+    content: "";
+    position: absolute;
+    box-sizing: border-box;
+    width: 8px;
+    height: 8px;
+    background: currentColor;
+    border-radius: 50%;
+    top: -3px;
+    right: 4px;
+}
+
+#controllerListUl .station-label {
+	display: block;
+	font-weight: 600;
+    color: var(--fontDark);
+}
+
+#controllerListUl .station-meta {
+	display: block;
+	font-size: 0.75rem;
+	opacity: 0.8;
+	color: var(--fontDark);
+}
+
+#controllerListUl .station,
+#controllerListUl .station2 {
+    color: var(--fontDark);
+}
+
+/* Layer Control - Linksbündiger Text */
+.leaflet-control-layers label {
+    text-align: left !important;
+    padding-left: 5px;
+}
+
+.leaflet-control-layers-group-name {
+    text-align: left !important;
+    padding-left: 5px;
+    color: var(--dark);
+    font-weight: bold;
+}
+
+.leaflet-control-layers-group label {
+    text-align: left !important;
+    display: block;
+}
+
+.leaflet-control-layers-overlays label {
+    text-align: left !important;
+}
+
+.leaflet-control-layers-base label {
+    text-align: left !important;
+}
+
+/* Elevation Profile Section */
+#elevationProfileSection {
+    position: relative;
+    flex-shrink: 0;
+    min-height: 25vh;
+    /* Height controlled by JavaScript inline styles */
+    background: rgba(255, 255, 255, 0.95);
+    border-top: 2px solid rgba(0, 0, 0, 0.2);
+    box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    z-index: 500; /* Niedriger als Flightplan-Panel (#overlay z-index: 1000) */
+}
+
+.elevation-profile-header {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: white;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+}
+
+#elevationProfileSection .resize-handle {
+    position: relative;
+    width: 80px;
+    height: 14px;
+    cursor: ns-resize;
+    background: transparent;
+    /* z-index entfernt - Grabbar auf gleicher Ebene wie elevationProfileSection */
+    pointer-events: all;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 3px;
+}
+
+#elevationProfileSection .resize-handle::after {
+    content: '';
+    width: 48px;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 3px;
+    transition: all 0.15s ease;
+}
+
+#elevationProfileSection .resize-handle:hover::after,
+#elevationProfileSection .resize-handle:active::after {
+    background: rgba(28, 94, 214, 0.4);
+    width: 54px;
+}
+
+.elevation-profile-container {
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 50px;
+    padding: 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#elevationProfileSection.elevation-collapsed {
+    min-height: 0 !important;
+}
+
+#elevationProfileSection.elevation-collapsed .elevation-profile-container {
+    flex: 0 0 auto;
+    min-height: 0;
+    padding-bottom: 0;
+}
+
+.elevation-profile-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--fontDark);
+    font-family: "Roboto-Light";
+    margin: 0;
+    padding: 1px 16px 8px 16px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.elevation-profile-header .kneeboard-panel-buttons {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 4px;
+}
+
+#elevationProfileSection.minimized {
+    min-height: 0 !important;
+}
+
+.elevation-canvas-wrapper {
+    flex: 1 1 auto;
+    min-height: 50px;
+    position: relative;
+    padding: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+
+.elevation-canvas-wrapper.collapsed {
+    height: 0 !important;
+    min-height: 0 !important;
+    flex: 0 0 0 !important;
+    overflow: hidden !important;
+}
+
+#elevationCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.elevation-info {
+    margin-top: 0;
+    margin-bottom: 0;
+    padding: 2px 6px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--fontDark);
+    font-family: "Roboto-Light";
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: nowrap;
+    gap: 4px;
+    flex-shrink: 0;
+    overflow-x: auto;
+    transition: opacity 0.3s ease;
+}
+
+#elevationProfileSection.elevation-collapsed .elevation-info {
+    margin-bottom: 0;
+    padding-bottom: 6px;
+}
+
+.elevation-info .info-item {
+    padding: 2px 6px;
+    white-space: nowrap;
+}
+
+.elevation-info .info-label {
+    font-weight: 600;
+    margin-right: 3px;
+}
+
+/* Waypoint list item layout with delete button */
+#overlayList > ul > li.target {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3px 5px 3px 5px;
+}
+
+.waypoint-content {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+    display: block;
+    font-family: "Roboto-Light", sans-serif;
+    font-size: clamp(1.1vw, 1.6vh, 16px);
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.waypoint-delete-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    border: none;
+    color: var(--fontDark);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 400;
+    font-family: Arial, sans-serif;
+    line-height: 1;
+    padding: 0;
+    padding-bottom: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.waypoint-delete-btn:hover {
+    background-color: rgb(189, 41, 41);
+    color: var(--fontLight);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.waypoint-delete-btn:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+.waypoint-info-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    /* gap: 5px; - REMOVED: Not supported in Coherent GT */
+    margin-top: 3px;
+    margin-bottom: 3px;
+}
+
+/* Spacing between waypoint info elements - Coherent GT compatible */
+.waypoint-info-row > *:not(:first-child) {
+    margin-left: 5px;
+}
+
+/* Custom Tooltip Styles */
+.custom-tooltip {
+    position: fixed;
+    background-color: rgba(0, 0, 0, 0.9);
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: Arial, sans-serif;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.custom-tooltip.show {
+    opacity: 1;
+}
+
+.custom-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid rgba(0, 0, 0, 0.9);
+}
+
+/* When tooltip is displayed to the right of the button */
+.custom-tooltip.right::before {
+    top: 50%;
+    left: -5px;
+    transform: translateY(-50%);
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-right: 5px solid rgba(0, 0, 0, 0.9);
+    border-left: none;
+}
+
+/* When tooltip is displayed to the left of the button */
+.custom-tooltip.left::before {
+    top: 50%;
+    left: auto;
+    right: -5px;
+    transform: translateY(-50%);
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 5px solid rgba(0, 0, 0, 0.9);
+    border-right: none;
+}
+
+/* Hide all panels when layer panel is open */
+body:has(.leaflet-control-layers-expanded) #banner,
+body:has(.leaflet-control-layers-expanded) #overlay2,
+body:has(.leaflet-control-layers-expanded) #overlay,
+body:has(.leaflet-control-layers-expanded) #metarContainer,
+body:has(.leaflet-control-layers-expanded) #controllerContainer,
+body:has(.leaflet-control-layers-expanded) #elevationProfileSection {
+    display: none !important;
+}
+
+/* Layer Control Panel - Scrollable with thin scrollbar */
+.leaflet-control-layers-expanded {
+    overflow: visible !important;
+    direction: ltr !important; /* Override parent RTL to show scrollbar on right */
+}
+
+/* The form element inside - this is what actually scrolls */
+.leaflet-control-layers-expanded form.leaflet-control-layers-list,
+form.leaflet-control-layers-list.leaflet-control-layers-scrollbar {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    scrollbar-width: thin !important; /* Firefox - show thin scrollbar */
+    -ms-overflow-style: -ms-autohiding-scrollbar !important; /* IE/Edge */
+    padding-right: 10px !important;
+}
+
+/* Scrollbar styling for layer control */
+.leaflet-control-layers-expanded form.leaflet-control-layers-list::-webkit-scrollbar,
+form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrollbar {
+    width: 6px !important;
+    display: block !important;
+}
+
+.leaflet-control-layers-expanded form.leaflet-control-layers-list::-webkit-scrollbar-track,
+form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05) !important;
+    border-radius: 3px !important;
+}
+
+.leaflet-control-layers-expanded form.leaflet-control-layers-list::-webkit-scrollbar-thumb,
+form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3) !important;
+    border-radius: 3px !important;
+}
+
+.leaflet-control-layers-expanded form.leaflet-control-layers-list::-webkit-scrollbar-thumb:hover,
+form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ============================================================================
+   ANIMATIONS
+   ============================================================================ */
+
+/* Pulse Animation für aktiven Waypoint - PERFORMANCE OPTIMIERT */
+/* Animation nur bei Hover aktivieren um CPU/GPU Last zu reduzieren */
+@keyframes waypoint-pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 0.85;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.waypoint-active svg circle {
+    /* Animation standardmäßig AUS für bessere Performance in Coherent GT */
+    animation: none;
+    transform-origin: center;
+}
+
+/* Animation nur bei Interaktion aktivieren */
+.waypoint-active:hover svg circle {
+    animation: waypoint-pulse 2s ease-in-out infinite;
+}
+
+/* Wind Arrow Pulse Animation - PERFORMANCE OPTIMIERT */
+/* Permanente Animationen deaktiviert für bessere Performance in Coherent GT */
+@keyframes wind-pulse {
+    0% {
+        opacity: 0.9;
+    }
+    50% {
+        opacity: 0.7;
+    }
+    100% {
+        opacity: 0.9;
+    }
+}
+
+.wind-arrow {
+    /* Animation standardmäßig AUS - spart CPU/GPU Ressourcen */
+    animation: none;
+    opacity: 1;
+}
+
+/* Wind Arrow bei starkem Wind - statische Darstellung */
+.wind-arrow.strong-wind {
+    animation: none;
+    opacity: 1;
+}
+
+/* ============================================================================
+   RESPONSIVE LEAFLET BUTTONS - MSFS COHERENT GT COMPATIBLE
+   ============================================================================ */
+
+/* Media Query für kleine Viewports - Minimalgröße */
+@media (max-height: 600px), (max-width: 600px) {
+    :root {
+        --buttonSize: 60px;
+        --iconScale: 0.18; /* Smaller icons for small viewports */
+    }
+
+    .leaflet-bar button {
+        height: 45px;
+        width: 45px;
+    }
+
+    .leaflet-touch .leaflet-bar button,
+    .leaflet-touch .leaflet-bar a {
+        width: 45px;
+        height: 45px;
+        line-height: 45px;
+    }
+
+    .leaflet-control-zoom-in,
+    .leaflet-control-zoom-out {
+        font-size: 22px !important;
+        line-height: 45px !important;
+    }
+
+    .easy-button-button.getMetar,
+    button.getMetar {
+        font-size: 12px !important;
+        line-height: 1 !important;
+    }
+
+    .leaflet-top.leaflet-right .leaflet-control {
+        width: 45px !important;
+    }
+
+    .leaflet-touch .leaflet-control-layers-toggle {
+        width: 45px !important;
+        height: 45px !important;
+    }
+
+    .leaflet-touch .leaflet-control-layers-toggle::after {
+        font-size: 8px !important;
+    }
+
+    .overlay2Table td,
+    table.overlay2Table {
+        font-size: 18px;
+    }
+}
+
+/* Media Query für mittlere bis große Viewports (SimPanel) - begrenzt Button-Text */
+@media (min-height: 600px) and (min-width: 600px) {
+    :root {
+        --buttonTextSize: 1.0vmin;
+    }
+}
+
+/* Media Query für große Viewports - Maximalgröße */
+@media (min-height: 1400px) and (min-width: 1400px) {
+    :root {
+        --buttonSize: 100px;
+        --iconScale: 0.32; /* Larger icons for large viewports */
+        --buttonTextSize: 1.0vmin;
+    }
+
+    .leaflet-bar button {
+        height: 64px;
+        width: 64px;
+    }
+
+    .leaflet-touch .leaflet-bar button,
+    .leaflet-touch .leaflet-bar a {
+        width: 72px;
+        height: 72px;
+        line-height: 72px;
+    }
+
+    .leaflet-control-zoom-in,
+    .leaflet-control-zoom-out {
+        font-size: 36px !important;
+        line-height: 72px !important;
+    }
+
+    .easy-button-button.getMetar,
+    button.getMetar {
+        font-size: 20px !important;
+        line-height: 1 !important;
+    }
+
+    .leaflet-top.leaflet-right .leaflet-control {
+        width: 70px !important;
+    }
+
+    .leaflet-touch .leaflet-control-layers-toggle {
+        width: 72px !important;
+        height: 72px !important;
+    }
+
+    .leaflet-touch .leaflet-control-layers-toggle::after {
+        font-size: 12px !important;
+    }
+
+    .overlay2Table td,
+    table.overlay2Table {
+        font-size: 48px;
+    }
+}
+
+/* ========================================
+   KNEEBOARD PANELS - UNIFIED STYLING
+   ======================================== */
+
+/* Panel Container */
+.kneeboard-panel {
+    position: absolute;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 200px;
+    max-width: 600px;
+    width: 250px;
+    transition: box-shadow 0.2s ease;
+    font-family: "Roboto-Light", sans-serif;
+}
+
+.kneeboard-panel:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Panel Header */
+.kneeboard-panel-header {
+    flex: 0 0 auto;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: white;
+}
+
+#overlay .kneeboard-panel-header-FP {
+    flex: 0 0 auto;
+    padding: 12px 16px 0 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: white;
+}
+
+.kneeboard-panel-title {
+    font-family: "Roboto-Light", sans-serif;
+    font-size: clamp(0.9vw, 1.4vh, 13px);
+    font-weight: 600;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    color: var(--fontDark);
+}
+
+/* Panel Buttons (Close, Minimize) */
+.kneeboard-panel-buttons {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 10;
+}
+
+.kneeboard-panel-btn {
+    color: #999;
+    background-color: transparent;
+    border: 0;
+    border-radius: 3px;
+    font-family: "Roboto-Light", sans-serif;
+    font-size: 20px;
+    font-weight: 300;
+    cursor: pointer;
+    padding: 2px 6px;
+    margin: 0;
+    line-height: 1;
+    transition: all 0.15s ease;
+    min-width: 24px;
+    text-align: center;
+}
+
+.kneeboard-panel-btn:hover {
+    color: #333;
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Panel Content */
+.kneeboard-panel-content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 0;
+}
+
+/* Panel List */
+.kneeboard-panel-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* List Items */
+.kneeboard-list-item {
+    position: relative;
+    padding: 10px 12px 10px 28px;
+    margin: 2px 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    font-family: "Roboto-Light", sans-serif;
+}
+
+.kneeboard-list-item:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+.kneeboard-list-item.active {
+    background-color: rgba(28, 94, 214, 0.1);
+    border-left: 3px solid #1C5ED6;
+    padding-left: 25px;
+}
+
+/* List Item Icon */
+.kneeboard-list-item-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #1C5ED6;
+}
+
+/* List Item Colored Dot (for controller types) */
+.kneeboard-list-item-dot {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 2px rgba(0,0,0,0.3);
+}
+
+/* Pilot List Dot */
+.kneeboard-list-dot {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+/* List Item Content */
+.kneeboard-list-item-content {
+    display: block;
+}
+
+.kneeboard-list-item-title {
+    display: block;
+    font-family: "Roboto-Light", sans-serif;
+    font-size: clamp(0.9vw, 1.4vh, 14px);
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.kneeboard-list-item-subtitle {
+    display: block;
+    font-family: "Roboto-Light", sans-serif;
+    font-size: clamp(0.75vw, 1.2vh, 12px);
+    color: #666;
+    margin-top: 2px;
+    line-height: 1.3;
+}
+
+/* Panel Footer (Show more) */
+.kneeboard-panel-footer {
+    flex: 0 0 auto;
+    text-align: center;
+    font-family: "Roboto-Light", sans-serif;
+    font-size: clamp(0.75vw, 1.2vh, 12px);
+    background-color: white;
+    cursor: pointer;
+    padding: 8px;
+    border-top: 1px solid #f0f0f0;
+    transition: background-color 0.2s ease;
+}
+
+.kneeboard-panel-footer:hover {
+    background-color: rgba(28, 94, 214, 0.05);
+}
+
+/* Resize Handle - Unified */
+.kneeboard-panel .resize-handle {
+    position: absolute;
+    width: 40px;
+    height: 80px;
+    cursor: ew-resize;
+    background: transparent;
+    /* z-index entfernt - Grabbar soll auf selber Ebene wie Panel sein */
+    pointer-events: all;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.kneeboard-panel.resize-left .resize-handle {
+    left: -12px;
+}
+
+.kneeboard-panel.resize-right .resize-handle {
+    right: -12px;
+}
+
+.kneeboard-panel .resize-handle::after {
+    content: '';
+    width: 6px;
+    height: 48px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+    transition: all 0.15s ease;
+}
+
+.kneeboard-panel .resize-handle:hover::after,
+.kneeboard-panel .resize-handle:active::after {
+    background: rgba(28, 94, 214, 0.4);
+    height: 60px;
+}
+
+/* Resize Handle - Minimized State */
+.kneeboard-panel.minimized .resize-handle {
+    display: none;
+}
+
+/* Drag & Drop States */
+.kneeboard-panel-header {
+    cursor: move;
+}
+
+.kneeboard-panel.dragging {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    z-index: 2000;
+    transition: none;
+}
+
+/* ATIS Info (VATSIM/IVAO) */
+.atis-info {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background-color: rgba(0, 0, 0, 0.04);
+    border-radius: 4px;
+    font-size: 11px;
+    font-style: italic;
+    color: #555;
+    word-wrap: break-word;
+    border-left: 2px solid #1C5ED6;
+}
+
+/* Category Headers (für VATSIM/IVAO Sections) */
+.kneeboard-panel-category {
+    padding: 8px 16px 4px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ============================================================================
+   CONTROL ZONES - FIR Boundaries Styling
+   ============================================================================ */
+
+/* Control Zone popup container */
+.control-zone-popup-container .leaflet-popup-content {
+    margin: 0;
+    padding: 0;
+}
+
+.control-zone-popup-container .leaflet-popup-content-wrapper {
+    padding: 0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Control Zone popup styling - matches controller panel design */
+.control-zone-popup {
+    min-width: 280px;
+    max-width: 420px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: white;
+}
+
+/* Header - simplified like controller panel */
+.control-zone-popup .cz-header {
+    background-color: white;
+    color: var(--fontDark);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 14px;
+    margin: 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+/* FIR header for label-click popup (all stations) */
+.control-zone-popup .cz-fir-header {
+    background-color: #1a5276;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 14px;
+    margin: 0;
+    border-bottom: none;
+}
+
+/* Controller card */
+.control-zone-popup .cz-controller {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: white;
+}
+
+.control-zone-popup .cz-controller:last-child {
+    border-bottom: none;
+}
+
+/* Controller header row */
+.control-zone-popup .cz-controller-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.control-zone-popup .cz-callsign {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--fontDark);
+}
+
+.control-zone-popup .cz-name {
+    font-size: 11px;
+    color: var(--fontDark);
+    opacity: 0.7;
+    margin-left: 8px;
+}
+
+/* Station/Controller name (IVAO station name or VATSIM real name) */
+.control-zone-popup .cz-station {
+    font-size: 11px;
+    color: var(--fontDark);
+    opacity: 0.8;
+    margin-left: auto;
+    padding-left: 10px;
+}
+
+/* Frequency row - simplified */
+.control-zone-popup .cz-freq-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    background-color: transparent;
+    padding: 4px 0;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.control-zone-popup .cz-freq {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--fontDark);
+    font-family: 'Consolas', 'Monaco', monospace;
+    margin-bottom: 6px;
+}
+
+/* COM Buttons - matches teleportButton/freqButton style */
+.control-zone-popup .cz-com-buttons {
+    display: flex;
+    gap: 2px;
+    flex-wrap: wrap;
+}
+
+.control-zone-popup .cz-com-btn {
+    font-size: 0.75rem;
+    font-family: "Roboto-Light";
+    font-weight: normal;
+    padding: 4px 6px;
+    border: solid #ddd;
+    border-width: 2px;
+    border-radius: 0;
+    cursor: pointer;
+    background-color: #ffffff;
+    color: var(--fontDark);
+    white-space: nowrap;
+    height: 1.6rem;
+    margin: 2px;
+}
+
+.control-zone-popup .cz-com-btn:hover {
+    background-color: #f0f0f0;
+}
+
+.control-zone-popup .cz-com-btn.cz-com-active {
+    background-color: var(--fontDark);
+    color: white;
+    border-color: var(--fontDark);
+}
+
+.control-zone-popup .cz-com-btn.cz-com-active:hover {
+    background-color: var(--fontDark);
+    opacity: 0.85;
+}
+
+/* ATIS section - simplified */
+.control-zone-popup .cz-atis {
+    margin-top: 6px;
+    padding: 6px 8px;
+    background-color: rgba(0, 0, 0, 0.03);
+    border-left: 2px solid rgba(0, 0, 0, 0.2);
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--fontDark);
+    max-height: 200px;
+    overflow-y: auto;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+/* Control Zone tooltip */
+.leaflet-tooltip.control-zone-tooltip {
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 1px solid #3388ff;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #333;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Control Zone layer styling overrides */
+.control-zone-layer path {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Control Zone ICAO Labels */
+.cz-icao-label {
+    background: rgba(255,255,255,0.95) !important;
+    color: #1a5276 !important;
+    font-weight: bold !important;
+    font-size: 10px !important;
+    padding: 1px 4px !important;
+    border-radius: 2px !important;
+    border: 1px solid #1a5276 !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
+    white-space: nowrap !important;
+    pointer-events: none !important;
+}
+
+.cz-icao-label::before {
+    display: none !important;
+}
+
+/* Label marker container - no default leaflet styling */
+.cz-label-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+/* Enhanced ICAO label with station type indicators */
+.cz-icao-label-enhanced {
+    background: rgba(255,255,255,0.95) !important;
+    border: none !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3) !important;
+    padding: 0 !important;
+    border-radius: 3px !important;
+    display: inline-block;
+}
+
+/* Clickable label marker */
+.cz-label-clickable {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    z-index: 1000 !important;
+    position: relative;
+}
+
+.cz-label-clickable:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+    z-index: 1001 !important;
+}
+
+.cz-icao-label-enhanced::before {
+    display: none !important;
+}
+
+.cz-label-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2px 5px;
+}
+
+.cz-label-container .cz-icao {
+    color: #1a5276;
+    font-weight: bold;
+    font-size: 10px;
+    line-height: 1.2;
+}
+
+.cz-station-dots {
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+    margin-top: 1px;
+}
+
+.cz-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 2px rgba(0,0,0,0.4);
+}
+
+/* Station type colors - Kneeboard style */
+.cz-type-ctr { color: #9ca3af; }  /* Light gray */
+.cz-type-app { color: #035869; }  /* Teal */
+.cz-type-twr { color: #c9860b; }  /* Amber/Gold */
+.cz-type-gnd { color: #2d8a4e; }  /* Forest green */
+.cz-type-del { color: #7b5aa6; }  /* Muted purple */
+.cz-type-fss { color: #9ca3af; }  /* Light gray */
+.cz-type-atis { color: #a855f7; } /* Purple */
+
+/* Attribution for VAT-Spy Data */
+.leaflet-control-attribution .vatspy-attribution {
+    color: #666;
+    font-size: 10px;
+}
+
+/* ============================================================================
+   ONLINE PILOTS LAYER STYLES
+   ============================================================================ */
+
+/* Pilot marker container */
+.pilot-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+/* Pilot popup container - dark theme matching kneeboard style */
+.pilot-popup-container .leaflet-popup-content-wrapper {
+    background: rgba(30, 41, 59, 0.95);
+    border: 1px solid rgba(71, 85, 105, 0.6);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.pilot-popup-container .leaflet-popup-content {
+    margin: 10px 12px;
+    color: #e2e8f0;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.pilot-popup-container .leaflet-popup-tip {
+    background: rgba(30, 41, 59, 0.95);
+    border: 1px solid rgba(71, 85, 105, 0.6);
+}
+
+/* Pilot popup styling */
+.pilot-popup {
+    min-width: 180px;
+}
+
+.pilot-popup-header {
+    font-weight: bold;
+    font-size: 14px;
+    border-bottom: 1px solid #475569;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+}
+
+/* Network-specific colors in popup */
+.pilot-vatsim .pilot-popup-header span:first-child {
+    color: #f59e0b;
+}
+
+.pilot-ivao .pilot-popup-header span:first-child {
+    color: #22c55e;
+}
+
+/* Marker hover effect */
+.pilot-marker:hover {
+    filter: brightness(1.2);
+    transform: scale(1.1);
+}
+
+/* Pilot marker drop shadow for better visibility */
+.pilot-marker svg {
+    filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+/* ==========================================
+   Panel Mode Toggle (Zonen/Piloten)
+   ========================================== */
+.panel-mode-toggle {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+    margin-bottom: 8px;
+    width: 100%;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 0;
+    border: solid #ddd;
+    border-width: 2px;
+    background-color: #ffffff;
+    color: var(--fontDark);
+    height: 1.6rem;
+    font-size: 0.9rem;
+    font-family: "Roboto-Light";
+    font-weight: normal;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.mode-btn:hover {
+    background-color: #f0f0f0;
+    border-color: #0ea5e9;
+}
+
+.mode-btn.active {
+    background-color: #0ea5e9;
+    border-color: #0ea5e9;
+    color: #ffffff;
+}
+
+/* ==========================================
+   Favoriten-Stern (SVG-basiert)
+   ========================================== */
+.favorite-star {
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0 8px;
+    transition: color 0.2s, transform 0.1s;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.favorite-star svg {
+    width: 18px;
+    height: 18px;
+}
+
+.favorite-star:hover {
+    color: #fbbf24;
+    transform: scale(1.2);
+}
+
+.favorite-star.active {
+    color: #fbbf24;
+}
+
+/* ==========================================
+   Piloten-Liste Items
+   ========================================== */
+.pilot-list-item {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.pilot-list-item:hover {
+    background-color: rgba(14, 165, 233, 0.1);
+}
+
+.pilot-list-item .kneeboard-list-title {
+    flex: 1;
+}
+
+.pilot-list-item .kneeboard-list-subtitle {
+    margin-right: 4px;
+    font-size: 11px;
+    color: #6b7280;
+}
+
+/* ==========================================
+   Piloten-Suchleiste
+   ========================================== */
+.pilot-search-container {
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.pilot-search-input {
+    flex: 1;
+    min-width: 0;  /* Erlaubt Schrumpfen unter Content-Größe */
+    padding: 6px 10px;
+    border: 2px solid #ddd;
+    background-color: #ffffff;
+    color: var(--fontDark);
+    font-size: 0.9rem;
+    font-family: "Roboto-Light";
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.pilot-search-input:focus {
+    border-color: #0ea5e9;
+}
+
+.pilot-search-input::placeholder {
+    color: #9ca3af;
+}
+
+/* Favoriten-Filter-Button in Suchleiste */
+.fav-filter-btn {
+    background: none;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.fav-filter-btn:hover {
+    border-color: #fbbf24;
+    color: #fbbf24;
+}
+
+.fav-filter-btn.active {
+    background-color: #fbbf24;
+    border-color: #fbbf24;
+    color: #fff;
+}
+
+.fav-filter-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* ========================================
+   FLIGHTPLAN PANEL - KNEEBOARD STYLE
+   ======================================== */
+
+/* Flightplan Panel Base */
+.flightplan-panel {
+    width: 280px;
+    max-width: 400px;
+    min-width: 220px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Section Styling */
+.fp-section {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.fp-section:last-of-type {
+    border-bottom: none;
+}
+
+/* Section Headers (DEPARTURE/ARRIVAL/ROUTE) */
+.fp-section-header {
+    background-color: var(--dark);
+    color: var(--fontLight);
+    font-size: clamp(0.8vw, 1.2vh, 11px);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 6px 12px;
+    text-align: center;
+}
+
+/* Airport Info Display */
+.fp-airport-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.fp-icao {
+    font-weight: 700;
+    font-size: clamp(1vw, 1.5vh, 14px);
+    color: var(--fontDark);
+}
+
+.fp-name {
+    font-size: clamp(0.8vw, 1.2vh, 12px);
+    color: #666;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+/* Selector Rows */
+.fp-selectors {
+    padding: 8px 12px;
+}
+
+.fp-selector-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.fp-selector-row:last-child {
+    margin-bottom: 0;
+}
+
+.fp-selector-row label {
+    flex: 0 0 80px;
+    font-size: clamp(0.75vw, 1.1vh, 11px);
+    color: #666;
+    font-weight: 500;
+}
+
+/* Dropdown Styling - Coherent GT Compatible */
+.fp-dropdown {
+    flex: 1;
+    height: 28px;
+    padding: 2px 8px;
+    font-family: "Roboto-Light", sans-serif;
+    font-size: clamp(0.8vw, 1.2vh, 12px);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    background-color: white;
+    color: var(--fontDark);
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M3 4l3 4 3-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 28px;
+}
+
+.fp-dropdown:hover {
+    border-color: var(--light);
+}
+
+.fp-dropdown:focus {
+    outline: none;
+    border-color: var(--dark);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
+}
+
+.fp-dropdown option {
+    padding: 4px 8px;
+}
+
+/* Route Section */
+.fp-route {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 80px;
+    max-height: 40vh;
+}
+
+.fp-route .kneeboard-panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+/* Waypoint List */
+.fp-waypoint-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Waypoint Item */
+.fp-waypoint {
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    transition: background-color 0.15s ease;
+    position: relative;
+}
+
+.fp-waypoint:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+.fp-waypoint.active {
+    background-color: rgba(53, 121, 135, 0.1);
+    border-left: 3px solid var(--light);
+    padding-left: 9px;
+}
+
+/* Waypoint Row (Ident + Airway) */
+.fp-wp-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Waypoint Type Icons */
+.fp-wp-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 3px;
+    color: white;
+}
+
+.fp-wp-icon-apt {
+    background-color: var(--light);
+}
+
+.fp-wp-icon-vor {
+    background-color: #0066cc;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    width: 20px;
+    height: 20px;
+}
+
+.fp-wp-icon-ndb {
+    background-color: #ff9900;
+    border-radius: 50%;
+}
+
+.fp-wp-icon-fix,
+.fp-wp-icon-wpt {
+    background-color: #666;
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+}
+
+.fp-wp-icon-toc {
+    background-color: #00aa00;
+}
+
+.fp-wp-icon-tod {
+    background-color: #cc0000;
+}
+
+.fp-wp-icon-sc {
+    background-color: #ffcc00;
+    color: #333;
+}
+
+/* Waypoint Identifier */
+.fp-wp-ident {
+    font-weight: 600;
+    font-size: clamp(0.9vw, 1.3vh, 13px);
+    color: var(--fontDark);
+    min-width: 50px;
+}
+
+/* Frequency Display */
+.fp-wp-freq {
+    font-size: clamp(0.75vw, 1.1vh, 11px);
+    color: var(--light);
+    font-weight: 500;
+    cursor: pointer;
+    padding: 1px 4px;
+    border-radius: 2px;
+    background-color: rgba(53, 121, 135, 0.1);
+}
+
+.fp-wp-freq:hover {
+    background-color: rgba(53, 121, 135, 0.2);
+    text-decoration: underline;
+}
+
+/* Airway Display */
+.fp-wp-airway {
+    margin-left: auto;
+    font-size: clamp(0.7vw, 1.0vh, 10px);
+    color: #999;
+    font-style: italic;
+    padding: 2px 6px;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
+}
+
+.fp-wp-airway.dct {
+    color: var(--light);
+    font-weight: 600;
+    font-style: normal;
+}
+
+/* Waypoint Info Row (Bearing/Distance/Altitude) */
+.fp-wp-info {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 3px;
+    padding-left: 24px;
+    font-size: clamp(0.7vw, 1.0vh, 10px);
+    color: #888;
+}
+
+.fp-wp-bearing,
+.fp-wp-distance,
+.fp-wp-altitude {
+    font-family: "Roboto-Light", monospace;
+}
+
+.fp-wp-separator {
+    color: #ccc;
+}
+
+/* Altitude Constraints */
+.fp-wp-constraint {
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-size: 9px;
+    font-weight: 700;
+    margin-left: 4px;
+    color: white;
+}
+
+.fp-constraint-at {
+    background-color: var(--dark);
+}
+
+.fp-constraint-above {
+    background-color: #28a745;
+}
+
+.fp-constraint-below {
+    background-color: #fd7e14;
+}
+
+.fp-constraint-between {
+    background-color: #17a2b8;
+}
+
+/* Summary Footer */
+.fp-summary {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    font-size: clamp(0.8vw, 1.2vh, 12px);
+    color: #666;
+    padding: 8px 12px;
+}
+
+/* Delete Button on Waypoint */
+.fp-waypoint .waypoint-delete-btn {
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.fp-waypoint:hover .waypoint-delete-btn {
+    opacity: 1;
+}
+
+/* Loading State for Dropdowns */
+.fp-dropdown.loading {
+    background-image: none;
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.fp-dropdown.loading::after {
+    content: "...";
+    position: absolute;
+    right: 10px;
+}
+
+/* Preview Legend (optional) */
+.fp-preview-legend {
+    display: flex;
+    gap: 12px;
+    padding: 4px 12px;
+    font-size: 9px;
+    color: #888;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.fp-preview-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.fp-preview-legend-line {
+    width: 16px;
+    height: 2px;
+    border-radius: 1px;
+}
+
+.fp-preview-legend-line.sid {
+    background-color: #00cc00;
+}
+
+.fp-preview-legend-line.star {
+    background-color: #cc6600;
+}
+
+.fp-preview-legend-line.approach {
+    background-color: #cc0000;
+}
+
