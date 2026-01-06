@@ -40,10 +40,41 @@ namespace Kneeboard_Server.Navigraph
                 _connection.Open();
 
                 Console.WriteLine($"Navigraph DB: Verbunden mit {Path.GetFileName(_databasePath)}");
+
+                // Debug: Log table schemas for SID/STAR/IAP tables
+                LogTableSchema("tbl_pd_sids");
+                LogTableSchema("tbl_pe_stars");
+                LogTableSchema("tbl_pf_iaps");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Navigraph DB: Verbindungsfehler: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Debug helper: Log table schema to identify correct column names
+        /// </summary>
+        private void LogTableSchema(string tableName)
+        {
+            try
+            {
+                using (var cmd = new SQLiteCommand(_connection))
+                {
+                    cmd.CommandText = $"PRAGMA table_info({tableName})";
+                    Console.WriteLine($"[Navigraph DB] Schema for {tableName}:");
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            Console.WriteLine($"  - {reader["name"]}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph DB] Error reading schema for {tableName}: {ex.Message}");
             }
         }
 
@@ -469,7 +500,7 @@ namespace Kneeboard_Server.Navigraph
                     cmd.CommandText = $@"
                         SELECT DISTINCT
                             procedure_identifier,
-                            runway_transition,
+                            route_type,
                             transition_identifier
                         FROM {tableName}
                         WHERE airport_identifier = @icao
@@ -479,16 +510,25 @@ namespace Kneeboard_Server.Navigraph
 
                     using (var reader = cmd.ExecuteReader())
                     {
+                        int count = 0;
                         while (reader.Read())
                         {
-                            procedures.Add(new ProcedureSummary
+                            var proc = new ProcedureSummary
                             {
                                 Identifier = reader.GetString(0),
-                                Runway = reader.IsDBNull(1) ? "" : reader.GetString(1),
+                                RouteType = reader.IsDBNull(1) ? "" : reader.GetString(1),
                                 TransitionIdentifier = reader.IsDBNull(2) ? "" : reader.GetString(2),
                                 Type = type
-                            });
+                            };
+                            procedures.Add(proc);
+                            count++;
+                            // Debug: Log first 10 entries
+                            if (count <= 10)
+                            {
+                                Console.WriteLine($"[Navigraph DB] {type} Row: Identifier={proc.Identifier}, RouteType={proc.RouteType}, Transition={proc.TransitionIdentifier}");
+                            }
                         }
+                        Console.WriteLine($"[Navigraph DB] {type} Query returned {count} rows for {icao}");
                     }
                 }
             }
@@ -515,7 +555,7 @@ namespace Kneeboard_Server.Navigraph
                     cmd.CommandText = @"
                         SELECT DISTINCT
                             procedure_identifier,
-                            runway_identifier,
+                            route_type,
                             transition_identifier
                         FROM tbl_pf_iaps
                         WHERE airport_identifier = @icao
@@ -575,25 +615,80 @@ namespace Kneeboard_Server.Navigraph
         }
 
         /// <summary>
-        /// Get procedure legs
+        /// Get procedure legs with route_type filtering for correct path construction
         /// </summary>
-        public List<ProcedureLeg> GetProcedureLegs(string icao, string procedureId, ProcedureType type)
+        /// <param name="icao">Airport ICAO code</param>
+        /// <param name="procedureId">Procedure identifier (e.g., MINNE5, OSMU2A)</param>
+        /// <param name="type">Procedure type (SID, STAR, Approach)</param>
+        /// <param name="transition">Optional transition identifier (e.g., HISKU for enroute transition)</param>
+        /// <returns>List of procedure legs in correct order</returns>
+        public List<ProcedureLeg> GetProcedureLegs(string icao, string procedureId, ProcedureType type, string transition = null)
         {
             var legs = new List<ProcedureLeg>();
             if (!IsConnected) return legs;
 
             string tableName;
+            string routeTypeFilter;
+            string orderBy;
+
+            // Build route_type filter based on procedure type
+            // SID route_types: 4=Runway Transition, 5=Common Route, 6=Enroute Transition
+            // STAR route_types: 1=Enroute Transition (conv), 2=Common Route, 3=Runway Transition; 4/5/6 for RNAV
+            // Approach route_types: A=Approach Transition, F=Final Approach, Z=Missed Approach
+            //
+            // IMPORTANT: Without a specific transition, we only return the Common Route to avoid
+            // duplicate/conflicting waypoints from multiple transitions. When a transition is
+            // specified, we include the matching transition waypoints + common route.
             switch (type)
             {
                 case ProcedureType.SID:
                     tableName = "tbl_pd_sids";
+                    if (!string.IsNullOrEmpty(transition))
+                    {
+                        // With enroute transition: Common Route (5) first, then Enroute Transition (6) matching transition
+                        routeTypeFilter = "(route_type = '5' OR (route_type = '6' AND transition_identifier = @transition))";
+                        orderBy = "route_type ASC, seqno ASC"; // 5 first, then 6
+                    }
+                    else
+                    {
+                        // Without transition: Only Common Route (5) to avoid duplicate waypoints
+                        routeTypeFilter = "route_type = '5'";
+                        orderBy = "seqno ASC";
+                    }
                     break;
+
                 case ProcedureType.STAR:
                     tableName = "tbl_pe_stars";
+                    if (!string.IsNullOrEmpty(transition))
+                    {
+                        // With enroute transition: Enroute Transition (1/4) matching transition first, then Common (2/5)
+                        routeTypeFilter = "(route_type IN ('2', '5') OR ((route_type = '1' OR route_type = '4') AND transition_identifier = @transition))";
+                        orderBy = "CASE WHEN route_type IN ('1', '4') THEN 0 ELSE 1 END, seqno ASC"; // Transition first, then common
+                    }
+                    else
+                    {
+                        // Without transition: Only Common Route (2/5) to avoid duplicate waypoints
+                        routeTypeFilter = "route_type IN ('2', '5')";
+                        orderBy = "seqno ASC";
+                    }
                     break;
+
                 case ProcedureType.Approach:
                     tableName = "tbl_pf_iaps";
+                    if (!string.IsNullOrEmpty(transition))
+                    {
+                        // With transition: Approach Transition (A) matching transition first, then Final (F)
+                        routeTypeFilter = "(route_type = 'F' OR (route_type = 'A' AND transition_identifier = @transition))";
+                        orderBy = "CASE WHEN route_type = 'A' THEN 0 ELSE 1 END, seqno ASC"; // Transition first, then final
+                    }
+                    else
+                    {
+                        // Without transition: Only Final Approach (F) - cleaner preview without all transitions
+                        routeTypeFilter = "route_type = 'F'";
+                        orderBy = "seqno ASC";
+                    }
                     break;
+
                 default:
                     return legs;
             }
@@ -621,10 +716,17 @@ namespace Kneeboard_Server.Navigraph
                         FROM {tableName}
                         WHERE airport_identifier = @icao
                           AND procedure_identifier = @proc
-                        ORDER BY seqno";
+                          AND {routeTypeFilter}
+                        ORDER BY {orderBy}";
 
                     cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
                     cmd.Parameters.AddWithValue("@proc", procedureId);
+                    if (!string.IsNullOrEmpty(transition))
+                    {
+                        cmd.Parameters.AddWithValue("@transition", transition.ToUpperInvariant());
+                    }
+
+                    Console.WriteLine($"[Navigraph DB] GetProcedureLegs: {icao}/{procedureId} type={type} transition={transition ?? "none"}");
 
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -653,6 +755,8 @@ namespace Kneeboard_Server.Navigraph
                             legs.Add(leg);
                         }
                     }
+
+                    Console.WriteLine($"[Navigraph DB] GetProcedureLegs: Found {legs.Count} legs");
                 }
             }
             catch (Exception ex)

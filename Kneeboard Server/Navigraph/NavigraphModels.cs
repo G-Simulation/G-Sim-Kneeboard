@@ -198,6 +198,7 @@ namespace Kneeboard_Server.Navigraph
         public string Identifier { get; set; }
         public string Name { get; set; }
         public string Runway { get; set; }
+        public string RouteType { get; set; }  // ARINC 424 route_type (4,5,6 for SID; 1-6 for STAR)
         public string TransitionIdentifier { get; set; }
         public ProcedureType Type { get; set; }
     }
@@ -288,6 +289,10 @@ namespace Kneeboard_Server.Navigraph
         public DateTime? DatabaseDate { get; set; }
         public bool IsUsingBundledDatabase { get; set; }
         public string DatabasePath { get; set; }
+        /// <summary>
+        /// Whether navigation data is available (bundled or subscription)
+        /// </summary>
+        public bool IsDataAvailable { get; set; }
     }
 
     /// <summary>

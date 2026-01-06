@@ -3828,104 +3828,141 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 }
 
 /* ========================================
-   FLIGHTPLAN PANEL - KNEEBOARD STYLE
+   FLIGHTPLAN PANEL - COMPACT KNEEBOARD STYLE
    ======================================== */
 
 /* Flightplan Panel Base */
 .flightplan-panel {
-    width: 280px;
-    max-width: 400px;
-    min-width: 220px;
+    width: 200px;
+    max-width: 260px;
+    min-width: 180px;
     display: flex;
     flex-direction: column;
+    font-size: 10px;
 }
 
 /* Section Styling */
 .fp-section {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .fp-section:last-of-type {
     border-bottom: none;
 }
 
-/* Section Headers (DEPARTURE/ARRIVAL/ROUTE) */
+/* Section Headers - Compact with integrated airport info */
 .fp-section-header {
-    background-color: var(--dark);
+    background: linear-gradient(135deg, var(--dark) 0%, #4a5568 100%);
     color: var(--fontLight);
-    font-size: clamp(0.8vw, 1.2vh, 11px);
-    font-weight: 700;
+    font-size: 9px;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 1px;
-    padding: 6px 12px;
-    text-align: center;
-}
-
-/* Airport Info Display */
-.fp-airport-info {
+    padding: 2px 6px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background-color: rgba(0, 0, 0, 0.02);
+    gap: 6px;
 }
 
-.fp-icao {
+.fp-section-header .fp-icao {
+    font-size: 10px;
     font-weight: 700;
-    font-size: clamp(1vw, 1.5vh, 14px);
-    color: var(--fontDark);
+    color: #fff;
+    letter-spacing: 0.5px;
 }
 
-.fp-name {
-    font-size: clamp(0.8vw, 1.2vh, 12px);
-    color: #666;
+.fp-section-header .fp-name {
+    font-size: 8px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.7);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     flex: 1;
+    text-transform: none;
+    font-style: italic;
 }
 
-/* Selector Rows */
+/* Airport Info - Inline with header */
+.fp-airport-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.03);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.fp-icao {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--dark);
+    letter-spacing: 0.5px;
+}
+
+.fp-name {
+    font-size: 9px;
+    color: #718096;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    font-style: italic;
+}
+
+/* Selector Grid - 2 columns for compactness */
 .fp-selectors {
-    padding: 8px 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 4px;
+    padding: 3px 5px;
+    background: rgba(255, 255, 255, 0.5);
 }
 
 .fp-selector-row {
     display: flex;
+    flex-direction: row;
     align-items: center;
-    margin-bottom: 6px;
+    gap: 4px;
 }
 
-.fp-selector-row:last-child {
-    margin-bottom: 0;
+/* Full-width for Transition selector */
+.fp-selector-row.fp-full-width {
+    grid-column: span 2;
 }
 
 .fp-selector-row label {
-    flex: 0 0 80px;
-    font-size: clamp(0.75vw, 1.1vh, 11px);
-    color: #666;
-    font-weight: 500;
+    font-size: 9px;
+    color: #4a5568;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    min-width: 32px;
+    flex-shrink: 0;
 }
 
-/* Dropdown Styling - Coherent GT Compatible */
+/* Dropdown Styling - Compact & Modern */
 .fp-dropdown {
     flex: 1;
-    height: 28px;
-    padding: 2px 8px;
-    font-family: "Roboto-Light", sans-serif;
-    font-size: clamp(0.8vw, 1.2vh, 12px);
+    min-width: 0;
+    height: 20px;
+    padding: 0 4px;
+    font-family: "Roboto", sans-serif;
+    font-size: 9px;
+    font-weight: 500;
     border: 1px solid rgba(0, 0, 0, 0.15);
-    border-radius: 4px;
-    background-color: white;
+    border-radius: 2px;
+    background-color: #fff;
     color: var(--fontDark);
     cursor: pointer;
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M3 4l3 4 3-4'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='6' viewBox='0 0 12 12'%3E%3Cpath fill='%23718096' d='M3 4l3 4 3-4'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 8px center;
-    padding-right: 28px;
+    background-position: right 3px center;
+    padding-right: 14px;
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .fp-dropdown:hover {
@@ -3935,20 +3972,25 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 .fp-dropdown:focus {
     outline: none;
     border-color: var(--dark);
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.15);
 }
 
 .fp-dropdown option {
-    padding: 4px 8px;
+    padding: 2px 4px;
+    font-size: 10px;
 }
 
-/* Route Section */
+/* Route Section - Flexible height */
 .fp-route {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 80px;
-    max-height: 40vh;
+    min-height: 60px;
+    max-height: 35vh;
+}
+
+.fp-route .fp-section-header {
+    flex-shrink: 0;
 }
 
 .fp-route .kneeboard-panel-content {
@@ -3957,49 +3999,50 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     padding: 0;
 }
 
-/* Waypoint List */
+/* Waypoint List - Compact */
 .fp-waypoint-list {
     list-style: none;
     padding: 0;
     margin: 0;
 }
 
-/* Waypoint Item */
+/* Waypoint Item - Compact */
 .fp-waypoint {
-    padding: 6px 12px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    transition: background-color 0.15s ease;
+    padding: 3px 6px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    transition: background-color 0.1s ease;
     position: relative;
+    font-size: 10px;
 }
 
 .fp-waypoint:hover {
-    background-color: rgba(0, 0, 0, 0.03);
+    background-color: rgba(53, 121, 135, 0.08);
 }
 
 .fp-waypoint.active {
-    background-color: rgba(53, 121, 135, 0.1);
-    border-left: 3px solid var(--light);
-    padding-left: 9px;
+    background-color: rgba(53, 121, 135, 0.12);
+    border-left: 2px solid var(--light);
+    padding-left: 4px;
 }
 
 /* Waypoint Row (Ident + Airway) */
 .fp-wp-row {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
 }
 
-/* Waypoint Type Icons */
+/* Waypoint Type Icons - Smaller */
 .fp-wp-icon {
-    width: 18px;
-    height: 18px;
+    width: 14px;
+    height: 14px;
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: 8px;
     font-weight: 700;
-    border-radius: 3px;
+    border-radius: 2px;
     color: white;
 }
 
@@ -4010,8 +4053,8 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 .fp-wp-icon-vor {
     background-color: #0066cc;
     clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
 }
 
 .fp-wp-icon-ndb {
@@ -4021,16 +4064,16 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 .fp-wp-icon-fix,
 .fp-wp-icon-wpt {
-    background-color: #666;
+    background-color: #718096;
     clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
 }
 
 .fp-wp-icon-toc {
-    background-color: #00aa00;
+    background-color: #38a169;
 }
 
 .fp-wp-icon-tod {
-    background-color: #cc0000;
+    background-color: #e53e3e;
 }
 
 .fp-wp-icon-sc {
@@ -4041,36 +4084,35 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 /* Waypoint Identifier */
 .fp-wp-ident {
     font-weight: 600;
-    font-size: clamp(0.9vw, 1.3vh, 13px);
+    font-size: 10px;
     color: var(--fontDark);
-    min-width: 50px;
+    min-width: 40px;
 }
 
 /* Frequency Display */
 .fp-wp-freq {
-    font-size: clamp(0.75vw, 1.1vh, 11px);
+    font-size: 8px;
     color: var(--light);
     font-weight: 500;
     cursor: pointer;
-    padding: 1px 4px;
+    padding: 0 3px;
     border-radius: 2px;
     background-color: rgba(53, 121, 135, 0.1);
 }
 
 .fp-wp-freq:hover {
     background-color: rgba(53, 121, 135, 0.2);
-    text-decoration: underline;
 }
 
 /* Airway Display */
 .fp-wp-airway {
     margin-left: auto;
-    font-size: clamp(0.7vw, 1.0vh, 10px);
-    color: #999;
+    font-size: 8px;
+    color: #a0aec0;
     font-style: italic;
-    padding: 2px 6px;
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 3px;
+    padding: 1px 4px;
+    background-color: rgba(0, 0, 0, 0.04);
+    border-radius: 2px;
 }
 
 .fp-wp-airway.dct {
@@ -4079,34 +4121,34 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     font-style: normal;
 }
 
-/* Waypoint Info Row (Bearing/Distance/Altitude) */
+/* Waypoint Info Row (Bearing/Distance/Altitude) - Single line */
 .fp-wp-info {
     display: flex;
     align-items: center;
-    gap: 4px;
-    margin-top: 3px;
-    padding-left: 24px;
-    font-size: clamp(0.7vw, 1.0vh, 10px);
-    color: #888;
+    gap: 3px;
+    margin-top: 1px;
+    padding-left: 18px;
+    font-size: 8px;
+    color: #a0aec0;
 }
 
 .fp-wp-bearing,
 .fp-wp-distance,
 .fp-wp-altitude {
-    font-family: "Roboto-Light", monospace;
+    font-family: "Roboto", monospace;
 }
 
 .fp-wp-separator {
-    color: #ccc;
+    color: #cbd5e0;
 }
 
-/* Altitude Constraints */
+/* Altitude Constraints - Compact */
 .fp-wp-constraint {
-    padding: 1px 4px;
+    padding: 0 3px;
     border-radius: 2px;
-    font-size: 9px;
+    font-size: 7px;
     font-weight: 700;
-    margin-left: 4px;
+    margin-left: 2px;
     color: white;
 }
 
@@ -4126,14 +4168,17 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     background-color: #17a2b8;
 }
 
-/* Summary Footer */
+/* Summary Footer - Compact */
 .fp-summary {
     display: flex;
     justify-content: center;
-    gap: 16px;
-    font-size: clamp(0.8vw, 1.2vh, 12px);
-    color: #666;
-    padding: 8px 12px;
+    gap: 10px;
+    font-size: 9px;
+    color: #718096;
+    padding: 4px 8px;
+    background: linear-gradient(135deg, var(--dark) 0%, #4a5568 100%);
+    color: var(--fontLight);
+    font-weight: 500;
 }
 
 /* Delete Button on Waypoint */
@@ -4142,9 +4187,12 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     opacity: 0;
     transition: opacity 0.15s ease;
     position: absolute;
-    right: 8px;
+    right: 4px;
     top: 50%;
     transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    font-size: 10px;
 }
 
 .fp-waypoint:hover .waypoint-delete-btn {

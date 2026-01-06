@@ -403,7 +403,8 @@ namespace Kneeboard_Server.Navigraph
                 HasFmsDataSubscription = _authService.HasFmsDataSubscription,
                 CurrentAiracCycle = CurrentAiracCycle,
                 IsUsingBundledDatabase = IsUsingBundledDatabase,
-                DatabasePath = DatabasePath
+                DatabasePath = DatabasePath,
+                IsDataAvailable = IsDataAvailable
             };
         }
 
@@ -490,7 +491,7 @@ namespace Kneeboard_Server.Navigraph
                     break;
             }
 
-            var legs = _dbService.GetProcedureLegs(icao, procedureName, procType);
+            var legs = _dbService.GetProcedureLegs(icao, procedureName, procType, transition);
 
             var detail = new ProcedureDetail
             {

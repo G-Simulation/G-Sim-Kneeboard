@@ -22,31 +22,34 @@
         <button class="kneeboard-panel-btn" id="wpListMinimize" onclick="minimizeWpList()" title="Minimize waypoint list">_</button>
         <button class="kneeboard-panel-btn" onclick="hideWpList()" title="Close waypoint list">×</button>
     </div>
+    <div class="fp-section-header fp-main-header">
+        <span>FLIGHTPLAN</span>
+    </div>
 
     <!-- DEPARTURE SECTION -->
     <div class="fp-section fp-departure">
-        <div class="fp-section-header">DEPARTURE</div>
-        <div class="fp-airport-info">
+        <div class="fp-section-header">
+            <span>DEP</span>
             <span class="fp-icao" id="depIcao">----</span>
-            <span class="fp-name" id="depName">-</span>
+            <span class="fp-name" id="depName"></span>
         </div>
         <div class="fp-selectors" id="depSelectors">
             <div class="fp-selector-row">
-                <label>Runway:</label>
+                <label>RWY</label>
                 <select class="fp-dropdown" id="depRunwaySelect" onchange="onDepRunwayChange(this.value)">
-                    <option value="">Select...</option>
+                    <option value="">-</option>
                 </select>
             </div>
             <div class="fp-selector-row">
-                <label>SID:</label>
+                <label>SID</label>
                 <select class="fp-dropdown" id="depSidSelect" onchange="onDepSidChange(this.value)">
-                    <option value="">Select...</option>
+                    <option value="">-</option>
                 </select>
             </div>
-            <div class="fp-selector-row">
-                <label>Transition:</label>
+            <div class="fp-selector-row fp-full-width">
+                <label>TRANS</label>
                 <select class="fp-dropdown" id="depTransitionSelect" onchange="onDepTransitionChange(this.value)">
-                    <option value="">None</option>
+                    <option value="">-</option>
                 </select>
             </div>
         </div>
@@ -62,34 +65,34 @@
 
     <!-- ARRIVAL SECTION -->
     <div class="fp-section fp-arrival">
-        <div class="fp-section-header">ARRIVAL</div>
-        <div class="fp-airport-info">
+        <div class="fp-section-header">
+            <span>ARR</span>
             <span class="fp-icao" id="arrIcao">----</span>
-            <span class="fp-name" id="arrName">-</span>
+            <span class="fp-name" id="arrName"></span>
         </div>
         <div class="fp-selectors" id="arrSelectors">
             <div class="fp-selector-row">
-                <label>STAR:</label>
+                <label>STAR</label>
                 <select class="fp-dropdown" id="arrStarSelect" onchange="onArrStarChange(this.value)">
-                    <option value="">Select...</option>
+                    <option value="">-</option>
                 </select>
             </div>
             <div class="fp-selector-row">
-                <label>Transition:</label>
+                <label>TRANS</label>
                 <select class="fp-dropdown" id="arrTransitionSelect" onchange="onArrTransitionChange(this.value)">
-                    <option value="">None</option>
+                    <option value="">-</option>
                 </select>
             </div>
             <div class="fp-selector-row">
-                <label>Runway:</label>
+                <label>RWY</label>
                 <select class="fp-dropdown" id="arrRunwaySelect" onchange="onArrRunwayChange(this.value)">
-                    <option value="">Select...</option>
+                    <option value="">-</option>
                 </select>
             </div>
             <div class="fp-selector-row">
-                <label>Approach:</label>
+                <label>APPR</label>
                 <select class="fp-dropdown" id="arrApproachSelect" onchange="onArrApproachChange(this.value)">
-                    <option value="">None</option>
+                    <option value="">-</option>
                 </select>
             </div>
         </div>

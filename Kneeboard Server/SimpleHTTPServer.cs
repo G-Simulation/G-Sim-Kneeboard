@@ -3221,6 +3221,216 @@ namespace Kneeboard_Server
         }
 
         /// <summary>
+        /// Get SIDs for an airport
+        /// URL: /api/navigraph/sids/{icao}
+        /// </summary>
+        private async Task HandleSIDsRequest(IHttpContext ctx, string command)
+        {
+            Console.WriteLine($"[Navigraph API] HandleSIDsRequest called with command: {command}");
+            try
+            {
+                string icao = command.Replace("api/navigraph/sids/", "").Trim('/').ToUpperInvariant();
+                Console.WriteLine($"[Navigraph API] Getting SIDs for ICAO: {icao}");
+
+                if (string.IsNullOrEmpty(icao))
+                {
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO code required\"}");
+                    return;
+                }
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var sids = _navigraphData.GetSIDs(icao);
+                Console.WriteLine($"[Navigraph API] Retrieved {sids.Count} SIDs for {icao}");
+                var response = sids.Select(s => new
+                {
+                    Identifier = s.Identifier,
+                    Runway = s.Runway,
+                    TransitionIdentifier = s.TransitionIdentifier
+                }).ToList();
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                Console.WriteLine($"[Navigraph API] Sending SIDs response ({json.Length} bytes)");
+                await ResponseJsonAsync(ctx, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] SIDs error: {ex.Message}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Get STARs for an airport
+        /// URL: /api/navigraph/stars/{icao}
+        /// </summary>
+        private async Task HandleSTARsRequest(IHttpContext ctx, string command)
+        {
+            try
+            {
+                string icao = command.Replace("api/navigraph/stars/", "").Trim('/').ToUpperInvariant();
+
+                if (string.IsNullOrEmpty(icao))
+                {
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO code required\"}");
+                    return;
+                }
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var stars = _navigraphData.GetSTARs(icao);
+                var response = stars.Select(s => new
+                {
+                    Identifier = s.Identifier,
+                    Runway = s.Runway,
+                    TransitionIdentifier = s.TransitionIdentifier
+                }).ToList();
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                await ResponseJsonAsync(ctx, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] STARs error: {ex.Message}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Get Approaches for an airport
+        /// URL: /api/navigraph/approaches/{icao}
+        /// </summary>
+        private async Task HandleApproachesRequest(IHttpContext ctx, string command)
+        {
+            try
+            {
+                string icao = command.Replace("api/navigraph/approaches/", "").Trim('/').ToUpperInvariant();
+
+                if (string.IsNullOrEmpty(icao))
+                {
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO code required\"}");
+                    return;
+                }
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var approaches = _navigraphData.GetApproaches(icao);
+                var response = approaches.Select(a => new
+                {
+                    Identifier = a.Identifier,
+                    Runway = a.Runway,
+                    Type = a.Type.ToString(),
+                    Transitions = a.Transitions
+                }).ToList();
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                await ResponseJsonAsync(ctx, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] Approaches error: {ex.Message}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Get procedure waypoints (SID, STAR, or Approach)
+        /// URL: /api/navigraph/procedure/{icao}/{procedureName}?type=SID|STAR|APPROACH&transition=XXX
+        /// </summary>
+        private async Task HandleNavigraphProcedureRequest(IHttpContext ctx, string command)
+        {
+            try
+            {
+                // Parse URL: api/navigraph/procedure/{icao}/{procedureName}
+                string path = command.Replace("api/navigraph/procedure/", "").Trim('/');
+                string[] parts = path.Split('/');
+
+                if (parts.Length < 2)
+                {
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO and procedure name required\"}");
+                    return;
+                }
+
+                string icao = parts[0].ToUpperInvariant();
+                string procedureName = System.Net.WebUtility.UrlDecode(parts[1]);
+
+                // Get query parameters
+                string typeParam = ctx.Request.QueryString["type"] ?? "SID";
+                string transition = ctx.Request.QueryString["transition"] ?? "";
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                // Get procedure detail using existing wrapper method
+                var procedureDetail = _navigraphData.GetProcedureDetail(icao, procedureName, transition, typeParam);
+
+                if (procedureDetail == null || procedureDetail.Waypoints == null)
+                {
+                    ctx.Response.StatusCode = 404;
+                    await ResponseJsonAsync(ctx, $"{{\"error\":\"Procedure {procedureName} not found for {icao}\"}}");
+                    return;
+                }
+
+                var response = new
+                {
+                    Icao = icao,
+                    ProcedureName = procedureName,
+                    Type = typeParam,
+                    Transition = transition,
+                    AiracCycle = procedureDetail.AiracCycle,
+                    Waypoints = procedureDetail.Waypoints.OrderBy(w => w.SequenceNumber).Select(w => new
+                    {
+                        Identifier = w.Identifier,
+                        Latitude = w.Latitude,
+                        Longitude = w.Longitude,
+                        Altitude1 = w.Altitude1,
+                        Altitude2 = w.Altitude2,
+                        AltitudeConstraint = w.AltitudeConstraint,
+                        SpeedLimit = w.SpeedLimit,
+                        PathTerminator = w.PathTerminator,
+                        Overfly = w.Overfly,
+                        SequenceNumber = w.SequenceNumber
+                    }).ToList()
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                await ResponseJsonAsync(ctx, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] Procedure error: {ex.Message}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
         /// Get debug configuration
         /// URL: GET /api/debug/config
         /// Returns: JSON with all debug flags and their status
@@ -6500,6 +6710,26 @@ namespace Kneeboard_Server
             else if (command.StartsWith("api/navigraph/navaid/", StringComparison.OrdinalIgnoreCase))
             {
                 await HandleNavaidRequest(ctx, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/sids/", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleSIDsRequest(ctx, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/stars/", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleSTARsRequest(ctx, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/approaches/", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleApproachesRequest(ctx, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/procedure/", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleNavigraphProcedureRequest(ctx, command);
                 return;
             }
             else if (command == "api/debug/config" && ctx.Request.HttpMethod == "GET")
