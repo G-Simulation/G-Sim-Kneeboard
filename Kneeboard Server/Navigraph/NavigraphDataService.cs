@@ -768,9 +768,11 @@ namespace Kneeboard_Server.Navigraph
         /// </summary>
         private List<ProcedureLeg> FilterBySpecificTransition(List<ProcedureLeg> legs, string transition, ProcedureType procType, string runway = null)
         {
-            if (legs.Count == 0 || string.IsNullOrEmpty(transition)) return legs;
+            // Return early only if no legs, OR if BOTH transition AND runway are empty
+            if (legs.Count == 0) return legs;
+            if (string.IsNullOrEmpty(transition) && string.IsNullOrEmpty(runway)) return legs;
 
-            Console.WriteLine($"[Navigraph] FilterBySpecificTransition: filtering {legs.Count} legs for transition '{transition}' ({procType})");
+            Console.WriteLine($"[Navigraph] FilterBySpecificTransition: filtering {legs.Count} legs for transition '{transition ?? "null"}', runway '{runway ?? "null"}' ({procType})");
 
             // Group legs by route_type and transition_identifier
             var legGroups = legs.GroupBy(leg => new { 

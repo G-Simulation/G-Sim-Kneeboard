@@ -559,10 +559,12 @@ namespace Kneeboard_Server.Navigraph
                             var routeType = reader.IsDBNull(1) ? "" : reader.GetString(1);
                             var transitionId = reader.IsDBNull(2) ? "" : reader.GetString(2);
 
-                            // For SID route_type 4 (Runway Transition) or STAR route_type 3/6 (Runway Transition),
-                            // the transition_identifier IS the runway (e.g., "RW10B")
+                            // ARINC 424 Route Types:
+                            // SID: 1=Runway Transition (conv), 2=Common, 3=Enroute Trans, 4=RNAV Runway Trans, 5=RNAV Common, 6=RNAV Enroute
+                            // STAR: 1=Enroute Trans, 2=Common, 3=Runway Trans, 4=RNAV Enroute, 5=RNAV Common, 6=RNAV Runway Trans
+                            // For Runway Transitions, transition_identifier IS the runway (e.g., "RW10B")
                             string runway = null;
-                            bool isRunwayTransition = (type == ProcedureType.SID && routeType == "4") ||
+                            bool isRunwayTransition = (type == ProcedureType.SID && (routeType == "1" || routeType == "4")) ||
                                                       (type == ProcedureType.STAR && (routeType == "3" || routeType == "6"));
                             if (isRunwayTransition && transitionId.StartsWith("RW"))
                             {
@@ -898,7 +900,8 @@ namespace Kneeboard_Server.Navigraph
                                     Overfly = descCode.Contains("E")
                                 };
 
-                                if (Math.Abs(lat) > 0.001 || Math.Abs(lon) > 0.001)
+                                // RW waypoints durchlassen, auch wenn lat=0 (werden später mit Runway-Koordinaten ergänzt)
+                                if (Math.Abs(lat) > 0.001 || Math.Abs(lon) > 0.001 || wpIdent.StartsWith("RW"))
                                 {
                                     legs.Add(leg);
                                 }
@@ -916,6 +919,27 @@ namespace Kneeboard_Server.Navigraph
             catch (Exception ex)
             {
                 Console.WriteLine($"Navigraph DB: Procedure Legs Query Fehler: {ex.Message}");
+            }
+
+            // Ergänze Koordinaten für Runway-Waypoints die lat=0/lon=0 haben
+            foreach (var leg in legs)
+            {
+                if (leg.WaypointIdentifier.StartsWith("RW") && Math.Abs(leg.Latitude) < 0.001 && Math.Abs(leg.Longitude) < 0.001)
+                {
+                    // Extrahiere Runway-Identifier (z.B. "RW18" -> "18", "RW08L" -> "08L")
+                    var rwyIdent = leg.WaypointIdentifier.Substring(2);
+                    var rwyInfo = GetRunway(icao, rwyIdent);
+                    if (rwyInfo != null)
+                    {
+                        leg.Latitude = rwyInfo.ThresholdLat;
+                        leg.Longitude = rwyInfo.ThresholdLon;
+                        Console.WriteLine($"[Navigraph DB] Enriched RW waypoint {leg.WaypointIdentifier} with coordinates: ({leg.Latitude:F6}, {leg.Longitude:F6})");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[Navigraph DB] WARNING: Could not find runway {rwyIdent} at {icao} for waypoint {leg.WaypointIdentifier}");
+                    }
+                }
             }
 
             return legs;
@@ -954,7 +978,17 @@ namespace Kneeboard_Server.Navigraph
                             waypoint_latitude,
                             waypoint_longitude,
                             path_termination,
-                            route_type
+                            turn_direction,
+                            altitude_description,
+                            altitude1,
+                            altitude2,
+                            speed_limit,
+                            speed_limit_description,
+                            course,
+                            route_distance_holding_distance_time,
+                            waypoint_description_code,
+                            route_type,
+                            transition_identifier
                         FROM {tableName}
                         WHERE airport_identifier = @icao
                           AND procedure_identifier = @proc
@@ -982,9 +1016,19 @@ namespace Kneeboard_Server.Navigraph
                                 var lat = reader.IsDBNull(2) ? 0.0 : Convert.ToDouble(reader.GetValue(2));
                                 var lon = reader.IsDBNull(3) ? 0.0 : Convert.ToDouble(reader.GetValue(3));
                                 var pathTerm = reader.IsDBNull(4) ? "" : reader.GetValue(4)?.ToString() ?? "";
-                                var routeType = reader.IsDBNull(5) ? "" : reader.GetValue(5)?.ToString() ?? "";
+                                // Index 5: turn_direction (unused for now)
+                                var altDesc = reader.IsDBNull(6) ? "" : reader.GetValue(6)?.ToString() ?? "";
+                                int? alt1 = reader.IsDBNull(7) ? (int?)null : Convert.ToInt32(reader.GetValue(7));
+                                int? alt2 = reader.IsDBNull(8) ? (int?)null : Convert.ToInt32(reader.GetValue(8));
+                                int? spdLimit = reader.IsDBNull(9) ? (int?)null : Convert.ToInt32(reader.GetValue(9));
+                                var spdDesc = reader.IsDBNull(10) ? "" : reader.GetValue(10)?.ToString() ?? "";
+                                double? course = reader.IsDBNull(11) ? (double?)null : Convert.ToDouble(reader.GetValue(11));
+                                double? distance = reader.IsDBNull(12) ? (double?)null : Convert.ToDouble(reader.GetValue(12));
+                                var descCode = reader.IsDBNull(13) ? "" : reader.GetValue(13)?.ToString() ?? "";
+                                var routeType = reader.IsDBNull(14) ? "" : reader.GetValue(14)?.ToString() ?? "";
+                                var transId = reader.IsDBNull(15) ? "" : reader.GetValue(15)?.ToString() ?? "";
 
-                                debugLog.Add($"Row {rowCount}: seq={seqNo} wp='{wpIdent}' path={pathTerm} lat={lat} lon={lon}");
+                                debugLog.Add($"Row {rowCount}: seq={seqNo} wp='{wpIdent}' path={pathTerm} lat={lat} lon={lon} alt1={alt1} alt2={alt2}");
 
                                 // Stop at missed approach (CA = Course to Altitude after runway)
                                 if (pathTerm == "CA" || pathTerm == "HA" || pathTerm == "HF" || pathTerm == "HM")
@@ -993,8 +1037,9 @@ namespace Kneeboard_Server.Navigraph
                                     break;
                                 }
 
-                                bool hasCoords = Math.Abs(lat) > 0.001 || Math.Abs(lon) > 0.001;
-                                
+                                // RW waypoints durchlassen, auch wenn lat=0 (werden später mit Runway-Koordinaten ergänzt)
+                                bool hasCoords = Math.Abs(lat) > 0.001 || Math.Abs(lon) > 0.001 || wpIdent.StartsWith("RW");
+
                                 if (hasCoords)
                                 {
                                     var leg = new ProcedureLeg
@@ -1004,7 +1049,16 @@ namespace Kneeboard_Server.Navigraph
                                         Latitude = lat,
                                         Longitude = lon,
                                         PathTerminator = pathTerm,
-                                        RouteType = routeType
+                                        AltitudeConstraint = altDesc,
+                                        Altitude1 = alt1,
+                                        Altitude2 = alt2,
+                                        SpeedLimit = spdLimit,
+                                        SpeedConstraint = spdDesc,
+                                        Course = course,
+                                        Distance = distance,
+                                        RouteType = routeType,
+                                        TransitionIdentifier = transId,
+                                        Overfly = descCode.Contains("E")
                                     };
                                     legs.Add(leg);
                                     debugLog.Add($"  -> ADDED");
@@ -1026,6 +1080,26 @@ namespace Kneeboard_Server.Navigraph
             catch (Exception ex)
             {
                 debugLog.Add($"QUERY ERROR: {ex.Message}");
+            }
+
+            // Ergänze Koordinaten für Runway-Waypoints die lat=0/lon=0 haben
+            foreach (var leg in legs)
+            {
+                if (leg.WaypointIdentifier.StartsWith("RW") && Math.Abs(leg.Latitude) < 0.001 && Math.Abs(leg.Longitude) < 0.001)
+                {
+                    var rwyIdent = leg.WaypointIdentifier.Substring(2);
+                    var rwyInfo = GetRunway(icao, rwyIdent);
+                    if (rwyInfo != null)
+                    {
+                        leg.Latitude = rwyInfo.ThresholdLat;
+                        leg.Longitude = rwyInfo.ThresholdLon;
+                        debugLog.Add($"Enriched RW waypoint {leg.WaypointIdentifier} with coordinates: ({leg.Latitude:F6}, {leg.Longitude:F6})");
+                    }
+                    else
+                    {
+                        debugLog.Add($"WARNING: Could not find runway {rwyIdent} at {icao}");
+                    }
+                }
             }
 
             return (legs, debugLog);

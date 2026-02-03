@@ -96,7 +96,7 @@
                 </select>
             </div>
             <div class="fp-selector-row">
-                <label>A-TRANS</label>
+                <label>VIA</label>
                 <select class="fp-dropdown" id="arrApproachTransitionSelect" onchange="onArrApproachTransitionChange(this.value)">
                     <option value="">-</option>
                 </select>
@@ -143,6 +143,9 @@
     <div class="fp-section fp-actions" id="fpActionsSection">
         <button class="fp-apply-btn" id="fpApplyBtn" onclick="applyFlightplanChanges()" disabled>
             <span class="fp-apply-text">Übernehmen</span>
+        </button>
+        <button class="fp-cancel-btn" id="fpCancelBtn" onclick="cancelFlightplanChanges()" style="display: none;">
+            <span class="fp-cancel-text">Abbrechen</span>
         </button>
     </div>
 

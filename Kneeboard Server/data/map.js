@@ -1,5 +1,5 @@
 // VERSION MARKER - Wird beim Laden der Datei geloggt um Cache-Probleme zu erkennen
-var MAP_JS_VERSION = "2026-02-02-v7.12-rwy-calc";
+var MAP_JS_VERSION = "2026-02-03-v7.15-sid-star-fix";
 console.log('[Map] map.js loaded - VERSION:', MAP_JS_VERSION);
 
 // ============================================================================
@@ -18770,7 +18770,6 @@ var flightplanCommittedState = {
 
 // Alternate Route Layer (separate Farbe - Violett)
 var alternateRouteLayer = null;
-var alternatePreviewLayer = null;
 
 // ========================================
 // PENDING CHANGES HELPER FUNCTIONS
@@ -18792,15 +18791,25 @@ function markPendingChanges() {
  * Aktualisiert Übernehmen-Button Status
  */
 function updateApplyButtonState() {
-    var btn = document.getElementById('fpApplyBtn');
-    if (!btn) return;
+    var applyBtn = document.getElementById('fpApplyBtn');
+    var cancelBtn = document.getElementById('fpCancelBtn');
 
     if (flightplanPendingState.hasPendingChanges) {
-        btn.disabled = false;
-        btn.classList.add('has-changes');
+        if (applyBtn) {
+            applyBtn.disabled = false;
+            applyBtn.classList.add('has-changes');
+        }
+        if (cancelBtn) {
+            cancelBtn.style.display = 'inline-flex';
+        }
     } else {
-        btn.disabled = true;
-        btn.classList.remove('has-changes');
+        if (applyBtn) {
+            applyBtn.disabled = true;
+            applyBtn.classList.remove('has-changes');
+        }
+        if (cancelBtn) {
+            cancelBtn.style.display = 'none';
+        }
     }
 }
 
@@ -18869,28 +18878,6 @@ function clearPendingHighlights() {
 }
 
 /**
- * Entfernt alle Preview-Layer
- */
-function clearAllPreviews() {
-    if (sidPreviewLayer) {
-        map.removeLayer(sidPreviewLayer);
-        sidPreviewLayer = null;
-    }
-    if (starPreviewLayer) {
-        map.removeLayer(starPreviewLayer);
-        starPreviewLayer = null;
-    }
-    if (approachPreviewLayer) {
-        map.removeLayer(approachPreviewLayer);
-        approachPreviewLayer = null;
-    }
-    if (alternatePreviewLayer) {
-        map.removeLayer(alternatePreviewLayer);
-        alternatePreviewLayer = null;
-    }
-}
-
-/**
  * Kopiert aktuelle Auswahl in Committed-State
  */
 function commitCurrentSelections() {
@@ -18941,6 +18928,69 @@ async function applyFlightplanChanges() {
     // Alternate-Route separat zeichnen (andere Farbe)
     await drawAlternateRoute();
 
+}
+
+/**
+ * Verwirft Änderungen und setzt Dropdowns auf committed State zurück
+ */
+function cancelFlightplanChanges() {
+    // === DEPARTURE zurücksetzen ===
+    flightplanPanelState.departure.selectedRunway = flightplanCommittedState.departure.selectedRunway;
+    flightplanPanelState.departure.selectedSid = flightplanCommittedState.departure.selectedSid;
+    flightplanPanelState.departure.selectedTransition = flightplanCommittedState.departure.selectedTransition;
+
+    // Departure-Dropdowns auf committed Werte setzen
+    var depRunwaySelect = document.getElementById('depRunwaySelect');
+    if (depRunwaySelect) depRunwaySelect.value = flightplanCommittedState.departure.selectedRunway;
+    var depSidSelect = document.getElementById('depSidSelect');
+    if (depSidSelect) depSidSelect.value = flightplanCommittedState.departure.selectedSid;
+    var depTransitionSelect = document.getElementById('depTransitionSelect');
+    if (depTransitionSelect) depTransitionSelect.value = flightplanCommittedState.departure.selectedTransition;
+
+    // === ARRIVAL zurücksetzen ===
+    flightplanPanelState.arrival.selectedRunway = flightplanCommittedState.arrival.selectedRunway;
+    flightplanPanelState.arrival.selectedStar = flightplanCommittedState.arrival.selectedStar;
+    flightplanPanelState.arrival.selectedTransition = flightplanCommittedState.arrival.selectedTransition;
+    flightplanPanelState.arrival.selectedApproach = flightplanCommittedState.arrival.selectedApproach;
+    flightplanPanelState.arrival.selectedApproachTransition = flightplanCommittedState.arrival.selectedApproachTransition;
+
+    // Arrival-Dropdowns auf committed Werte setzen
+    var arrRunwaySelect = document.getElementById('arrRunwaySelect');
+    if (arrRunwaySelect) arrRunwaySelect.value = flightplanCommittedState.arrival.selectedRunway;
+    var arrStarSelect = document.getElementById('arrStarSelect');
+    if (arrStarSelect) arrStarSelect.value = flightplanCommittedState.arrival.selectedStar;
+    var arrTransitionSelect = document.getElementById('arrTransitionSelect');
+    if (arrTransitionSelect) arrTransitionSelect.value = flightplanCommittedState.arrival.selectedTransition;
+    var arrApproachSelect = document.getElementById('arrApproachSelect');
+    if (arrApproachSelect) arrApproachSelect.value = flightplanCommittedState.arrival.selectedApproach;
+    var arrApproachTransitionSelect = document.getElementById('arrApproachTransitionSelect');
+    if (arrApproachTransitionSelect) arrApproachTransitionSelect.value = flightplanCommittedState.arrival.selectedApproachTransition;
+
+    // === ALTERNATE zurücksetzen ===
+    flightplanPanelState.alternate.selectedRunway = flightplanCommittedState.alternate.selectedRunway;
+    flightplanPanelState.alternate.selectedStar = flightplanCommittedState.alternate.selectedStar;
+    flightplanPanelState.alternate.selectedTransition = flightplanCommittedState.alternate.selectedTransition;
+    flightplanPanelState.alternate.selectedApproach = flightplanCommittedState.alternate.selectedApproach;
+
+    // Alternate-Dropdowns auf committed Werte setzen
+    var altRunwaySelect = document.getElementById('altRunwaySelect');
+    if (altRunwaySelect) altRunwaySelect.value = flightplanCommittedState.alternate.selectedRunway;
+    var altStarSelect = document.getElementById('altStarSelect');
+    if (altStarSelect) altStarSelect.value = flightplanCommittedState.alternate.selectedStar;
+    var altTransitionSelect = document.getElementById('altTransitionSelect');
+    if (altTransitionSelect) altTransitionSelect.value = flightplanCommittedState.alternate.selectedTransition;
+    var altApproachSelect = document.getElementById('altApproachSelect');
+    if (altApproachSelect) altApproachSelect.value = flightplanCommittedState.alternate.selectedApproach;
+
+    // Pending zurücksetzen
+    flightplanPendingState.hasPendingChanges = false;
+    updateApplyButtonState();
+    clearPendingHighlights();
+
+    // Alle Previews entfernen
+    clearAllPreviews();
+
+    console.log('[FlightplanPanel] Changes cancelled - reverted to committed state');
 }
 
 /**
@@ -19378,6 +19428,13 @@ var sidPreviewLayer = null;
 var starPreviewLayer = null;
 var approachPreviewLayer = null;
 
+// Request IDs to prevent race conditions in async preview functions
+var sidPreviewRequestId = 0;
+var starPreviewRequestId = 0;
+var approachPreviewRequestId = 0;
+var alternateStarPreviewRequestId = 0;
+var alternateApproachPreviewRequestId = 0;
+
 // Preview Styling
 var previewStyle = {
     sid: {
@@ -19687,6 +19744,7 @@ function filterSidsByRunway(sids, runway) {
         var name = sid.Identifier || sid.identifier;
         var sidRunway = (sid.Runway || sid.runway || '').replace(/^RW/i, '');
         var transId = (sid.TransitionIdentifier || sid.transitionIdentifier || '').replace(/^RW/i, '');
+        var routeType = String(sid.RouteType || sid.routeType || '');
 
         // SID hat eine zugeordnete Runway
         if (sidRunway) {
@@ -19699,14 +19757,18 @@ function filterSidsByRunway(sids, runway) {
             }
         }
 
-        // Auch TransitionIdentifier prüfen (RouteType 4 = Runway Transition)
-        var routeType = String(sid.RouteType || sid.routeType || '');
-        if (routeType === '4' && transId) {
-            sidsWithRunway[name] = true;
-            if (transId === runwayNumber ||
-                transId.replace(/[LRC]$/i, '') === runwayNumber.replace(/[LRC]$/i, '')) {
-                sidNamesForRunway[name] = true;
-                console.log('[filterSidsByRunway] SID', name, 'matches runway via TransitionIdentifier:', transId);
+        // ARINC 424 SID Route Types: 1=Runway Trans (conv), 4=RNAV Runway Trans
+        // TransitionIdentifier prüfen für RouteType 1 und 4 (Runway Transitions)
+        if ((routeType === '1' || routeType === '4') && transId) {
+            // Prüfe ob TransitionIdentifier eine Runway ist (z.B. "07R", "18", "26L")
+            var isRunwayIdentifier = /^\d{2}[LRCB]?$/i.test(transId);
+            if (isRunwayIdentifier) {
+                sidsWithRunway[name] = true;
+                if (transId === runwayNumber ||
+                    transId.replace(/[LRCB]$/i, '') === runwayNumber.replace(/[LRCB]$/i, '')) {
+                    sidNamesForRunway[name] = true;
+                    console.log('[filterSidsByRunway] SID', name, 'matches runway via TransitionIdentifier:', transId, 'RouteType:', routeType);
+                }
             }
         }
     });
@@ -19714,13 +19776,8 @@ function filterSidsByRunway(sids, runway) {
     console.log('[filterSidsByRunway] SIDs with runway assignment:', Object.keys(sidsWithRunway).length);
     console.log('[filterSidsByRunway] SIDs matching selected runway:', Object.keys(sidNamesForRunway).length);
 
-    // SIDs ohne Runway-Zuordnung sind für alle Runways verfügbar
-    sids.forEach(function(sid) {
-        var name = sid.Identifier || sid.identifier;
-        if (!sidsWithRunway[name]) {
-            sidNamesForRunway[name] = true;
-        }
-    });
+    // STRENGE FILTERUNG: Nur SIDs mit expliziter Runway-Zuordnung durchlassen
+    // SIDs ohne Runway-Zuordnung werden NICHT mehr für alle Runways verfügbar gemacht
 
     var result = sids.filter(function(sid) {
         return sidNamesForRunway[sid.Identifier || sid.identifier];
@@ -19744,31 +19801,41 @@ function filterStarsByRunway(stars, runway) {
     var starNamesForRunway = {};
     var starsWithRunwayTransition = {};
 
+    console.log('[filterStarsByRunway] runway:', runway, 'stars count:', stars ? stars.length : 0);
+
     stars.forEach(function(star) {
         var name = star.Identifier || star.identifier;
         var routeType = String(star.RouteType || star.routeType || '');
         var transId = (star.TransitionIdentifier || star.transitionIdentifier || '').replace(/^RW/i, '');
 
+        // ARINC 424 STAR Route Types: 3=Runway Trans (conv), 6=RNAV Runway Trans
+        // RouteType 3 und 6 sind Runway Transitions
         if (routeType === '3' || routeType === '6') {
-            starsWithRunwayTransition[name] = true;
-            if (transId === runwayNumber ||
-                transId.replace(/[LRC]$/i, '') === runwayNumber.replace(/[LRC]$/i, '')) {
-                starNamesForRunway[name] = true;
+            // Prüfe ob TransitionIdentifier eine Runway ist (z.B. "08L", "26B")
+            var isRunwayIdentifier = /^\d{2}[LRCB]?$/i.test(transId);
+            if (isRunwayIdentifier) {
+                starsWithRunwayTransition[name] = true;
+                if (transId === runwayNumber ||
+                    transId.replace(/[LRCB]$/i, '') === runwayNumber.replace(/[LRCB]$/i, '')) {
+                    starNamesForRunway[name] = true;
+                    console.log('[filterStarsByRunway] STAR', name, 'matches runway via TransitionIdentifier:', transId, 'RouteType:', routeType);
+                }
             }
         }
     });
 
-    // STARs ohne Runway-Transition sind für alle Runways verfügbar
-    stars.forEach(function(star) {
-        var name = star.Identifier || star.identifier;
-        if (!starsWithRunwayTransition[name]) {
-            starNamesForRunway[name] = true;
-        }
-    });
+    console.log('[filterStarsByRunway] STARs with runway assignment:', Object.keys(starsWithRunwayTransition).length);
+    console.log('[filterStarsByRunway] STARs matching selected runway:', Object.keys(starNamesForRunway).length);
 
-    return stars.filter(function(star) {
+    // STRENGE FILTERUNG: Nur STARs mit expliziter Runway-Zuordnung durchlassen
+    // STARs ohne Runway-Transition werden NICHT mehr für alle Runways verfügbar gemacht
+
+    var result = stars.filter(function(star) {
         return starNamesForRunway[star.Identifier || star.identifier];
     });
+
+    console.log('[filterStarsByRunway] Final result:', result.length, 'STARs available for runway', runwayNumber);
+    return result;
 }
 
 /**
@@ -19930,23 +19997,46 @@ function populateSidDropdown(elementId, sids, selectedValue) {
     var sidNames = Object.keys(sidsByName).sort();
     console.log('[populateSidDropdown] Available SID names:', sidNames.slice(0, 20).join(', '), '...');
 
-    // Try to find matching SID (handles partial matches like "CIND8S" -> "CINDY8S")
+    // Try to find matching SID (handles partial matches like "CIND8S" -> "CIND5S")
     var matchedSid = null;
     if (selectedValue) {
         // First try exact match
         if (sidsByName[selectedValue]) {
             matchedSid = selectedValue;
         } else {
-            // Try partial match - SimBrief sometimes shortens SID names
+            // Try partial match - OFP may have newer AIRAC SID that doesn't exist in database
+            // Strategy: Find all candidates with same base name, then pick best match
             var searchVal = selectedValue.toUpperCase();
-            matchedSid = sidNames.find(function(name) {
-                // Check if database name starts with OFP name (e.g., CINDY8S starts with CIND)
-                // or if OFP name starts with database name
-                return name.toUpperCase().startsWith(searchVal.replace(/\d+[A-Z]?$/, '')) ||
-                       searchVal.startsWith(name.toUpperCase().replace(/\d+[A-Z]?$/, ''));
+            var searchBase = searchVal.replace(/\d+[A-Z]?$/, ''); // e.g. "CIND8S" -> "CIND"
+            var searchSuffix = searchVal.match(/(\d+)([A-Z])?$/); // e.g. ["8S", "8", "S"]
+            var searchNum = searchSuffix ? parseInt(searchSuffix[1]) : 0;
+            var searchLetter = searchSuffix && searchSuffix[2] ? searchSuffix[2] : '';
+
+            // Find all SIDs with same base name
+            var candidates = sidNames.filter(function(name) {
+                var nameBase = name.toUpperCase().replace(/\d+[A-Z]?$/, '');
+                return nameBase === searchBase;
             });
-            if (matchedSid) {
-                console.log('[populateSidDropdown] Partial match found:', selectedValue, '->', matchedSid);
+
+            if (candidates.length > 0) {
+                // Score each candidate: prefer same suffix letter, then highest number
+                var scoredCandidates = candidates.map(function(name) {
+                    var nameSuffix = name.match(/(\d+)([A-Z])?$/);
+                    var nameNum = nameSuffix ? parseInt(nameSuffix[1]) : 0;
+                    var nameLetter = nameSuffix && nameSuffix[2] ? nameSuffix[2] : '';
+
+                    // Score: +1000 if same letter, +number for higher revision
+                    var score = (nameLetter === searchLetter ? 1000 : 0) + nameNum;
+                    return { name: name, score: score, num: nameNum, letter: nameLetter };
+                });
+
+                // Sort by score descending (best match first)
+                scoredCandidates.sort(function(a, b) { return b.score - a.score; });
+                matchedSid = scoredCandidates[0].name;
+
+                console.log('[populateSidDropdown] Partial match candidates for', selectedValue + ':',
+                    scoredCandidates.map(function(c) { return c.name + '(score:' + c.score + ')'; }).join(', '));
+                console.log('[populateSidDropdown] Best match:', selectedValue, '->', matchedSid);
             }
         }
     }
@@ -20001,12 +20091,32 @@ function populateStarDropdown(elementId, stars, selectedValue) {
         if (starsByName[selectedValue]) {
             matchedStar = selectedValue;
         } else {
-            // Try partial match
+            // Try partial match - OFP may have newer AIRAC STAR that doesn't exist in database
             var searchVal = selectedValue.toUpperCase();
-            matchedStar = starNames.find(function(name) {
-                return name.toUpperCase().startsWith(searchVal.replace(/\d+[A-Z]?$/, '')) ||
-                       searchVal.startsWith(name.toUpperCase().replace(/\d+[A-Z]?$/, ''));
+            var searchBase = searchVal.replace(/\d+[A-Z]?$/, '');
+            var searchSuffix = searchVal.match(/(\d+)([A-Z])?$/);
+            var searchNum = searchSuffix ? parseInt(searchSuffix[1]) : 0;
+            var searchLetter = searchSuffix && searchSuffix[2] ? searchSuffix[2] : '';
+
+            // Find all STARs with same base name
+            var candidates = starNames.filter(function(name) {
+                var nameBase = name.toUpperCase().replace(/\d+[A-Z]?$/, '');
+                return nameBase === searchBase;
             });
+
+            if (candidates.length > 0) {
+                // Score each candidate: prefer same suffix letter, then highest number
+                var scoredCandidates = candidates.map(function(name) {
+                    var nameSuffix = name.match(/(\d+)([A-Z])?$/);
+                    var nameNum = nameSuffix ? parseInt(nameSuffix[1]) : 0;
+                    var nameLetter = nameSuffix && nameSuffix[2] ? nameSuffix[2] : '';
+                    var score = (nameLetter === searchLetter ? 1000 : 0) + nameNum;
+                    return { name: name, score: score };
+                });
+                scoredCandidates.sort(function(a, b) { return b.score - a.score; });
+                matchedStar = scoredCandidates[0].name;
+                console.log('[populateStarDropdown] Partial match:', selectedValue, '->', matchedStar);
+            }
         }
     }
 
@@ -20326,6 +20436,25 @@ async function loadDepartureProcedures(icao, ofpData) {
     var sids = await fetchSIDs(icao);
     flightplanPanelState.departure.sids = sids;
 
+    // DEBUG: Log all unique SID names
+    var uniqueSidNames = [];
+    sids.forEach(function(s) {
+        var name = s.Identifier || s.identifier;
+        if (uniqueSidNames.indexOf(name) === -1) uniqueSidNames.push(name);
+    });
+    console.log('[loadDepartureProcedures] All unique SID names (' + uniqueSidNames.length + '):', uniqueSidNames.sort().join(', '));
+
+    // Filter SIDs by selected runway (analog zu STAR-Filterung in loadArrivalProcedures)
+    var filteredSids = filterSidsByRunway(sids, selectedRunway);
+
+    // DEBUG: Log filtered SID names
+    var filteredSidNames = [];
+    filteredSids.forEach(function(s) {
+        var name = s.Identifier || s.identifier;
+        if (filteredSidNames.indexOf(name) === -1) filteredSidNames.push(name);
+    });
+    console.log('[loadDepartureProcedures] Filtered SID names (' + filteredSidNames.length + '):', filteredSidNames.sort().join(', '));
+
     // Get SID from OFP - check Route field for SID name
     var general = ofpData.General || ofpData.general || {};
     var ofpSid = general.Sid_name || general.sid_name || '';
@@ -20343,15 +20472,16 @@ async function loadDepartureProcedures(icao, ofpData) {
         ofpSid = extractSidFromNavlog(ofpData);
     }
 
-    // Populate dropdown and get the matched name
-    var matchedSid = populateSidDropdown('depSidSelect', sids, ofpSid);
+    // Populate dropdown and get the matched name (use filtered SIDs)
+    var matchedSid = populateSidDropdown('depSidSelect', filteredSids, ofpSid);
     var actualSid = matchedSid || ofpSid;
     flightplanPanelState.departure.selectedSid = actualSid;
 
     // Load transitions for selected SID and auto-select from OFP
+    // NUR aus gefilterten SIDs (passend zur Runway)
     var ofpSidTransition = '';
     if (actualSid) {
-        var availableSidTransitions = getAvailableTransitions(sids, actualSid, 'SID');
+        var availableSidTransitions = getAvailableTransitions(filteredSids, actualSid, 'SID');
 
         // PRIORITY: Read directly from OFP Sid_trans field (SimBrief provides this)
         ofpSidTransition = general.Sid_trans || general.sid_trans || '';
@@ -20380,7 +20510,7 @@ async function loadDepartureProcedures(icao, ofpData) {
             ofpSidTransition = availableSidTransitions[0];
         }
 
-        populateTransitionDropdown('depTransitionSelect', sids, actualSid, ofpSidTransition, 'SID');
+        populateTransitionDropdown('depTransitionSelect', filteredSids, actualSid, ofpSidTransition, 'SID');
         flightplanPanelState.departure.selectedTransition = ofpSidTransition;
     }
 }
@@ -20400,6 +20530,12 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
         return flightplanArray;
     }
 
+    // WICHTIG: Waypoints sortieren bevor sie eingefügt werden
+    var sortedWaypoints = sortProcedureWaypoints(procedureData.Waypoints);
+    console.log('[SID_DEBUG] Sorted waypoints:', sortedWaypoints.map(function(wp) {
+        return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || '') + ', Seq:' + (wp.SequenceNumber || '') + ')';
+    }).join(' → '));
+
     // Sammle existierende Waypoint-Namen um Duplikate zu vermeiden
     var existingNames = {};
     flightplanArray.forEach(function(wp) {
@@ -20407,17 +20543,20 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
     });
 
     var sidEntries = [];
-    procedureData.Waypoints.forEach(function(wp) {
+    sortedWaypoints.forEach(function(wp, idx) {
         var lat = wp.Latitude || wp.latitude;
         var lon = wp.Longitude || wp.longitude;
         var name = wp.Identifier || wp.identifier || 'SID';
 
+        console.log('[SID_DEBUG] Waypoint ' + idx + ': ' + name + ' lat=' + lat + ' lon=' + lon + ' RouteType=' + wp.RouteType);
+
         // Skip wenn Waypoint bereits existiert oder ungültige Koordinaten
         if (existingNames[name.toUpperCase()]) {
-            if (MAP_DEBUG) console.log('[Map] Skipping duplicate SID waypoint:', name);
+            console.log('[SID_DEBUG] SKIPPING duplicate: ' + name);
             return;
         }
         if (!lat || !lon || isNaN(lat) || isNaN(lon) || Math.abs(lat) < 0.001) {
+            console.log('[SID_DEBUG] SKIPPING invalid coords: ' + name + ' lat=' + lat + ' lon=' + lon);
             return;
         }
 
@@ -20465,6 +20604,12 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         return flightplanArray;
     }
 
+    // WICHTIG: Waypoints sortieren bevor sie eingefügt werden
+    var sortedWaypoints = sortProcedureWaypoints(procedureData.Waypoints);
+    console.log('[STAR_DEBUG] Sorted waypoints:', sortedWaypoints.map(function(wp) {
+        return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || '') + ', Seq:' + (wp.SequenceNumber || '') + ')';
+    }).join(' → '));
+
     // Sammle existierende Waypoint-Namen um Duplikate zu vermeiden
     var existingNames = {};
     flightplanArray.forEach(function(wp) {
@@ -20472,7 +20617,7 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
     });
 
     var starEntries = [];
-    procedureData.Waypoints.forEach(function(wp) {
+    sortedWaypoints.forEach(function(wp) {
         var lat = wp.Latitude || wp.latitude;
         var lon = wp.Longitude || wp.longitude;
         var name = wp.Identifier || wp.identifier || 'STAR';
@@ -20570,10 +20715,10 @@ async function loadArrivalProcedures(icao, ofpData) {
     var actualStar = matchedStar || ofpStar;
     flightplanPanelState.arrival.selectedStar = actualStar;
 
-    // Load transitions for selected STAR (use unfiltered stars for transitions)
+    // Load transitions for selected STAR - NUR aus gefilterten STARs (passend zur Runway)
     var ofpStarTransition = '';
     if (actualStar) {
-        var availableStarTransitions = getAvailableTransitions(stars, actualStar, 'STAR');
+        var availableStarTransitions = getAvailableTransitions(filteredStars, actualStar, 'STAR');
         ofpStarTransition = general.Star_trans || general.star_trans || '';
 
         // Fallback 1: Extract from Route string
@@ -20600,7 +20745,7 @@ async function loadArrivalProcedures(icao, ofpData) {
             ofpStarTransition = availableStarTransitions[0];
         }
 
-        populateTransitionDropdown('arrTransitionSelect', stars, actualStar, ofpStarTransition, 'STAR');
+        populateTransitionDropdown('arrTransitionSelect', filteredStars, actualStar, ofpStarTransition, 'STAR');
         flightplanPanelState.arrival.selectedTransition = ofpStarTransition;
     }
 
@@ -21014,7 +21159,23 @@ function getAvailableTransitions(procedures, procedureName, procedureType) {
     if (!procedures || !procedureName) return [];
 
     // ARINC 424 Route Types for enroute transitions
-    var enrouteRouteTypes = (procedureType === 'STAR') ? ['1', '4'] : ['6'];
+    // SID: RouteType 6 = Enroute Transition
+    // STAR: RouteType 1 = Enroute Transition
+    var enrouteRouteTypes = (procedureType === 'STAR') ? ['1'] : ['6'];
+
+    // Debug: Log all RouteTypes for this procedure
+    var allRouteTypes = [];
+    procedures.forEach(function(p) {
+        var name = p.Identifier || p.identifier;
+        if (name === procedureName) {
+            var rt = String(p.RouteType || p.routeType || '').trim();
+            var trans = p.TransitionIdentifier || p.transitionIdentifier || '';
+            if (allRouteTypes.indexOf(rt + ':' + trans) === -1) {
+                allRouteTypes.push(rt + ':' + trans);
+            }
+        }
+    });
+    console.log('[getAvailableTransitions] DEBUG', procedureType, procedureName, 'all RouteTypes:', allRouteTypes);
 
     var transitions = [];
     procedures.forEach(function(p) {
@@ -21158,12 +21319,29 @@ function onDepRunwayChange(runwayId) {
         return (sid.Identifier || sid.identifier) === currentSid;
     });
 
-    populateSidDropdown('depSidSelect', filteredSids, sidStillAvailable ? currentSid : '');
-
-    // Falls SID nicht mehr verfügbar, zurücksetzen
-    if (!sidStillAvailable && currentSid) {
-        flightplanPanelState.departure.selectedSid = '';
+    // Wenn SID nicht mehr verfügbar, erste verfügbare SID wählen
+    var newSid = currentSid;
+    if (!sidStillAvailable) {
+        // Finde erste einzigartige SID
+        var uniqueSids = [];
+        filteredSids.forEach(function(s) {
+            var name = s.Identifier || s.identifier;
+            if (uniqueSids.indexOf(name) === -1) uniqueSids.push(name);
+        });
+        newSid = uniqueSids.length > 0 ? uniqueSids[0] : '';
+        flightplanPanelState.departure.selectedSid = newSid;
         flightplanPanelState.departure.selectedTransition = '';
+    }
+
+    populateSidDropdown('depSidSelect', filteredSids, newSid);
+
+    // Transitions aktualisieren - NUR aus gefilterten SIDs (passend zur Runway)
+    if (newSid) {
+        var availableTransitions = getAvailableTransitions(filteredSids, newSid, 'SID');
+        var nextTransition = availableTransitions.length > 0 ? availableTransitions[0] : '';
+        populateTransitionDropdown('depTransitionSelect', filteredSids, newSid, nextTransition, 'SID');
+        flightplanPanelState.departure.selectedTransition = nextTransition;
+    } else {
         populateTransitionDropdown('depTransitionSelect', [], '', '', 'SID');
     }
 
@@ -21176,6 +21354,9 @@ function onDepRunwayChange(runwayId) {
                 flightplanPanelState.departure.selectedSid,
                 flightplanPanelState.departure.selectedTransition
             );
+        } else {
+            // Keine SID ausgewählt - Preview löschen
+            drawSidPreview(flightplanPanelState.departure.icao, '', '');
         }
     }
 }
@@ -21187,9 +21368,14 @@ function onDepRunwayChange(runwayId) {
 function onDepSidChange(sidName) {
     flightplanPanelState.departure.selectedSid = sidName;
 
+    // Gefilterte SIDs für aktuelle Runway holen
+    var filteredSids = filterSidsByRunway(
+        flightplanPanelState.departure.sids,
+        flightplanPanelState.departure.selectedRunway
+    );
+
     if (!sidName || sidName === '-') {
-        populateTransitionDropdown('depTransitionSelect',
-            flightplanPanelState.departure.sids, '', '', 'SID');
+        populateTransitionDropdown('depTransitionSelect', filteredSids, '', '', 'SID');
         flightplanPanelState.departure.selectedTransition = '';
         // Reset runway dropdown to show all runways when no SID selected
         if (flightplanPanelState.departure.runways) {
@@ -21224,18 +21410,14 @@ function onDepSidChange(sidName) {
         flightplanPanelState.departure.selectedRunway = compatibleRunways[0].Identifier || compatibleRunways[0].identifier;
     }
 
-    var availableTransitions = getAvailableTransitions(
-        flightplanPanelState.departure.sids,
-        sidName,
-        'SID'
-    );
+    // Transitions NUR aus gefilterten SIDs (passend zur Runway)
+    var availableTransitions = getAvailableTransitions(filteredSids, sidName, 'SID');
     var preferredTransition = flightplanPanelState.departure.selectedTransition;
     var nextTransition = (preferredTransition && availableTransitions.indexOf(preferredTransition) !== -1)
         ? preferredTransition
         : (availableTransitions.length > 0 ? availableTransitions[0] : '');
 
-    populateTransitionDropdown('depTransitionSelect',
-        flightplanPanelState.departure.sids, sidName, nextTransition, 'SID');
+    populateTransitionDropdown('depTransitionSelect', filteredSids, sidName, nextTransition, 'SID');
     flightplanPanelState.departure.selectedTransition = nextTransition;
 
     // Nur bei manueller Änderung Preview zeichnen
@@ -21274,9 +21456,14 @@ function onDepTransitionChange(transitionName) {
 function onArrStarChange(starName) {
     flightplanPanelState.arrival.selectedStar = starName;
 
+    // Gefilterte STARs für aktuelle Runway holen
+    var filteredStars = filterStarsByRunway(
+        flightplanPanelState.arrival.stars,
+        flightplanPanelState.arrival.selectedRunway
+    );
+
     if (!starName || starName === '-') {
-        populateTransitionDropdown('arrTransitionSelect',
-            flightplanPanelState.arrival.stars, '', '', 'STAR');
+        populateTransitionDropdown('arrTransitionSelect', filteredStars, '', '', 'STAR');
         flightplanPanelState.arrival.selectedTransition = '';
         // Reset runway dropdown to show all runways when no STAR selected
         if (flightplanPanelState.arrival.runways) {
@@ -21321,18 +21508,14 @@ function onArrStarChange(starName) {
         }
     }
 
-    var availableTransitions = getAvailableTransitions(
-        flightplanPanelState.arrival.stars,
-        starName,
-        'STAR'
-    );
+    // Transitions NUR aus gefilterten STARs (passend zur Runway)
+    var availableTransitions = getAvailableTransitions(filteredStars, starName, 'STAR');
     var preferredTransition = flightplanPanelState.arrival.selectedTransition;
     var nextTransition = (preferredTransition && availableTransitions.indexOf(preferredTransition) !== -1)
         ? preferredTransition
         : (availableTransitions.length > 0 ? availableTransitions[0] : '');
 
-    populateTransitionDropdown('arrTransitionSelect',
-        flightplanPanelState.arrival.stars, starName, nextTransition, 'STAR');
+    populateTransitionDropdown('arrTransitionSelect', filteredStars, starName, nextTransition, 'STAR');
     flightplanPanelState.arrival.selectedTransition = nextTransition;
 
     // Nur bei manueller Änderung Preview zeichnen
@@ -21381,12 +21564,29 @@ function onArrRunwayChange(runwayId) {
         return (star.Identifier || star.identifier) === currentStar;
     });
 
-    populateStarDropdown('arrStarSelect', filteredStars, starStillAvailable ? currentStar : '');
-
-    // Falls STAR nicht mehr verfügbar, zurücksetzen
-    if (!starStillAvailable && currentStar) {
-        flightplanPanelState.arrival.selectedStar = '';
+    // Wenn STAR nicht mehr verfügbar, ersten verfügbaren STAR wählen
+    var newStar = currentStar;
+    if (!starStillAvailable) {
+        // Finde ersten einzigartigen STAR
+        var uniqueStars = [];
+        filteredStars.forEach(function(s) {
+            var name = s.Identifier || s.identifier;
+            if (uniqueStars.indexOf(name) === -1) uniqueStars.push(name);
+        });
+        newStar = uniqueStars.length > 0 ? uniqueStars[0] : '';
+        flightplanPanelState.arrival.selectedStar = newStar;
         flightplanPanelState.arrival.selectedTransition = '';
+    }
+
+    populateStarDropdown('arrStarSelect', filteredStars, newStar);
+
+    // Transitions aktualisieren - NUR aus gefilterten STARs (passend zur Runway)
+    if (newStar) {
+        var availableTransitions = getAvailableTransitions(filteredStars, newStar, 'STAR');
+        var nextTransition = availableTransitions.length > 0 ? availableTransitions[0] : '';
+        populateTransitionDropdown('arrTransitionSelect', filteredStars, newStar, nextTransition, 'STAR');
+        flightplanPanelState.arrival.selectedTransition = nextTransition;
+    } else {
         populateTransitionDropdown('arrTransitionSelect', [], '', '', 'STAR');
     }
 
@@ -21407,6 +21607,9 @@ function onArrRunwayChange(runwayId) {
                 flightplanPanelState.arrival.selectedStar,
                 flightplanPanelState.arrival.selectedTransition
             );
+        } else {
+            // Keine STAR ausgewählt - Preview löschen
+            drawStarPreview(flightplanPanelState.arrival.icao, '', '');
         }
         if (selectedApproachId) {
             drawApproachPreview(flightplanPanelState.arrival.icao, selectedApproachId);
@@ -21629,6 +21832,9 @@ function onAltApproachChange(approachId) {
  * Draw SID preview on map
  */
 async function drawSidPreview(icao, sidName, transition) {
+    // Increment request ID to cancel any pending requests
+    var currentRequestId = ++sidPreviewRequestId;
+
     // Remove old preview
     if (sidPreviewLayer) {
         map.removeLayer(sidPreviewLayer);
@@ -21644,6 +21850,11 @@ async function drawSidPreview(icao, sidName, transition) {
         // Fetch procedure waypoints with runway parameter
         var procedureData = await fetchProcedureDetail(icao, sidName, 'SID', transition, selectedRunway);
 
+        // Check if this request is still current (prevent race condition)
+        if (currentRequestId !== sidPreviewRequestId) {
+            return; // A newer request was made, discard this result
+        }
+
         if (!procedureData || !procedureData.Waypoints || procedureData.Waypoints.length === 0) {
             return;
         }
@@ -21658,6 +21869,11 @@ async function drawSidPreview(icao, sidName, transition) {
         });
 
         if (validWaypoints.length < 2) {
+            return;
+        }
+
+        // Double-check request ID before modifying the layer
+        if (currentRequestId !== sidPreviewRequestId) {
             return;
         }
 
@@ -21704,6 +21920,9 @@ async function drawSidPreview(icao, sidName, transition) {
  * Draw STAR preview on map
  */
 async function drawStarPreview(icao, starName, transition) {
+    // Increment request ID to cancel any pending requests
+    var currentRequestId = ++starPreviewRequestId;
+
     // Remove old preview
     if (starPreviewLayer) {
         map.removeLayer(starPreviewLayer);
@@ -21719,6 +21938,11 @@ async function drawStarPreview(icao, starName, transition) {
         // Fetch procedure waypoints with runway parameter
         var procedureData = await fetchProcedureDetail(icao, starName, 'STAR', transition, selectedRunway);
 
+        // Check if this request is still current (prevent race condition)
+        if (currentRequestId !== starPreviewRequestId) {
+            return; // A newer request was made, discard this result
+        }
+
         if (!procedureData || !procedureData.Waypoints || procedureData.Waypoints.length === 0) {
             return;
         }
@@ -21733,6 +21957,11 @@ async function drawStarPreview(icao, starName, transition) {
         });
 
         if (validWaypoints.length < 2) {
+            return;
+        }
+
+        // Double-check request ID before modifying the layer
+        if (currentRequestId !== starPreviewRequestId) {
             return;
         }
 
@@ -21779,6 +22008,9 @@ async function drawStarPreview(icao, starName, transition) {
  * Draw Approach preview on map
  */
 async function drawApproachPreview(icao, approachName, approachTransition) {
+    // Increment request ID to cancel any pending requests
+    var currentRequestId = ++approachPreviewRequestId;
+
     // Remove old preview
     if (approachPreviewLayer) {
         map.removeLayer(approachPreviewLayer);
@@ -21793,6 +22025,11 @@ async function drawApproachPreview(icao, approachName, approachTransition) {
     try {
         // Fetch procedure waypoints with transition and runway
         var procedureData = await fetchProcedureDetail(icao, approachName, 'APPROACH', approachTransition || null, selectedRunway);
+
+        // Check if this request is still current (prevent race condition)
+        if (currentRequestId !== approachPreviewRequestId) {
+            return; // A newer request was made, discard this result
+        }
 
         if (!procedureData || !procedureData.Waypoints || procedureData.Waypoints.length === 0) {
             return;
@@ -21824,6 +22061,11 @@ async function drawApproachPreview(icao, approachName, approachTransition) {
         }
 
         if (validWaypoints.length < 2) {
+            return;
+        }
+
+        // Double-check request ID before modifying the layer
+        if (currentRequestId !== approachPreviewRequestId) {
             return;
         }
 
@@ -21861,6 +22103,9 @@ async function drawApproachPreview(icao, approachName, approachTransition) {
  * Draw Alternate STAR preview on map (purple color)
  */
 async function drawAlternateStarPreview(icao, starName, transition) {
+    // Increment request ID to cancel any pending requests
+    var currentRequestId = ++alternateStarPreviewRequestId;
+
     // Remove old preview
     if (alternateStarPreviewLayer) {
         map.removeLayer(alternateStarPreviewLayer);
@@ -21873,6 +22118,11 @@ async function drawAlternateStarPreview(icao, starName, transition) {
 
     try {
         var procedureData = await fetchProcedureDetail(icao, starName, 'STAR', transition, selectedRunway);
+
+        // Check if this request is still current (prevent race condition)
+        if (currentRequestId !== alternateStarPreviewRequestId) {
+            return; // A newer request was made, discard this result
+        }
 
         if (!procedureData || !procedureData.Waypoints || procedureData.Waypoints.length === 0) {
             return;
@@ -21888,6 +22138,11 @@ async function drawAlternateStarPreview(icao, starName, transition) {
         });
 
         if (validWaypoints.length < 2) {
+            return;
+        }
+
+        // Double-check request ID before modifying the layer
+        if (currentRequestId !== alternateStarPreviewRequestId) {
             return;
         }
 
@@ -21930,6 +22185,9 @@ async function drawAlternateStarPreview(icao, starName, transition) {
  * Draw Alternate Approach preview on map (magenta color)
  */
 async function drawAlternateApproachPreview(icao, approachName) {
+    // Increment request ID to cancel any pending requests
+    var currentRequestId = ++alternateApproachPreviewRequestId;
+
     // Remove old preview
     if (alternateApproachPreviewLayer) {
         map.removeLayer(alternateApproachPreviewLayer);
@@ -21942,6 +22200,11 @@ async function drawAlternateApproachPreview(icao, approachName) {
 
     try {
         var procedureData = await fetchProcedureDetail(icao, approachName, 'APPROACH', null, selectedRunway);
+
+        // Check if this request is still current (prevent race condition)
+        if (currentRequestId !== alternateApproachPreviewRequestId) {
+            return; // A newer request was made, discard this result
+        }
 
         if (!procedureData || !procedureData.Waypoints || procedureData.Waypoints.length === 0) {
             return;
@@ -21957,6 +22220,11 @@ async function drawAlternateApproachPreview(icao, approachName) {
         });
 
         if (validWaypoints.length < 2) {
+            return;
+        }
+
+        // Double-check request ID before modifying the layer
+        if (currentRequestId !== alternateApproachPreviewRequestId) {
             return;
         }
 
@@ -21990,6 +22258,13 @@ async function drawAlternateApproachPreview(icao, approachName) {
  * Clear all preview layers
  */
 function clearAllPreviews() {
+    // Increment all request IDs to invalidate any pending async requests
+    sidPreviewRequestId++;
+    starPreviewRequestId++;
+    approachPreviewRequestId++;
+    alternateStarPreviewRequestId++;
+    alternateApproachPreviewRequestId++;
+
     if (sidPreviewLayer) {
         map.removeLayer(sidPreviewLayer);
         sidPreviewLayer = null;

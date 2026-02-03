@@ -4353,6 +4353,39 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     50% { box-shadow: 0 0 0 6px rgba(76, 175, 80, 0); }
 }
 
+/* Cancel Button */
+.fp-cancel-btn {
+    flex: 1;
+    padding: 10px 12px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s;
+    margin-left: 8px;
+}
+
+.fp-cancel-btn:hover {
+    background: #c82333;
+}
+
+/* Flex layout for action buttons */
+.fp-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.fp-actions .fp-apply-btn {
+    flex: 1;
+}
+
 /* Pending-Indikator für Dropdowns */
 .fp-dropdown.has-pending {
     border: 2px solid #FF9800 !important;
