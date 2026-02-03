@@ -22,8 +22,8 @@
         <button class="kneeboard-panel-btn" id="wpListMinimize" onclick="minimizeWpList()" title="Minimize waypoint list">_</button>
         <button class="kneeboard-panel-btn" onclick="hideWpList()" title="Close waypoint list">×</button>
     </div>
-    <div class="fp-section-header fp-main-header">
-        <span>FLIGHTPLAN</span>
+    <div class="kneeboard-panel-header">
+        <h3 class="kneeboard-panel-title">FLIGHTPLAN</h3>
     </div>
 
     <!-- DEPARTURE SECTION -->
@@ -95,7 +95,55 @@
                     <option value="">-</option>
                 </select>
             </div>
+            <div class="fp-selector-row">
+                <label>A-TRANS</label>
+                <select class="fp-dropdown" id="arrApproachTransitionSelect" onchange="onArrApproachTransitionChange(this.value)">
+                    <option value="">-</option>
+                </select>
+            </div>
         </div>
+    </div>
+
+    <!-- ALTERNATE SECTION -->
+    <div class="fp-section fp-alternate" id="fpAlternateSection" style="display: none;">
+        <div class="fp-section-header fp-alternate-header">
+            <span>ALT</span>
+            <span class="fp-icao" id="altIcao">----</span>
+            <span class="fp-name" id="altName"></span>
+        </div>
+        <div class="fp-selectors" id="altSelectors">
+            <div class="fp-selector-row">
+                <label>RWY</label>
+                <select class="fp-dropdown" id="altRunwaySelect" onchange="onAltRunwayChange(this.value)">
+                    <option value="">-</option>
+                </select>
+            </div>
+            <div class="fp-selector-row">
+                <label>STAR</label>
+                <select class="fp-dropdown" id="altStarSelect" onchange="onAltStarChange(this.value)">
+                    <option value="">-</option>
+                </select>
+            </div>
+            <div class="fp-selector-row">
+                <label>TRANS</label>
+                <select class="fp-dropdown" id="altTransitionSelect" onchange="onAltTransitionChange(this.value)">
+                    <option value="">-</option>
+                </select>
+            </div>
+            <div class="fp-selector-row">
+                <label>APPR</label>
+                <select class="fp-dropdown" id="altApproachSelect" onchange="onAltApproachChange(this.value)">
+                    <option value="">-</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- APPLY BUTTON SECTION -->
+    <div class="fp-section fp-actions" id="fpActionsSection">
+        <button class="fp-apply-btn" id="fpApplyBtn" onclick="applyFlightplanChanges()" disabled>
+            <span class="fp-apply-text">Übernehmen</span>
+        </button>
     </div>
 
     <!-- SUMMARY FOOTER -->

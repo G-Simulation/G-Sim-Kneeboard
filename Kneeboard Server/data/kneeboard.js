@@ -1,6 +1,7 @@
 // VERSION MARKER
 var KNEEBOARD_JS_VERSION = "2025-12-19-v2.0";
-var KNEEBOARD_DEBUG = false;  // Set to true for verbose [Kneeboard] logging
+// Use centralized DEBUG_CONFIG if available
+var KNEEBOARD_DEBUG = (typeof DEBUG_CONFIG !== 'undefined' && DEBUG_CONFIG.SIMBRIEF) || false;
 
 // State that gets shared across the SPA tabs
 var activeTab = "navlog";
@@ -37,7 +38,7 @@ const logger = (typeof KneeboardLogger !== 'undefined')
 const PAGE_MAP = {
   navlog: "navlog.html",
   documents: "documents.html",
-  map: "map.html",
+  map: "map.html?v=1",
   notepad: "notepad.html",
   formulas: "formulas.html?v=32",
 };
@@ -287,7 +288,8 @@ function normalizeSimbriefString(value) {
   return null;
 }
 
-function convertSimbriefFlightplan(document, ofpData) {
+function convertSimbriefFlightplan(document, ofpData, procedures) {
+  KNEEBOARD_DEBUG && console.log('[convertSimbriefFlightplan] CALLED - procedures:', procedures ? JSON.stringify(procedures).substring(0, 500) : 'null');
   if (!document || !document.FlightPlanFlightPlan) {
     return { waypoints: [], ofp: ofpData || null };
   }
@@ -299,10 +301,40 @@ function convertSimbriefFlightplan(document, ofpData) {
   if (!Array.isArray(waypoints)) {
     waypoints = [waypoints];
   }
+
+  var sidWaypointNames = {};
+  var starWaypointNames = {};
+  var approachWaypointNames = {};
+  var sidName = null;
+  var starName = null;
+  var approachName = null;
+
+  if (procedures && procedures.sid && procedures.sid.waypoints) {
+    sidName = procedures.sid.name;
+    procedures.sid.waypoints.forEach(function(wp) {
+      if (wp.name) sidWaypointNames[wp.name.toUpperCase()] = true;
+    });
+    KNEEBOARD_DEBUG && console.log('[convertSimbriefFlightplan] SID waypoints from Navigraph:', Object.keys(sidWaypointNames).join(', '));
+  }
+  if (procedures && procedures.star && procedures.star.waypoints) {
+    starName = procedures.star.name;
+    procedures.star.waypoints.forEach(function(wp) {
+      if (wp.name) starWaypointNames[wp.name.toUpperCase()] = true;
+    });
+    KNEEBOARD_DEBUG && console.log('[convertSimbriefFlightplan] STAR waypoints from Navigraph:', Object.keys(starWaypointNames).join(', '));
+  }
+  if (procedures && procedures.approach && procedures.approach.waypoints) {
+    approachName = procedures.approach.name;
+    procedures.approach.waypoints.forEach(function(wp) {
+      if (wp.name) approachWaypointNames[wp.name.toUpperCase()] = true;
+    });
+    KNEEBOARD_DEBUG && console.log('[convertSimbriefFlightplan] Approach waypoints from Navigraph:', Object.keys(approachWaypointNames).join(', '));
+  }
+
   var normalized = [];
   var fallbackDep = null;
   var fallbackArr = null;
-    waypoints.forEach(function (wp) {
+  waypoints.forEach(function (wp) {
     if (!wp) {
       return;
     }
@@ -314,6 +346,8 @@ function convertSimbriefFlightplan(document, ofpData) {
     var typeLabel = rawType;
     var depName = normalizeSimbriefString(wp && wp.DepartureFP) || "";
     var arrName = normalizeSimbriefString(wp && wp.ArrivalFP) || "";
+    var wpName = (wp.id || "").toUpperCase();
+
     if (depName) {
       typeLabel = formatDepArrType("DEP", depName);
       if (!fallbackDep) {
@@ -322,7 +356,17 @@ function convertSimbriefFlightplan(document, ofpData) {
     } else if (arrName) {
       typeLabel = formatDepArrType("ARR", arrName);
       fallbackArr = arrName;
+    } else if (sidWaypointNames[wpName]) {
+      typeLabel = formatDepArrType("DEP", sidName || "SID");
+      depName = sidName || "SID";
+    } else if (starWaypointNames[wpName]) {
+      typeLabel = formatDepArrType("ARR", starName || "STAR");
+      arrName = starName || "STAR";
+    } else if (approachWaypointNames[wpName]) {
+      typeLabel = formatDepArrType("ARR", approachName || "APP");
+      arrName = approachName || "APP";
     }
+
     normalized.push({
       lat: coords.lat,
       lng: coords.lng,
@@ -686,16 +730,18 @@ document.addEventListener("DOMContentLoaded", function () {
           try {
             var plnData = JSON.parse(message2);
 
-            // Prüfen ob kombiniertes Format (pln + ofp) von Simbrief
+            // Prüfen ob kombiniertes Format (pln + ofp + procedures) von Simbrief
             var flightplanRoot = plnData;
             var ofpData = null;
+            var proceduresData = null;
             if (plnData && plnData.pln && typeof plnData.pln === 'object') {
               flightplanRoot = plnData.pln;
               ofpData = plnData.ofp || null;
+              proceduresData = plnData.procedures || null;
             }
 
-            var flightplan = convertSimbriefFlightplan(flightplanRoot, ofpData);
-            logger.info("PLN message processed, has OFP: " + (ofpData !== null));
+            var flightplan = convertSimbriefFlightplan(flightplanRoot, ofpData, proceduresData);
+            logger.info("PLN message processed, has OFP: " + (ofpData !== null) + ", has Procedures: " + (proceduresData !== null));
             mapMessage("Flightplan:" + JSON.stringify(flightplan));
           } catch (parseError) {
             logger.error("Unable to parse SimBrief payload:", parseError);
@@ -842,16 +888,21 @@ function loadFlightplanFromServer() {
 
               var plnData = JSON.parse(response);
 
-              // Prüfen ob kombiniertes Format (pln + ofp) von Simbrief
+              // Prüfen ob kombiniertes Format (pln + ofp + procedures) von Simbrief
+              console.log('[Kneeboard] plnData keys:', plnData ? Object.keys(plnData) : 'null');
+              console.log('[Kneeboard] plnData.procedures?', plnData && plnData.procedures ? 'YES' : 'NO');
               var flightplanRoot = plnData;
               var ofpData = null;
+              var proceduresData = null;
               if (plnData && plnData.pln && typeof plnData.pln === 'object') {
                 flightplanRoot = plnData.pln;
                 ofpData = plnData.ofp || null;
+                proceduresData = plnData.procedures || null;
+                console.log('[Kneeboard] proceduresData extracted:', proceduresData ? JSON.stringify(proceduresData).substring(0, 300) : 'null');
               }
 
               if (flightplanRoot && flightplanRoot.FlightPlanFlightPlan) {
-                var flightplan = convertSimbriefFlightplan(flightplanRoot, ofpData);
+                var flightplan = convertSimbriefFlightplan(flightplanRoot, ofpData, proceduresData);
                 if (flightplan.waypoints && flightplan.waypoints.length > 0) {
                   // Hash vom Server merken (wird in checkFlightplanHashAndLoad gesetzt)
                   // Lokaler Hash als Fallback

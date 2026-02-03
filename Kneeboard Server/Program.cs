@@ -15,6 +15,7 @@ namespace Kneeboard_Server
         [STAThread]
         static void Main(string[] args)
         {
+            Console.WriteLine("!!! KNEEBOARD SERVER - NEW CODE VERSION ACTIVE (SEQNO FIX) - " + DateTime.Now.ToString() + " !!!");
             // Check database contents
             if (args.Length >= 1 && args[0] == "--check-db")
             {

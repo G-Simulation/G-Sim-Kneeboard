@@ -187,14 +187,7 @@
     <None Include="Resources\ICON_TOOLBAR_KNEEBOARD1.png" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Copy Navigraph database to output directory -->
-    <Content Include="Navigraph\ng_jeppesen_fwdfd_2403.s3db">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <!-- Copy data folder with all files to output directory -->
-    <Content Include="data\**\*.*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <!-- Navigraph DB und data folder werden direkt aus dem Quellverzeichnis geladen, nicht kopiert -->
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\add-file1.png" />
@@ -324,9 +317,13 @@
     <PackageReference Include="EmbedIO">
       <Version>3.5.2</Version>
     </PackageReference>
+    <PackageReference Include="CoordinateSharp">
+      <Version>3.4.1.1</Version>
+    </PackageReference>
+    <PackageReference Include="CoordinateSharp.Magnetic">
+      <Version>2.1.5</Version>
+    </PackageReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>if not exist "$(OutDir)Navigraph" (mkdir "$(OutDir)Navigraph") &amp;&amp; copy /Y "$(ProjectDir)Navigraph\ng_jeppesen_fwdfd_2403.s3db" "$(OutDir)Navigraph\ng_jeppesen_fwdfd_2403.s3db"</PostBuildEvent>
-  </PropertyGroup>
+  <!-- PostBuildEvent entfernt - Navigraph DB wird direkt aus Quellverzeichnis geladen -->
 </Project>

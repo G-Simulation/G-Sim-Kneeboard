@@ -2,7 +2,8 @@
 // VERSION MARKER
 // ============================================================================
 var NAVLOG_JS_VERSION = "2025-12-19-v2.0";
-var NAVLOG_DEBUG = false;  // Set to true for verbose logging
+// Use centralized DEBUG_CONFIG if available
+var NAVLOG_DEBUG = (typeof DEBUG_CONFIG !== 'undefined' && DEBUG_CONFIG.NAVLOG) || false;
 
 // Zentraler Logger - nutzt KneeboardLogger falls verfügbar
 var navlogLogger = (typeof KneeboardLogger !== 'undefined')
@@ -61,7 +62,7 @@ var initialNavlogLoadComplete = false; // Flag to track if initial load is done
 var suppressNavlogPush = false;
 var navlogEventListenersInitialized = false; // Prevent duplicate event listeners on rapid tab switching
 var receiveMessages = true; // allow incoming sync by default in browser mirror
-var NAVLOG_VERBOSE = false; // optional verbose logging toggle
+var NAVLOG_VERBOSE = true; // optional verbose logging toggle
 var waypointTemplatesCache = { vfr: [], ifr: [], zy: [] };
 
 // ============================================================================
@@ -444,51 +445,21 @@ function processOFPWithMapping(ofp, waypoints) {
 
 	NAVLOG_DEBUG && console.log('[OFP Mapping] Processed', Object.keys(result).length, 'fields');
 	NAVLOG_DEBUG && console.log('[OFP Mapping] Result keys:', Object.keys(result));
-	// Debug: Spezifische Felder loggen
-	if (result['Arrival-Star']) {
-		console.log('[OFP Mapping] Arrival-Star =', result['Arrival-Star']);
-	} else {
-		console.log('[OFP Mapping] Arrival-Star is EMPTY - checking ALL OFP paths...');
-		console.log('[OFP Mapping] - General.Star_name =', getNestedValue(ofp, 'General.Star_name'));
-		console.log('[OFP Mapping] - General.star_name =', getNestedValue(ofp, 'General.star_name'));
-		console.log('[OFP Mapping] - General.Star =', getNestedValue(ofp, 'General.Star'));
-		console.log('[OFP Mapping] - General.star =', getNestedValue(ofp, 'General.star'));
-		console.log('[OFP Mapping] - Atc.Star =', getNestedValue(ofp, 'Atc.Star'));
-		console.log('[OFP Mapping] - Destination.Star =', getNestedValue(ofp, 'Destination.Star'));
-		console.log('[OFP Mapping] - Destination.star =', getNestedValue(ofp, 'Destination.star'));
-		console.log('[OFP Mapping] - _computed.star =', computed['star']);
-		// Zeige alle Keys aus verschiedenen Objekten
-		if (ofp.General) {
-			console.log('[OFP Mapping] - General ALL KEYS:', Object.keys(ofp.General));
-			var starKeys = Object.keys(ofp.General).filter(function(k) {
-				return k.toLowerCase().indexOf('star') !== -1;
-			});
-			if (starKeys.length) {
-				console.log('[OFP Mapping] - General STAR-related keys:', starKeys);
-				starKeys.forEach(function(k) {
-					console.log('[OFP Mapping] - General.' + k + ' =', ofp.General[k]);
-				});
-			}
+	// Debug: Spezifische Felder loggen (nur wenn NAVLOG_DEBUG aktiv)
+	if (NAVLOG_DEBUG) {
+		if (result['Arrival-Star']) {
+			console.log('[OFP Mapping] Arrival-Star =', result['Arrival-Star']);
+		} else {
+			console.log('[OFP Mapping] Arrival-Star is EMPTY - checking ALL OFP paths...');
+			console.log('[OFP Mapping] - General.Star_name =', getNestedValue(ofp, 'General.Star_name'));
+			console.log('[OFP Mapping] - _computed.star =', computed['star']);
 		}
-		if (ofp.Atc) {
-			console.log('[OFP Mapping] - Atc ALL KEYS:', Object.keys(ofp.Atc));
+		if (result['Weather-Log-Enr-Winds']) {
+			console.log('[OFP Mapping] Weather-Log-Enr-Winds =', result['Weather-Log-Enr-Winds'].substring(0, 100));
 		}
-		if (ofp.Destination) {
-			console.log('[OFP Mapping] - Destination ALL KEYS:', Object.keys(ofp.Destination));
+		if (!result['Pilot_in_com']) {
+			console.log('[OFP Mapping] Pilot_in_com is EMPTY');
 		}
-	}
-	if (result['Weather-Log-Enr-Winds']) {
-		console.log('[OFP Mapping] Weather-Log-Enr-Winds =', result['Weather-Log-Enr-Winds'].substring(0, 100));
-	}
-	// Debug: Pilot_in_com
-	if (result['Pilot_in_com']) {
-		console.log('[OFP Mapping] Pilot_in_com =', result['Pilot_in_com']);
-	} else {
-		console.log('[OFP Mapping] Pilot_in_com is EMPTY - checking OFP structure...');
-		console.log('[OFP Mapping] - OFP top-level keys:', Object.keys(ofp));
-		if (ofp.Crew) console.log('[OFP Mapping] - Crew keys:', Object.keys(ofp.Crew));
-		if (ofp.Params) console.log('[OFP Mapping] - Params keys:', Object.keys(ofp.Params));
-		if (ofp.General) console.log('[OFP Mapping] - General keys:', Object.keys(ofp.General));
 	}
 	return result;
 }
@@ -627,10 +598,8 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 			}
 		}
 	}
-	console.log('[OFP Enrichment] Matched', matchCount, 'of', waypoints.length, 'waypoints');
-	if (noMatchList.length > 0) {
-		console.log('[OFP Enrichment] No matches found for:', noMatchList.join(', '));
-	}
+	NAVLOG_DEBUG && console.log('[OFP Enrichment] Matched', matchCount, 'of', waypoints.length, 'waypoints');
+	NAVLOG_DEBUG && noMatchList.length > 0 && console.log('[OFP Enrichment] No matches found for:', noMatchList.join(', '));
 
 	// Für den ersten Waypoint (Abflughafen): Winddaten aus METAR extrahieren
 	if (waypoints.length > 0 && waypoints[0]) {
@@ -658,33 +627,28 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 							firstWp.Wind_dir = windDir;
 						}
 						firstWp.Wind_spd = windSpd;
-
-						console.log('[OFP Enrichment] Departure airport', firstWpName, 'wind from METAR:', windDir + '°/' + windSpd + 'kt');
+						NAVLOG_DEBUG && console.log('[OFP Enrichment] Departure airport', firstWpName, 'wind from METAR:', windDir + '°/' + windSpd + 'kt');
 					}
 				}
 
 				// Abflughafen-spezifische Defaults setzen
-				// ETE und Time_total sind 0 am Startpunkt
 				if (firstWp.Ete === undefined) firstWp.Ete = '0';
 				if (firstWp.Time_total === undefined) firstWp.Time_total = '0';
-				// Fuel_burn am Start = 0
 				if (firstWp.Fuel_burn === undefined) firstWp.Fuel_burn = '0';
-				// Fuel_rem am Start = Plan Ramp Fuel
 				var fuelData = ofpData.Fuel || ofpData.fuel;
 				if (fuelData) {
 					if (firstWp.Fuel_rem === undefined) {
 						var rampFuel = fuelData.Plan_ramp || fuelData.plan_ramp;
 						if (rampFuel) {
 							firstWp.Fuel_rem = rampFuel;
-							console.log('[OFP Enrichment] Departure airport Fuel_rem set to Plan_ramp:', rampFuel);
+							NAVLOG_DEBUG && console.log('[OFP Enrichment] Departure airport Fuel_rem set to Plan_ramp:', rampFuel);
 						}
 					}
-					// Fuel_flow für Abflughafen = Avg Fuel Flow
 					if (firstWp.Fuel_flow === undefined) {
 						var avgFlow = fuelData.Avg_fuel_flow || fuelData.avg_fuel_flow;
 						if (avgFlow) {
 							firstWp.Fuel_flow = avgFlow;
-							console.log('[OFP Enrichment] Departure airport Fuel_flow set to Avg:', avgFlow);
+							NAVLOG_DEBUG && console.log('[OFP Enrichment] Departure airport Fuel_flow set to Avg:', avgFlow);
 						}
 					}
 				}
@@ -699,36 +663,16 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 		}
 	}
 
-	// Debug: Ersten (Abflughafen) und zweiten Waypoint ausgeben
-	if (waypoints.length > 0 && waypoints[0]) {
+	// Debug: Ersten und zweiten Waypoint ausgeben (nur wenn NAVLOG_DEBUG)
+	if (NAVLOG_DEBUG && waypoints.length > 0 && waypoints[0]) {
 		console.log('[OFP Enrichment] ENRICHED WP[0] (Departure):', JSON.stringify({
-			name: waypoints[0].name,
-			Wind_dir: waypoints[0].Wind_dir,
-			Wind_spd: waypoints[0].Wind_spd,
-			Fuel_rem: waypoints[0].Fuel_rem,
-			Fuel_flow: waypoints[0].Fuel_flow,
-			Time_total: waypoints[0].Time_total,
-			Ete: waypoints[0].Ete,
-			Groundspeed: waypoints[0].Groundspeed,
-			altitude: waypoints[0].altitude
+			name: waypoints[0].name, Wind_dir: waypoints[0].Wind_dir, Wind_spd: waypoints[0].Wind_spd,
+			Fuel_rem: waypoints[0].Fuel_rem, altitude: waypoints[0].altitude
 		}));
 	}
-	if (waypoints.length > 1 && waypoints[1]) {
+	if (NAVLOG_DEBUG && waypoints.length > 1 && waypoints[1]) {
 		console.log('[OFP Enrichment] ENRICHED WP[1]:', JSON.stringify({
-			name: waypoints[1].name,
-			Wind_dir: waypoints[1].Wind_dir,
-			Wind_spd: waypoints[1].Wind_spd,
-			Oat: waypoints[1].Oat,
-			Groundspeed: waypoints[1].Groundspeed,
-			Fuel_rem: waypoints[1].Fuel_rem,
-			Time_total: waypoints[1].Time_total,
-			Fuel_flow: waypoints[1].Fuel_flow,
-			Ete: waypoints[1].Ete,
-			Fuel_burn: waypoints[1].Fuel_burn,
-			Mag_var: waypoints[1].Mag_var,
-			Trk_mag: waypoints[1].Trk_mag,
-			Hdg_mag: waypoints[1].Hdg_mag,
-			altitude: waypoints[1].altitude
+			name: waypoints[1].name, Groundspeed: waypoints[1].Groundspeed, altitude: waypoints[1].altitude
 		}));
 	}
 }
@@ -2745,9 +2689,9 @@ function populateFlightplanSummaryFields(points, metrics, meta) {
 	NAVLOG_DEBUG && console.log('[Navlog Summary]   - aircraftEquip:', summaryMeta.aircraftEquip);
 	NAVLOG_DEBUG && console.log('[Navlog Summary]   - departureTime:', summaryMeta.departureTime);
 	NAVLOG_DEBUG && console.log('[Navlog Summary]   - alternateAirport:', summaryMeta.alternateAirport);
-	console.log('[Fuel Summary] enduranceHours:', summaryMeta.enduranceHours);
-	console.log('[Fuel Summary] enduranceMinutes:', summaryMeta.enduranceMinutes);
-	console.log('[Fuel Summary] avgFuelFlow:', summaryMeta.avgFuelFlow);
+	NAVLOG_DEBUG && console.log('[Fuel Summary] enduranceHours:', summaryMeta.enduranceHours);
+	NAVLOG_DEBUG && console.log('[Fuel Summary] enduranceMinutes:', summaryMeta.enduranceMinutes);
+	NAVLOG_DEBUG && console.log('[Fuel Summary] avgFuelFlow:', summaryMeta.avgFuelFlow);
 
 	var departure = Array.isArray(points) && points.length ? points[0] : null;
 	var destination = Array.isArray(points) && points.length ? points[points.length - 1] : null;
@@ -2894,7 +2838,16 @@ function normalizeFlightplanData(list) {
 		return [];
 	}
 	return list.filter(function (entry) {
-		return entry && typeof entry === 'object';
+		if (!entry || typeof entry !== 'object') {
+			return false;
+		}
+		// Filter out technical runway END waypoints - we only want the runway threshold as single point
+		// RWXX_END (e.g. RW18_END) should not appear in navlog - only the threshold (RWXX)
+		var name = (entry.name || '').toUpperCase();
+		if (name.includes('_END')) {
+			return false;
+		}
+		return true;
 	});
 }
 
@@ -2979,7 +2932,7 @@ function applyCachedFlightplanIfReady() {
 	NAVLOG_DEBUG && console.log('[Navlog Debug] Applying cached flightplan data...');
 	var result = applyFlightplanToNavlog(cachedFlightplanData);
 	if (result) {
-		console.log('[Navlog] Cached flightplan applied successfully (' + cachedFlightplanData.length + ' waypoints)');
+		NAVLOG_DEBUG && console.log('[Navlog] Cached flightplan applied successfully (' + cachedFlightplanData.length + ' waypoints)');
 	} else {
 		NAVLOG_DEBUG && console.log('[Navlog Debug] applyFlightplanToNavlog returned false');
 	}
@@ -3000,7 +2953,6 @@ function logFlightplanInfo(message, extra) {
 }
 
 function handleGlobalFlightplanBroadcast(e) {
-	console.log('[Navlog] handleGlobalFlightplanBroadcast called');
 	NAVLOG_DEBUG && console.log('[Navlog Debug] handleGlobalFlightplanBroadcast called');
 	if (!e || typeof e.data !== 'string') {
 		NAVLOG_DEBUG && console.log('[Navlog Debug] No event or data is not string');
@@ -3144,7 +3096,7 @@ function applyFlightplanToNavlog(flightplan, targetKey) {
 		setNavlogFieldValue('Waypoints-IFR-Dist', '');
 
 		saveValues();
-		console.log('[Navlog] Flightplan reset completed - all fields cleared');
+		NAVLOG_DEBUG && console.log('[Navlog] Flightplan reset completed - all fields cleared');
 		return true;
 	}
 
@@ -3169,10 +3121,10 @@ function applyFlightplanToNavlog(flightplan, targetKey) {
 }
 
 function parseFlightplanPayload(payload) {
-	console.log('[parseFlightplanPayload] ====== FUNCTION CALLED ======');
-	console.log('[parseFlightplanPayload] payload type:', typeof payload);
-	console.log('[parseFlightplanPayload] payload keys:', payload ? Object.keys(payload) : 'NULL');
-	console.log('[parseFlightplanPayload] has ofp?', !!(payload && payload.ofp));
+	NAVLOG_DEBUG && console.log('[parseFlightplanPayload] ====== FUNCTION CALLED ======');
+	NAVLOG_DEBUG && console.log('[parseFlightplanPayload] payload type:', typeof payload);
+	NAVLOG_DEBUG && console.log('[parseFlightplanPayload] payload keys:', payload ? Object.keys(payload) : 'NULL');
+	NAVLOG_DEBUG && console.log('[parseFlightplanPayload] has ofp?', !!(payload && payload.ofp));
 
 	var info = {
 		waypoints: [],
@@ -3182,12 +3134,12 @@ function parseFlightplanPayload(payload) {
 		ofpData: null  // OFP-Daten für Mapping
 	};
 	if (Array.isArray(payload)) {
-		console.log('[parseFlightplanPayload] payload is Array - returning early');
+		NAVLOG_DEBUG && console.log('[parseFlightplanPayload] payload is Array - returning early');
 		info.waypoints = payload;
 		return info;
 	}
 	if (!payload || typeof payload !== 'object') {
-		console.log('[parseFlightplanPayload] payload is invalid - returning early');
+		NAVLOG_DEBUG && console.log('[parseFlightplanPayload] payload is invalid - returning early');
 		return info;
 	}
 	var root = payload;
@@ -3197,13 +3149,13 @@ function parseFlightplanPayload(payload) {
 	if (payload.pln && typeof payload.pln === 'object') {
 		root = payload.pln;
 		ofpData = payload.ofp || null;
-		console.log('[parseFlightplanPayload] Found pln+ofp format, ofpData:', ofpData ? 'exists' : 'NULL');
+		NAVLOG_DEBUG && console.log('[parseFlightplanPayload] Found pln+ofp format, ofpData:', ofpData ? 'exists' : 'NULL');
 	} else if (payload.ofp) {
 		// OFP-Daten direkt im Payload (z.B. von kneeboard.js konvertiert)
 		ofpData = payload.ofp;
-		console.log('[parseFlightplanPayload] Found direct ofp format, ofpData:', ofpData ? 'exists' : 'NULL');
+		NAVLOG_DEBUG && console.log('[parseFlightplanPayload] Found direct ofp format, ofpData:', ofpData ? 'exists' : 'NULL');
 	} else {
-		console.log('[parseFlightplanPayload] No ofp data found in payload');
+		NAVLOG_DEBUG && console.log('[parseFlightplanPayload] No ofp data found in payload');
 	}
 
 	// OFP-Daten für Mapping speichern
@@ -3225,12 +3177,8 @@ function parseFlightplanPayload(payload) {
 	var metaSource = (root.meta && typeof root.meta === 'object') ? Object.assign({}, root.meta) : {};
 
 	// OFP-Daten in metaSource übernehmen (Simbrief-spezifisch)
-	console.log('[OFP] ofpData:', ofpData);
-	console.log('[OFP] ofpData keys:', ofpData ? Object.keys(ofpData) : 'NULL');
-	NAVLOG_DEBUG && console.log('[OFP Debug] ofpData value:', ofpData);
-	NAVLOG_DEBUG && console.log('[OFP Debug] ofpData type:', typeof ofpData);
-	NAVLOG_DEBUG && console.log('[OFP Debug] ofpData is null?', ofpData === null);
-	NAVLOG_DEBUG && console.log('[OFP Debug] ofpData is undefined?', ofpData === undefined);
+	NAVLOG_DEBUG && console.log('[OFP] ofpData:', ofpData);
+	NAVLOG_DEBUG && console.log('[OFP] ofpData keys:', ofpData ? Object.keys(ofpData) : 'NULL');
 
 	if (ofpData && typeof ofpData === 'object') {
 		NAVLOG_DEBUG && console.log('[OFP Debug] Inside ofpData block - ofpData keys:', Object.keys(ofpData));
@@ -3244,8 +3192,8 @@ function parseFlightplanPayload(payload) {
 		var timesData = ofpData.Times || ofpData.times;
 		var alternateData = ofpData.Alternate || ofpData.alternate;
 		var fuelData = ofpData.Fuel || ofpData.fuel;
-		console.log('[OFP] fuelData:', fuelData);
-		console.log('[OFP] fuelData keys:', fuelData ? Object.keys(fuelData) : 'NULL');
+		NAVLOG_DEBUG && console.log('[OFP] fuelData:', fuelData);
+		NAVLOG_DEBUG && console.log('[OFP] fuelData keys:', fuelData ? Object.keys(fuelData) : 'NULL');
 
 		if (atcData && atcData.Callsign) {
 			metaSource.callsign = atcData.Callsign;
@@ -3263,15 +3211,13 @@ function parseFlightplanPayload(payload) {
 		if (generalData) {
 			if (generalData.Cruise_tas) metaSource.trueAirspeed = generalData.Cruise_tas;
 			else if (generalData.cruise_tas) metaSource.trueAirspeed = generalData.cruise_tas;
-			// Debug: Alle General-Felder ausgeben um Departure Point zu finden
-			console.log('[OFP Debug] General keys:', Object.keys(generalData));
-			console.log('[OFP Debug] General data:', JSON.stringify(generalData, null, 2));
+			NAVLOG_DEBUG && console.log('[OFP Debug] General keys:', Object.keys(generalData));
+			NAVLOG_DEBUG && console.log('[OFP Debug] General data:', JSON.stringify(generalData, null, 2));
 		}
 		// Origin/Departure Daten
 		var originData = ofpData.Origin || ofpData.origin;
-		// Debug: Origin-Felder prüfen
 		if (originData) {
-			console.log('[OFP Debug] Origin keys:', Object.keys(originData));
+			NAVLOG_DEBUG && console.log('[OFP Debug] Origin keys:', Object.keys(originData));
 		}
 		if (originData) {
 			var originIcao = originData.Icao_code || originData.icao_code;
@@ -3452,25 +3398,20 @@ function parseFlightplanPayload(payload) {
 			}
 		}
 		// Fuel Endurance aus OFP extrahieren (Stunden und Minuten)
-		console.log('[Fuel] fuelData:', fuelData);
-		console.log('[Fuel] fuelData keys:', fuelData ? Object.keys(fuelData) : 'NULL');
+		NAVLOG_DEBUG && console.log('[Fuel] fuelData:', fuelData);
 		if (fuelData) {
-			// Total Fuel (Plan Ramp = Gesamtkraftstoff beim Start)
 			var planRamp = fuelData.Plan_ramp || fuelData.plan_ramp;
 			if (planRamp !== undefined && planRamp !== null) {
 				metaSource.totalFuel = planRamp;
-				console.log('[Fuel] Total Fuel (Plan Ramp):', planRamp);
+				NAVLOG_DEBUG && console.log('[Fuel] Total Fuel (Plan Ramp):', planRamp);
 			}
 
-			// Avg Fuel Flow (Verbrauch pro Stunde)
 			var avgFuelFlow = fuelData.Avg_fuel_flow || fuelData.avg_fuel_flow;
 			if (avgFuelFlow !== undefined && avgFuelFlow !== null) {
 				metaSource.avgFuelFlow = avgFuelFlow;
-				console.log('[Fuel] Avg Fuel Flow:', avgFuelFlow);
+				NAVLOG_DEBUG && console.log('[Fuel] Avg Fuel Flow:', avgFuelFlow);
 			}
 
-			// Endurance berechnen: Gesamtkraftstoff / Verbrauch pro Stunde
-			// WICHTIG: enroute_burn ist der Verbrauch für die Strecke, NICHT die Endurance!
 			if (planRamp && avgFuelFlow && parseFloat(avgFuelFlow) > 0) {
 				var totalFuel = parseFloat(planRamp);
 				var fuelFlow = parseFloat(avgFuelFlow);
@@ -3479,12 +3420,8 @@ function parseFlightplanPayload(payload) {
 				var enduranceMins = Math.round((enduranceHoursDecimal - enduranceHours) * 60);
 				metaSource.enduranceHours = enduranceHours;
 				metaSource.enduranceMinutes = enduranceMins;
-				console.log('[Fuel] Fuel Endurance CALCULATED:', enduranceHours + 'h ' + enduranceMins + 'm (from ' + totalFuel + ' / ' + fuelFlow + ' = ' + enduranceHoursDecimal.toFixed(2) + 'h)');
-			} else {
-				console.log('[Fuel] Cannot calculate endurance - planRamp:', planRamp, 'avgFuelFlow:', avgFuelFlow);
+				NAVLOG_DEBUG && console.log('[Fuel] Fuel Endurance CALCULATED:', enduranceHours + 'h ' + enduranceMins + 'm');
 			}
-		} else {
-			console.log('[Fuel] fuelData is NULL/undefined! ofpData keys:', ofpData ? Object.keys(ofpData) : 'ofpData also NULL');
 		}
 
 		// Notes aus OFP extrahieren

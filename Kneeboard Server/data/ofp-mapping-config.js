@@ -2,21 +2,10 @@
  * OFP zu NavLog Mapping-Konfiguration
  *
  * Diese Datei definiert das Mapping zwischen Simbrief OFP-Feldern und NavLog-Feldern.
- *
- * Struktur pro Feld:
- * {
- *   navlogFieldId: {
- *     source: 'OFP.Pfad.Zum.Feld',      // Pfad im OFP-Objekt (Punkt-Notation)
- *     sourceAlt: ['Alternative.Pfad'],   // Alternative Pfade falls source leer (optional)
- *     parse: function(value, ofp) {},    // Parser-Funktion (optional) - oder String-Referenz auf OFP_PARSERS
- *     format: '{value} ft',              // Format-String mit {value} Platzhalter (optional)
- *     enabled: true                       // Aktiviert/Deaktiviert (default: true)
- *   }
- * }
- *
- * Spezielle Pfade:
- * - '_computed.fieldName' - Verwendet berechnete Felder aus OFP_COMPUTED_FIELDS
  */
+
+// Use centralized DEBUG_CONFIG if available
+var OFP_MAPPING_DEBUG = (typeof DEBUG_CONFIG !== 'undefined' && DEBUG_CONFIG.NAVLOG) || false;
 
 var OFP_NAVLOG_MAPPING = {
 
@@ -449,15 +438,13 @@ var OFP_NAVLOG_MAPPING = {
         source: 'General.Initial_altitude',
         sourceAlt: ['General.initial_altitude', 'General.Initial_alt', 'General.initial_alt', 'General.Avg_altitude', 'General.avg_altitude'],
         parse: function(value) {
-            console.log('[OFP DEBUG] Cruise-Alt raw value:', value, 'type:', typeof value);
+            OFP_MAPPING_DEBUG && console.log('[OFP DEBUG] Cruise-Alt raw value:', value, 'type:', typeof value);
             var alt = parseInt(value);
             if (isNaN(alt)) return null;
-            // SimBrief liefert Initial_altitude in feet (z.B. 17000, 35000)
-            // Durch 100 teilen für FL, dann 3-stellig formatieren
             var fl = Math.round(alt / 100);
             var flStr = String(fl);
             while (flStr.length < 3) flStr = '0' + flStr;
-            console.log('[OFP DEBUG] Cruise-Alt result: FL' + flStr);
+            OFP_MAPPING_DEBUG && console.log('[OFP DEBUG] Cruise-Alt result: FL' + flStr);
             return 'FL' + flStr;
         },
         enabled: true
@@ -595,10 +582,9 @@ var OFP_COMPUTED_FIELDS = {
                           fix.Type === 'sid' || fix.type === 'sid';
 
             if (isSidFix) {
-                // SID-Name aus Via_airway holen (dort steht z.B. "ABTA4B")
                 var via = fix.Via_airway || fix.via_airway || fix.Via || fix.via;
                 if (via) {
-                    console.log('[OFP Computed] Found SID:', via, 'at fix:', fix.Ident || fix.ident);
+                    OFP_MAPPING_DEBUG && console.log('[OFP Computed] Found SID:', via, 'at fix:', fix.Ident || fix.ident);
                     return via;
                 }
             }
@@ -627,12 +613,8 @@ var OFP_COMPUTED_FIELDS = {
             // Wenn Is_sid_star === "1" und Via_airway vorhanden
             // und es ist NICHT die SID (die SID steht am Anfang)
             if (isSidStar && via) {
-                // Prüfe ob es eine SID ist (SID endet typischerweise auf Zahl+Buchstabe wie "4B")
-                // oder STAR (STAR endet typischerweise auf Zahl+Buchstabe wie "1B")
-                // Wir nehmen die Via_airway vom letzten Is_sid_star Fix
                 starName = via;
-                console.log('[OFP Computed] Found potential STAR:', via, 'at fix:', fix.Ident || fix.ident);
-                // Weiter suchen um die erste STAR-Fix zu finden (nicht weitermachen)
+                OFP_MAPPING_DEBUG && console.log('[OFP Computed] Found potential STAR:', via, 'at fix:', fix.Ident || fix.ident);
             }
 
             // Wenn wir auf einen Fix ohne Is_sid_star stoßen, sind wir aus der STAR raus
@@ -655,15 +637,15 @@ var OFP_COMPUTED_FIELDS = {
 
             // Wenn STAR-Name gleich SID-Name, dann keine separate STAR
             if (sidName && starName === sidName) {
-                console.log('[OFP Computed] STAR same as SID, likely no STAR in flight plan');
+                OFP_MAPPING_DEBUG && console.log('[OFP Computed] STAR same as SID, likely no STAR in flight plan');
                 return null;
             }
 
-            console.log('[OFP Computed] Final STAR:', starName);
+            OFP_MAPPING_DEBUG && console.log('[OFP Computed] Final STAR:', starName);
             return starName;
         }
 
-        console.log('[OFP Computed] No STAR found');
+        OFP_MAPPING_DEBUG && console.log('[OFP Computed] No STAR found');
         return null;
     },
 

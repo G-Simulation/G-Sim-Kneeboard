@@ -84,6 +84,7 @@ namespace Kneeboard_Server.Navigraph
         public double ThresholdLat { get; set; }        // Threshold Latitude
         public double ThresholdLon { get; set; }        // Threshold Longitude
         public double Heading { get; set; }             // Magnetic Bearing
+        public double TrueHeading { get; set; }         // True Bearing (for calculations)
         public int Length { get; set; }                 // Length in feet
         public int Width { get; set; }                  // Width in feet
         public string Surface { get; set; }             // Surface type
@@ -96,17 +97,20 @@ namespace Kneeboard_Server.Navigraph
         public double EndLon { get; set; }
 
         /// <summary>
-        /// Calculate the runway end coordinates from threshold and heading
+        /// Calculate the runway end coordinates from threshold and TRUE heading
         /// </summary>
         public void CalculateEndCoordinates()
         {
             // Convert length from feet to nautical miles
             double lengthNm = Length / 6076.12;
 
-            Console.WriteLine($"[Runway DEBUG] {Identifier}: Threshold=({ThresholdLat:F6},{ThresholdLon:F6}), Heading={Heading:F1}°, Length={Length}ft");
+            // Use TRUE heading for calculation (not magnetic!)
+            double headingToUse = TrueHeading > 0 ? TrueHeading : Heading;
 
-            // Calculate end point
-            var endPoint = CalculateDestination(ThresholdLat, ThresholdLon, Heading, lengthNm);
+            Console.WriteLine($"[Runway DEBUG] {Identifier}: Threshold=({ThresholdLat:F6},{ThresholdLon:F6}), MagHdg={Heading:F1}°, TrueHdg={TrueHeading:F1}°, Using={headingToUse:F1}°, Length={Length}ft");
+
+            // Calculate end point using TRUE heading
+            var endPoint = CalculateDestination(ThresholdLat, ThresholdLon, headingToUse, lengthNm);
             EndLat = endPoint.Item1;
             EndLon = endPoint.Item2;
 
@@ -240,6 +244,10 @@ namespace Kneeboard_Server.Navigraph
         public double? RouteDistance { get => Distance; set => Distance = value; } // Alias
         public bool Overfly { get; set; }
         public bool IsFlyOver { get => Overfly; set => Overfly = value; } // Alias
+        
+        // ARINC 424 fields for transition filtering
+        public string RouteType { get; set; }  // ARINC 424 route_type (1-6)
+        public string TransitionIdentifier { get; set; }  // transition_identifier from database
     }
 
     /// <summary>
@@ -332,6 +340,8 @@ namespace Kneeboard_Server.Navigraph
         public bool Overfly { get; set; }
         public bool IsFlyOver { get => Overfly; set => Overfly = value; } // Alias
         public int SequenceNumber { get; set; }
+        public string RouteType { get; set; }
+        public string TransitionIdentifier { get; set; }
     }
 
     /// <summary>

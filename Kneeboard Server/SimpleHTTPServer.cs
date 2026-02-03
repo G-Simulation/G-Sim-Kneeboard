@@ -54,14 +54,17 @@ namespace Kneeboard_Server
             Timeout = TimeSpan.FromSeconds(15)
         };
 
+        // Source-Verzeichnis (bin\x64\Debug -> Projekt-Root)
+        private static readonly string SOURCE_DIR = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\.."));
+
         // OpenAIP Cache Configuration
-        private static readonly string CACHE_DIR = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "openaip");
+        private static readonly string CACHE_DIR = Path.Combine(SOURCE_DIR, "cache", "openaip");
         private static readonly TimeSpan CACHE_TTL = TimeSpan.FromDays(7);
         private static readonly object _cacheLock = new object();
 
         // FIR Boundaries - Permanente lokale Speicherung mit 7-Tage Auto-Update
-        private static readonly string BOUNDARIES_CACHE_DIR = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "boundaries");
-        private static readonly string BOUNDARIES_DATA_DIR = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "boundaries");
+        private static readonly string BOUNDARIES_CACHE_DIR = Path.Combine(SOURCE_DIR, "cache", "boundaries");
+        private static readonly string BOUNDARIES_DATA_DIR = Path.Combine(SOURCE_DIR, "data", "boundaries");
         private static readonly TimeSpan BOUNDARIES_CACHE_TTL = TimeSpan.FromDays(7); // 7 Tage statt 24h
         private static string _cachedVatsimBoundaries = null;
         private static DateTime _vatsimBoundariesCacheTime = DateTime.MinValue;
@@ -88,11 +91,11 @@ namespace Kneeboard_Server
         private static DateTime _preprocessedIvaoBoundariesTime = DateTime.MinValue;
 
         // Pilot Favorites Storage
-        private static readonly string FAVORITES_FILE = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "pilot_favorites.json");
+        private static readonly string FAVORITES_FILE = Path.Combine(SOURCE_DIR, "cache", "pilot_favorites.json");
         private static readonly object _favoritesLock = new object();
 
         // Baselayer Tile Cache Configuration
-        private static readonly string BASELAYER_CACHE_DIR = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "tiles");
+        private static readonly string BASELAYER_CACHE_DIR = Path.Combine(SOURCE_DIR, "cache", "tiles");
         private static readonly TimeSpan BASELAYER_CACHE_TTL = TimeSpan.FromDays(30); // 30 Tage Cache für Baselayer
         private static readonly object _baselayerCacheLock = new object();
 
@@ -165,6 +168,44 @@ namespace Kneeboard_Server
                     // Load bundled database immediately (synchronous)
                     Console.WriteLine("[Navigraph] Loading bundled database...");
                     _navigraphData.LoadBundledDatabase();
+
+                    // Enrich any persisted flightplan now that Navigraph is available
+                    Console.WriteLine($"[Navigraph] Checking if flightplan needs enrichment (length: {Kneeboard_Server.flightplan?.Length ?? 0})");
+                    bool needsEnrichment = Kneeboard_Server.FlightplanNeedsEnrichment(Kneeboard_Server.flightplan);
+                    Console.WriteLine($"[Navigraph] FlightplanNeedsEnrichment result: {needsEnrichment}");
+                    
+                    if (needsEnrichment)
+                    {
+                        Console.WriteLine("[Navigraph] Enriching persisted flightplan with procedures...");
+                        try
+                        {
+                            var enrichedFlightplan = Kneeboard_Server.EnrichFlightplanWithProceduresAsync(Kneeboard_Server.flightplan).GetAwaiter().GetResult();
+                            Console.WriteLine($"[Navigraph] Enrichment returned, length: {enrichedFlightplan?.Length ?? 0}");
+                            
+                            bool stillNeedsEnrichment = Kneeboard_Server.FlightplanNeedsEnrichment(enrichedFlightplan);
+                            Console.WriteLine($"[Navigraph] Enriched flightplan still needs enrichment: {stillNeedsEnrichment}");
+                            
+                            if (!stillNeedsEnrichment)
+                            {
+                                Kneeboard_Server.flightplan = enrichedFlightplan;
+                                Kneeboard_Server.SaveFlightplanDataToSettings();
+                                Console.WriteLine("[Navigraph] Persisted flightplan enriched and saved");
+                            }
+                            else
+                            {
+                                Console.WriteLine("[Navigraph] Enrichment completed but no procedure waypoints found");
+                            }
+                        }
+                        catch (Exception enrichEx)
+                        {
+                            Console.WriteLine($"[Navigraph] Flightplan enrichment failed: {enrichEx.Message}");
+                            Console.WriteLine($"[Navigraph] Stack: {enrichEx.StackTrace}");
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(Kneeboard_Server.flightplan))
+                    {
+                        Console.WriteLine("[Navigraph] Persisted flightplan already has procedure waypoints");
+                    }
 
                     // If already authenticated, check for updates asynchronously
                     if (_navigraphAuth.IsAuthenticated)
@@ -2349,14 +2390,16 @@ namespace Kneeboard_Server
             try
             {
                 var position = _kneeboardServer.GetSimConnectPosition();
+                var isFlightLoaded = _kneeboardServer.IsSimConnectFlightLoaded();
 
-                if (position.HasValue)
+                if (position.HasValue && isFlightLoaded)
                 {
                     var pos = position.Value;
 
                     var json = new
                     {
                         connected = true,
+                        flightLoaded = true,
                         latitude = pos.Latitude,
                         longitude = pos.Longitude,
                         altitude = pos.Altitude,
@@ -2373,7 +2416,7 @@ namespace Kneeboard_Server
                 }
                 else
                 {
-                    await ResponseJsonAsync(ctx, "{\"connected\":false}");
+                    await ResponseJsonAsync(ctx, "{\"connected\":" + (position.HasValue ? "true" : "false") + ",\"flightLoaded\":false}");
                 }
             }
             catch (Exception ex)
@@ -3252,6 +3295,7 @@ namespace Kneeboard_Server
                 {
                     Identifier = s.Identifier,
                     Runway = s.Runway,
+                    RouteType = s.RouteType,
                     TransitionIdentifier = s.TransitionIdentifier
                 }).ToList();
 
@@ -3296,6 +3340,7 @@ namespace Kneeboard_Server
                 {
                     Identifier = s.Identifier,
                     Runway = s.Runway,
+                    RouteType = s.RouteType,
                     TransitionIdentifier = s.TransitionIdentifier
                 }).ToList();
 
@@ -3379,6 +3424,7 @@ namespace Kneeboard_Server
                 // Get query parameters
                 string typeParam = ctx.Request.QueryString["type"] ?? "SID";
                 string transition = ctx.Request.QueryString["transition"] ?? "";
+                string runway = ctx.Request.QueryString["runway"] ?? "";
 
                 if (_navigraphData?.IsDataAvailable != true)
                 {
@@ -3388,7 +3434,7 @@ namespace Kneeboard_Server
                 }
 
                 // Get procedure detail using existing wrapper method
-                var procedureDetail = _navigraphData.GetProcedureDetail(icao, procedureName, transition, typeParam);
+                var procedureDetail = _navigraphData.GetProcedureDetail(icao, procedureName, transition, typeParam, runway);
 
                 if (procedureDetail == null || procedureDetail.Waypoints == null)
                 {
@@ -3404,7 +3450,7 @@ namespace Kneeboard_Server
                     Type = typeParam,
                     Transition = transition,
                     AiracCycle = procedureDetail.AiracCycle,
-                    Waypoints = procedureDetail.Waypoints.OrderBy(w => w.SequenceNumber).Select(w => new
+                    Waypoints = procedureDetail.Waypoints.Select(w => new
                     {
                         Identifier = w.Identifier,
                         Latitude = w.Latitude,
@@ -3415,7 +3461,9 @@ namespace Kneeboard_Server
                         SpeedLimit = w.SpeedLimit,
                         PathTerminator = w.PathTerminator,
                         Overfly = w.Overfly,
-                        SequenceNumber = w.SequenceNumber
+                        SequenceNumber = w.SequenceNumber,
+                        RouteType = w.RouteType,
+                        TransitionIdentifier = w.TransitionIdentifier
                     }).ToList()
                 };
 
@@ -3425,6 +3473,219 @@ namespace Kneeboard_Server
             catch (Exception ex)
             {
                 Console.WriteLine($"[Navigraph API] Procedure error: {ex.Message}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Debug endpoint to get ALL raw approach legs (including vector legs with 0,0 coordinates)
+        /// URL: /api/navigraph/approach-debug/{icao}/{procedureId}
+        /// </summary>
+        private async Task HandleApproachDebugRequest(IHttpContext ctx, string command)
+        {
+            try
+            {
+                string path = command.Replace("api/navigraph/approach-debug/", "").Trim('/');
+                string[] parts = path.Split('/');
+
+                if (parts.Length < 2)
+                {
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO and procedure ID required\"}");
+                    return;
+                }
+
+                string icao = parts[0].ToUpperInvariant();
+                string procedureId = parts[1];
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var legs = _navigraphData.GetRawApproachLegs(icao, procedureId);
+
+                var response = new
+                {
+                    Icao = icao,
+                    ProcedureId = procedureId,
+                    TotalLegs = legs.Count,
+                    Legs = legs
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                await ResponseJsonAsync(ctx, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] Approach debug error: {ex.Message}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Test endpoint using exact GetProcedureLegs SQL query
+        /// URL: /api/navigraph/approach-test/{icao}/{procedureId}
+        /// </summary>
+        private async Task HandleApproachTestRequest(IHttpContext ctx, string command)
+        {
+            try
+            {
+                string path = command.Replace("api/navigraph/approach-test/", "").Trim('/');
+                string[] parts = path.Split('/');
+
+                if (parts.Length < 2)
+                {
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO and procedure ID required\"}");
+                    return;
+                }
+
+                string icao = parts[0].ToUpperInvariant();
+                string procedureId = parts[1];
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var legs = _navigraphData.TestApproachQuery(icao, procedureId);
+
+                var response = new
+                {
+                    Icao = icao,
+                    ProcedureId = procedureId,
+                    Query = "SELECT ... FROM tbl_pf_iaps WHERE ... AND route_type NOT IN ('A', 'Z')",
+                    TotalLegs = legs.Count,
+                    Legs = legs
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                await ResponseJsonAsync(ctx, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] Approach test error: {ex.Message}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Direct test of GetProcedureLegs method
+        /// URL: /api/navigraph/approach-legs/{icao}/{procedureId}
+        /// </summary>
+        private async Task HandleApproachLegsRequest(IHttpContext ctx, string command)
+        {
+            try
+            {
+                string path = command.Replace("api/navigraph/approach-legs/", "").Trim('/');
+                string[] parts = path.Split('/');
+
+                if (parts.Length < 2)
+                {
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO and procedure ID required\"}");
+                    return;
+                }
+
+                string icao = parts[0].ToUpperInvariant();
+                string procedureId = parts[1];
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var legs = _navigraphData.TestGetProcedureLegs(icao, procedureId);
+
+                var response = new
+                {
+                    Icao = icao,
+                    ProcedureId = procedureId,
+                    Method = "GetProcedureLegs(Approach, no transition, no runway)",
+                    TotalLegs = legs.Count,
+                    Legs = legs.Select(l => new {
+                        l.SequenceNumber,
+                        l.WaypointIdentifier,
+                        l.Latitude,
+                        l.Longitude,
+                        l.RouteType,
+                        l.PathTerminator
+                    }).ToList()
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                await ResponseJsonAsync(ctx, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] Approach legs error: {ex.Message}");
+                ctx.Response.StatusCode = 500;
+                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
+            }
+        }
+
+        /// <summary>
+        /// Diagnostic test of GetProcedureLegs with detailed debug output
+        /// URL: /api/navigraph/approach-diag/{icao}/{procedureId}
+        /// </summary>
+        private async Task HandleApproachDiagRequest(IHttpContext ctx, string command)
+        {
+            try
+            {
+                string path = command.Replace("api/navigraph/approach-diag/", "").Trim('/');
+                string[] parts = path.Split('/');
+
+                if (parts.Length < 2)
+                {
+                    ctx.Response.StatusCode = 400;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO and procedure ID required\"}");
+                    return;
+                }
+
+                string icao = parts[0].ToUpperInvariant();
+                string procedureId = parts[1];
+
+                if (_navigraphData?.IsDataAvailable != true)
+                {
+                    ctx.Response.StatusCode = 503;
+                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
+                    return;
+                }
+
+                var (legs, debugLog) = _navigraphData.DiagnosticGetProcedureLegs(icao, procedureId);
+
+                var response = new
+                {
+                    Icao = icao,
+                    ProcedureId = procedureId,
+                    TotalLegs = legs.Count,
+                    DebugLog = debugLog,
+                    Legs = legs.Select(l => new {
+                        l.SequenceNumber,
+                        l.WaypointIdentifier,
+                        l.Latitude,
+                        l.Longitude,
+                        l.RouteType,
+                        l.PathTerminator
+                    }).ToList()
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
+                await ResponseJsonAsync(ctx, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Navigraph API] Approach diag error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -5274,8 +5535,8 @@ namespace Kneeboard_Server
         private static Dictionary<string, string> _iataToIcaoIndex = null;
         private static readonly object _airportIndexLock = new object();
         private static bool _airportIndexLoading = false;
-        private static readonly string GLOBAL_AIRPORTS_CACHE = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "global_airports.json");
-        private static readonly string IATA_ICAO_CACHE = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "iata_icao_mapping.json");
+        private static readonly string GLOBAL_AIRPORTS_CACHE = Path.Combine(SOURCE_DIR, "cache", "global_airports.json");
+        private static readonly string IATA_ICAO_CACHE = Path.Combine(SOURCE_DIR, "cache", "iata_icao_mapping.json");
 
         /// <summary>
         /// Starts loading the global airport index in the background.
@@ -6241,8 +6502,21 @@ namespace Kneeboard_Server
             {
                 if (Kneeboard_Server.flightplan != null)
                 {
-                    await ResponseStringAsync(ctx, Kneeboard_Server.flightplan);
-                    // Don't clear flightplan - keep it available for map auto-load
+                    // Check if flightplan needs enrichment (no procedures or empty procedures)
+                    string enrichedFlightplan = Kneeboard_Server.flightplan;
+                    if (Kneeboard_Server.FlightplanNeedsEnrichment(enrichedFlightplan))
+                    {
+                        Console.WriteLine("[getFlightplan] Enriching flightplan with procedures on demand...");
+                        enrichedFlightplan = Kneeboard_Server.EnrichFlightplanWithProceduresAsync(enrichedFlightplan).GetAwaiter().GetResult();
+                        // Update cached version if enrichment was successful
+                        if (!Kneeboard_Server.FlightplanNeedsEnrichment(enrichedFlightplan))
+                        {
+                            Kneeboard_Server.flightplan = enrichedFlightplan;
+                            Kneeboard_Server.SaveFlightplanDataToSettings();
+                            Console.WriteLine("[getFlightplan] Flightplan enriched and cached");
+                        }
+                    }
+                    await ResponseStringAsync(ctx, enrichedFlightplan);
                 }
                 else
                 {
@@ -6730,6 +7004,26 @@ namespace Kneeboard_Server
             else if (command.StartsWith("api/navigraph/procedure/", StringComparison.OrdinalIgnoreCase))
             {
                 await HandleNavigraphProcedureRequest(ctx, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/approach-debug/", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleApproachDebugRequest(ctx, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/approach-test/", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleApproachTestRequest(ctx, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/approach-legs/", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleApproachLegsRequest(ctx, command);
+                return;
+            }
+            else if (command.StartsWith("api/navigraph/approach-diag/", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleApproachDiagRequest(ctx, command);
                 return;
             }
             else if (command == "api/debug/config" && ctx.Request.HttpMethod == "GET")

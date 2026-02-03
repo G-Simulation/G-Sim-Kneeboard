@@ -1,4 +1,4 @@
-var DOCUMENTS_DEBUG = false;
+var DOCUMENTS_DEBUG = (typeof DEBUG_CONFIG !== 'undefined' && DEBUG_CONFIG.DOCUMENTS) || false;
 
 // Zentraler Logger - nutzt KneeboardLogger falls verfügbar
 var docsLogger = (typeof KneeboardLogger !== 'undefined')

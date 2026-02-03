@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
@@ -18,8 +19,10 @@ namespace Kneeboard_Server.Navigraph
         private const string NAVDATA_API = "https://api.navigraph.com/v1/navdata";
         private const string PACKAGES_ENDPOINT = NAVDATA_API + "/packages";
 
-        // Paths
-        private static readonly string NAVIGRAPH_FOLDER = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Navigraph");
+        // Paths - Source-Verzeichnis (bin\x64\Debug -> Projekt-Root)
+        private static readonly string NAVIGRAPH_FOLDER = Path.Combine(
+            Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..")),
+            "Navigraph");
         private static readonly string BUNDLED_DB = "ng_jeppesen_fwdfd_2403.s3db";
         private static readonly string DOWNLOADED_DB = "ng_jeppesen_current.s3db";
 
@@ -469,7 +472,7 @@ namespace Kneeboard_Server.Navigraph
         /// <summary>
         /// Get procedure detail (legs)
         /// </summary>
-        public ProcedureDetail GetProcedureDetail(string icao, string procedureName, string transition, string type)
+        public ProcedureDetail GetProcedureDetail(string icao, string procedureName, string transition, string type, string runway = null)
         {
             if (_dbService == null) return null;
 
@@ -491,7 +494,36 @@ namespace Kneeboard_Server.Navigraph
                     break;
             }
 
-            var legs = _dbService.GetProcedureLegs(icao, procedureName, procType, transition);
+            List<ProcedureLeg> legs;
+            if (procType == ProcedureType.Approach)
+            {
+                var (diagLegs, _) = _dbService.GetProcedureLegsWithDebug(icao, procedureName, procType);
+                legs = diagLegs;
+                Log($"[Navigraph] GetProcedureDetail: Using DIAG for Approach, got {legs.Count} legs");
+            }
+            else
+            {
+                legs = _dbService.GetProcedureLegs(icao, procedureName, procType, transition, runway);
+            }
+
+            // For SIDs/STARs, filter to single path to avoid drawing multiple runway transitions
+            // Pass both transition AND runway so filtering can select the correct runway transition
+            // NOTE: Approaches are NOT filtered here - their SQL query already returns the correct legs
+            if (legs.Count > 0 && procType != ProcedureType.Approach)
+            {
+                Log($"[Navigraph] GetProcedureDetail: Filtering legs (Count: {legs.Count}, Trans: '{transition ?? "null"}', Runway: '{runway ?? "null"}')");
+
+                if (string.IsNullOrEmpty(transition) && string.IsNullOrEmpty(runway))
+                {
+                    legs = FilterToSinglePath(legs, procType);
+                }
+                else
+                {
+                    legs = FilterBySpecificTransition(legs, transition, procType, runway);
+                }
+            }
+
+            legs = SortProcedureLegs(legs, procType);
 
             var detail = new ProcedureDetail
             {
@@ -513,7 +545,9 @@ namespace Kneeboard_Server.Navigraph
                     Course = leg.Course,
                     Distance = leg.Distance,
                     Overfly = leg.Overfly,
-                    SequenceNumber = leg.SequenceNumber
+                    SequenceNumber = leg.SequenceNumber,
+                    RouteType = leg.RouteType,
+                    TransitionIdentifier = leg.TransitionIdentifier
                 })
             };
 
@@ -521,11 +555,169 @@ namespace Kneeboard_Server.Navigraph
         }
 
         /// <summary>
+        /// Filter legs to ensure a single valid path is returned.
+        /// Filters multiple runway transitions to just the first one.
+        /// Filters multiple enroute transitions (for STARs) to just the first one.
+        /// Replaces duplicate/overlapping paths with a single representative path.
+        /// </summary>
+        private List<ProcedureLeg> FilterToSinglePath(List<ProcedureLeg> legs, ProcedureType type)
+        {
+            if (legs.Count == 0) return legs;
+
+            string firstRunwayTransId = null;
+            string firstEnrouteTransId = null;
+            bool foundRunwayTrans = false;
+            bool foundEnrouteTrans = false;
+
+            // First pass: identify the IDs we want to keep
+            foreach (var leg in legs)
+            {
+                var rt = leg.RouteType;
+
+                // Identify Runway Transition legs
+                // SID: 4, STAR: 3, 6
+                bool isRunwayTrans = (type == ProcedureType.SID && rt == "4") ||
+                                     (type == ProcedureType.STAR && (rt == "3" || rt == "6"));
+
+                if (isRunwayTrans && !foundRunwayTrans)
+                {
+                    firstRunwayTransId = leg.TransitionIdentifier;
+                    foundRunwayTrans = true;
+                }
+
+                // Identify Enroute Transition legs (STAR only)
+                // SID Enroute transitions are already filtered out by SQL when transition is null
+                // STAR: 1, 4
+                bool isEnrouteTrans = (type == ProcedureType.STAR && (rt == "1" || rt == "4"));
+
+                if (isEnrouteTrans && !foundEnrouteTrans)
+                {
+                    firstEnrouteTransId = leg.TransitionIdentifier;
+                    foundEnrouteTrans = true;
+                }
+            }
+
+            // Second pass: Filter
+            var filtered = legs.Where(leg =>
+            {
+                var rt = leg.RouteType;
+
+                // Common Route: Always keep
+                // SID: 5, STAR: 2, 5
+                bool isCommon = (type == ProcedureType.SID && rt == "5") ||
+                                (type == ProcedureType.STAR && (rt == "2" || rt == "5"));
+                if (isCommon) return true;
+
+                // Runway Transition: Keep if matches first ID
+                bool isRunwayTrans = (type == ProcedureType.SID && rt == "4") ||
+                                     (type == ProcedureType.STAR && (rt == "3" || rt == "6"));
+                if (isRunwayTrans)
+                {
+                    return leg.TransitionIdentifier == firstRunwayTransId;
+                }
+
+                // Enroute Transition: Keep if matches first ID (STAR only)
+                // For SID, if Type 6 exists here (shouldn't), we filter it out? 
+                // No, let's allow it if it matches first ID, just to be safe.
+                bool isEnrouteTrans = (type == ProcedureType.STAR && (rt == "1" || rt == "4")) ||
+                                      (type == ProcedureType.SID && rt == "6");
+                if (isEnrouteTrans)
+                {
+                    // For SID type 6, we didn't capture ID above because we assumed SQL filtered it.
+                    // But if SQL didn't, we should handle it.
+                    if (type == ProcedureType.SID && rt == "6")
+                    {
+                        if (firstEnrouteTransId == null) firstEnrouteTransId = leg.TransitionIdentifier;
+                        return leg.TransitionIdentifier == firstEnrouteTransId;
+                    }
+                    return leg.TransitionIdentifier == firstEnrouteTransId;
+                }
+
+                // Default keep (for other types if any)
+                return true;
+            }).ToList();
+
+            Log($"[NavigraphData] Filtered {legs.Count} legs to {filtered.Count} (Single Path - RwyTrans: {firstRunwayTransId ?? "none"}, EnrTrans: {firstEnrouteTransId ?? "none"})");
+            return filtered;
+        }
+
+        private static int GetRouteTypeOrder(string routeType, ProcedureType type)
+        {
+            if (type == ProcedureType.SID)
+            {
+                if (routeType == "4") return 0;
+                if (routeType == "5") return 1;
+                if (routeType == "6") return 2;
+                return 3;
+            }
+
+            if (type == ProcedureType.STAR)
+            {
+                if (routeType == "1" || routeType == "4") return 0;
+                if (routeType == "2" || routeType == "5") return 1;
+                if (routeType == "3" || routeType == "6") return 2;
+                return 3;
+            }
+
+            return 0;
+        }
+
+        private static List<ProcedureLeg> SortProcedureLegs(List<ProcedureLeg> legs, ProcedureType procType)
+        {
+            if (legs == null || legs.Count <= 1) return legs;
+
+            return legs
+                .Select((leg, idx) => new { leg, idx })
+                .OrderBy(x => GetRouteTypeOrder(x.leg.RouteType, procType))
+                .ThenBy(x => x.leg.SequenceNumber)
+                .ThenBy(x => x.idx)
+                .Select(x => x.leg)
+                .ToList();
+        }
+
+        /// <summary>
         /// Get procedure detail (with ProcedureType enum)
         /// </summary>
-        public ProcedureDetail GetProcedureDetail(string icao, string procedureName, string transition, ProcedureType procType)
+        public ProcedureDetail GetProcedureDetail(string icao, string procedureName, string transition, ProcedureType procType, string runway = null)
         {
-            return GetProcedureDetail(icao, procedureName, transition, procType.ToString());
+            return GetProcedureDetail(icao, procedureName, transition, procType.ToString(), runway);
+        }
+
+        /// <summary>
+        /// Get ALL raw approach legs for debugging (no coordinate filtering)
+        /// </summary>
+        public List<Dictionary<string, object>> GetRawApproachLegs(string icao, string procedureId)
+        {
+            return _dbService?.GetRawApproachLegs(icao, procedureId) ?? new List<Dictionary<string, object>>();
+        }
+
+        /// <summary>
+        /// Test the exact GetProcedureLegs SQL query
+        /// </summary>
+        public List<Dictionary<string, object>> TestApproachQuery(string icao, string procedureId)
+        {
+            return _dbService?.TestApproachQuery(icao, procedureId) ?? new List<Dictionary<string, object>>();
+        }
+
+        /// <summary>
+        /// Direct test of GetProcedureLegs for Approach (no additional filtering)
+        /// NOW USES DIAGNOSTIC VERSION TO BYPASS BUG
+        /// </summary>
+        public List<ProcedureLeg> TestGetProcedureLegs(string icao, string procedureId)
+        {
+            if (_dbService == null) return new List<ProcedureLeg>();
+            var (legs, _) = _dbService.GetProcedureLegsWithDebug(icao, procedureId, ProcedureType.Approach);
+            Console.WriteLine($"[NavigraphData] TestGetProcedureLegs DIAG: Got {legs.Count} legs");
+            return legs;
+        }
+
+        /// <summary>
+        /// Diagnostic test of GetProcedureLegs with detailed debug output
+        /// </summary>
+        public (List<ProcedureLeg> Legs, List<string> DebugLog) DiagnosticGetProcedureLegs(string icao, string procedureId)
+        {
+            if (_dbService == null) return (new List<ProcedureLeg>(), new List<string> { "ERROR: _dbService is null" });
+            return _dbService.GetProcedureLegsWithDebug(icao, procedureId, ProcedureType.Approach);
         }
 
         /// <summary>
@@ -568,6 +760,152 @@ namespace Kneeboard_Server.Navigraph
         private void NotifyStatusChanged()
         {
             OnStatusChanged?.Invoke(this, GetStatus());
+        }
+
+        /// <summary>
+        /// Filter procedure legs to keep only legs belonging to the specific transition
+        /// This prevents drawing all transitions and shows only the selected one
+        /// </summary>
+        private List<ProcedureLeg> FilterBySpecificTransition(List<ProcedureLeg> legs, string transition, ProcedureType procType, string runway = null)
+        {
+            if (legs.Count == 0 || string.IsNullOrEmpty(transition)) return legs;
+
+            Console.WriteLine($"[Navigraph] FilterBySpecificTransition: filtering {legs.Count} legs for transition '{transition}' ({procType})");
+
+            // Group legs by route_type and transition_identifier
+            var legGroups = legs.GroupBy(leg => new { 
+                RouteType = leg.RouteType ?? "", 
+                TransitionId = leg.TransitionIdentifier ?? "" 
+            }).ToList();
+
+            Console.WriteLine($"[Navigraph] Found {legGroups.Count()} leg groups:");
+            foreach (var group in legGroups)
+            {
+                Console.WriteLine($"  - RouteType: {group.Key.RouteType}, TransitionId: '{group.Key.TransitionId}', Count: {group.Count()}");
+            }
+
+            var filteredLegs = new List<ProcedureLeg>();
+
+            if (procType == ProcedureType.SID)
+            {
+                foreach (var group in legGroups)
+                {
+                    var routeType = group.Key.RouteType;
+                    var transitionId = group.Key.TransitionId;
+
+                    if (routeType == "5")
+                    {
+                        filteredLegs.AddRange(group);
+                        Console.WriteLine($"  -> Including Common Route legs (RouteType 5)");
+                    }
+                    else if (routeType == "6" && transitionId == transition)
+                    {
+                        filteredLegs.AddRange(group);
+                        Console.WriteLine($"  -> Including Enroute Transition legs (RouteType 6, TransitionId '{transitionId}')");
+                    }
+                    else if (routeType == "4")
+                    {
+                        var hasRunwayTransition = filteredLegs.Any(l => l.RouteType == "4");
+
+                        // If no runway specified, only include the FIRST runway transition
+                        if (string.IsNullOrEmpty(runway))
+                        {
+                            if (!hasRunwayTransition)
+                            {
+                                filteredLegs.AddRange(group);
+                                Console.WriteLine($"  -> Including first Runway Transition legs (RouteType 4, TransitionId '{transitionId}') - no runway specified");
+                            }
+                            else
+                            {
+                                Console.WriteLine($"  -> Skipping additional Runway Transition (RouteType 4, TransitionId '{transitionId}') - already have one");
+                            }
+                        }
+                        else
+                        {
+                            // Normalize runway for comparison
+                            string normalizedRunway = runway.StartsWith("RW") ? runway : $"RW{runway}";
+                            string normalizedTransId = transitionId ?? "";
+
+                            // Check if this transition matches the selected runway
+                            bool matchesRunway = normalizedTransId == normalizedRunway ||
+                                                 normalizedTransId == runway ||
+                                                 normalizedTransId.Replace("RW", "") == runway.Replace("RW", "");
+
+                            if (matchesRunway)
+                            {
+                                filteredLegs.AddRange(group);
+                                Console.WriteLine($"  -> Including matching Runway Transition legs (RouteType 4, TransitionId '{transitionId}', matches runway '{runway}')");
+                            }
+                            else
+                            {
+                                Console.WriteLine($"  -> Skipping non-matching Runway Transition (RouteType 4, TransitionId '{transitionId}', expected runway '{runway}')");
+                            }
+                        }
+                    }
+                }
+            }
+            else if (procType == ProcedureType.STAR)
+            {
+                foreach (var group in legGroups)
+                {
+                    var routeType = group.Key.RouteType;
+                    var transitionId = group.Key.TransitionId;
+
+                    if (routeType == "2" || routeType == "5")
+                    {
+                        filteredLegs.AddRange(group);
+                        Console.WriteLine($"  -> Including Common Route legs (RouteType {routeType})");
+                    }
+                    else if ((routeType == "1" || routeType == "4") && transitionId == transition)
+                    {
+                        filteredLegs.AddRange(group);
+                        Console.WriteLine($"  -> Including Enroute Transition legs (RouteType {routeType}, TransitionId '{transitionId}')");
+                    }
+                    else if (routeType == "3" || routeType == "6")
+                    {
+                        var hasRunwayTransition = filteredLegs.Any(l => l.RouteType == "3" || l.RouteType == "6");
+
+                        // If no runway specified, only include the FIRST runway transition
+                        if (string.IsNullOrEmpty(runway))
+                        {
+                            if (!hasRunwayTransition)
+                            {
+                                filteredLegs.AddRange(group);
+                                Console.WriteLine($"  -> Including first Runway Transition legs (RouteType {routeType}, TransitionId '{transitionId}') - no runway specified");
+                            }
+                            else
+                            {
+                                Console.WriteLine($"  -> Skipping additional Runway Transition (RouteType {routeType}, TransitionId '{transitionId}') - already have one");
+                            }
+                        }
+                        else
+                        {
+                            // Normalize runway for comparison
+                            string normalizedRunway = runway.StartsWith("RW") ? runway : $"RW{runway}";
+                            string normalizedTransId = transitionId ?? "";
+
+                            // Check if this transition matches the selected runway
+                            bool matchesRunway = normalizedTransId == normalizedRunway ||
+                                                 normalizedTransId == runway ||
+                                                 normalizedTransId.Replace("RW", "") == runway.Replace("RW", "");
+
+                            if (matchesRunway)
+                            {
+                                filteredLegs.AddRange(group);
+                                Console.WriteLine($"  -> Including matching Runway Transition legs (RouteType {routeType}, TransitionId '{transitionId}', matches runway '{runway}')");
+                            }
+                            else
+                            {
+                                Console.WriteLine($"  -> Skipping non-matching Runway Transition (RouteType {routeType}, TransitionId '{transitionId}', expected runway '{runway}')");
+                            }
+                        }
+                    }
+                }
+            }
+
+            Console.WriteLine($"[Navigraph] FilterBySpecificTransition: filtered from {legs.Count} to {filteredLegs.Count} legs");
+
+            return SortProcedureLegs(filteredLegs, procType);
         }
 
         /// <summary>

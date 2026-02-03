@@ -23,6 +23,7 @@ using System.Xml.Serialization;
 using static Kneeboard_Server.Simbrief;
 using static Kneeboard_Server.Waypoints;
 using Kneeboard_Server.Logging;
+using Kneeboard_Server.Navigraph;
 
 using Path = System.IO.Path;
 
@@ -1270,8 +1271,10 @@ namespace Kneeboard_Server
 
         private void KneeboardServer_Load(object sender, EventArgs e)
         {
-            folderpath = AppDomain.CurrentDomain.BaseDirectory;
-            
+            // Direkt das Quellverzeichnis verwenden (bin\x64\Debug -> Projekt-Root)
+            folderpath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\.."));
+            Console.WriteLine($"[Server] Data directory: {folderpath}\\data");
+
             KneeboardLogger.Initialize(consoleOutput: true, fileOutput: true, minLevel: KneeboardLogger.Level.DEBUG);
             KneeboardLogger.Server("Kneeboard Server starting...");
             KneeboardLogger.CleanupOldLogs(keepDays: 7);
@@ -1900,6 +1903,11 @@ namespace Kneeboard_Server
         public bool IsSimConnectConnected()
         {
             return simConnectManager?.IsConnected ?? false;
+        }
+
+        public bool IsSimConnectFlightLoaded()
+        {
+            return simConnectManager?.IsFlightLoaded() ?? false;
         }
 
         public void SimConnectTeleport(double lat, double lng, double? altitude = null, double? heading = null, double? speed = null)
@@ -2838,6 +2846,46 @@ namespace Kneeboard_Server
         }
 
         /// <summary>
+        /// Check if flightplan needs enrichment (no procedures, or procedures exist but all are null/empty)
+        /// </summary>
+        public static bool FlightplanNeedsEnrichment(string flightplanJson)
+        {
+            if (string.IsNullOrEmpty(flightplanJson))
+                return false;
+
+            if (!flightplanJson.Contains("\"procedures\""))
+                return true;
+
+            try
+            {
+                var jobj = Newtonsoft.Json.Linq.JObject.Parse(flightplanJson);
+                var proc = jobj["procedures"];
+                if (proc == null || proc.Type == Newtonsoft.Json.Linq.JTokenType.Null)
+                {
+                    Console.WriteLine("[FlightplanNeedsEnrichment] procedures is null");
+                    return true;
+                }
+
+                var sidWaypoints = proc["sid"]?["waypoints"] as Newtonsoft.Json.Linq.JArray;
+                var starWaypoints = proc["star"]?["waypoints"] as Newtonsoft.Json.Linq.JArray;
+                var approachWaypoints = proc["approach"]?["waypoints"] as Newtonsoft.Json.Linq.JArray;
+
+                bool hasSid = sidWaypoints != null && sidWaypoints.Count > 0;
+                bool hasStar = starWaypoints != null && starWaypoints.Count > 0;
+                bool hasApproach = approachWaypoints != null && approachWaypoints.Count > 0;
+
+                Console.WriteLine($"[FlightplanNeedsEnrichment] SID: {sidWaypoints?.Count ?? 0}, STAR: {starWaypoints?.Count ?? 0}, Approach: {approachWaypoints?.Count ?? 0}");
+
+                return !hasSid && !hasStar && !hasApproach;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[FlightplanNeedsEnrichment] Exception: {ex.Message}");
+                return true;
+            }
+        }
+
+        /// <summary>
         /// Enrich flightplan JSON with detailed SID/STAR waypoints
         /// Uses Navigraph (if available) or SimConnect (if MSFS 2024 running)
         /// </summary>
@@ -2875,6 +2923,12 @@ namespace Kneeboard_Server
                 string arrivalIcao = (string)flightPlan.DestinationID;
                 string sidName = null;
                 string starName = null;
+                string approachName = null;
+                string sidTransition = null;
+                string starTransition = null;
+                string approachTransition = null;
+                string departureRunway = null;
+                string arrivalRunway = null;
 
                 // Extract SID/STAR names from ATCWaypoints
                 var waypoints = flightPlan.ATCWaypoint;
@@ -2892,25 +2946,49 @@ namespace Kneeboard_Server
                     }
                 }
 
+                // Extract transitions and runways from OFP data
+                var ofp = flightplanData.ofp;
+                if (ofp != null)
+                {
+                    var general = ofp.General ?? ofp.general;
+                    var origin = ofp.Origin ?? ofp.origin;
+                    var destination = ofp.Destination ?? ofp.destination;
+
+                    if (general != null)
+                    {
+                        sidTransition = (string)(general.Sid_trans ?? general.sid_trans);
+                        starTransition = (string)(general.Star_trans ?? general.star_trans);
+                        approachName = (string)(general.Approach_name ?? general.approach_name ??
+                                                general.App_name ?? general.app_name ??
+                                                general.Appr_type ?? general.appr_type);
+                        approachTransition = (string)(general.App_trans ?? general.app_trans ??
+                                                      general.Approach_trans ?? general.approach_trans);
+                    }
+                    if (origin != null)
+                    {
+                        departureRunway = (string)(origin.Plan_rwy ?? origin.plan_rwy);
+                    }
+                    if (destination != null)
+                    {
+                        arrivalRunway = (string)(destination.Plan_rwy ?? destination.plan_rwy);
+                    }
+                }
+
                 Console.WriteLine($"[SID/STAR Enrich] Departure: {departureIcao}, Arrival: {arrivalIcao}");
-                Console.WriteLine($"[SID/STAR Enrich] SID: {sidName ?? "none"}, STAR: {starName ?? "none"}");
+                Console.WriteLine($"[SID/STAR Enrich] SID: {sidName ?? "none"} (trans: {sidTransition ?? "none"}, rwy: {departureRunway ?? "none"})");
+                Console.WriteLine($"[SID/STAR Enrich] STAR: {starName ?? "none"} (trans: {starTransition ?? "none"}, rwy: {arrivalRunway ?? "none"})");
+                Console.WriteLine($"[SID/STAR Enrich] Approach: {approachName ?? "none"} (trans: {approachTransition ?? "none"})");
 
-                // Create procedures object
-                var procedures = new
+                // Try to get detailed waypoints with transitions
+                var sidWaypoints = await GetProcedureWaypointsAsync(departureIcao, sidName, "SID", sidTransition, departureRunway);
+                var starWaypoints = await GetProcedureWaypointsAsync(arrivalIcao, starName, "STAR", starTransition, arrivalRunway);
+                var approachWaypoints = await GetProcedureWaypointsAsync(arrivalIcao, approachName, "APPROACH", approachTransition, arrivalRunway);
+
+                if (sidWaypoints.Count > 0 || starWaypoints.Count > 0 || approachWaypoints.Count > 0)
                 {
-                    sid = (object)null,
-                    star = (object)null
-                };
+                    Console.WriteLine($"[SID/STAR Enrich] Got {sidWaypoints.Count} SID, {starWaypoints.Count} STAR, {approachWaypoints.Count} Approach waypoints");
 
-                // Try to get detailed waypoints
-                var sidWaypoints = await GetProcedureWaypointsAsync(departureIcao, sidName, "SID");
-                var starWaypoints = await GetProcedureWaypointsAsync(arrivalIcao, starName, "STAR");
-
-                if (sidWaypoints.Count > 0 || starWaypoints.Count > 0)
-                {
-                    Console.WriteLine($"[SID/STAR Enrich] Got {sidWaypoints.Count} SID waypoints, {starWaypoints.Count} STAR waypoints");
-
-                    // Create enriched flightplan
+                    // Create enriched flightplan with transition info
                     var enrichedData = new
                     {
                         pln = flightplanData.pln,
@@ -2921,25 +2999,41 @@ namespace Kneeboard_Server
                             {
                                 name = sidName,
                                 airport = departureIcao,
+                                transition = sidTransition,
+                                runway = departureRunway,
                                 waypoints = sidWaypoints
                             } : null,
                             star = starWaypoints.Count > 0 ? new
                             {
                                 name = starName,
                                 airport = arrivalIcao,
+                                transition = starTransition,
+                                runway = arrivalRunway,
                                 waypoints = starWaypoints
+                            } : null,
+                            approach = approachWaypoints.Count > 0 ? new
+                            {
+                                name = approachName,
+                                airport = arrivalIcao,
+                                transition = approachTransition,
+                                runway = arrivalRunway,
+                                waypoints = approachWaypoints
                             } : null
                         }
                     };
 
-                    return JsonConvert.SerializeObject(enrichedData);
+                    var result = JsonConvert.SerializeObject(enrichedData);
+                    Console.WriteLine($"[SID/STAR Enrich] Enriched JSON length: {result.Length}, contains procedures: {result.Contains("\"procedures\"")}");
+                    return result;
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[SID/STAR Enrich] Error: {ex.Message}");
+                Console.WriteLine($"[SID/STAR Enrich] StackTrace: {ex.StackTrace}");
             }
 
+            Console.WriteLine("[SID/STAR Enrich] Returning original flightplan (no procedures enriched)");
             return flightplanJson;
         }
 
@@ -2947,7 +3041,7 @@ namespace Kneeboard_Server
         /// Get procedure waypoints from available sources
         /// Priority: 1. NavdataDatabase (SQLite), 2. SimConnect live (fallback), 3. BGL files
         /// </summary>
-        private static async Task<List<object>> GetProcedureWaypointsAsync(string icao, string procedureName, string type)
+        private static async Task<List<object>> GetProcedureWaypointsAsync(string icao, string procedureName, string type, string transition = null, string runway = null)
         {
             var waypoints = new List<object>();
 
@@ -2956,9 +3050,47 @@ namespace Kneeboard_Server
 
             try
             {
+                var navigraphData = SimpleHTTPServer.GetNavigraphData();
+                if (navigraphData != null && navigraphData.IsDataAvailable)
+                {
+                    Console.WriteLine($"[SID/STAR] Querying Navigraph for {icao}/{procedureName} type={type} trans={transition ?? "none"} rwy={runway ?? "none"}");
 
+                    var detail = navigraphData.GetProcedureDetail(icao, procedureName, transition, type, runway);
+                    if (detail != null && detail.Waypoints != null && detail.Waypoints.Count > 0)
+                    {
+                        var wpNames = string.Join(", ", detail.Waypoints.Select(w => w.Identifier));
+                        Console.WriteLine($"[SID/STAR] Found {detail.Waypoints.Count} waypoints from Navigraph: {wpNames}");
 
+                        foreach (var wp in detail.Waypoints)
+                        {
+                            if (Math.Abs(wp.Latitude) < 0.001 && Math.Abs(wp.Longitude) < 0.001)
+                                continue;
 
+                            waypoints.Add(new
+                            {
+                                name = wp.Identifier,
+                                lat = wp.Latitude,
+                                lng = wp.Longitude,
+                                altitude = wp.Altitude1 ?? 0,
+                                altitudeConstraint = wp.AltitudeConstraint,
+                                speedLimit = wp.SpeedLimit,
+                                overfly = wp.Overfly,
+                                sequenceNumber = wp.SequenceNumber,
+                                routeType = wp.RouteType,
+                                transitionIdentifier = wp.TransitionIdentifier
+                            });
+                        }
+                        Console.WriteLine($"[SID/STAR] Added {waypoints.Count} waypoints (after filtering zero-coords)");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[SID/STAR] No waypoints found in Navigraph for {procedureName}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[SID/STAR] Navigraph data not available");
+                }
             }
             catch (Exception ex)
             {
@@ -2976,13 +3108,13 @@ namespace Kneeboard_Server
 
         private void label1_Click(object sender, EventArgs e)
         {
-            string[] filesPath = System.IO.Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory + "data/");
+            string[] filesPath = System.IO.Directory.GetFiles(folderpath + @"\data\");
             foreach (string filePath in filesPath)
             {
                 string fileName = System.IO.Path.GetFileName(filePath).ToLower();
                 if (fileName.StartsWith("kneeboard_manual"))
                 {
-                    System.Diagnostics.Process.Start(AppDomain.CurrentDomain.BaseDirectory + "data/manuals/Kneeboard_Manual_EN.pdf");
+                    System.Diagnostics.Process.Start(folderpath + @"\data\manuals\Kneeboard_Manual_EN.pdf");
                     Console.WriteLine("open: " + fileName);
                 }
             }

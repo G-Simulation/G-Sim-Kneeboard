@@ -565,6 +565,11 @@ button.getMetar i {
     overflow: hidden;
     padding: 0;
     font-family: "Roboto-Light", sans-serif;
+    /* Smooth transitions and GPU acceleration */
+    -webkit-transition: opacity 0.15s ease-out;
+    transition: opacity 0.15s ease-out;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
 }
 
 #metarContainer .resize-handle {
@@ -1042,6 +1047,11 @@ h4 {
     overflow: hidden;
     max-height: 60vh;
     z-index: 1000;
+    /* Smooth transitions and GPU acceleration */
+    -webkit-transition: opacity 0.15s ease-out;
+    transition: opacity 0.15s ease-out;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
 }
 
 /* Flightplan Panel Grabbar - auf gleicher Z-Ebene wie das Panel */
@@ -1111,6 +1121,11 @@ h4 {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    /* Smooth transitions and GPU acceleration */
+    -webkit-transition: opacity 0.15s ease-out;
+    transition: opacity 0.15s ease-out;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
 }
 
 #controllerListClose {
@@ -1199,7 +1214,7 @@ div#controllerHeaderDiv {
 
 #overlay2 {
     width: 100%;
-    min-height: 4vh;
+    min-height: 1em;
     max-height: 6vh;                 /* viewport-basiert wie andere Panels */
     left: 1vh;
     bottom: 8vh;
@@ -2355,6 +2370,67 @@ input[type=number]::-webkit-outer-spin-button {
     animation: sync-pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* GPU-accelerated SVG sync pulse animation */
+svg.sync-pulsing {
+    -webkit-animation: svg-sync-pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: svg-sync-pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-transform-origin: center center;
+    transform-origin: center center;
+}
+
+@-webkit-keyframes svg-sync-pulse {
+    0% { opacity: 0.7; -webkit-transform: translateZ(0) scale(1); }
+    25% { opacity: 0.85; -webkit-transform: translateZ(0) scale(1.08); }
+    50% { opacity: 1; -webkit-transform: translateZ(0) scale(1.15); }
+    75% { opacity: 0.85; -webkit-transform: translateZ(0) scale(1.08); }
+    100% { opacity: 0.7; -webkit-transform: translateZ(0) scale(1); }
+}
+
+@keyframes svg-sync-pulse {
+    0% { opacity: 0.7; transform: translateZ(0) scale(1); }
+    25% { opacity: 0.85; transform: translateZ(0) scale(1.08); }
+    50% { opacity: 1; transform: translateZ(0) scale(1.15); }
+    75% { opacity: 0.85; transform: translateZ(0) scale(1.08); }
+    100% { opacity: 0.7; transform: translateZ(0) scale(1); }
+}
+
+svg.sync-pulsing path {
+    -webkit-animation: svg-sync-pulse-color 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: svg-sync-pulse-color 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@-webkit-keyframes svg-sync-pulse-color {
+    0% { fill: rgb(128, 128, 128); }
+    50% { fill: rgb(34, 197, 94); }
+    100% { fill: rgb(128, 128, 128); }
+}
+
+@keyframes svg-sync-pulse-color {
+    0% { fill: rgb(128, 128, 128); }
+    50% { fill: rgb(34, 197, 94); }
+    100% { fill: rgb(128, 128, 128); }
+}
+
+/* Container background pulse */
+.sync-pulsing-container {
+    -webkit-animation: sync-container-pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: sync-container-pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@-webkit-keyframes sync-container-pulse {
+    0% { background-color: rgba(128, 128, 128, 0.2); }
+    50% { background-color: rgba(34, 197, 94, 0.3); }
+    100% { background-color: rgba(128, 128, 128, 0.2); }
+}
+
+@keyframes sync-container-pulse {
+    0% { background-color: rgba(128, 128, 128, 0.2); }
+    50% { background-color: rgba(34, 197, 94, 0.3); }
+    100% { background-color: rgba(128, 128, 128, 0.2); }
+}
+
 .refreshIcon {
     color: gray;
     display: inline-block;
@@ -2569,6 +2645,9 @@ i.gg-data{
     min-height: 25vh;
     /* Height controlled by JavaScript inline styles */
     background: rgba(255, 255, 255, 0.95);
+    /* GPU acceleration for smoother animations */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
     border-top: 2px solid rgba(0, 0, 0, 0.2);
     box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.1);
     overflow: hidden;
@@ -3152,7 +3231,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     flex: 1 1 auto;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 8px 0;
+    padding: 8px 15px;
 }
 
 /* Panel List */
@@ -3843,38 +3922,51 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 /* Section Styling */
 .fp-section {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    background: white;
+    border-bottom: 1px solid #e0e0e0;
 }
 
 .fp-section:last-of-type {
     border-bottom: none;
 }
 
-/* Section Headers - Compact with integrated airport info */
+/* Section Headers - Clean white style like popups */
 .fp-section-header {
-    background: linear-gradient(135deg, var(--dark) 0%, #4a5568 100%);
+    background-color:  var(--dark);
+    opacity: 60%;
+    border-bottom: 1px solid #e0e0e0;
     color: var(--fontLight);
     font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    padding: 2px 6px;
+    letter-spacing: 0.5px;
+    padding: 4px 8px;
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
+.fp-departure .fp-section-header {
+    background-color:  rgb(70, 195, 51);
+    opacity: 60%;
+}
+
+.fp-arrival .fp-section-header {
+    background-color:  rgb(255, 198, 0);
+    opacity: 60%;
+}
+
 .fp-section-header .fp-icao {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
-    color: #fff;
+    color: var(--fontLight);
     letter-spacing: 0.5px;
 }
 
 .fp-section-header .fp-name {
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 400;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--fontLight);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3914,9 +4006,9 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 .fp-selectors {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 2px 4px;
-    padding: 3px 5px;
-    background: rgba(255, 255, 255, 0.5);
+    gap: 4px 6px;
+    padding: 6px 8px;
+    background: white;
 }
 
 .fp-selector-row {
@@ -3932,36 +4024,36 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 }
 
 .fp-selector-row label {
-    font-size: 9px;
-    color: #4a5568;
+    font-size: 10px;
+    color: var(--fontDark);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
-    min-width: 32px;
+    min-width: 40px;
     flex-shrink: 0;
 }
 
-/* Dropdown Styling - Compact & Modern */
+/* Dropdown Styling - Clean & Modern like popups */
 .fp-dropdown {
     flex: 1;
     min-width: 0;
-    height: 20px;
-    padding: 0 4px;
+    height: 24px;
+    padding: 2px 6px;
     font-family: "Roboto", sans-serif;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 500;
-    border: 1px solid rgba(0, 0, 0, 0.15);
-    border-radius: 2px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
     background-color: #fff;
     color: var(--fontDark);
     cursor: pointer;
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='6' viewBox='0 0 12 12'%3E%3Cpath fill='%23718096' d='M3 4l3 4 3-4'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M3 4l3 4 3-4'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 3px center;
-    padding-right: 14px;
+    background-position: right 6px center;
+    padding-right: 18px;
     transition: border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -3996,53 +4088,62 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 .fp-route .kneeboard-panel-content {
     flex: 1;
     overflow-y: auto;
-    padding: 0;
+    padding: 0 15px;
+    width: 100%;
 }
 
-/* Waypoint List - Compact */
+.fp-route .kneeboard-panel-list {
+    width: 100%;
+}
+
+/* Waypoint List - Full Width */
 .fp-waypoint-list {
     list-style: none;
     padding: 0;
     margin: 0;
+    width: 100%;
 }
 
-/* Waypoint Item - Compact */
+/* Waypoint Item - Clean & Full Width */
 .fp-waypoint {
-    padding: 3px 6px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    padding: 6px 0;
+    border-bottom: 1px solid #eee;
     transition: background-color 0.1s ease;
     position: relative;
-    font-size: 10px;
+    font-size: 11px;
+    background: white;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .fp-waypoint:hover {
-    background-color: rgba(53, 121, 135, 0.08);
+    background-color: #f5f5f5;
 }
 
 .fp-waypoint.active {
-    background-color: rgba(53, 121, 135, 0.12);
-    border-left: 2px solid var(--light);
-    padding-left: 4px;
+    background-color: #e3f2fd;
+    border-left: 3px solid var(--dark);
 }
 
-/* Waypoint Row (Ident + Airway) */
+/* Waypoint Row (Ident + Airway) - Full Width */
 .fp-wp-row {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    width: 100%;
 }
 
-/* Waypoint Type Icons - Smaller */
+/* Waypoint Type Icons */
 .fp-wp-icon {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 700;
-    border-radius: 2px;
+    border-radius: 3px;
     color: white;
 }
 
@@ -4083,10 +4184,10 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 /* Waypoint Identifier */
 .fp-wp-ident {
-    font-weight: 600;
-    font-size: 10px;
+    font-weight: 700;
+    font-size: 11px;
     color: var(--fontDark);
-    min-width: 40px;
+    min-width: 50px;
 }
 
 /* Frequency Display */
@@ -4107,39 +4208,43 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 /* Airway Display */
 .fp-wp-airway {
     margin-left: auto;
-    font-size: 8px;
-    color: #a0aec0;
+    font-size: 9px;
+    color: #888;
     font-style: italic;
-    padding: 1px 4px;
-    background-color: rgba(0, 0, 0, 0.04);
-    border-radius: 2px;
+    padding: 2px 6px;
+    background-color: #f0f0f0;
+    border-radius: 3px;
 }
 
 .fp-wp-airway.dct {
-    color: var(--light);
+    color: var(--dark);
     font-weight: 600;
     font-style: normal;
+    background-color: #e8f4f8;
 }
 
-/* Waypoint Info Row (Bearing/Distance/Altitude) - Single line */
+/* Waypoint Info Row (Bearing/Distance/Altitude) - Full width */
 .fp-wp-info {
     display: flex;
     align-items: center;
-    gap: 3px;
-    margin-top: 1px;
-    padding-left: 18px;
-    font-size: 8px;
-    color: #a0aec0;
+    justify-content: flex-start;
+    gap: 12px;
+    margin-top: 3px;
+    padding-left: 24px;
+    font-size: 10px;
+    color: #555;
 }
 
 .fp-wp-bearing,
 .fp-wp-distance,
 .fp-wp-altitude {
-    font-family: "Roboto", monospace;
+    font-family: "Roboto Mono", monospace;
+    font-size: 10px;
+    min-width: 45px;
 }
 
 .fp-wp-separator {
-    color: #cbd5e0;
+    color: #ccc;
 }
 
 /* Altitude Constraints - Compact */
@@ -4168,17 +4273,90 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     background-color: #17a2b8;
 }
 
-/* Summary Footer - Compact */
+/* Summary Footer - Clean style */
 .fp-summary {
     display: flex;
     justify-content: center;
     gap: 10px;
-    font-size: 9px;
-    color: #718096;
-    padding: 4px 8px;
-    background: linear-gradient(135deg, var(--dark) 0%, #4a5568 100%);
-    color: var(--fontLight);
-    font-weight: 500;
+    font-size: 10px;
+    padding: 6px 8px;
+    background: #f8f9fa;
+    border-top: 1px solid #e0e0e0;
+    color: var(--fontDark);
+    font-weight: 600;
+}
+
+/* ========================================
+   ALTERNATE SECTION - Violette Akzentfarbe
+   ======================================== */
+
+.fp-alternate .fp-section-header,
+.fp-alternate-header {
+    background-color:  rgb(156, 39, 176);
+    opacity: 60%;
+    color: white;
+}
+
+.fp-alternate .fp-section-header .fp-icao,S
+.fp-alternate-header .fp-icao {
+    color: white;
+}
+
+.fp-alternate .fp-section-header .fp-name,
+.fp-alternate-header .fp-name {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* ========================================
+   APPLY BUTTON SECTION
+   ======================================== */
+.fp-actions {
+    padding: 8px 10px;
+    background: #f8f9fa;
+    border-top: 1px solid #e0e0e0;
+}
+
+.fp-apply-btn {
+    width: 100%;
+    padding: 10px 12px;
+    background: #9E9E9E;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: not-allowed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.fp-apply-btn:disabled {
+    background: #BDBDBD;
+    cursor: not-allowed;
+}
+
+.fp-apply-btn.has-changes {
+    background: #4CAF50;
+    cursor: pointer;
+    animation: pulse-btn 1.5s infinite;
+}
+
+.fp-apply-btn.has-changes:hover {
+    background: #388E3C;
+}
+
+@keyframes pulse-btn {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(76, 175, 80, 0); }
+}
+
+/* Pending-Indikator für Dropdowns */
+.fp-dropdown.has-pending {
+    border: 2px solid #FF9800 !important;
+    background: #FFF3E0 !important;
 }
 
 /* Delete Button on Waypoint */

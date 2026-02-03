@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
+using System.Linq;
+using CoordinateSharp;
+using CoordinateSharp.Magnetic;
 
 namespace Kneeboard_Server.Navigraph
 {
@@ -45,6 +48,7 @@ namespace Kneeboard_Server.Navigraph
                 LogTableSchema("tbl_pd_sids");
                 LogTableSchema("tbl_pe_stars");
                 LogTableSchema("tbl_pf_iaps");
+                LogTableSchema("tbl_pg_runways");
             }
             catch (Exception ex)
             {
@@ -147,6 +151,30 @@ namespace Kneeboard_Server.Navigraph
         }
 
         /// <summary>
+        /// Get magnetic declination at a position using World Magnetic Model (WMM)
+        /// Like Little Navmap does for accurate runway heading calculation
+        /// </summary>
+        public static double GetMagneticDeclination(double latitude, double longitude)
+        {
+            try
+            {
+                // Coordinate(lat, lon, date) - standard geographic order
+                var coord = new Coordinate(latitude, longitude, DateTime.UtcNow);
+                // Create Magnetic object with WMM2020 model
+                var magnetic = new Magnetic(coord, DataModel.WMM2020);
+                // Get declination from magnetic field elements
+                var declination = magnetic.MagneticFieldElements.Declination;
+                Console.WriteLine($"[WMM] Lat={latitude:F4}, Lon={longitude:F4} => Declination={declination:F2}°");
+                return declination;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WMM] Error calculating declination: {ex.Message}");
+                return 0;
+            }
+        }
+
+        /// <summary>
         /// Get all runways for an airport
         /// </summary>
         public List<RunwayInfo> GetRunways(string icao)
@@ -169,7 +197,8 @@ namespace Kneeboard_Server.Navigraph
                             landing_threshold_elevation,
                             runway_gradient,
                             displaced_threshold_distance,
-                            llz_identifier
+                            llz_identifier,
+                            runway_true_bearing
                         FROM tbl_pg_runways
                         WHERE UPPER(TRIM(airport_identifier)) = @icao
                         ORDER BY runway_identifier";
@@ -180,19 +209,46 @@ namespace Kneeboard_Server.Navigraph
                     {
                         while (reader.Read())
                         {
+                            var identifier = reader.IsDBNull(0) ? "" : reader.GetString(0).Trim();
+                            var thresholdLat = reader.IsDBNull(1) ? 0 : reader.GetDouble(1);
+                            var thresholdLon = reader.IsDBNull(2) ? 0 : reader.GetDouble(2);
+                            var magHeading = reader.IsDBNull(3) ? 0 : reader.GetDouble(3);
+                            var trueHeadingFromDb = reader.IsDBNull(10) ? (double?)null : reader.GetDouble(10);
+
+                            // Calculate TRUE heading using WMM if not in database
+                            double trueHeading;
+                            if (trueHeadingFromDb.HasValue && trueHeadingFromDb.Value > 0)
+                            {
+                                // TRUE bearing available from database
+                                trueHeading = trueHeadingFromDb.Value;
+                                Console.WriteLine($"[Runway] {identifier}: Using TRUE bearing from DB: {trueHeading:F1}°");
+                            }
+                            else
+                            {
+                                // Calculate TRUE from MAGNETIC + Declination (WMM)
+                                var declination = GetMagneticDeclination(thresholdLat, thresholdLon);
+                                // True = Magnetic - Declination (East declination is positive)
+                                trueHeading = magHeading - declination;
+                                // Normalize to 0-360
+                                if (trueHeading < 0) trueHeading += 360;
+                                if (trueHeading >= 360) trueHeading -= 360;
+                                Console.WriteLine($"[Runway] {identifier}: Calculated TRUE: {magHeading:F1}° - {declination:F1}° = {trueHeading:F1}°");
+                            }
+
                             var runway = new RunwayInfo
                             {
-                                Identifier = reader.IsDBNull(0) ? "" : reader.GetString(0).Trim(),
-                                ThresholdLat = reader.IsDBNull(1) ? 0 : reader.GetDouble(1),
-                                ThresholdLon = reader.IsDBNull(2) ? 0 : reader.GetDouble(2),
-                                Heading = reader.IsDBNull(3) ? 0 : reader.GetDouble(3),
+                                Identifier = identifier,
+                                ThresholdLat = thresholdLat,
+                                ThresholdLon = thresholdLon,
+                                Heading = magHeading,
+                                TrueHeading = trueHeading,
                                 Length = reader.IsDBNull(4) ? 0 : (int)reader.GetDouble(4),
                                 Width = reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
                                 ThresholdElevation = reader.IsDBNull(6) ? 0 : reader.GetInt32(6),
                                 ThresholdDisplacement = reader.IsDBNull(8) ? 0 : reader.GetInt32(8)
                             };
 
-                            // Calculate runway end coordinates
+                            // Calculate runway end coordinates using TRUE heading
                             runway.CalculateEndCoordinates();
 
                             runways.Add(runway);
@@ -337,31 +393,18 @@ namespace Kneeboard_Server.Navigraph
             var runway = GetRunway(icao, runwayId);
             if (runway == null) return null;
 
+            // Log all available runways at this airport
+            var allRunways = GetRunways(icao);
+            Console.WriteLine($"[Runway Debug] All runways at {icao}: {string.Join(", ", allRunways.Select(r => r.Identifier))}");
+            Console.WriteLine($"[Runway Debug] Requested runway: {runway.Identifier} at ({runway.ThresholdLat:F6}, {runway.ThresholdLon:F6})");
+
             // Get opposite runway ID
             var oppositeId = GetOppositeRunwayId(runway.Identifier);
-            Console.WriteLine($"[Runway Debug] Opposite runway of {runway.Identifier} is {oppositeId}");
+            Console.WriteLine($"[Runway Debug] Calculated opposite runway of {runway.Identifier} is {oppositeId}");
 
-            if (oppositeId != null)
-            {
-                var oppositeRunway = GetRunway(icao, oppositeId);
-                if (oppositeRunway != null)
-                {
-                    // Use opposite runway's threshold as our end
-                    runway.EndLat = oppositeRunway.ThresholdLat;
-                    runway.EndLon = oppositeRunway.ThresholdLon;
-                    Console.WriteLine($"[Runway Debug] Using opposite threshold as end: ({runway.EndLat:F6}, {runway.EndLon:F6})");
-                }
-                else
-                {
-                    Console.WriteLine($"[Runway Debug] Opposite runway not found, falling back to calculation");
-                    runway.CalculateEndCoordinates();
-                }
-            }
-            else
-            {
-                Console.WriteLine($"[Runway Debug] Could not determine opposite runway, falling back to calculation");
-                runway.CalculateEndCoordinates();
-            }
+            // ALWAYS calculate end from heading/length for reliability
+            runway.CalculateEndCoordinates();
+            Console.WriteLine($"[Runway Debug] Calculated end from heading {runway.Heading}° and length {runway.Length}ft: ({runway.EndLat:F6}, {runway.EndLon:F6})");
 
             return runway;
         }
@@ -513,11 +556,25 @@ namespace Kneeboard_Server.Navigraph
                         int count = 0;
                         while (reader.Read())
                         {
+                            var routeType = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                            var transitionId = reader.IsDBNull(2) ? "" : reader.GetString(2);
+
+                            // For SID route_type 4 (Runway Transition) or STAR route_type 3/6 (Runway Transition),
+                            // the transition_identifier IS the runway (e.g., "RW10B")
+                            string runway = null;
+                            bool isRunwayTransition = (type == ProcedureType.SID && routeType == "4") ||
+                                                      (type == ProcedureType.STAR && (routeType == "3" || routeType == "6"));
+                            if (isRunwayTransition && transitionId.StartsWith("RW"))
+                            {
+                                runway = transitionId;
+                            }
+
                             var proc = new ProcedureSummary
                             {
                                 Identifier = reader.GetString(0),
-                                RouteType = reader.IsDBNull(1) ? "" : reader.GetString(1),
-                                TransitionIdentifier = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                                RouteType = routeType,
+                                TransitionIdentifier = transitionId,
+                                Runway = runway,
                                 Type = type
                             };
                             procedures.Add(proc);
@@ -525,7 +582,7 @@ namespace Kneeboard_Server.Navigraph
                             // Debug: Log first 10 entries
                             if (count <= 10)
                             {
-                                Console.WriteLine($"[Navigraph DB] {type} Row: Identifier={proc.Identifier}, RouteType={proc.RouteType}, Transition={proc.TransitionIdentifier}");
+                                Console.WriteLine($"[Navigraph DB] {type} Row {count}: ID={proc.Identifier}, RouteType={proc.RouteType}, Transition={proc.TransitionIdentifier}, Runway={proc.Runway}, IsRunwayTransition={isRunwayTransition}");
                             }
                         }
                         Console.WriteLine($"[Navigraph DB] {type} Query returned {count} rows for {icao}");
@@ -570,10 +627,11 @@ namespace Kneeboard_Server.Navigraph
                         while (reader.Read())
                         {
                             var procId = reader.GetString(0);
-                            var runway = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                            var routeType = reader.IsDBNull(1) ? "" : reader.GetString(1);
                             var transition = reader.IsDBNull(2) ? "" : reader.GetString(2);
 
-                            var key = $"{procId}_{runway}";
+                            // Use only procedure_identifier as key (not route_type)
+                            var key = procId;
 
                             if (!approachDict.ContainsKey(key))
                             {
@@ -586,6 +644,14 @@ namespace Kneeboard_Server.Navigraph
                                 else if (procId.StartsWith("R")) appType = "RNAV";
                                 else if (procId.StartsWith("D")) appType = "VOR/DME";
 
+                                // Extract runway from procedure identifier (e.g., "I12L" -> "12L", "R30RZ" -> "30R")
+                                string runway = "";
+                                if (procId.Length > 1)
+                                {
+                                    // Remove first char (approach type) and trailing suffix (Y, Z, etc.)
+                                    runway = procId.Substring(1).TrimEnd('Y', 'Z', 'A', 'B', 'C');
+                                }
+
                                 approachDict[key] = new ApproachSummary
                                 {
                                     Identifier = procId,
@@ -595,7 +661,8 @@ namespace Kneeboard_Server.Navigraph
                                 };
                             }
 
-                            if (!string.IsNullOrEmpty(transition) &&
+                            // Only add transitions from route_type 'A' (Approach Transition legs)
+                            if (routeType == "A" && !string.IsNullOrEmpty(transition) &&
                                 !approachDict[key].Transitions.Contains(transition))
                             {
                                 approachDict[key].Transitions.Add(transition);
@@ -620,9 +687,10 @@ namespace Kneeboard_Server.Navigraph
         /// <param name="icao">Airport ICAO code</param>
         /// <param name="procedureId">Procedure identifier (e.g., MINNE5, OSMU2A)</param>
         /// <param name="type">Procedure type (SID, STAR, Approach)</param>
-        /// <param name="transition">Optional transition identifier (e.g., HISKU for enroute transition)</param>
+        /// <param name="transition">Optional enroute transition identifier (e.g., HISKU)</param>
+        /// <param name="runway">Optional runway identifier (e.g., 10L, RW10L)</param>
         /// <returns>List of procedure legs in correct order</returns>
-        public List<ProcedureLeg> GetProcedureLegs(string icao, string procedureId, ProcedureType type, string transition = null)
+        public List<ProcedureLeg> GetProcedureLegs(string icao, string procedureId, ProcedureType type, string transition = null, string runway = null)
         {
             var legs = new List<ProcedureLeg>();
             if (!IsConnected) return legs;
@@ -630,62 +698,121 @@ namespace Kneeboard_Server.Navigraph
             string tableName;
             string routeTypeFilter;
             string orderBy;
+            string runwayTransition = null;
+            string runwayBoth = null;  // For "Both" runways like RW10B
+
+            // Normalize runway to transition format (e.g., "10L" -> "RW10L")
+            // Also handle "Both" runways: 10L should match RW10L OR RW10B
+            if (!string.IsNullOrEmpty(runway))
+            {
+                runway = runway.Trim().ToUpperInvariant();
+                if (!runway.StartsWith("RW"))
+                    runwayTransition = "RW" + runway;
+                else
+                    runwayTransition = runway;
+
+                // Extract base runway number for "Both" matching (10L -> 10, 28R -> 28)
+                var baseRwy = System.Text.RegularExpressions.Regex.Match(runwayTransition, @"RW(\d+)").Groups[1].Value;
+                if (!string.IsNullOrEmpty(baseRwy))
+                {
+                    runwayBoth = $"RW{baseRwy}B";
+                }
+            }
 
             // Build route_type filter based on procedure type
             // SID route_types: 4=Runway Transition, 5=Common Route, 6=Enroute Transition
             // STAR route_types: 1=Enroute Transition (conv), 2=Common Route, 3=Runway Transition; 4/5/6 for RNAV
             // Approach route_types: A=Approach Transition, F=Final Approach, Z=Missed Approach
-            //
-            // IMPORTANT: Without a specific transition, we only return the Common Route to avoid
-            // duplicate/conflicting waypoints from multiple transitions. When a transition is
-            // specified, we include the matching transition waypoints + common route.
             switch (type)
             {
                 case ProcedureType.SID:
                     tableName = "tbl_pd_sids";
-                    if (!string.IsNullOrEmpty(transition))
+                    // SID order: Runway-Transition (4) -> Common (5) -> Enroute-Transition (6)
+                    // runwayBoth handles cases like 10L matching RW10B (Both)
+                    var sidRwyFilter = runwayBoth != null
+                        ? $"(transition_identifier = '{runwayTransition}' OR transition_identifier = '{runwayBoth}')"
+                        : $"transition_identifier = '{runwayTransition}'";
+
+                    if (!string.IsNullOrEmpty(runwayTransition) && !string.IsNullOrEmpty(transition))
                     {
-                        // With enroute transition: Common Route (5) first, then Enroute Transition (6) matching transition
-                        routeTypeFilter = "(route_type = '5' OR (route_type = '6' AND transition_identifier = @transition))";
-                        orderBy = "route_type ASC, seqno ASC"; // 5 first, then 6
+                        // Both runway and enroute transition specified
+                        routeTypeFilter = $"(route_type = '5' OR (route_type = '4' AND {sidRwyFilter}) OR (route_type = '6' AND transition_identifier = @transition))";
+                        orderBy = "route_type ASC, CAST(seqno AS INTEGER) ASC";
+                    }
+                    else if (!string.IsNullOrEmpty(runwayTransition))
+                    {
+                        // Only runway specified - get runway transition + common
+                        routeTypeFilter = $"(route_type = '5' OR (route_type = '4' AND {sidRwyFilter}))";
+                        orderBy = "route_type ASC, CAST(seqno AS INTEGER) ASC";
+                    }
+                    else if (!string.IsNullOrEmpty(transition))
+                    {
+                        // Only enroute transition specified - common + enroute transition
+                        // FIX: Also include Route 4 (Runway Transition) to ensure connection to airport!
+                        routeTypeFilter = "(route_type = '5' OR route_type = '4' OR (route_type = '6' AND transition_identifier = @transition))";
+                        orderBy = "route_type ASC, CAST(seqno AS INTEGER) ASC";
                     }
                     else
                     {
-                        // Without transition: Only Common Route (5) to avoid duplicate waypoints
-                        routeTypeFilter = "route_type = '5'";
-                        orderBy = "seqno ASC";
+                        // Nothing specified - get common route (5) if exists,
+                        // OR any single runway transition (4) if no common route exists
+                        // This handles SIDs like PTLD2 that only have runway transitions
+                        routeTypeFilter = "(route_type = '5' OR route_type = '4')";
+                        orderBy = "route_type ASC, transition_identifier ASC, CAST(seqno AS INTEGER) ASC";  // 4 then 5 (Runway -> Common)
                     }
                     break;
 
                 case ProcedureType.STAR:
                     tableName = "tbl_pe_stars";
-                    if (!string.IsNullOrEmpty(transition))
+                    // STAR order: Enroute-Transition (1/4) -> Common (2/5) -> Runway-Transition (3/6)
+                    // runwayBoth handles cases like 12R matching RW12B (Both)
+                    var starRwyFilter = runwayBoth != null
+                        ? $"(transition_identifier = '{runwayTransition}' OR transition_identifier = '{runwayBoth}')"
+                        : $"transition_identifier = '{runwayTransition}'";
+
+                    if (!string.IsNullOrEmpty(transition) && !string.IsNullOrEmpty(runwayTransition))
                     {
-                        // With enroute transition: Enroute Transition (1/4) matching transition first, then Common (2/5)
-                        routeTypeFilter = "(route_type IN ('2', '5') OR ((route_type = '1' OR route_type = '4') AND transition_identifier = @transition))";
-                        orderBy = "CASE WHEN route_type IN ('1', '4') THEN 0 ELSE 1 END, seqno ASC"; // Transition first, then common
+                        // Both enroute transition and runway specified
+                        routeTypeFilter = $"(route_type IN ('2', '5') OR ((route_type = '1' OR route_type = '4') AND transition_identifier = @transition) OR ((route_type = '3' OR route_type = '6') AND {starRwyFilter}))";
+                        orderBy = "CASE WHEN route_type IN ('1', '4') THEN 0 WHEN route_type IN ('2', '5') THEN 1 ELSE 2 END, CAST(seqno AS INTEGER) ASC";
+                    }
+                    else if (!string.IsNullOrEmpty(transition))
+                    {
+                        // Only enroute transition - enroute + common
+                        // FIX: Also include Route 3/6 (Runway Transitions) to ensure connection to airport!
+                        routeTypeFilter = "(route_type IN ('2', '5') OR route_type IN ('3', '6') OR ((route_type = '1' OR route_type = '4') AND transition_identifier = @transition))";
+                        orderBy = "CASE WHEN route_type IN ('1', '4') THEN 0 ELSE 1 END, CAST(seqno AS INTEGER) ASC";
+                    }
+                    else if (!string.IsNullOrEmpty(runwayTransition))
+                    {
+                        // Only runway - common + runway transition
+                        routeTypeFilter = $"(route_type IN ('2', '5') OR ((route_type = '3' OR route_type = '6') AND {starRwyFilter}))";
+                        orderBy = "CASE WHEN route_type IN ('2', '5') THEN 0 ELSE 1 END, CAST(seqno AS INTEGER) ASC";
                     }
                     else
                     {
-                        // Without transition: Only Common Route (2/5) to avoid duplicate waypoints
-                        routeTypeFilter = "route_type IN ('2', '5')";
-                        orderBy = "seqno ASC";
+                        // Nothing specified - get common route (2/5) if exists,
+                        // OR any single enroute/runway transition if no common route exists
+                        // This handles STARs that only have transitions
+                        routeTypeFilter = "(route_type IN ('1', '2', '3', '4', '5', '6'))";
+                        orderBy = "CASE WHEN route_type IN ('1', '4') THEN 0 WHEN route_type IN ('2', '5') THEN 1 ELSE 2 END, transition_identifier ASC, CAST(seqno AS INTEGER) ASC";
                     }
                     break;
 
                 case ProcedureType.Approach:
                     tableName = "tbl_pf_iaps";
+                    // Approach: Transition (A) -> Final (F) -> Missed (Z)
                     if (!string.IsNullOrEmpty(transition))
                     {
-                        // With transition: Approach Transition (A) matching transition first, then Final (F)
+                        // Transition + Final approach
                         routeTypeFilter = "(route_type = 'F' OR (route_type = 'A' AND transition_identifier = @transition))";
-                        orderBy = "CASE WHEN route_type = 'A' THEN 0 ELSE 1 END, seqno ASC"; // Transition first, then final
+                        orderBy = "CASE WHEN route_type = 'A' THEN 0 ELSE 1 END, CAST(seqno AS INTEGER) ASC";
                     }
                     else
                     {
-                        // Without transition: Only Final Approach (F) - cleaner preview without all transitions
-                        routeTypeFilter = "route_type = 'F'";
-                        orderBy = "seqno ASC";
+                        // No transition - Final approach legs (F=Final, I=ILS, J=GNSS, P=GPS, R=RNAV, S=VOR/DME, etc.)
+                        routeTypeFilter = "route_type NOT IN ('A', 'Z')";
+                        orderBy = "CAST(seqno AS INTEGER) ASC";
                     }
                     break;
 
@@ -712,7 +839,9 @@ namespace Kneeboard_Server.Navigraph
                             speed_limit_description,
                             course,
                             route_distance_holding_distance_time,
-                            waypoint_description_code
+                            waypoint_description_code,
+                            route_type,
+                            transition_identifier
                         FROM {tableName}
                         WHERE airport_identifier = @icao
                           AND procedure_identifier = @proc
@@ -726,42 +855,309 @@ namespace Kneeboard_Server.Navigraph
                         cmd.Parameters.AddWithValue("@transition", transition.ToUpperInvariant());
                     }
 
-                    Console.WriteLine($"[Navigraph DB] GetProcedureLegs: {icao}/{procedureId} type={type} transition={transition ?? "none"}");
-
+                    int rowCount = 0;
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
                         {
-                            var leg = new ProcedureLeg
+                            rowCount++;
+                            try
                             {
-                                SequenceNumber = reader.GetInt32(0),
-                                WaypointIdentifier = reader.IsDBNull(1) ? "" : reader.GetString(1),
-                                Latitude = reader.IsDBNull(2) ? 0 : reader.GetDouble(2),
-                                Longitude = reader.IsDBNull(3) ? 0 : reader.GetDouble(3),
-                                PathTerminator = reader.IsDBNull(4) ? "" : reader.GetString(4),
-                                AltitudeConstraint = reader.IsDBNull(6) ? "" : reader.GetString(6),
-                                Altitude1 = reader.IsDBNull(7) ? null : (int?)reader.GetInt32(7),
-                                Altitude2 = reader.IsDBNull(8) ? null : (int?)reader.GetInt32(8),
-                                SpeedLimit = reader.IsDBNull(9) ? null : (int?)reader.GetInt32(9),
-                                SpeedConstraint = reader.IsDBNull(10) ? "" : reader.GetString(10),
-                                Course = reader.IsDBNull(11) ? null : (double?)reader.GetDouble(11),
-                                Distance = reader.IsDBNull(12) ? null : (double?)reader.GetDouble(12)
-                            };
+                                var seqNo = reader.IsDBNull(0) ? 0 : Convert.ToInt32(reader.GetValue(0));
+                                var wpIdent = reader.IsDBNull(1) ? "" : reader.GetValue(1)?.ToString() ?? "";
+                                var lat = reader.IsDBNull(2) ? 0.0 : Convert.ToDouble(reader.GetValue(2));
+                                var lon = reader.IsDBNull(3) ? 0.0 : Convert.ToDouble(reader.GetValue(3));
+                                var pathTerm = reader.IsDBNull(4) ? "" : reader.GetValue(4)?.ToString() ?? "";
+                                var altDesc = reader.IsDBNull(6) ? "" : reader.GetValue(6)?.ToString() ?? "";
+                                int? alt1 = reader.IsDBNull(7) ? (int?)null : Convert.ToInt32(reader.GetValue(7));
+                                int? alt2 = reader.IsDBNull(8) ? (int?)null : Convert.ToInt32(reader.GetValue(8));
+                                int? spdLimit = reader.IsDBNull(9) ? (int?)null : Convert.ToInt32(reader.GetValue(9));
+                                var spdDesc = reader.IsDBNull(10) ? "" : reader.GetValue(10)?.ToString() ?? "";
+                                double? course = reader.IsDBNull(11) ? (double?)null : Convert.ToDouble(reader.GetValue(11));
+                                double? distance = reader.IsDBNull(12) ? (double?)null : Convert.ToDouble(reader.GetValue(12));
+                                var descCode = reader.IsDBNull(13) ? "" : reader.GetValue(13)?.ToString() ?? "";
+                                var routeType = reader.IsDBNull(14) ? "" : reader.GetValue(14)?.ToString() ?? "";
+                                var transId = reader.IsDBNull(15) ? "" : reader.GetValue(15)?.ToString() ?? "";
 
-                            // Check for overfly (waypoint_description_code contains 'E' for overfly)
-                            var descCode = reader.IsDBNull(13) ? "" : reader.GetString(13);
-                            leg.Overfly = descCode.Contains("E");
+                                var leg = new ProcedureLeg
+                                {
+                                    SequenceNumber = seqNo,
+                                    WaypointIdentifier = wpIdent,
+                                    Latitude = lat,
+                                    Longitude = lon,
+                                    PathTerminator = pathTerm,
+                                    AltitudeConstraint = altDesc,
+                                    Altitude1 = alt1,
+                                    Altitude2 = alt2,
+                                    SpeedLimit = spdLimit,
+                                    SpeedConstraint = spdDesc,
+                                    Course = course,
+                                    Distance = distance,
+                                    RouteType = routeType,
+                                    TransitionIdentifier = transId,
+                                    Overfly = descCode.Contains("E")
+                                };
 
-                            legs.Add(leg);
+                                if (Math.Abs(lat) > 0.001 || Math.Abs(lon) > 0.001)
+                                {
+                                    legs.Add(leg);
+                                }
+                            }
+                            catch (Exception rowEx)
+                            {
+                                Console.WriteLine($"[Navigraph DB] ERROR row {rowCount}: {rowEx.Message}");
+                            }
                         }
                     }
 
-                    Console.WriteLine($"[Navigraph DB] GetProcedureLegs: Found {legs.Count} legs");
+                    Console.WriteLine($"[Navigraph DB] GetProcedureLegs FIX_V4: {icao}/{procedureId} -> {rowCount} rows, {legs.Count} kept");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Navigraph DB: Procedure Legs Query Fehler: {ex.Message}");
+            }
+
+            return legs;
+        }
+
+        /// <summary>
+        /// Diagnostic version of GetProcedureLegs that returns detailed debug info
+        /// </summary>
+        public (List<ProcedureLeg> Legs, List<string> DebugLog) GetProcedureLegsWithDebug(string icao, string procedureId, ProcedureType type)
+        {
+            var legs = new List<ProcedureLeg>();
+            var debugLog = new List<string>();
+            
+            debugLog.Add($"DIAG_V3: Starting for {icao}/{procedureId} type={type}");
+            
+            if (!IsConnected)
+            {
+                debugLog.Add("ERROR: Not connected to database");
+                return (legs, debugLog);
+            }
+
+            string tableName = type == ProcedureType.Approach ? "tbl_pf_iaps" : "tbl_pe_stars";
+            string routeTypeFilter = "route_type NOT IN ('A', 'Z')";
+            string orderBy = "CAST(seqno AS INTEGER) ASC";
+
+            debugLog.Add($"Table: {tableName}, Filter: {routeTypeFilter}");
+
+            try
+            {
+                using (var cmd = new SQLiteCommand(_connection))
+                {
+                    cmd.CommandText = $@"
+                        SELECT
+                            seqno,
+                            waypoint_identifier,
+                            waypoint_latitude,
+                            waypoint_longitude,
+                            path_termination,
+                            route_type
+                        FROM {tableName}
+                        WHERE airport_identifier = @icao
+                          AND procedure_identifier = @proc
+                          AND {routeTypeFilter}
+                        ORDER BY {orderBy}";
+
+                    cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
+                    cmd.Parameters.AddWithValue("@proc", procedureId);
+
+                    debugLog.Add($"SQL: {cmd.CommandText}");
+                    debugLog.Add($"Params: icao={icao}, proc={procedureId}");
+
+                    int rowCount = 0;
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        debugLog.Add($"Reader created, HasRows={reader.HasRows}");
+                        
+                        while (reader.Read())
+                        {
+                            rowCount++;
+                            try
+                            {
+                                var seqNo = reader.IsDBNull(0) ? 0 : Convert.ToInt32(reader.GetValue(0));
+                                var wpIdent = reader.IsDBNull(1) ? "" : reader.GetValue(1)?.ToString() ?? "";
+                                var lat = reader.IsDBNull(2) ? 0.0 : Convert.ToDouble(reader.GetValue(2));
+                                var lon = reader.IsDBNull(3) ? 0.0 : Convert.ToDouble(reader.GetValue(3));
+                                var pathTerm = reader.IsDBNull(4) ? "" : reader.GetValue(4)?.ToString() ?? "";
+                                var routeType = reader.IsDBNull(5) ? "" : reader.GetValue(5)?.ToString() ?? "";
+
+                                debugLog.Add($"Row {rowCount}: seq={seqNo} wp='{wpIdent}' path={pathTerm} lat={lat} lon={lon}");
+
+                                // Stop at missed approach (CA = Course to Altitude after runway)
+                                if (pathTerm == "CA" || pathTerm == "HA" || pathTerm == "HF" || pathTerm == "HM")
+                                {
+                                    debugLog.Add($"  -> STOP: Missed approach detected (path={pathTerm})");
+                                    break;
+                                }
+
+                                bool hasCoords = Math.Abs(lat) > 0.001 || Math.Abs(lon) > 0.001;
+                                
+                                if (hasCoords)
+                                {
+                                    var leg = new ProcedureLeg
+                                    {
+                                        SequenceNumber = seqNo,
+                                        WaypointIdentifier = wpIdent,
+                                        Latitude = lat,
+                                        Longitude = lon,
+                                        PathTerminator = pathTerm,
+                                        RouteType = routeType
+                                    };
+                                    legs.Add(leg);
+                                    debugLog.Add($"  -> ADDED");
+                                }
+                                else
+                                {
+                                    debugLog.Add($"  -> FILTERED (0,0)");
+                                }
+                            }
+                            catch (Exception rowEx)
+                            {
+                                debugLog.Add($"Row {rowCount} ERROR: {rowEx.Message}");
+                            }
+                        }
+                    }
+                    debugLog.Add($"Reader closed. Total rows: {rowCount}, Kept: {legs.Count}");
+                }
+            }
+            catch (Exception ex)
+            {
+                debugLog.Add($"QUERY ERROR: {ex.Message}");
+            }
+
+            return (legs, debugLog);
+        }
+
+        /// <summary>
+        /// Test the EXACT SQL query from GetProcedureLegs for Approach
+        /// </summary>
+        public List<Dictionary<string, object>> TestApproachQuery(string icao, string procedureId)
+        {
+            var legs = new List<Dictionary<string, object>>();
+            if (!IsConnected) return legs;
+
+            try
+            {
+                using (var cmd = new SQLiteCommand(_connection))
+                {
+                    cmd.CommandText = @"
+                        SELECT
+                            seqno,
+                            waypoint_identifier,
+                            waypoint_latitude,
+                            waypoint_longitude,
+                            path_termination,
+                            turn_direction,
+                            altitude_description,
+                            altitude1,
+                            altitude2,
+                            speed_limit,
+                            speed_limit_description,
+                            course,
+                            route_distance_holding_distance_time,
+                            waypoint_description_code,
+                            route_type,
+                            transition_identifier
+                        FROM tbl_pf_iaps
+                        WHERE airport_identifier = @icao
+                          AND procedure_identifier = @proc
+                          AND route_type NOT IN ('A', 'Z')
+                        ORDER BY CAST(seqno AS INTEGER) ASC";
+
+                    cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
+                    cmd.Parameters.AddWithValue("@proc", procedureId);
+
+                    Console.WriteLine($"[TEST] Executing exact GetProcedureLegs query for {icao}/{procedureId}");
+
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var leg = new Dictionary<string, object>();
+                            for (int i = 0; i < reader.FieldCount; i++)
+                            {
+                                leg[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                            }
+                            legs.Add(leg);
+                            Console.WriteLine($"[TEST] Row: seqno={leg["seqno"]} wp={leg["waypoint_identifier"]} route={leg["route_type"]}");
+                        }
+                    }
+                    Console.WriteLine($"[TEST] Total rows: {legs.Count}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TEST] Error: {ex.Message}");
+            }
+
+            return legs;
+        }
+
+        /// <summary>
+        /// Get ALL raw approach legs for debugging (no coordinate filtering)
+        /// </summary>
+        public List<Dictionary<string, object>> GetRawApproachLegs(string icao, string procedureId)
+        {
+            var legs = new List<Dictionary<string, object>>();
+            if (!IsConnected) return legs;
+
+            try
+            {
+                using (var cmd = new SQLiteCommand(_connection))
+                {
+                    cmd.CommandText = @"
+                        SELECT 
+                            seqno,
+                            waypoint_identifier,
+                            waypoint_latitude,
+                            waypoint_longitude,
+                            path_termination,
+                            route_type,
+                            transition_identifier,
+                            course,
+                            route_distance_holding_distance_time,
+                            altitude1,
+                            altitude2,
+                            recommended_navaid,
+                            recommended_navaid_latitude,
+                            recommended_navaid_longitude,
+                            turn_direction,
+                            waypoint_description_code,
+                            procedure_identifier
+                        FROM tbl_pf_iaps
+                        WHERE airport_identifier = @icao
+                          AND procedure_identifier = @proc
+                        ORDER BY route_type, seqno ASC";
+
+                    cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
+                    cmd.Parameters.AddWithValue("@proc", procedureId);
+
+                    Console.WriteLine($"Navigraph DB: Querying raw approach legs for {icao}/{procedureId}");
+
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var leg = new Dictionary<string, object>();
+                            for (int i = 0; i < reader.FieldCount; i++)
+                            {
+                                var name = reader.GetName(i);
+                                var value = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                                leg[name] = value;
+                            }
+                            legs.Add(leg);
+                        }
+                    }
+                    Console.WriteLine($"Navigraph DB: Found {legs.Count} raw approach legs");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Navigraph DB: Raw Approach Legs Query Error: {ex.Message}");
+                Console.WriteLine($"Navigraph DB: Stack: {ex.StackTrace}");
             }
 
             return legs;
@@ -1062,7 +1458,7 @@ namespace Kneeboard_Server.Navigraph
                             route_type
                         FROM tbl_er_enroute_airways
                         WHERE route_identifier = @ident
-                        ORDER BY seqno";
+                        ORDER BY CAST(seqno AS INTEGER)";
 
                     cmd.Parameters.AddWithValue("@ident", ident.ToUpperInvariant());
 

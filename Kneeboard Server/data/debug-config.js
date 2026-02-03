@@ -15,7 +15,9 @@ var DEBUG_MANAGER = (function() {
     WEATHER: false,
     NAVLOG: false,
     SIMBRIEF: false,
-    AIRPORTS: false
+    AIRPORTS: false,
+    DOCUMENTS: false,
+    FORMULAS: false
   };
 
   var localConfig = null;

@@ -1,4 +1,4 @@
-var FORMULAS_DEBUG = false;
+var FORMULAS_DEBUG = (typeof DEBUG_CONFIG !== 'undefined' && DEBUG_CONFIG.FORMULAS) || false;
 
 // Zentraler Logger - nutzt KneeboardLogger falls verfügbar
 var formulasLogger = (typeof KneeboardLogger !== 'undefined')

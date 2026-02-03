@@ -70,6 +70,7 @@ namespace Kneeboard_Server
             public double IndicatedAirspeed;    // AIRSPEED INDICATED (knots)
             public double WindDirection;        // AMBIENT WIND DIRECTION (degrees)
             public double WindSpeed;            // AMBIENT WIND VELOCITY (knots)
+            public double CameraState;          // CAMERA STATE (2-6 = flight active)
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
@@ -186,6 +187,8 @@ namespace Kneeboard_Server
                 "AMBIENT WIND DIRECTION", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0, SimConnect.SIMCONNECT_UNUSED);
             simConnect.AddToDataDefinition(DEFINITIONS.AircraftPosition,
                 "AMBIENT WIND VELOCITY", "knots", SIMCONNECT_DATATYPE.FLOAT64, 0, SimConnect.SIMCONNECT_UNUSED);
+            simConnect.AddToDataDefinition(DEFINITIONS.AircraftPosition,
+                "CAMERA STATE", "enum", SIMCONNECT_DATATYPE.FLOAT64, 0, SimConnect.SIMCONNECT_UNUSED);
 
             simConnect.RegisterDataDefineStruct<AircraftPosition>(DEFINITIONS.AircraftPosition);
 
@@ -511,6 +514,15 @@ namespace Kneeboard_Server
             {
                 return latestPosition;
             }
+        }
+
+        public bool IsFlightLoaded()
+        {
+            var pos = GetLatestPosition();
+            if (!pos.HasValue) return false;
+            var state = (int)pos.Value.CameraState;
+            // CameraState 2-6 = active flight (cockpit, external, drone, etc.)
+            return state >= 2 && state <= 6;
         }
 
         public void Dispose()
