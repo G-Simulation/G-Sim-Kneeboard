@@ -18272,17 +18272,53 @@ async function processFlightplanMessage(message, skipSourceCheck) {
     // Find insertion point: before the last waypoint (destination airport)
     // But after any existing ARR waypoints (STAR waypoints)
     var insertIndex = flightplan.length > 0 ? flightplan.length - 1 : 0;
-    
+
+    // Sammle existierende Waypoint-Namen um Duplikate zu vermeiden
+    var existingNames = {};
+    var existingRunways = {};
+    flightplan.forEach(function(wp) {
+      if (wp.name) {
+        existingNames[wp.name.toUpperCase()] = true;
+        var rwMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+        if (rwMatch) {
+          existingRunways[rwMatch[1].toUpperCase()] = true;
+        }
+      }
+    });
+
     // Build approach waypoint entries with proper format
     var approachEntries = [];
     approachWps.forEach(function(wp) {
       var lat = wp.Latitude || wp.latitude;
       var lon = wp.Longitude || wp.longitude;
       var name = wp.Identifier || wp.identifier || wp.Name || wp.name || 'APPR';
-      
+
+      // Skip RWY_THRESHOLD - nicht in Route anzeigen
+      if (name === 'RWY_THRESHOLD') {
+        if (MAP_DEBUG) console.log('[Map] Skipping RWY_THRESHOLD waypoint');
+        return;
+      }
+
+      // Skip wenn Waypoint bereits existiert
+      if (existingNames[name.toUpperCase()]) {
+        if (MAP_DEBUG) console.log('[Map] Skipping duplicate approach waypoint:', name);
+        return;
+      }
+
+      // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
+      var rwMatch = name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+      if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
+        if (MAP_DEBUG) console.log('[Map] Skipping duplicate runway in approach:', name);
+        return;
+      }
+
       if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
         // Altitude aus Navigraph-Daten extrahieren (Altitude1 ist die primäre Höhe)
+        // Fallback auf Runway-Elevation wenn 0
         var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
+        if (altitude === 0 && arrivalRunwayData && arrivalRunwayData.elevation) {
+          altitude = arrivalRunwayData.elevation;
+        }
         var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || '';
 
         approachEntries.push({
@@ -18295,6 +18331,10 @@ async function processFlightplanMessage(message, skipSourceCheck) {
           sourceAtcWaypointType: 'Approach',
           arrivalProcedure: parsed.procedures.approach.name || ''
         });
+        existingNames[name.toUpperCase()] = true;
+        if (rwMatch) {
+          existingRunways[rwMatch[1].toUpperCase()] = true;
+        }
       }
     });
 
@@ -18512,8 +18552,15 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
           // Sammle existierende Waypoint-Namen um Duplikate zu vermeiden
           var existingNames = {};
+          var existingRunways = {};
           flightplan.forEach(function(wp) {
-            if (wp.name) existingNames[wp.name.toUpperCase()] = true;
+            if (wp.name) {
+              existingNames[wp.name.toUpperCase()] = true;
+              var rwMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+              if (rwMatch) {
+                existingRunways[rwMatch[1].toUpperCase()] = true;
+              }
+            }
           });
 
           approachWaypointsForFlightpath.forEach(function(wp) {
@@ -18521,15 +18568,32 @@ async function processFlightplanMessage(message, skipSourceCheck) {
             var lon = wp.Longitude || wp.longitude;
             var name = wp.Identifier || wp.identifier || wp.Name || wp.name || 'APPR';
 
+            // Skip RWY_THRESHOLD - nicht in Route anzeigen
+            if (name === 'RWY_THRESHOLD') {
+              if (MAP_DEBUG) console.log('[Map] Skipping RWY_THRESHOLD waypoint');
+              return;
+            }
+
             // Skip wenn Waypoint bereits existiert (Duplikat-Check)
             if (existingNames[name.toUpperCase()]) {
               if (MAP_DEBUG) console.log('[Map] Skipping duplicate approach waypoint:', name);
               return;
             }
 
+            // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
+            var rwMatch = name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+            if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
+              if (MAP_DEBUG) console.log('[Map] Skipping duplicate runway in approach:', name);
+              return;
+            }
+
             if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
               // Altitude aus Navigraph-Daten extrahieren (Altitude1 ist die primäre Höhe)
+              // Fallback auf Runway-Elevation wenn 0
               var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
+              if (altitude === 0 && arrivalRunwayData && arrivalRunwayData.elevation) {
+                altitude = arrivalRunwayData.elevation;
+              }
               var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || '';
 
               approachEntries.push({
@@ -18543,6 +18607,9 @@ async function processFlightplanMessage(message, skipSourceCheck) {
                 arrivalProcedure: flightplanPanelState.arrival.selectedApproach || ''
               });
               existingNames[name.toUpperCase()] = true;
+              if (rwMatch) {
+                existingRunways[rwMatch[1].toUpperCase()] = true;
+              }
             }
           });
 
@@ -18796,6 +18863,7 @@ function updateApplyButtonState() {
 
     if (flightplanPendingState.hasPendingChanges) {
         if (applyBtn) {
+            applyBtn.style.display = 'inline-flex';
             applyBtn.disabled = false;
             applyBtn.classList.add('has-changes');
         }
@@ -18804,6 +18872,7 @@ function updateApplyButtonState() {
         }
     } else {
         if (applyBtn) {
+            applyBtn.style.display = 'none';
             applyBtn.disabled = true;
             applyBtn.classList.remove('has-changes');
         }
@@ -19776,11 +19845,22 @@ function filterSidsByRunway(sids, runway) {
     console.log('[filterSidsByRunway] SIDs with runway assignment:', Object.keys(sidsWithRunway).length);
     console.log('[filterSidsByRunway] SIDs matching selected runway:', Object.keys(sidNamesForRunway).length);
 
-    // STRENGE FILTERUNG: Nur SIDs mit expliziter Runway-Zuordnung durchlassen
-    // SIDs ohne Runway-Zuordnung werden NICHT mehr für alle Runways verfügbar gemacht
+    // Finde SIDs die KEINE Runway-Zuordnung haben - diese sind für ALLE Runways verfügbar
+    var sidsWithoutRunwayAssignment = {};
+    sids.forEach(function(sid) {
+        var name = sid.Identifier || sid.identifier;
+        if (!sidsWithRunway[name]) {
+            sidsWithoutRunwayAssignment[name] = true;
+        }
+    });
+    console.log('[filterSidsByRunway] SIDs without runway assignment (available for all):', Object.keys(sidsWithoutRunwayAssignment).length);
 
+    // KOMBINIERTE FILTERUNG:
+    // - SIDs mit passender Runway-Zuordnung
+    // - PLUS SIDs ohne jegliche Runway-Zuordnung (diese sind für alle Runways verfügbar)
     var result = sids.filter(function(sid) {
-        return sidNamesForRunway[sid.Identifier || sid.identifier];
+        var name = sid.Identifier || sid.identifier;
+        return sidNamesForRunway[name] || sidsWithoutRunwayAssignment[name];
     });
 
     console.log('[filterSidsByRunway] Final result:', result.length, 'SIDs available for runway', runwayNumber);
@@ -19827,11 +19907,22 @@ function filterStarsByRunway(stars, runway) {
     console.log('[filterStarsByRunway] STARs with runway assignment:', Object.keys(starsWithRunwayTransition).length);
     console.log('[filterStarsByRunway] STARs matching selected runway:', Object.keys(starNamesForRunway).length);
 
-    // STRENGE FILTERUNG: Nur STARs mit expliziter Runway-Zuordnung durchlassen
-    // STARs ohne Runway-Transition werden NICHT mehr für alle Runways verfügbar gemacht
+    // Finde STARs die KEINE Runway-Zuordnung haben - diese sind für ALLE Runways verfügbar
+    var starsWithoutRunwayAssignment = {};
+    stars.forEach(function(star) {
+        var name = star.Identifier || star.identifier;
+        if (!starsWithRunwayTransition[name]) {
+            starsWithoutRunwayAssignment[name] = true;
+        }
+    });
+    console.log('[filterStarsByRunway] STARs without runway assignment (available for all):', Object.keys(starsWithoutRunwayAssignment).length);
 
+    // KOMBINIERTE FILTERUNG:
+    // - STARs mit passender Runway-Zuordnung
+    // - PLUS STARs ohne jegliche Runway-Zuordnung (diese sind für alle Runways verfügbar)
     var result = stars.filter(function(star) {
-        return starNamesForRunway[star.Identifier || star.identifier];
+        var name = star.Identifier || star.identifier;
+        return starNamesForRunway[name] || starsWithoutRunwayAssignment[name];
     });
 
     console.log('[filterStarsByRunway] Final result:', result.length, 'STARs available for runway', runwayNumber);
@@ -20153,17 +20244,16 @@ function populateTransitionDropdown(elementId, procedures, procedureName, select
     if (!procedures || !procedureName) return;
 
     // ARINC 424 Route Types:
-    // SID: 4=Runway Transition, 5=Common Route, 6=Enroute Transition
-    // Conventional STAR: 1=Enroute Transition, 2=Common Route, 3=Runway Transition
-    // RNAV STAR: 4=Enroute Transition, 5=Common Route, 6=Runway Transition
+    // SID: 1=Runway Trans (conv), 2=Common, 3=Enroute Trans (conv), 4=RNAV Runway Trans, 5=RNAV Common, 6=RNAV Enroute
+    // STAR: 1=Enroute Trans (conv), 2=Common, 3=Runway Trans (conv), 4=RNAV Enroute, 5=RNAV Common, 6=RNAV Runway Trans
     // We only want Enroute Transitions in the transition dropdown
     var enrouteRouteTypes;
     if (procedureType === 'STAR') {
-        // STAR: Accept both '1' (conventional) and '4' (RNAV) for enroute transitions
+        // STAR: RouteType 1 (conv Enroute) and 4 (RNAV Enroute)
         enrouteRouteTypes = ['1', '4'];
     } else {
-        // SID: Enroute transition is '6'
-        enrouteRouteTypes = ['6'];
+        // SID: RouteType 3 (conv Enroute) and 6 (RNAV Enroute)
+        enrouteRouteTypes = ['3', '6'];
     }
 
     // Get unique enroute transitions for this procedure
@@ -20537,9 +20627,18 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
     }).join(' → '));
 
     // Sammle existierende Waypoint-Namen um Duplikate zu vermeiden
+    // Auch Runway-Varianten normalisieren (RW18, 18, RW18L -> alle gleich behandeln)
     var existingNames = {};
+    var existingRunways = {};
     flightplanArray.forEach(function(wp) {
-        if (wp.name) existingNames[wp.name.toUpperCase()] = true;
+        if (wp.name) {
+            existingNames[wp.name.toUpperCase()] = true;
+            // Runway-Namen normalisieren
+            var rwMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+            if (rwMatch) {
+                existingRunways[rwMatch[1].toUpperCase()] = true;
+            }
+        }
     });
 
     var sidEntries = [];
@@ -20555,13 +20654,25 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
             console.log('[SID_DEBUG] SKIPPING duplicate: ' + name);
             return;
         }
+
+        // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
+        var rwMatch = name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+        if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
+            console.log('[SID_DEBUG] SKIPPING duplicate runway: ' + name);
+            return;
+        }
+
         if (!lat || !lon || isNaN(lat) || isNaN(lon) || Math.abs(lat) < 0.001) {
             console.log('[SID_DEBUG] SKIPPING invalid coords: ' + name + ' lat=' + lat + ' lon=' + lon);
             return;
         }
 
         // Altitude aus Navigraph-Daten extrahieren (Altitude1 ist die primäre Höhe)
+        // Fallback auf Departure-Runway-Elevation für Runway-Waypoints
         var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
+        if (altitude === 0 && rwMatch && departureRunwayData && departureRunwayData.elevation) {
+            altitude = departureRunwayData.elevation;
+        }
         var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || '';
 
         sidEntries.push({
@@ -20611,9 +20722,18 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
     }).join(' → '));
 
     // Sammle existierende Waypoint-Namen um Duplikate zu vermeiden
+    // Auch Runway-Varianten normalisieren (RW18, 18, RW18L -> alle gleich behandeln)
     var existingNames = {};
+    var existingRunways = {};
     flightplanArray.forEach(function(wp) {
-        if (wp.name) existingNames[wp.name.toUpperCase()] = true;
+        if (wp.name) {
+            existingNames[wp.name.toUpperCase()] = true;
+            // Runway-Namen normalisieren
+            var rwMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+            if (rwMatch) {
+                existingRunways[rwMatch[1].toUpperCase()] = true;
+            }
+        }
     });
 
     var starEntries = [];
@@ -20627,12 +20747,24 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
             if (MAP_DEBUG) console.log('[Map] Skipping duplicate STAR waypoint:', name);
             return;
         }
+
+        // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
+        var rwMatch = name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+        if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
+            if (MAP_DEBUG) console.log('[Map] Skipping duplicate runway in STAR:', name);
+            return;
+        }
+
         if (!lat || !lon || isNaN(lat) || isNaN(lon) || Math.abs(lat) < 0.001) {
             return;
         }
 
         // Altitude aus Navigraph-Daten extrahieren (Altitude1 ist die primäre Höhe)
+        // Fallback auf Arrival-Runway-Elevation für Runway-Waypoints
         var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
+        if (altitude === 0 && rwMatch && arrivalRunwayData && arrivalRunwayData.elevation) {
+            altitude = arrivalRunwayData.elevation;
+        }
         var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || '';
 
         starEntries.push({
@@ -21159,9 +21291,9 @@ function getAvailableTransitions(procedures, procedureName, procedureType) {
     if (!procedures || !procedureName) return [];
 
     // ARINC 424 Route Types for enroute transitions
-    // SID: RouteType 6 = Enroute Transition
-    // STAR: RouteType 1 = Enroute Transition
-    var enrouteRouteTypes = (procedureType === 'STAR') ? ['1'] : ['6'];
+    // SID: RouteType 3 = Enroute Trans (conv), RouteType 6 = RNAV Enroute
+    // STAR: RouteType 1 = Enroute Trans (conv), RouteType 4 = RNAV Enroute
+    var enrouteRouteTypes = (procedureType === 'STAR') ? ['1', '4'] : ['3', '6'];
 
     // Debug: Log all RouteTypes for this procedure
     var allRouteTypes = [];
@@ -22504,12 +22636,27 @@ function setWaypoints(flightplanData) {
         depRwyName = 'RW' + depRwyName;
       }
 
+      // WICHTIG: Entferne existierende Runway-Duplikate aus dem Flightplan
+      // (z.B. RW18 aus SID-Waypoints, wenn wir gleich RW18 als Threshold setzen)
+      var depRwyNumber = depRwyName.replace(/^RW/i, '').toUpperCase();
+      flightplan = flightplan.filter(function(wp, idx) {
+        if (idx === 0) return true; // Erster Waypoint wird sowieso ersetzt
+        if (!wp.name) return true;
+        var wpRwyMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+        if (wpRwyMatch && wpRwyMatch[1].toUpperCase() === depRwyNumber) {
+          if (MAP_DEBUG) console.log('[RWY_DEBUG] Removing duplicate departure runway waypoint:', wp.name);
+          return false;
+        }
+        return true;
+      });
+
       var thresholdWp = {
         name: depRwyName,
         lat: departureRunwayData.thresholdLat,
         lng: departureRunwayData.thresholdLon,
         type: 'DEP',
-        waypointType: 'DEP'
+        waypointType: 'DEP',
+        altitude: departureRunwayData.elevation || 0
       };
       var endWp = {
         name: depRwyName + '_END',
@@ -22532,14 +22679,30 @@ function setWaypoints(flightplanData) {
         arrRwyName = 'RW' + arrRwyName;
       }
 
-      // Replace last waypoint (airport) with runway threshold
+      // WICHTIG: Entferne existierende Arrival-Runway-Duplikate aus dem Flightplan
+      // (z.B. RW08L aus STAR/Approach-Waypoints)
+      var arrRwyNumber = arrRwyName.replace(/^RW/i, '').toUpperCase();
       var lastIdx = flightplan.length - 1;
+      flightplan = flightplan.filter(function(wp, idx) {
+        if (idx === lastIdx) return true; // Letzter Waypoint wird sowieso ersetzt
+        if (!wp.name) return true;
+        var wpRwyMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+        if (wpRwyMatch && wpRwyMatch[1].toUpperCase() === arrRwyNumber) {
+          if (MAP_DEBUG) console.log('[RWY_DEBUG] Removing duplicate arrival runway waypoint:', wp.name);
+          return false;
+        }
+        return true;
+      });
+
+      // Update lastIdx nach dem Filtern
+      lastIdx = flightplan.length - 1;
       flightplan[lastIdx] = {
         name: arrRwyName,  // z.B. "RW08L" statt "ARR_THRESHOLD"
         lat: arrivalRunwayData.thresholdLat,
         lng: arrivalRunwayData.thresholdLon,
         type: 'ARR',
-        waypointType: 'ARR'
+        waypointType: 'ARR',
+        altitude: arrivalRunwayData.elevation || 0
       };
     }
   }
