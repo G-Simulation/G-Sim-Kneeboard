@@ -51,10 +51,16 @@ namespace Kneeboard_Server
             this.idsGroupBox = new System.Windows.Forms.GroupBox();
             this.cacheGroupBox = new System.Windows.Forms.GroupBox();
             this.navigraphGroupBox = new System.Windows.Forms.GroupBox();
+            this.elevationGroupBox = new System.Windows.Forms.GroupBox();
+            this.elevationStatusLabel = new System.Windows.Forms.Label();
+            this.downloadSrtmButton = new System.Windows.Forms.Button();
+            this.useSrtmCheckbox = new System.Windows.Forms.CheckBox();
+            this.srtmRegionComboBox = new System.Windows.Forms.ComboBox();
             this.startupGroupBox.SuspendLayout();
             this.idsGroupBox.SuspendLayout();
             this.cacheGroupBox.SuspendLayout();
             this.navigraphGroupBox.SuspendLayout();
+            this.elevationGroupBox.SuspendLayout();
             this.SuspendLayout();
             // 
             // closeButton
@@ -94,22 +100,22 @@ namespace Kneeboard_Server
             this.Version.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // label2
-            // 
+            //
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
             this.label2.Font = new System.Drawing.Font("Segoe UI", 8.25F);
             this.label2.ForeColor = System.Drawing.SystemColors.ControlDarkDark;
-            this.label2.Location = new System.Drawing.Point(12, 426);
+            this.label2.Location = new System.Drawing.Point(12, 541);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(230, 16);
             this.label2.TabIndex = 28;
             this.label2.Text = "Gsimulations - 2021";
             this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // linkLabel1
-            // 
+            //
             this.linkLabel1.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
             this.linkLabel1.Font = new System.Drawing.Font("Segoe UI", 8.25F);
-            this.linkLabel1.Location = new System.Drawing.Point(12, 442);
+            this.linkLabel1.Location = new System.Drawing.Point(12, 557);
             this.linkLabel1.Name = "linkLabel1";
             this.linkLabel1.Size = new System.Drawing.Size(230, 16);
             this.linkLabel1.TabIndex = 29;
@@ -296,9 +302,9 @@ namespace Kneeboard_Server
             this.cacheGroupBox.TabIndex = 52;
             this.cacheGroupBox.TabStop = false;
             this.cacheGroupBox.Text = "Cache";
-            // 
+            //
             // navigraphGroupBox
-            // 
+            //
             this.navigraphGroupBox.Controls.Add(this.navigraphLabel);
             this.navigraphGroupBox.Controls.Add(this.navigraphStatusLabel);
             this.navigraphGroupBox.Controls.Add(this.navigraphLoginButton);
@@ -309,13 +315,73 @@ namespace Kneeboard_Server
             this.navigraphGroupBox.TabIndex = 54;
             this.navigraphGroupBox.TabStop = false;
             this.navigraphGroupBox.Text = "Navigraph";
-            // 
+            //
+            // elevationGroupBox
+            //
+            this.elevationGroupBox.Controls.Add(this.useSrtmCheckbox);
+            this.elevationGroupBox.Controls.Add(this.srtmRegionComboBox);
+            this.elevationGroupBox.Controls.Add(this.downloadSrtmButton);
+            this.elevationGroupBox.Controls.Add(this.elevationStatusLabel);
+            this.elevationGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
+            this.elevationGroupBox.Location = new System.Drawing.Point(12, 423);
+            this.elevationGroupBox.Name = "elevationGroupBox";
+            this.elevationGroupBox.Size = new System.Drawing.Size(230, 115);
+            this.elevationGroupBox.TabIndex = 55;
+            this.elevationGroupBox.TabStop = false;
+            this.elevationGroupBox.Text = "Elevation Data (SRTM)";
+            //
+            // useSrtmCheckbox
+            //
+            this.useSrtmCheckbox.AutoSize = true;
+            this.useSrtmCheckbox.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.useSrtmCheckbox.Location = new System.Drawing.Point(10, 18);
+            this.useSrtmCheckbox.Name = "useSrtmCheckbox";
+            this.useSrtmCheckbox.Size = new System.Drawing.Size(148, 17);
+            this.useSrtmCheckbox.TabIndex = 0;
+            this.useSrtmCheckbox.Text = "Use local SRTM data";
+            this.useSrtmCheckbox.UseVisualStyleBackColor = true;
+            this.useSrtmCheckbox.CheckedChanged += new System.EventHandler(this.UseSrtmCheckbox_CheckedChanged);
+            //
+            // downloadSrtmButton
+            //
+            this.downloadSrtmButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.downloadSrtmButton.ForeColor = System.Drawing.SystemColors.Highlight;
+            this.downloadSrtmButton.Location = new System.Drawing.Point(10, 65);
+            this.downloadSrtmButton.Name = "downloadSrtmButton";
+            this.downloadSrtmButton.Size = new System.Drawing.Size(135, 23);
+            this.downloadSrtmButton.TabIndex = 1;
+            this.downloadSrtmButton.Text = "Download";
+            this.downloadSrtmButton.UseVisualStyleBackColor = true;
+            this.downloadSrtmButton.Click += new System.EventHandler(this.DownloadSrtmButton_Click);
+            //
+            // elevationStatusLabel
+            //
+            this.elevationStatusLabel.AutoSize = true;
+            this.elevationStatusLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
+            this.elevationStatusLabel.ForeColor = System.Drawing.Color.Gray;
+            this.elevationStatusLabel.Location = new System.Drawing.Point(10, 92);
+            this.elevationStatusLabel.Name = "elevationStatusLabel";
+            this.elevationStatusLabel.Size = new System.Drawing.Size(210, 13);
+            this.elevationStatusLabel.TabIndex = 2;
+            this.elevationStatusLabel.Text = "0 files";
+            //
+            // srtmRegionComboBox
+            //
+            this.srtmRegionComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.srtmRegionComboBox.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.srtmRegionComboBox.FormattingEnabled = true;
+            this.srtmRegionComboBox.Location = new System.Drawing.Point(10, 40);
+            this.srtmRegionComboBox.Name = "srtmRegionComboBox";
+            this.srtmRegionComboBox.Size = new System.Drawing.Size(135, 21);
+            this.srtmRegionComboBox.TabIndex = 3;
+            //
             // InformationForm
-            // 
+            //
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Window;
-            this.ClientSize = new System.Drawing.Size(254, 466);
+            this.ClientSize = new System.Drawing.Size(254, 581);
+            this.Controls.Add(this.elevationGroupBox);
             this.Controls.Add(this.navigraphGroupBox);
             this.Controls.Add(this.cacheGroupBox);
             this.Controls.Add(this.idsGroupBox);
@@ -338,6 +404,8 @@ namespace Kneeboard_Server
             this.cacheGroupBox.PerformLayout();
             this.navigraphGroupBox.ResumeLayout(false);
             this.navigraphGroupBox.PerformLayout();
+            this.elevationGroupBox.ResumeLayout(false);
+            this.elevationGroupBox.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -366,5 +434,10 @@ namespace Kneeboard_Server
         private System.Windows.Forms.GroupBox idsGroupBox;
         private System.Windows.Forms.GroupBox cacheGroupBox;
         private System.Windows.Forms.GroupBox navigraphGroupBox;
+        private System.Windows.Forms.GroupBox elevationGroupBox;
+        private System.Windows.Forms.CheckBox useSrtmCheckbox;
+        private System.Windows.Forms.Button downloadSrtmButton;
+        private System.Windows.Forms.Label elevationStatusLabel;
+        private System.Windows.Forms.ComboBox srtmRegionComboBox;
     }
 }

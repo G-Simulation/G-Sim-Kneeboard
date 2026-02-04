@@ -84,11 +84,31 @@ namespace Kneeboard_Server.Navigraph
                     }
                 }
 
-                // Check if token is valid and get subscription status
+                // Check if token is valid or can be refreshed
                 if (IsAuthenticated)
                 {
                     Log($"Navigraph: Gespeicherte Anmeldung gefunden für {Username}");
                     _ = Task.Run(async () => await CheckSubscriptionAsync());
+                }
+                else if (!string.IsNullOrEmpty(RefreshToken))
+                {
+                    // Token expired but refresh token exists - try to refresh
+                    Log($"Navigraph: Token abgelaufen, versuche Erneuerung für {Username}...");
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            if (await RefreshTokenAsync())
+                            {
+                                Log($"Navigraph: Token erfolgreich erneuert für {Username}");
+                                await CheckSubscriptionAsync();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"Navigraph: Token-Erneuerung fehlgeschlagen: {ex.Message}");
+                        }
+                    });
                 }
             }
             catch (Exception ex)

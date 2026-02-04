@@ -4273,17 +4273,21 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     background-color: #17a2b8;
 }
 
-/* Summary Footer - Clean style */
+/* Summary Footer - Matching header style */
 .fp-summary {
     display: flex;
     justify-content: center;
+    align-items: center;
     gap: 10px;
     font-size: 10px;
-    padding: 6px 8px;
-    background: #f8f9fa;
-    border-top: 1px solid #e0e0e0;
-    color: var(--fontDark);
+    padding: 8px 12px;
+    background-color: var(--dark);
+    opacity: 0.85;
+    border-top: none;
+    color: var(--fontLight);
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 /* ========================================

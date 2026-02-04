@@ -68,6 +68,17 @@ namespace Kneeboard_Server
 
             // Load Navigraph status
             UpdateNavigraphStatus();
+
+            // Load SRTM settings
+            useSrtmCheckbox.Checked = Properties.Settings.Default.useSrtmElevation;
+            UpdateSrtmStatus();
+
+            // Populate SRTM region ComboBox
+            foreach (var region in SimpleHTTPServer.SrtmRegions)
+            {
+                srtmRegionComboBox.Items.Add(region.Value.description);
+            }
+            srtmRegionComboBox.SelectedIndex = 0; // Default to Europe
         }
 
         private void InformationForm_Load(object sender, EventArgs e)
@@ -206,8 +217,9 @@ namespace Kneeboard_Server
             {
                 SimpleHTTPServer.ClearOpenAipCache();
                 SimpleHTTPServer.ClearBoundariesCache();
+                SimpleHTTPServer.ClearElevationCache();
                 UpdateCacheButtonText();
-                MessageBox.Show("Cache wurde geleert (OpenAIP + Boundaries).", "Cache",
+                MessageBox.Show("Cache wurde geleert (OpenAIP + Boundaries + Elevation).", "Cache",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -377,6 +389,138 @@ namespace Kneeboard_Server
             {
                 navigraphLoginButton.Enabled = true;
                 UpdateNavigraphStatus();
+            }
+        }
+
+        #endregion
+
+        #region SRTM Elevation Data
+
+        private void UpdateSrtmStatus()
+        {
+            try
+            {
+                int fileCount = SimpleHTTPServer.GetSrtmFileCount();
+                if (fileCount > 0)
+                {
+                    elevationStatusLabel.Text = $"{fileCount} files";
+                    elevationStatusLabel.ForeColor = System.Drawing.Color.Green;
+                }
+                else
+                {
+                    elevationStatusLabel.Text = "No data";
+                    elevationStatusLabel.ForeColor = System.Drawing.Color.Gray;
+                }
+            }
+            catch
+            {
+                elevationStatusLabel.Text = "Error";
+                elevationStatusLabel.ForeColor = System.Drawing.Color.Red;
+            }
+        }
+
+        private void UseSrtmCheckbox_CheckedChanged(object sender, EventArgs e)
+        {
+            Properties.Settings.Default.useSrtmElevation = useSrtmCheckbox.Checked;
+            Properties.Settings.Default.Save();
+        }
+
+        private bool _isDownloading = false;
+
+        private async void DownloadSrtmButton_Click(object sender, EventArgs e)
+        {
+            // If already downloading, cancel
+            if (_isDownloading)
+            {
+                SimpleHTTPServer.CancelSrtmDownload();
+                downloadSrtmButton.Text = "Cancelling...";
+                downloadSrtmButton.Enabled = false;
+                return;
+            }
+
+            // Get selected region
+            if (srtmRegionComboBox.SelectedIndex < 0)
+            {
+                MessageBox.Show("Please select a region to download.", "SRTM Download",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Get region name from dictionary key by matching description
+            string selectedDescription = srtmRegionComboBox.SelectedItem.ToString();
+            string regionName = null;
+            string regionDesc = null;
+            foreach (var region in SimpleHTTPServer.SrtmRegions)
+            {
+                if (region.Value.description == selectedDescription)
+                {
+                    regionName = region.Key;
+                    regionDesc = region.Value.description;
+                    break;
+                }
+            }
+
+            if (regionName == null)
+            {
+                MessageBox.Show("Invalid region selected.", "SRTM Download",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                $"Download SRTM elevation data for {regionDesc}?\n\n" +
+                "The data will be stored locally for offline use.\n" +
+                "This may take a while depending on your connection.\n\n" +
+                "Continue?",
+                "Download SRTM Data",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (result != DialogResult.Yes)
+                return;
+
+            _isDownloading = true;
+            srtmRegionComboBox.Enabled = false;
+            downloadSrtmButton.Text = "Cancel";
+            downloadSrtmButton.ForeColor = System.Drawing.Color.Red;
+            elevationStatusLabel.Text = "Starting...";
+            elevationStatusLabel.ForeColor = System.Drawing.Color.Orange;
+
+            try
+            {
+                var progress = new Progress<string>(status =>
+                {
+                    if (InvokeRequired)
+                        Invoke(new Action(() => elevationStatusLabel.Text = status));
+                    else
+                        elevationStatusLabel.Text = status;
+                });
+
+                await Task.Run(() => SimpleHTTPServer.DownloadSrtmRegion(regionName, progress));
+
+                UpdateSrtmStatus();
+                MessageBox.Show("SRTM data download complete!", "Success",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (OperationCanceledException)
+            {
+                MessageBox.Show("Download was cancelled.", "Cancelled",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                UpdateSrtmStatus();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Download error: {ex.Message}", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                UpdateSrtmStatus();
+            }
+            finally
+            {
+                _isDownloading = false;
+                downloadSrtmButton.Enabled = true;
+                srtmRegionComboBox.Enabled = true;
+                downloadSrtmButton.Text = "Download";
+                downloadSrtmButton.ForeColor = System.Drawing.SystemColors.Highlight;
             }
         }
 

@@ -430,5 +430,17 @@ namespace Kneeboard_Server.Properties {
                 this["navdataAirportCount"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool useSrtmElevation {
+            get {
+                return ((bool)(this["useSrtmElevation"]));
+            }
+            set {
+                this["useSrtmElevation"] = value;
+            }
+        }
     }
 }

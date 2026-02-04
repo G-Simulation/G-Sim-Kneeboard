@@ -649,6 +649,308 @@ namespace Kneeboard_Server
                 // EmbedIO manages stream
             }
         }
+        // Elevation cache - stores elevation values by rounded coordinates
+        private static readonly Dictionary<string, double> _elevationCache = new Dictionary<string, double>();
+        private static readonly object _elevationCacheLock = new object();
+        private static readonly string _elevationCacheDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "elevation");
+        private static DateTime _lastElevationApiCall = DateTime.MinValue;
+        private static readonly TimeSpan _elevationApiMinInterval = TimeSpan.FromMilliseconds(500);
+
+        private string GetElevationCacheKey(double lat, double lon)
+        {
+            // Round to 4 decimal places (~11m precision)
+            var roundedLat = Math.Round(lat, 4);
+            var roundedLon = Math.Round(lon, 4);
+            return $"{roundedLat.ToString(System.Globalization.CultureInfo.InvariantCulture)}_{roundedLon.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        }
+
+        private double? GetCachedElevation(double lat, double lon)
+        {
+            var key = GetElevationCacheKey(lat, lon);
+
+            // Check memory cache first
+            lock (_elevationCacheLock)
+            {
+                if (_elevationCache.TryGetValue(key, out double elev))
+                {
+                    return elev;
+                }
+            }
+
+            // Check file cache
+            try
+            {
+                var cachePath = Path.Combine(_elevationCacheDir, $"{key}.txt");
+                if (File.Exists(cachePath))
+                {
+                    var content = File.ReadAllText(cachePath);
+                    if (double.TryParse(content, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double elevation))
+                    {
+                        // Add to memory cache
+                        lock (_elevationCacheLock)
+                        {
+                            _elevationCache[key] = elevation;
+                        }
+                        return elevation;
+                    }
+                }
+            }
+            catch { /* ignore cache read errors */ }
+
+            return null;
+        }
+
+        private void CacheElevation(double lat, double lon, double elevation)
+        {
+            var key = GetElevationCacheKey(lat, lon);
+
+            // Memory cache
+            lock (_elevationCacheLock)
+            {
+                _elevationCache[key] = elevation;
+            }
+
+            // File cache (async fire-and-forget)
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    if (!Directory.Exists(_elevationCacheDir))
+                    {
+                        Directory.CreateDirectory(_elevationCacheDir);
+                    }
+                    var cachePath = Path.Combine(_elevationCacheDir, $"{key}.txt");
+                    File.WriteAllText(cachePath, elevation.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                }
+                catch { /* ignore cache write errors */ }
+            });
+        }
+
+        // SRTM elevation data support
+        private static readonly string _srtmDataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "srtm");
+
+        public static int GetSrtmFileCount()
+        {
+            try
+            {
+                if (!Directory.Exists(_srtmDataDir))
+                    return 0;
+                return Directory.GetFiles(_srtmDataDir, "*.hgt").Length;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        public static double? GetSrtmElevation(double lat, double lon)
+        {
+            try
+            {
+                // SRTM file naming: N50E007.hgt for 50°N, 7°E
+                int latInt = (int)Math.Floor(lat);
+                int lonInt = (int)Math.Floor(lon);
+
+                string latPrefix = lat >= 0 ? "N" : "S";
+                string lonPrefix = lon >= 0 ? "E" : "W";
+
+                string fileName = $"{latPrefix}{Math.Abs(latInt):D2}{lonPrefix}{Math.Abs(lonInt):D3}.hgt";
+                string filePath = Path.Combine(_srtmDataDir, fileName);
+
+                if (!File.Exists(filePath))
+                    return null;
+
+                // SRTM3 (3 arc-second): 1201 x 1201 samples per tile
+                // SRTM1 (1 arc-second): 3601 x 3601 samples per tile
+                var fileInfo = new FileInfo(filePath);
+                int samples;
+                if (fileInfo.Length == 1201 * 1201 * 2) // SRTM3
+                    samples = 1201;
+                else if (fileInfo.Length == 3601 * 3601 * 2) // SRTM1
+                    samples = 3601;
+                else
+                    return null; // Unknown format
+
+                // Calculate position within tile
+                double latFrac = lat - latInt;
+                double lonFrac = lon - lonInt;
+
+                // Row increases from bottom to top (south to north)
+                int row = (int)((1 - latFrac) * (samples - 1));
+                int col = (int)(lonFrac * (samples - 1));
+
+                // Clamp to valid range
+                row = Math.Max(0, Math.Min(samples - 1, row));
+                col = Math.Max(0, Math.Min(samples - 1, col));
+
+                // Read elevation value (big-endian 16-bit signed integer)
+                long offset = (row * samples + col) * 2;
+                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    fs.Seek(offset, SeekOrigin.Begin);
+                    byte[] buffer = new byte[2];
+                    fs.Read(buffer, 0, 2);
+
+                    // Big-endian to little-endian
+                    short elevation = (short)((buffer[0] << 8) | buffer[1]);
+
+                    // SRTM void value is -32768
+                    if (elevation == -32768)
+                        return null;
+
+                    return elevation;
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// SRTM region definitions for download
+        /// </summary>
+        public static readonly Dictionary<string, (int minLat, int maxLat, int minLon, int maxLon, string description)> SrtmRegions =
+            new Dictionary<string, (int, int, int, int, string)>
+        {
+            { "Europe", (35, 71, -11, 40, "Europe (~2-3 GB)") },
+            { "NorthAmerica", (24, 60, -130, -52, "North America (~5 GB)") },
+            { "SouthAmerica", (-56, 12, -82, -34, "South America (~4 GB)") },
+            { "Africa", (-35, 37, -18, 52, "Africa (~5 GB)") },
+            { "Asia", (0, 60, 60, 150, "Asia (~7 GB)") },
+            { "Oceania", (-47, 0, 110, 180, "Oceania (~3 GB)") },
+            { "Worldwide", (-60, 60, -180, 179, "Worldwide (~25 GB)") }
+        };
+
+        private static CancellationTokenSource _srtmDownloadCts;
+
+        public static void CancelSrtmDownload()
+        {
+            _srtmDownloadCts?.Cancel();
+        }
+
+        public static void DownloadSrtmRegion(string regionName, IProgress<string> progress)
+        {
+            if (!SrtmRegions.TryGetValue(regionName, out var region))
+            {
+                throw new ArgumentException($"Unknown region: {regionName}");
+            }
+
+            _srtmDownloadCts = new CancellationTokenSource();
+            DownloadSrtmArea(region.minLat, region.maxLat, region.minLon, region.maxLon, progress, _srtmDownloadCts.Token);
+        }
+
+        public static void DownloadSrtmEurope(IProgress<string> progress)
+        {
+            DownloadSrtmRegion("Europe", progress);
+        }
+
+        public static void DownloadSrtmArea(int minLat, int maxLat, int minLon, int maxLon, IProgress<string> progress, CancellationToken cancellationToken = default)
+        {
+            if (!Directory.Exists(_srtmDataDir))
+                Directory.CreateDirectory(_srtmDataDir);
+
+            // Build list of all tiles to download
+            var tiles = new List<(int lat, int lon, string fileName, string filePath)>();
+            for (int lat = minLat; lat <= maxLat; lat++)
+            {
+                for (int lon = minLon; lon <= maxLon; lon++)
+                {
+                    string latPrefix = lat >= 0 ? "N" : "S";
+                    string lonPrefix = lon >= 0 ? "E" : "W";
+                    string fileName = $"{latPrefix}{Math.Abs(lat):D2}{lonPrefix}{Math.Abs(lon):D3}.hgt";
+                    string filePath = Path.Combine(_srtmDataDir, fileName);
+                    tiles.Add((lat, lon, fileName, filePath));
+                }
+            }
+
+            int totalTiles = tiles.Count;
+            int processedTiles = 0;
+            int downloadedTiles = 0;
+            int skippedTiles = 0;
+            int errorTiles = 0;
+            object lockObj = new object();
+
+            // Parallel download with 10 concurrent connections
+            var parallelOptions = new ParallelOptions
+            {
+                MaxDegreeOfParallelism = 10,
+                CancellationToken = cancellationToken
+            };
+
+            try
+            {
+                Parallel.ForEach(tiles, parallelOptions, tile =>
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                        return;
+
+                    int current;
+                    lock (lockObj)
+                    {
+                        processedTiles++;
+                        current = processedTiles;
+                    }
+
+                    // Skip if already exists
+                    if (File.Exists(tile.filePath))
+                    {
+                        lock (lockObj) { skippedTiles++; }
+                        progress?.Report($"{current}/{totalTiles} ({downloadedTiles} new, {skippedTiles} exist)");
+                        return;
+                    }
+
+                    try
+                    {
+                        string latPrefix = tile.lat >= 0 ? "N" : "S";
+                        string url = $"https://elevation-tiles-prod.s3.amazonaws.com/skadi/{latPrefix}{Math.Abs(tile.lat):D2}/{tile.fileName}.gz";
+
+                        using (var client = new System.Net.WebClient())
+                        {
+                            string tempFile = tile.filePath + $".{System.Threading.Thread.CurrentThread.ManagedThreadId}.gz";
+                            client.DownloadFile(url, tempFile);
+
+                            if (File.Exists(tempFile) && new FileInfo(tempFile).Length > 0)
+                            {
+                                using (var compressedStream = new FileStream(tempFile, FileMode.Open))
+                                using (var gzipStream = new System.IO.Compression.GZipStream(compressedStream, System.IO.Compression.CompressionMode.Decompress))
+                                using (var outputStream = new FileStream(tile.filePath, FileMode.Create))
+                                {
+                                    gzipStream.CopyTo(outputStream);
+                                }
+                                File.Delete(tempFile);
+                                lock (lockObj) { downloadedTiles++; }
+                            }
+                            else
+                            {
+                                if (File.Exists(tempFile)) File.Delete(tempFile);
+                                lock (lockObj) { skippedTiles++; }
+                            }
+                        }
+                    }
+                    catch (System.Net.WebException ex) when (ex.Response is System.Net.HttpWebResponse resp && resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    {
+                        // 404 = tile doesn't exist (water/ocean)
+                        lock (lockObj) { skippedTiles++; }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[SRTM] Error downloading {tile.fileName}: {ex.Message}");
+                        lock (lockObj) { errorTiles++; }
+                    }
+
+                    progress?.Report($"{current}/{totalTiles} ({downloadedTiles} new, {skippedTiles} exist)");
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                progress?.Report($"Cancelled: {downloadedTiles} new, {skippedTiles} exist");
+                throw;
+            }
+
+            progress?.Report($"Done: {downloadedTiles} new, {skippedTiles} exist, {errorTiles} errors");
+        }
+
         private async Task HandleElevationProxy(IHttpContext ctx)
         {
             var request = ctx.Request;
@@ -679,7 +981,6 @@ namespace Kneeboard_Server
             {
                 // Parse the incoming request to extract coordinates
                 // Expected format: {"locations": [{"latitude": XX, "longitude": XX}]}
-                Console.WriteLine($"[Elevation] Request body: {requestBody.Substring(0, Math.Min(200, requestBody.Length))}...");
                 dynamic requestData = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(requestBody);
                 var locations = requestData?.locations;
 
@@ -689,43 +990,104 @@ namespace Kneeboard_Server
                     ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                     var errorBuffer = Encoding.UTF8.GetBytes("{\"error\":\"No locations provided\"}");
                     ctx.Response.ContentType = "application/json";
-                    // ctx.Response.ContentLength = errorBuffer.Length;
                     await ctx.Response.OutputStream.WriteAsync(errorBuffer, 0, errorBuffer.Length);
                     return;
                 }
-                Console.WriteLine($"[Elevation] Processing {locations.Count} locations");
+
+                var allResults = new List<object>();
+                var uncachedLocations = new List<(int index, double lat, double lon)>();
+                bool useSrtm = Properties.Settings.Default.useSrtmElevation;
+                int srtmHits = 0;
+
+                // First pass: check SRTM (if enabled), then cache for all locations
+                int idx = 0;
+                foreach (var loc in locations)
+                {
+                    double lat = (double)loc.latitude;
+                    double lon = (double)loc.longitude;
+                    double? elevation = null;
+
+                    // Try SRTM first (if enabled and available)
+                    if (useSrtm)
+                    {
+                        elevation = GetSrtmElevation(lat, lon);
+                        if (elevation.HasValue)
+                        {
+                            srtmHits++;
+                            // Also cache this for faster access next time
+                            CacheElevation(lat, lon, elevation.Value);
+                        }
+                    }
+
+                    // Try cache if SRTM didn't have it
+                    if (!elevation.HasValue)
+                    {
+                        elevation = GetCachedElevation(lat, lon);
+                    }
+
+                    if (elevation.HasValue)
+                    {
+                        allResults.Add(new { latitude = lat, longitude = lon, elevation = elevation.Value });
+                    }
+                    else
+                    {
+                        uncachedLocations.Add((idx, lat, lon));
+                        allResults.Add(null); // Placeholder
+                    }
+                    idx++;
+                }
+
+                int cacheHits = allResults.Count(r => r != null);
+                int cacheMisses = uncachedLocations.Count;
+
+                if (cacheMisses == 0)
+                {
+                    // All from SRTM/cache - no API needed!
+                    Console.WriteLine($"[Elevation] All {cacheHits} locations local (SRTM: {srtmHits}, cache: {cacheHits - srtmHits})");
+                    string payload = Newtonsoft.Json.JsonConvert.SerializeObject(new { results = allResults });
+                    var buffer = Encoding.UTF8.GetBytes(payload);
+                    ctx.Response.StatusCode = 200;
+                    ctx.Response.ContentType = "application/json";
+                    ctx.Response.Headers.Add("X-Cache", "HIT");
+                    await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                    return;
+                }
+
+                Console.WriteLine($"[Elevation] SRTM: {srtmHits}, Cache: {cacheHits - srtmHits}, API needed: {cacheMisses}");
+
+                // Rate limiting: wait if last API call was too recent
+                var timeSinceLastCall = DateTime.Now - _lastElevationApiCall;
+                if (timeSinceLastCall < _elevationApiMinInterval)
+                {
+                    var waitTime = _elevationApiMinInterval - timeSinceLastCall;
+                    await System.Threading.Tasks.Task.Delay(waitTime);
+                }
 
                 // Open-Meteo API limit: max 100 locations per request
                 const int MAX_LOCATIONS_PER_REQUEST = 100;
-                var allResults = new List<object>();
-
-                // Convert locations to a list for easier batch processing
-                var locationsList = new List<dynamic>();
-                foreach (var loc in locations)
-                {
-                    locationsList.Add(loc);
-                }
-
-                // Process in batches if needed
-                int totalBatches = (int)Math.Ceiling((double)locationsList.Count / MAX_LOCATIONS_PER_REQUEST);
-                Console.WriteLine($"[Elevation] Processing in {totalBatches} batch(es)");
+                int totalBatches = (int)Math.Ceiling((double)uncachedLocations.Count / MAX_LOCATIONS_PER_REQUEST);
 
                 for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++)
                 {
                     int startIndex = batchIndex * MAX_LOCATIONS_PER_REQUEST;
-                    int batchSize = Math.Min(MAX_LOCATIONS_PER_REQUEST, locationsList.Count - startIndex);
+                    int batchSize = Math.Min(MAX_LOCATIONS_PER_REQUEST, uncachedLocations.Count - startIndex);
 
                     // Build comma-separated lat/lng lists for this batch
                     var latitudes = new List<string>();
                     var longitudes = new List<string>();
+                    var batchItems = new List<(int index, double lat, double lon)>();
+
                     for (int i = startIndex; i < startIndex + batchSize; i++)
                     {
-                        latitudes.Add(((double)locationsList[i].latitude).ToString(System.Globalization.CultureInfo.InvariantCulture));
-                        longitudes.Add(((double)locationsList[i].longitude).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        var item = uncachedLocations[i];
+                        batchItems.Add(item);
+                        latitudes.Add(item.lat.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        longitudes.Add(item.lon.ToString(System.Globalization.CultureInfo.InvariantCulture));
                     }
 
                     // Use Open-Meteo API
                     string apiUrl = $"https://api.open-meteo.com/v1/elevation?latitude={string.Join(",", latitudes)}&longitude={string.Join(",", longitudes)}";
+                    _lastElevationApiCall = DateTime.Now;
 
                     var outboundRequest = (HttpWebRequest)WebRequest.Create(apiUrl);
                     outboundRequest.Method = "GET";
@@ -749,32 +1111,39 @@ namespace Kneeboard_Server
                         // Add results from this batch
                         for (int i = 0; i < batchSize && i < elevations.Count; i++)
                         {
-                            allResults.Add(new
+                            var item = batchItems[i];
+                            double elevation = (double)elevations[i];
+
+                            // Cache the result
+                            CacheElevation(item.lat, item.lon, elevation);
+
+                            // Update the result at the original index
+                            allResults[item.index] = new
                             {
-                                latitude = (double)locationsList[startIndex + i].latitude,
-                                longitude = (double)locationsList[startIndex + i].longitude,
-                                elevation = (double)elevations[i]
-                            });
+                                latitude = item.lat,
+                                longitude = item.lon,
+                                elevation = elevation
+                            };
                         }
                     }
 
                     // Small delay between batches to avoid rate limiting
                     if (batchIndex < totalBatches - 1)
                     {
-                        System.Threading.Thread.Sleep(50);
+                        await System.Threading.Tasks.Task.Delay(100);
                     }
                 }
 
-                Console.WriteLine($"[Elevation] Returning {allResults.Count} elevation results");
+                Console.WriteLine($"[Elevation] Returning {allResults.Count} elevation results (SRTM: {srtmHits}, cache: {cacheHits - srtmHits}, API: {cacheMisses})");
 
                 // Return combined results
-                string payload = Newtonsoft.Json.JsonConvert.SerializeObject(new { results = allResults });
-                var buffer = Encoding.UTF8.GetBytes(payload);
+                string resultPayload = Newtonsoft.Json.JsonConvert.SerializeObject(new { results = allResults });
+                var resultBuffer = Encoding.UTF8.GetBytes(resultPayload);
 
                 ctx.Response.StatusCode = 200;
                 ctx.Response.ContentType = "application/json";
-                // ctx.Response.ContentLength = buffer.Length;
-                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                ctx.Response.Headers.Add("X-Cache", cacheHits > 0 ? "PARTIAL" : "MISS");
+                await ctx.Response.OutputStream.WriteAsync(resultBuffer, 0, resultBuffer.Length);
             }
             catch (WebException ex)
             {
@@ -792,7 +1161,6 @@ namespace Kneeboard_Server
                 string payload = "{\"error\":\"Unable to reach elevation service\"}";
                 var buffer = Encoding.UTF8.GetBytes(payload);
                 ctx.Response.ContentType = "application/json";
-                // ctx.Response.ContentLength = buffer.Length;
                 await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
             }
             catch (Exception ex)
@@ -802,7 +1170,6 @@ namespace Kneeboard_Server
                 string payload = "{\"error\":\"Internal server error\"}";
                 var buffer = Encoding.UTF8.GetBytes(payload);
                 ctx.Response.ContentType = "application/json";
-                // ctx.Response.ContentLength = buffer.Length;
                 await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
             }
             finally
@@ -4000,15 +4367,54 @@ namespace Kneeboard_Server
         }
 
         /// <summary>
-        /// Gets the current cache size in bytes
+        /// Clears the elevation cache (both memory and file cache)
+        /// Note: Does NOT delete SRTM data files
+        /// </summary>
+        public static void ClearElevationCache()
+        {
+            // Clear memory cache
+            lock (_elevationCacheLock)
+            {
+                _elevationCache.Clear();
+            }
+
+            // Clear file cache directory
+            if (Directory.Exists(_elevationCacheDir))
+            {
+                try
+                {
+                    Directory.Delete(_elevationCacheDir, true);
+                    Console.WriteLine("Elevation cache cleared");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error clearing elevation cache: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets the current cache size in bytes (OpenAIP + Elevation)
         /// </summary>
         public static long GetCacheSize()
         {
-            if (!Directory.Exists(CACHE_DIR))
-                return 0;
+            long totalSize = 0;
 
-            return Directory.GetFiles(CACHE_DIR, "*", SearchOption.AllDirectories)
-                .Sum(f => new FileInfo(f).Length);
+            // OpenAIP cache
+            if (Directory.Exists(CACHE_DIR))
+            {
+                totalSize += Directory.GetFiles(CACHE_DIR, "*", SearchOption.AllDirectories)
+                    .Sum(f => new FileInfo(f).Length);
+            }
+
+            // Elevation cache
+            if (Directory.Exists(_elevationCacheDir))
+            {
+                totalSize += Directory.GetFiles(_elevationCacheDir, "*", SearchOption.AllDirectories)
+                    .Sum(f => new FileInfo(f).Length);
+            }
+
+            return totalSize;
         }
 
         // ===== HYBRID-ANSATZ: Server-seitige Piloten-Klassifizierung =====

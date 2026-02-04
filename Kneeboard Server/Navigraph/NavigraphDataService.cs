@@ -86,11 +86,39 @@ namespace Kneeboard_Server.Navigraph
 
         /// <summary>
         /// Load the bundled database (fallback for all users)
+        /// First checks if a valid downloaded database exists and uses that instead.
         /// </summary>
         public void LoadBundledDatabase()
         {
             try
             {
+                // First check if a downloaded database exists and is valid
+                var downloadedPath = Path.Combine(NAVIGRAPH_FOLDER, DOWNLOADED_DB);
+                var savedCycle = Settings.Default.values;
+
+                if (File.Exists(downloadedPath) && !string.IsNullOrEmpty(savedCycle))
+                {
+                    try
+                    {
+                        // Try to load downloaded database
+                        _dbService?.Dispose();
+                        _dbService = new NavigraphDbService(downloadedPath);
+
+                        DatabasePath = downloadedPath;
+                        CurrentAiracCycle = savedCycle;
+                        IsUsingBundledDatabase = false;
+
+                        Log($"Navigraph: Downloaded Database geladen (AIRAC {savedCycle})");
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"Navigraph: Downloaded Database fehlerhaft, verwende Bundled: {ex.Message}");
+                        // Fall through to load bundled
+                    }
+                }
+
+                // Load bundled database as fallback
                 var bundledPath = Path.Combine(NAVIGRAPH_FOLDER, BUNDLED_DB);
 
                 if (!File.Exists(bundledPath))

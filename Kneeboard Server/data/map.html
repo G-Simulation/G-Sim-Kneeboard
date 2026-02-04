@@ -27,7 +27,7 @@
     </div>
 
     <!-- DEPARTURE SECTION -->
-    <div class="fp-section fp-departure">
+    <div class="fp-section fp-departure" id="fpDepartureSection" style="display: none;">
         <div class="fp-section-header">
             <span>DEP</span>
             <span class="fp-icao" id="depIcao">----</span>
@@ -64,7 +64,7 @@
     </div>
 
     <!-- ARRIVAL SECTION -->
-    <div class="fp-section fp-arrival">
+    <div class="fp-section fp-arrival" id="fpArrivalSection" style="display: none;">
         <div class="fp-section-header">
             <span>ARR</span>
             <span class="fp-icao" id="arrIcao">----</span>
@@ -139,8 +139,8 @@
         </div>
     </div>
 
-    <!-- APPLY BUTTON SECTION -->
-    <div class="fp-section fp-actions" id="fpActionsSection">
+    <!-- APPLY BUTTON SECTION - hidden by default until changes are made -->
+    <div class="fp-section fp-actions" id="fpActionsSection" style="display: none;">
         <button class="fp-apply-btn" id="fpApplyBtn" onclick="applyFlightplanChanges()" disabled>
             <span class="fp-apply-text">Übernehmen</span>
         </button>
