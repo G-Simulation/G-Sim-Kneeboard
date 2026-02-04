@@ -5470,6 +5470,13 @@ function initMapPage() {
   wpRunwayNumbers = getCachedItem("wpRunwayNumbers") || [];
   wpRunwayDesignators = getCachedItem("wpRunwayDesignators") || [];
 
+  // Runway-Daten wiederherstellen für korrekte Segmentfarben
+  departureRunwayData = getCachedItem("departureRunwayData") || null;
+  arrivalRunwayData = getCachedItem("arrivalRunwayData") || null;
+  if (MAP_DEBUG && (departureRunwayData || arrivalRunwayData)) {
+    console.log('[Cache] Restored runway data - DEP:', !!departureRunwayData, 'ARR:', !!arrivalRunwayData);
+  }
+
   // Restore flightplan metadata
   importedFlightplanMeta = getCachedItem("importedFlightplanMeta") || null;
   importedOFPData = getCachedItem("importedOFPData") || null;  // Load OFP data for ETA calculation
@@ -12885,23 +12892,17 @@ function buildCoordinateArrays() {
     var isLastWaypoint = (index === waypointLayers.length - 1);
 
     // SEGMENT-ANIMATION: Immer Farbtrennung - sowohl während als auch nach Animation
-    // DEP → grün, Enroute → blau, ARR → gelb
+    // DEP → grün, Enroute → blau, ARR/RWY → gelb
     // Die Animation zeichnet jeden Waypoint direkt mit seiner korrekten Farbe
     if (type.startsWith("DEP")) {
       // DEP waypoints go to green line ONLY
       pushUnique(coordsArrayDEP, coords);
-    } else if (type.startsWith("ARR")) {
-      // ARR waypoints go to yellow line ONLY
-      if (!(isLastWaypoint && arrivalRunwayData)) {
-        pushUnique(coordsArrayARR, coords);
-      }
+    } else if (type.startsWith("ARR") || type === "RWY") {
+      // ARR und RWY waypoints go to yellow line
+      pushUnique(coordsArrayARR, coords);
     } else {
       // En-route waypoints go to main blue line
-      if (isLastWaypoint && arrivalRunwayData) {
-        if (MAP_DEBUG) console.log('[buildCoords] Skipping last waypoint (airport) - using runway data instead');
-      } else {
-        pushUnique(coordsArray, coords);
-      }
+      pushUnique(coordsArray, coords);
     }
   });
 
@@ -12913,19 +12914,10 @@ function buildCoordinateArrays() {
     coordsArray.unshift(lastDepCoord);
   }
 
-  // NOTE: Approach waypoints are now injected as real waypoints in processFlightplanMessage
-  // They have waypointType: 'ARR' and are processed in the waypointLayers loop above
-
-  // Add runway endpoint to ARR line - ALWAYS (also during animation for complete route display)
-  // The runway END coordinates are loaded BEFORE animation starts in processFlightplanMessage
-  if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
-    pushUnique(coordsArrayARR, [arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon]);
-    // Add runway END point to draw line to end of runway (but NOT to waypoint list!)
-    if (arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
-      pushUnique(coordsArrayARR, [arrivalRunwayData.endLat, arrivalRunwayData.endLon]);
-    }
-  } else if (!isAnimating && destination) {
-    // Fallback nur wenn keine Runway-Daten UND nicht animierend
+  // NOTE: Runway END ist jetzt ein echter Waypoint mit Typ 'RWY' und wird oben verarbeitet
+  // Fallback nur wenn keine ARR-Waypoints existieren
+  if (!isAnimating && destination && coordsArrayARR.length === 0) {
+    // Fallback: Destination-Koordinaten wenn keine ARR/RWY-Waypoints
     var destLat = destination?.Airport_latitude || destination?.airport_latitude || destination?.Latitude || destination?.latitude;
     var destLon = destination?.Airport_longitude || destination?.airport_longitude || destination?.Longitude || destination?.longitude;
     if (destLat && destLon) {
@@ -15299,7 +15291,8 @@ function animateFlightplanRoute(flightplanData, onComplete) {
 
     if (wpType.indexOf('DEP') === 0) {
       segment = 'DEP';
-    } else if (wpType.indexOf('ARR') === 0) {
+    } else if (wpType.indexOf('ARR') === 0 || wpType === 'RWY') {
+      // RWY-Typ gehört zum ARR-Segment (gelbe Linie)
       segment = 'ARR';
     }
 
@@ -15316,8 +15309,7 @@ function animateFlightplanRoute(flightplanData, onComplete) {
       arrivalProcedure: wp.ArrivalFP || wp.arrivalFP || wp.arrivalProcedure || "",
       airway: wp.airway || wp.ATCAirway || "",
       runwayNumber: wp.runwayNumberFP || wp.runwayNumber || "",
-      runwayDesignator: wp.runwayDesignatorFP || wp.runwayDesignator || "",
-      isRunwayEnd: (wp.name || '').indexOf('_END') !== -1
+      runwayDesignator: wp.runwayDesignatorFP || wp.runwayDesignator || ""
     };
   });
 
@@ -15357,20 +15349,10 @@ function animateFlightplanRoute(flightplanData, onComplete) {
       lastFrameTime = now;
 
       if (currentIndex >= waypointsWithSegment.length) {
-        // Animation complete
+        // Animation complete - Runway END ist jetzt ein echter Waypoint mit Marker
         MAP_DEBUG && console.log('[AnimRoute] Animation complete');
 
-        // Add arrival runway END point to drawing (NOT to flightplan/navlog!)
-        // This matches what buildCoordinateArrays() does for non-animated drawing
-        if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
-          var endCoord = [arrivalRunwayData.endLat, arrivalRunwayData.endLon];
-          coordsARR.push(endCoord);
-          plineARR.setLatLngs(coordsARR);
-          MAP_DEBUG && console.log('[AnimRoute] Added arrival runway END point:', endCoord);
-        }
-
         // Animation is done - let drawLines() recreate polylines with proper data
-        // This ensures runway END is included via buildCoordinateArrays()
         window._skipPolylineCreation = false;
 
         if (onComplete) onComplete();
@@ -15381,9 +15363,9 @@ function animateFlightplanRoute(flightplanData, onComplete) {
       var coord = [wp.lat, wp.lng];
       var segment = wp.segment;
 
-      // Debug: Log runway END processing
-      if (MAP_DEBUG && wp.isRunwayEnd) {
-        console.log('[AnimRoute] Processing runway END:', wp.name, 'segment:', segment, 'coord:', coord);
+      // Debug: Log RWY waypoint processing
+      if (MAP_DEBUG && (wp.waypointType || '').toUpperCase() === 'RWY') {
+        console.log('[AnimRoute] Processing RWY waypoint:', wp.name, 'segment:', segment, 'coord:', coord);
       }
 
       // Ensure line continuity between segments
@@ -15412,28 +15394,26 @@ function animateFlightplanRoute(flightplanData, onComplete) {
 
       lastCoord = coord;
 
-      // Add marker with bounce (unless it's a runway END point which has no marker)
-      if (!wp.isRunwayEnd) {
-        nextWaypointInsertIndex = currentIndex;
-        nextWaypointUseExisting = true;
+      // Add marker with bounce (auch für RWY-Typ Waypoints!)
+      nextWaypointInsertIndex = currentIndex;
+      nextWaypointUseExisting = true;
 
-        // Fire contextmenu event to add the marker (this triggers marker creation with bounce)
-        map.fire("contextmenu", {
-          latlng: L.latLng([wp.lat, wp.lng]),
-          synthetic: true,
-          setType: wp.waypointType,
-          setName: wp.name || null,
-          setAltitude: typeof wp.altitude !== "undefined" ? String(wp.altitude) : "0",
-          setAtbl: typeof wp.atbl !== "undefined" ? String(wp.atbl) : "",
-          setSourceType: wp.sourceType,
-          setDepartureProcedure: wp.departureProcedure,
-          setArrivalProcedure: wp.arrivalProcedure,
-          setAirway: wp.airway,
-          setRunwayNumber: wp.runwayNumber,
-          setRunwayDesignator: wp.runwayDesignator,
-          skipDrawLines: true  // Skip drawLines() call during animation - we handle lines ourselves
-        });
-      }
+      // Fire contextmenu event to add the marker (this triggers marker creation with bounce)
+      map.fire("contextmenu", {
+        latlng: L.latLng([wp.lat, wp.lng]),
+        synthetic: true,
+        setType: wp.waypointType,
+        setName: wp.name || null,
+        setAltitude: typeof wp.altitude !== "undefined" ? String(wp.altitude) : "0",
+        setAtbl: typeof wp.atbl !== "undefined" ? String(wp.atbl) : "",
+        setSourceType: wp.sourceType,
+        setDepartureProcedure: wp.departureProcedure,
+        setArrivalProcedure: wp.arrivalProcedure,
+        setAirway: wp.airway,
+        setRunwayNumber: wp.runwayNumber,
+        setRunwayDesignator: wp.runwayDesignator,
+        skipDrawLines: true  // Skip drawLines() call during animation - we handle lines ourselves
+      });
 
       currentIndex++;
     }
@@ -17455,6 +17435,14 @@ function savePoints() {
   setCachedItem("wpAirways", wpAirways);
   setCachedItem("wpRunwayNumbers", wpRunwayNumbers);
   setCachedItem("wpRunwayDesignators", wpRunwayDesignators);
+
+  // Runway-Daten für korrekte Segmentfarben speichern
+  if (departureRunwayData) {
+    setCachedItem("departureRunwayData", departureRunwayData);
+  }
+  if (arrivalRunwayData) {
+    setCachedItem("arrivalRunwayData", arrivalRunwayData);
+  }
 }
 
 function calcMiddleLatLng(map, latlng1, latlng2) {
@@ -21158,13 +21146,22 @@ async function loadArrivalProcedures(icao, ofpData) {
     populateDropdown('arrRunwaySelect', runways, 'Identifier', selectedRunway);
 
     // WICHTIG: Runway-Daten laden für Approach-Linie zum Runway-Ende
+    // Aber gecachte Daten nicht überschreiben wenn sie für dieselbe Runway existieren
     if (selectedRunway && icao) {
-        var rwyData = await fetchRunwayData(icao, selectedRunway);
-        if (rwyData) {
-            arrivalRunwayData = rwyData;
-            MAP_DEBUG && console.log('[loadArrivalProcedures] Loaded arrivalRunwayData:', selectedRunway, 'endLat:', rwyData.endLat, 'endLon:', rwyData.endLon);
+        var cachedRwyId = arrivalRunwayData ? (arrivalRunwayData.runway || arrivalRunwayData.identifier) : null;
+        var normalizedCached = cachedRwyId ? cachedRwyId.replace(/^RW/i, '').toUpperCase() : null;
+        var normalizedSelected = selectedRunway.replace(/^RW/i, '').toUpperCase();
+
+        if (!arrivalRunwayData || normalizedCached !== normalizedSelected) {
+            var rwyData = await fetchRunwayData(icao, selectedRunway);
+            if (rwyData) {
+                arrivalRunwayData = rwyData;
+                MAP_DEBUG && console.log('[loadArrivalProcedures] Loaded arrivalRunwayData:', selectedRunway, 'endLat:', rwyData.endLat, 'endLon:', rwyData.endLon);
+            } else {
+                MAP_DEBUG && console.log('[loadArrivalProcedures] WARNING: Failed to load arrivalRunwayData for', selectedRunway);
+            }
         } else {
-            MAP_DEBUG && console.log('[loadArrivalProcedures] WARNING: Failed to load arrivalRunwayData for', selectedRunway);
+            MAP_DEBUG && console.log('[loadArrivalProcedures] Using cached arrivalRunwayData for:', selectedRunway);
         }
     }
 
@@ -23189,16 +23186,6 @@ function setWaypoints(flightplanData) {
       flightplan.splice(1, 0, endWp);
     }
 
-    // DEBUG: Log arrival runway data state
-    console.log('[RWY_DEBUG] Arrival runway check:', {
-      hasData: !!arrivalRunwayData,
-      thresholdLat: arrivalRunwayData ? arrivalRunwayData.thresholdLat : 'N/A',
-      thresholdLon: arrivalRunwayData ? arrivalRunwayData.thresholdLon : 'N/A',
-      endLat: arrivalRunwayData ? arrivalRunwayData.endLat : 'N/A',
-      endLon: arrivalRunwayData ? arrivalRunwayData.endLon : 'N/A',
-      identifier: arrivalRunwayData ? (arrivalRunwayData.runway || arrivalRunwayData.identifier) : 'N/A'
-    });
-
     if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
       // Runway-Name aus den Daten extrahieren (z.B. "RW08L" oder "08L")
       var arrRwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
@@ -23375,6 +23362,26 @@ function setWaypoints(flightplanData) {
     wpRunwayDesignators.push(entry.runwayDesignator || "");
   });
 
+  // Runway END Metadaten hinzufügen (falls vorhanden)
+  // Dieser Waypoint bekommt einen Marker mit Typ 'RWY' und erscheint im Navlog
+  if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
+    var rwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
+    if (rwyName.toUpperCase().indexOf('RW') === 0) {
+      rwyName = rwyName.substring(2);
+    }
+    altitudes.push(String(arrivalRunwayData.elevation || 0));
+    atbls.push("");
+    wpNames.push('RWY' + rwyName);
+    wpTypes.push('RWY');
+    wpSourceTypes.push('Runway');
+    wpDepartureProcedures.push("");
+    wpArrivalProcedures.push("");
+    wpAirways.push("");
+    wpRunwayNumbers.push(rwyName);
+    wpRunwayDesignators.push("");
+    MAP_DEBUG && console.log('[setWaypoints] Added RWY metadata for:', 'RWY' + rwyName);
+  }
+
   normalizeWaypointNames();
 
   // Validate array synchronization after building waypoint data
@@ -23398,7 +23405,25 @@ function setWaypoints(flightplanData) {
 
     // Add all waypoints at once without animation
     var hasValidArrRunway = flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.selectedRunway;
-    flightplan.forEach(function(entry, index) {
+
+    // Flightplan mit optionalem Runway END erweitern
+    var bulkFlightplan = flightplan.slice(); // Kopie erstellen
+    if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
+      var rwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
+      if (rwyName.toUpperCase().indexOf('RW') === 0) {
+        rwyName = rwyName.substring(2);
+      }
+      bulkFlightplan.push({
+        lat: arrivalRunwayData.endLat,
+        lng: arrivalRunwayData.endLon,
+        name: 'RWY' + rwyName,
+        waypointType: 'RWY',
+        altitude: arrivalRunwayData.elevation || 0
+      });
+      MAP_DEBUG && console.log('[Bulk] Added runway END with type RWY');
+    }
+
+    bulkFlightplan.forEach(function(entry, index) {
       if (!entry) return;
       var lat = Number(entry.lat);
       var lng = Number(entry.lng);
@@ -23495,16 +23520,22 @@ function setWaypoints(flightplanData) {
     return Object.assign({}, entry, { waypointType: wpType });
   });
 
-  // Add runway END point if we have arrival runway data (for line drawing only, no marker)
+  // Add runway END point if we have arrival runway data
+  // Typ 'RWY' statt 'ARR' damit er Marker bekommt und im Navlog als Runway angezeigt wird
   if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
+    var rwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
+    // Normalisiere: Entferne 'RW' Prefix falls vorhanden
+    if (rwyName.toUpperCase().indexOf('RW') === 0) {
+      rwyName = rwyName.substring(2);
+    }
     flightplanForAnimation.push({
       lat: arrivalRunwayData.endLat,
       lng: arrivalRunwayData.endLon,
-      name: (arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY') + '_END',
-      waypointType: 'ARR',
+      name: 'RWY' + rwyName,
+      waypointType: 'RWY',
       altitude: arrivalRunwayData.elevation || 0
     });
-    MAP_DEBUG && console.log('[setWaypoints] Added runway END to animation:', arrivalRunwayData.endLat, arrivalRunwayData.endLon, 'total waypoints:', flightplanForAnimation.length);
+    MAP_DEBUG && console.log('[setWaypoints] Added runway END with type RWY:', arrivalRunwayData.endLat, arrivalRunwayData.endLon, 'total waypoints:', flightplanForAnimation.length);
   }
 
   animateFlightplanRoute(flightplanForAnimation, function onAnimationComplete() {
@@ -24103,11 +24134,15 @@ function collectWaypointCoordinateData() {
     }
     if (type && type.startsWith("DEP")) {
       coordsDep.push(coordPair);
-    } else if (type && type.startsWith("ARR")) {
+    } else if (type && type.startsWith("ARR") || type === "RWY") {
+      // ARR und RWY gehören zur gelben Arrival-Linie
       coordsArr.push(coordPair);
     }
   });
-  // ARR-Strecke bleibt auf explizite ARR-Wegpunkte begrenzt.
+
+  // Runway END ist jetzt ein echter Waypoint mit Typ 'RWY' und wird oben verarbeitet
+  // Kein separates Hinzufügen mehr nötig
+
   return {
     all: coordsAll,
     dep: coordsDep,
