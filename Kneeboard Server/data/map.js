@@ -2747,8 +2747,18 @@ var pLineGroupARR;
 var pline;
 var plineDEP;
 var plineARR;
+// ============================================================================
+// ZENTRALE WAYPOINT-STRUKTUR
+// Alle Waypoint-Daten werden hier als Array von Objekten gespeichert.
+// Die alten separaten Arrays bleiben für Abwärtskompatibilität, werden aber
+// automatisch mit waypointsData synchronisiert.
+// ============================================================================
+var waypointsData = [];
+
+// Legacy-Arrays für Abwärtskompatibilität (werden aus waypointsData synchronisiert)
 var wpNames = [];
 var wpTypes = [];
+var altitudes = [];
 var atbls = [];
 var wpi = 0;
 var wpi2 = 0;
@@ -2759,6 +2769,83 @@ var wpArrivalProcedures = [];
 var wpAirways = [];
 var wpRunwayNumbers = [];
 var wpRunwayDesignators = [];
+
+// Synchronisiert waypointsData → Legacy-Arrays
+function syncLegacyArraysFromWaypointsData() {
+  wpNames = waypointsData.map(function(wp) { return wp.name || ''; });
+  wpTypes = waypointsData.map(function(wp) { return wp.type || 'User'; });
+  altitudes = waypointsData.map(function(wp) { return String(wp.altitude || 0); });
+  atbls = waypointsData.map(function(wp) { return wp.atbl || ''; });
+  wpSourceTypes = waypointsData.map(function(wp) { return wp.sourceType || ''; });
+  wpDepartureProcedures = waypointsData.map(function(wp) { return wp.departureProcedure || ''; });
+  wpArrivalProcedures = waypointsData.map(function(wp) { return wp.arrivalProcedure || ''; });
+  wpAirways = waypointsData.map(function(wp) { return wp.airway || ''; });
+  wpRunwayNumbers = waypointsData.map(function(wp) { return wp.runwayNumber || ''; });
+  wpRunwayDesignators = waypointsData.map(function(wp) { return wp.runwayDesignator || ''; });
+}
+
+// Synchronisiert Legacy-Arrays → waypointsData
+function syncWaypointsDataFromLegacyArrays() {
+  var len = Math.max(wpNames.length, wpTypes.length, altitudes.length);
+  waypointsData = [];
+  for (var i = 0; i < len; i++) {
+    waypointsData.push({
+      name: wpNames[i] || '',
+      type: wpTypes[i] || 'User',
+      altitude: parseInt(altitudes[i]) || 0,
+      atbl: atbls[i] || '',
+      sourceType: wpSourceTypes[i] || '',
+      departureProcedure: wpDepartureProcedures[i] || '',
+      arrivalProcedure: wpArrivalProcedures[i] || '',
+      airway: wpAirways[i] || '',
+      runwayNumber: wpRunwayNumbers[i] || '',
+      runwayDesignator: wpRunwayDesignators[i] || ''
+    });
+  }
+}
+
+// Getter für einzelne Waypoint-Daten (mit Index)
+function getWaypointData(index) {
+  if (index < 0 || index >= waypointsData.length) return null;
+  return waypointsData[index];
+}
+
+// Setter für einzelne Waypoint-Daten (mit Index)
+function setWaypointData(index, data) {
+  if (index < 0) return;
+  // Erweitern falls nötig
+  while (waypointsData.length <= index) {
+    waypointsData.push({ name: '', type: 'User', altitude: 0, atbl: '', sourceType: '', departureProcedure: '', arrivalProcedure: '', airway: '', runwayNumber: '', runwayDesignator: '' });
+  }
+  waypointsData[index] = Object.assign(waypointsData[index] || {}, data);
+  syncLegacyArraysFromWaypointsData();
+}
+
+// Waypoint hinzufügen
+function addWaypoint(data, index) {
+  if (typeof index === 'number' && index >= 0) {
+    waypointsData.splice(index, 0, data);
+  } else {
+    waypointsData.push(data);
+  }
+  syncLegacyArraysFromWaypointsData();
+  return waypointsData.length - 1;
+}
+
+// Waypoint entfernen
+function removeWaypoint(index) {
+  if (index >= 0 && index < waypointsData.length) {
+    waypointsData.splice(index, 1);
+    syncLegacyArraysFromWaypointsData();
+  }
+}
+
+// Alle Waypoints löschen
+function clearAllWaypoints() {
+  waypointsData = [];
+  syncLegacyArraysFromWaypointsData();
+}
+
 var importedFlightplanMeta = null;
 var importedOFPData = null;  // Full OFP object for ETA calculation
 var dep = "";
@@ -23433,7 +23520,8 @@ function setWaypoints(flightplanData) {
     if (MAP_DEBUG) console.log('[Map] Large flightplan detected (', flightplan.length, 'waypoints) - using bulk loading');
 
     // Add all waypoints at once without animation
-    var hasValidArrRunway = flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.selectedRunway;
+    // arrivalRunwayData aus Cache ist bereits geladen, daher zuerst prüfen
+    var hasValidArrRunway = arrivalRunwayData || (flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.selectedRunway);
 
     // Flightplan mit optionalem Runway END erweitern
     var bulkFlightplan = flightplan.slice(); // Kopie erstellen
@@ -23537,7 +23625,8 @@ function setWaypoints(flightplanData) {
 
   // NEW: Use synchronized line+marker animation
   // This animates line drawing AND marker bouncing together
-  var hasValidArrRwy = flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.selectedRunway;
+  // arrivalRunwayData aus Cache ist bereits geladen, daher zuerst prüfen
+  var hasValidArrRwy = arrivalRunwayData || (flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.selectedRunway);
 
   // Prepare flightplan data with proper waypointType handling
   var flightplanForAnimation = flightplan.map(function(entry) {
