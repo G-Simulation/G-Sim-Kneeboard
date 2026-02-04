@@ -56,9 +56,9 @@ namespace Kneeboard_Server
             this.cacheGroupBox.SuspendLayout();
             this.navigraphGroupBox.SuspendLayout();
             this.SuspendLayout();
-            //
+            // 
             // closeButton
-            //
+            // 
             this.closeButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.closeButton.BackColor = System.Drawing.SystemColors.Window;
             this.closeButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
@@ -70,9 +70,9 @@ namespace Kneeboard_Server
             this.closeButton.Text = "X";
             this.closeButton.UseVisualStyleBackColor = false;
             this.closeButton.Click += new System.EventHandler(this.CloseButton_Click);
-            //
+            // 
             // label1
-            //
+            // 
             this.label1.Font = new System.Drawing.Font("Segoe UI", 14.25F, System.Drawing.FontStyle.Bold);
             this.label1.ForeColor = System.Drawing.SystemColors.Highlight;
             this.label1.Location = new System.Drawing.Point(12, 8);
@@ -81,9 +81,9 @@ namespace Kneeboard_Server
             this.label1.TabIndex = 25;
             this.label1.Text = "Kneeboard Server";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            //
+            // 
             // Version
-            //
+            // 
             this.Version.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.Version.ForeColor = System.Drawing.SystemColors.ControlDarkDark;
             this.Version.Location = new System.Drawing.Point(12, 33);
@@ -92,9 +92,173 @@ namespace Kneeboard_Server
             this.Version.TabIndex = 26;
             this.Version.Text = "Version: 2.0.0.0";
             this.Version.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            //
+            // 
+            // label2
+            // 
+            this.label2.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
+            this.label2.Font = new System.Drawing.Font("Segoe UI", 8.25F);
+            this.label2.ForeColor = System.Drawing.SystemColors.ControlDarkDark;
+            this.label2.Location = new System.Drawing.Point(12, 426);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(230, 16);
+            this.label2.TabIndex = 28;
+            this.label2.Text = "Gsimulations - 2021";
+            this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
+            // linkLabel1
+            // 
+            this.linkLabel1.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
+            this.linkLabel1.Font = new System.Drawing.Font("Segoe UI", 8.25F);
+            this.linkLabel1.Location = new System.Drawing.Point(12, 442);
+            this.linkLabel1.Name = "linkLabel1";
+            this.linkLabel1.Size = new System.Drawing.Size(230, 16);
+            this.linkLabel1.TabIndex = 29;
+            this.linkLabel1.TabStop = true;
+            this.linkLabel1.Text = "support@gsimulations.com";
+            this.linkLabel1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
+            // autostart
+            // 
+            this.autostart.AutoSize = true;
+            this.autostart.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.autostart.Location = new System.Drawing.Point(10, 40);
+            this.autostart.Name = "autostart";
+            this.autostart.Size = new System.Drawing.Size(117, 17);
+            this.autostart.TabIndex = 1;
+            this.autostart.Text = "Start with Windows";
+            this.autostart.UseVisualStyleBackColor = true;
+            this.autostart.CheckedChanged += new System.EventHandler(this.chkBackup_CheckChanged);
+            // 
+            // minimized
+            // 
+            this.minimized.AutoSize = true;
+            this.minimized.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.minimized.Location = new System.Drawing.Point(10, 60);
+            this.minimized.Name = "minimized";
+            this.minimized.Size = new System.Drawing.Size(116, 17);
+            this.minimized.TabIndex = 2;
+            this.minimized.Text = "Start in System tray";
+            this.minimized.UseVisualStyleBackColor = true;
+            this.minimized.CheckedChanged += new System.EventHandler(this.minimized_CheckedChanged);
+            // 
+            // simStart
+            // 
+            this.simStart.AutoSize = true;
+            this.simStart.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.simStart.Location = new System.Drawing.Point(10, 20);
+            this.simStart.Name = "simStart";
+            this.simStart.Size = new System.Drawing.Size(116, 17);
+            this.simStart.TabIndex = 0;
+            this.simStart.Text = "Start with Simulator";
+            this.simStart.UseVisualStyleBackColor = true;
+            this.simStart.CheckedChanged += new System.EventHandler(this.MSFSStart_CheckChanged);
+            // 
+            // folderpathInput
+            // 
+            this.folderpathInput.ForeColor = System.Drawing.SystemColors.GrayText;
+            this.folderpathInput.Location = new System.Drawing.Point(10, 82);
+            this.folderpathInput.Name = "folderpathInput";
+            this.folderpathInput.Size = new System.Drawing.Size(210, 20);
+            this.folderpathInput.TabIndex = 3;
+            this.folderpathInput.Text = "Path to exe.xml";
+            this.folderpathInput.MouseDown += new System.Windows.Forms.MouseEventHandler(this.folderpathInput_MouseDown);
+            // 
+            // SimbriefIdInput
+            // 
+            this.SimbriefIdInput.ForeColor = System.Drawing.SystemColors.GrayText;
+            this.SimbriefIdInput.Location = new System.Drawing.Point(10, 20);
+            this.SimbriefIdInput.Name = "SimbriefIdInput";
+            this.SimbriefIdInput.Size = new System.Drawing.Size(210, 20);
+            this.SimbriefIdInput.TabIndex = 0;
+            this.SimbriefIdInput.Text = "SimBrief ID or Username";
+            this.SimbriefIdInput.TextChanged += new System.EventHandler(this.SimbriefIdInput_TextChanged);
+            // 
+            // VatsimCidInput
+            // 
+            this.VatsimCidInput.ForeColor = System.Drawing.SystemColors.GrayText;
+            this.VatsimCidInput.Location = new System.Drawing.Point(10, 46);
+            this.VatsimCidInput.Name = "VatsimCidInput";
+            this.VatsimCidInput.Size = new System.Drawing.Size(210, 20);
+            this.VatsimCidInput.TabIndex = 1;
+            this.VatsimCidInput.Text = "VATSIM CID";
+            this.VatsimCidInput.TextChanged += new System.EventHandler(this.VatsimCidInput_TextChanged);
+            // 
+            // IvaoVidInput
+            // 
+            this.IvaoVidInput.ForeColor = System.Drawing.SystemColors.GrayText;
+            this.IvaoVidInput.Location = new System.Drawing.Point(10, 72);
+            this.IvaoVidInput.Name = "IvaoVidInput";
+            this.IvaoVidInput.Size = new System.Drawing.Size(210, 20);
+            this.IvaoVidInput.TabIndex = 2;
+            this.IvaoVidInput.Text = "IVAO VID";
+            this.IvaoVidInput.TextChanged += new System.EventHandler(this.IvaoVidInput_TextChanged);
+            // 
+            // clearCacheButton
+            // 
+            this.clearCacheButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.clearCacheButton.ForeColor = System.Drawing.SystemColors.Highlight;
+            this.clearCacheButton.Location = new System.Drawing.Point(10, 43);
+            this.clearCacheButton.Name = "clearCacheButton";
+            this.clearCacheButton.Size = new System.Drawing.Size(210, 23);
+            this.clearCacheButton.TabIndex = 2;
+            this.clearCacheButton.Text = "Clear Cache";
+            this.clearCacheButton.UseVisualStyleBackColor = true;
+            this.clearCacheButton.Click += new System.EventHandler(this.ClearCacheButton_Click);
+            // 
+            // maxCacheSizeInput
+            // 
+            this.maxCacheSizeInput.Location = new System.Drawing.Point(125, 19);
+            this.maxCacheSizeInput.Name = "maxCacheSizeInput";
+            this.maxCacheSizeInput.Size = new System.Drawing.Size(95, 20);
+            this.maxCacheSizeInput.TabIndex = 1;
+            this.maxCacheSizeInput.Text = "0";
+            this.maxCacheSizeInput.TextChanged += new System.EventHandler(this.MaxCacheSizeInput_TextChanged);
+            // 
+            // cacheSizeLabel
+            // 
+            this.cacheSizeLabel.AutoSize = true;
+            this.cacheSizeLabel.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.cacheSizeLabel.Location = new System.Drawing.Point(7, 22);
+            this.cacheSizeLabel.Name = "cacheSizeLabel";
+            this.cacheSizeLabel.Size = new System.Drawing.Size(112, 13);
+            this.cacheSizeLabel.TabIndex = 0;
+            this.cacheSizeLabel.Text = "Max Cache Size (MB):";
+            // 
+            // navigraphLabel
+            // 
+            this.navigraphLabel.AutoSize = true;
+            this.navigraphLabel.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.navigraphLabel.Location = new System.Drawing.Point(7, 18);
+            this.navigraphLabel.Name = "navigraphLabel";
+            this.navigraphLabel.Size = new System.Drawing.Size(40, 13);
+            this.navigraphLabel.TabIndex = 0;
+            this.navigraphLabel.Text = "Status:";
+            // 
+            // navigraphStatusLabel
+            // 
+            this.navigraphStatusLabel.AutoSize = true;
+            this.navigraphStatusLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold);
+            this.navigraphStatusLabel.ForeColor = System.Drawing.Color.Gray;
+            this.navigraphStatusLabel.Location = new System.Drawing.Point(50, 18);
+            this.navigraphStatusLabel.Name = "navigraphStatusLabel";
+            this.navigraphStatusLabel.Size = new System.Drawing.Size(83, 13);
+            this.navigraphStatusLabel.TabIndex = 1;
+            this.navigraphStatusLabel.Text = "Not logged in";
+            // 
+            // navigraphLoginButton
+            // 
+            this.navigraphLoginButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.navigraphLoginButton.ForeColor = System.Drawing.SystemColors.Highlight;
+            this.navigraphLoginButton.Location = new System.Drawing.Point(10, 35);
+            this.navigraphLoginButton.Name = "navigraphLoginButton";
+            this.navigraphLoginButton.Size = new System.Drawing.Size(210, 25);
+            this.navigraphLoginButton.TabIndex = 2;
+            this.navigraphLoginButton.Text = "Login";
+            this.navigraphLoginButton.UseVisualStyleBackColor = true;
+            this.navigraphLoginButton.Click += new System.EventHandler(this.NavigraphLoginButton_Click);
+            // 
             // startupGroupBox
-            //
+            // 
             this.startupGroupBox.Controls.Add(this.simStart);
             this.startupGroupBox.Controls.Add(this.autostart);
             this.startupGroupBox.Controls.Add(this.minimized);
@@ -106,55 +270,9 @@ namespace Kneeboard_Server
             this.startupGroupBox.TabIndex = 50;
             this.startupGroupBox.TabStop = false;
             this.startupGroupBox.Text = "Startup";
-            //
-            // simStart
-            //
-            this.simStart.AutoSize = true;
-            this.simStart.ForeColor = System.Drawing.SystemColors.ControlText;
-            this.simStart.Location = new System.Drawing.Point(10, 20);
-            this.simStart.Name = "simStart";
-            this.simStart.Size = new System.Drawing.Size(116, 17);
-            this.simStart.TabIndex = 0;
-            this.simStart.Text = "Start with Simulator";
-            this.simStart.UseVisualStyleBackColor = true;
-            this.simStart.CheckedChanged += new System.EventHandler(this.MSFSStart_CheckChanged);
-            //
-            // autostart
-            //
-            this.autostart.AutoSize = true;
-            this.autostart.ForeColor = System.Drawing.SystemColors.ControlText;
-            this.autostart.Location = new System.Drawing.Point(10, 40);
-            this.autostart.Name = "autostart";
-            this.autostart.Size = new System.Drawing.Size(117, 17);
-            this.autostart.TabIndex = 1;
-            this.autostart.Text = "Start with Windows";
-            this.autostart.UseVisualStyleBackColor = true;
-            this.autostart.CheckedChanged += new System.EventHandler(this.chkBackup_CheckChanged);
-            //
-            // minimized
-            //
-            this.minimized.AutoSize = true;
-            this.minimized.ForeColor = System.Drawing.SystemColors.ControlText;
-            this.minimized.Location = new System.Drawing.Point(10, 60);
-            this.minimized.Name = "minimized";
-            this.minimized.Size = new System.Drawing.Size(116, 17);
-            this.minimized.TabIndex = 2;
-            this.minimized.Text = "Start in System tray";
-            this.minimized.UseVisualStyleBackColor = true;
-            this.minimized.CheckedChanged += new System.EventHandler(this.minimized_CheckedChanged);
-            //
-            // folderpathInput
-            //
-            this.folderpathInput.ForeColor = System.Drawing.SystemColors.GrayText;
-            this.folderpathInput.Location = new System.Drawing.Point(10, 82);
-            this.folderpathInput.Name = "folderpathInput";
-            this.folderpathInput.Size = new System.Drawing.Size(210, 20);
-            this.folderpathInput.TabIndex = 3;
-            this.folderpathInput.Text = "Path to exe.xml";
-            this.folderpathInput.MouseDown += new System.Windows.Forms.MouseEventHandler(this.folderpathInput_MouseDown);
-            //
+            // 
             // idsGroupBox
-            //
+            // 
             this.idsGroupBox.Controls.Add(this.SimbriefIdInput);
             this.idsGroupBox.Controls.Add(this.VatsimCidInput);
             this.idsGroupBox.Controls.Add(this.IvaoVidInput);
@@ -165,39 +283,9 @@ namespace Kneeboard_Server
             this.idsGroupBox.TabIndex = 51;
             this.idsGroupBox.TabStop = false;
             this.idsGroupBox.Text = "IDs";
-            //
-            // SimbriefIdInput
-            //
-            this.SimbriefIdInput.ForeColor = System.Drawing.SystemColors.GrayText;
-            this.SimbriefIdInput.Location = new System.Drawing.Point(10, 20);
-            this.SimbriefIdInput.Name = "SimbriefIdInput";
-            this.SimbriefIdInput.Size = new System.Drawing.Size(210, 20);
-            this.SimbriefIdInput.TabIndex = 0;
-            this.SimbriefIdInput.Text = "SimBrief ID or Username";
-            this.SimbriefIdInput.TextChanged += new System.EventHandler(this.SimbriefIdInput_TextChanged);
-            //
-            // VatsimCidInput
-            //
-            this.VatsimCidInput.ForeColor = System.Drawing.SystemColors.GrayText;
-            this.VatsimCidInput.Location = new System.Drawing.Point(10, 46);
-            this.VatsimCidInput.Name = "VatsimCidInput";
-            this.VatsimCidInput.Size = new System.Drawing.Size(210, 20);
-            this.VatsimCidInput.TabIndex = 1;
-            this.VatsimCidInput.Text = "VATSIM CID";
-            this.VatsimCidInput.TextChanged += new System.EventHandler(this.VatsimCidInput_TextChanged);
-            //
-            // IvaoVidInput
-            //
-            this.IvaoVidInput.ForeColor = System.Drawing.SystemColors.GrayText;
-            this.IvaoVidInput.Location = new System.Drawing.Point(10, 72);
-            this.IvaoVidInput.Name = "IvaoVidInput";
-            this.IvaoVidInput.Size = new System.Drawing.Size(210, 20);
-            this.IvaoVidInput.TabIndex = 2;
-            this.IvaoVidInput.Text = "IVAO VID";
-            this.IvaoVidInput.TextChanged += new System.EventHandler(this.IvaoVidInput_TextChanged);
-            //
+            // 
             // cacheGroupBox
-            //
+            // 
             this.cacheGroupBox.Controls.Add(this.cacheSizeLabel);
             this.cacheGroupBox.Controls.Add(this.maxCacheSizeInput);
             this.cacheGroupBox.Controls.Add(this.clearCacheButton);
@@ -208,115 +296,26 @@ namespace Kneeboard_Server
             this.cacheGroupBox.TabIndex = 52;
             this.cacheGroupBox.TabStop = false;
             this.cacheGroupBox.Text = "Cache";
-            //
-            // cacheSizeLabel
-            //
-            this.cacheSizeLabel.AutoSize = true;
-            this.cacheSizeLabel.ForeColor = System.Drawing.SystemColors.ControlText;
-            this.cacheSizeLabel.Location = new System.Drawing.Point(7, 22);
-            this.cacheSizeLabel.Name = "cacheSizeLabel";
-            this.cacheSizeLabel.Size = new System.Drawing.Size(111, 13);
-            this.cacheSizeLabel.TabIndex = 0;
-            this.cacheSizeLabel.Text = "Max Cache Size (MB):";
-            //
-            // maxCacheSizeInput
-            //
-            this.maxCacheSizeInput.Location = new System.Drawing.Point(125, 19);
-            this.maxCacheSizeInput.Name = "maxCacheSizeInput";
-            this.maxCacheSizeInput.Size = new System.Drawing.Size(95, 20);
-            this.maxCacheSizeInput.TabIndex = 1;
-            this.maxCacheSizeInput.Text = "0";
-            this.maxCacheSizeInput.TextChanged += new System.EventHandler(this.MaxCacheSizeInput_TextChanged);
-            //
-            // clearCacheButton
-            //
-            this.clearCacheButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.clearCacheButton.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.clearCacheButton.Location = new System.Drawing.Point(10, 43);
-            this.clearCacheButton.Name = "clearCacheButton";
-            this.clearCacheButton.Size = new System.Drawing.Size(210, 23);
-            this.clearCacheButton.TabIndex = 2;
-            this.clearCacheButton.Text = "Clear Cache";
-            this.clearCacheButton.UseVisualStyleBackColor = true;
-            this.clearCacheButton.Click += new System.EventHandler(this.ClearCacheButton_Click);
-            //
-            //
+            // 
             // navigraphGroupBox
-            //
+            // 
             this.navigraphGroupBox.Controls.Add(this.navigraphLabel);
             this.navigraphGroupBox.Controls.Add(this.navigraphStatusLabel);
             this.navigraphGroupBox.Controls.Add(this.navigraphLoginButton);
             this.navigraphGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.navigraphGroupBox.Location = new System.Drawing.Point(12, 427);
+            this.navigraphGroupBox.Location = new System.Drawing.Point(12, 353);
             this.navigraphGroupBox.Name = "navigraphGroupBox";
             this.navigraphGroupBox.Size = new System.Drawing.Size(230, 65);
             this.navigraphGroupBox.TabIndex = 54;
             this.navigraphGroupBox.TabStop = false;
             this.navigraphGroupBox.Text = "Navigraph";
-            //
-            // navigraphLabel
-            //
-            this.navigraphLabel.AutoSize = true;
-            this.navigraphLabel.ForeColor = System.Drawing.SystemColors.ControlText;
-            this.navigraphLabel.Location = new System.Drawing.Point(7, 18);
-            this.navigraphLabel.Name = "navigraphLabel";
-            this.navigraphLabel.Size = new System.Drawing.Size(40, 13);
-            this.navigraphLabel.TabIndex = 0;
-            this.navigraphLabel.Text = "Status:";
-            //
-            // navigraphStatusLabel
-            //
-            this.navigraphStatusLabel.AutoSize = true;
-            this.navigraphStatusLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold);
-            this.navigraphStatusLabel.ForeColor = System.Drawing.Color.Gray;
-            this.navigraphStatusLabel.Location = new System.Drawing.Point(50, 18);
-            this.navigraphStatusLabel.Name = "navigraphStatusLabel";
-            this.navigraphStatusLabel.Size = new System.Drawing.Size(89, 13);
-            this.navigraphStatusLabel.TabIndex = 1;
-            this.navigraphStatusLabel.Text = "Not logged in";
-            //
-            // navigraphLoginButton
-            //
-            this.navigraphLoginButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.navigraphLoginButton.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.navigraphLoginButton.Location = new System.Drawing.Point(10, 35);
-            this.navigraphLoginButton.Name = "navigraphLoginButton";
-            this.navigraphLoginButton.Size = new System.Drawing.Size(210, 25);
-            this.navigraphLoginButton.TabIndex = 2;
-            this.navigraphLoginButton.Text = "Login";
-            this.navigraphLoginButton.UseVisualStyleBackColor = true;
-            this.navigraphLoginButton.Click += new System.EventHandler(this.NavigraphLoginButton_Click);
-            //
-            // label2
-            //
-            this.label2.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
-            this.label2.Font = new System.Drawing.Font("Segoe UI", 8.25F);
-            this.label2.ForeColor = System.Drawing.SystemColors.ControlDarkDark;
-            this.label2.Location = new System.Drawing.Point(12, 500);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(230, 16);
-            this.label2.TabIndex = 28;
-            this.label2.Text = "Gsimulations - 2021";
-            this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            //
-            // linkLabel1
-            //
-            this.linkLabel1.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
-            this.linkLabel1.Font = new System.Drawing.Font("Segoe UI", 8.25F);
-            this.linkLabel1.Location = new System.Drawing.Point(12, 516);
-            this.linkLabel1.Name = "linkLabel1";
-            this.linkLabel1.Size = new System.Drawing.Size(230, 16);
-            this.linkLabel1.TabIndex = 29;
-            this.linkLabel1.TabStop = true;
-            this.linkLabel1.Text = "support@gsimulations.com";
-            this.linkLabel1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            //
+            // 
             // InformationForm
-            //
+            // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Window;
-            this.ClientSize = new System.Drawing.Size(254, 540);
+            this.ClientSize = new System.Drawing.Size(254, 466);
             this.Controls.Add(this.navigraphGroupBox);
             this.Controls.Add(this.cacheGroupBox);
             this.Controls.Add(this.idsGroupBox);

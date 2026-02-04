@@ -2,144 +2,199 @@
 <SimBase.Document Type="AceXML" version="1,0">
     <Descr>AceXML Document</Descr>
     <FlightPlan.FlightPlan>
-        <Title>EDDS to EDDM</Title>
+        <Title>EDAH to EDDK</Title>
         <FPType>IFR</FPType>
-        <RouteType>LowAlt</RouteType>
-        <CruisingAlt>17000.000</CruisingAlt>
-        <DepartureID>EDDS</DepartureID>
-        <DepartureLLA>N48° 41' 23.56",E9° 13' 19.07",+001276.00</DepartureLLA>
-        <DestinationID>EDDM</DestinationID>
-        <DestinationLLA>N48° 21' 13.62",E11° 47' 9.91",+001487.00</DestinationLLA>
-        <Descr>EDDS to EDDM created by SimBrief</Descr>
-        <DepartureName>Stuttgart</DepartureName>
-        <DestinationName>Munich</DestinationName>
+        <RouteType>HighAlt</RouteType>
+        <CruisingAlt>28000.000</CruisingAlt>
+        <DepartureID>EDAH</DepartureID>
+        <DepartureLLA>N53° 52' 43.34",E14° 9' 8.45",+000094.00</DepartureLLA>
+        <DestinationID>EDDK</DestinationID>
+        <DestinationLLA>N50° 51' 57.30",E7° 8' 33.88",+000302.00</DestinationLLA>
+        <Descr>EDAH to EDDK created by SimBrief</Descr>
+        <DepartureName>Heringsdorf</DepartureName>
+        <DestinationName>Cologne-bonn</DestinationName>
         <AppVersion>
             <AppVersionMajor>11</AppVersionMajor>
             <AppVersionBuild>282174</AppVersionBuild>
         </AppVersion>
-        <ATCWaypoint id="EDDS">
+        <ATCWaypoint id="EDAH">
             <ATCWaypointType>Airport</ATCWaypointType>
-            <WorldPosition>N48° 41' 23.56",E9° 13' 19.07",+001276.00</WorldPosition>
-            <RunwayNumberFP>25</RunwayNumberFP>
+            <WorldPosition>N53° 52' 43.34",E14° 9' 8.45",+000094.00</WorldPosition>
+            <RunwayNumberFP>10</RunwayNumberFP>
             <ICAO>
-                <ICAOIdent>EDDS</ICAOIdent>
+                <ICAOIdent>EDAH</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="DS046">
+        <ATCWaypoint id="AH400">
             <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 40' 9.28",E9° 6' 51.13",+003000.00</WorldPosition>
-            <DepartureFP>ABTA4B</DepartureFP>
-            <RunwayNumberFP>25</RunwayNumberFP>
+            <WorldPosition>N53° 51' 23.82",E14° 17' 13.20",+006900.00</WorldPosition>
+            <DepartureFP>MASO1E</DepartureFP>
+            <RunwayNumberFP>10</RunwayNumberFP>
             <ICAO>
                 <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>DS046</ICAOIdent>
+                <ICAOIdent>AH400</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="DS048">
+        <ATCWaypoint id="AH401">
             <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 36' 45.09",E9° 7' 35.18",+005300.00</WorldPosition>
-            <DepartureFP>ABTA4B</DepartureFP>
-            <RunwayNumberFP>25</RunwayNumberFP>
+            <WorldPosition>N53° 46' 19.91",E14° 16' 40.93",+013300.00</WorldPosition>
+            <DepartureFP>MASO1E</DepartureFP>
+            <RunwayNumberFP>10</RunwayNumberFP>
+            <ICAO>
+                <ICAORegion>EP</ICAORegion>
+                <ICAOIdent>AH401</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="AH402">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N53° 46' 0.08",E14° 7' 42.85",+017800.00</WorldPosition>
+            <DepartureFP>MASO1E</DepartureFP>
+            <RunwayNumberFP>10</RunwayNumberFP>
             <ICAO>
                 <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>DS048</ICAOIdent>
+                <ICAOIdent>AH402</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="TEDGO">
+        <ATCWaypoint id="MASOR">
             <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 37' 6.27",E9° 15' 33.15",+008600.00</WorldPosition>
-            <DepartureFP>ABTA4B</DepartureFP>
-            <RunwayNumberFP>25</RunwayNumberFP>
+            <WorldPosition>N53° 55' 27.00",E13° 38' 45.00",+028000.00</WorldPosition>
+            <DepartureFP>MASO1E</DepartureFP>
+            <RunwayNumberFP>10</RunwayNumberFP>
             <ICAO>
                 <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>TEDGO</ICAOIdent>
+                <ICAOIdent>MASOR</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="ABTAL">
+        <ATCWaypoint id="BIGTI">
             <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 51' 16.68",E10° 6' 25.42",+017000.00</WorldPosition>
-            <DepartureFP>ABTA4B</DepartureFP>
-            <RunwayNumberFP>25</RunwayNumberFP>
+            <WorldPosition>N53° 31' 48.00",E12° 53' 48.00",+028000.00</WorldPosition>
             <ICAO>
                 <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>ABTAL</ICAOIdent>
+                <ICAOIdent>BIGTI</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="RIXED">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 49' 46.00",E10° 25' 7.00",+017000.00</WorldPosition>
-            <ATCAirway>L173</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>RIXED</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="DODIL">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 43' 57.24",E10° 34' 25.46",+017000.00</WorldPosition>
-            <ATCAirway>Y161</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>DODIL</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="REDVO">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 39' 26.61",E10° 41' 36.45",+017000.00</WorldPosition>
-            <ATCAirway>Y161</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>REDVO</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="RIDAR">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 35' 18.32",E10° 48' 10.17",+017000.00</WorldPosition>
-            <ATCAirway>Y161</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>RIDAR</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="WLD">
+        <ATCWaypoint id="BKD">
             <ATCWaypointType>VOR</ATCWaypointType>
-            <WorldPosition>N48° 34' 45.91",E11° 7' 45.79",+017000.00</WorldPosition>
-            <ATCAirway>Z98</ATCAirway>
+            <WorldPosition>N53° 2' 4.29",E11° 32' 46.38",+028000.00</WorldPosition>
+            <ATCAirway>Q282</ATCAirway>
             <ICAO>
                 <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>WLD</ICAOIdent>
+                <ICAOIdent>BKD</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="ROKIL">
+        <ATCWaypoint id="BATEL">
             <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 30' 47.93",E11° 11' 48.21",+017000.00</WorldPosition>
-            <ATCAirway>T104</ATCAirway>
-            <ArrivalFP>ROKI1B</ArrivalFP>
-            <RunwayNumberFP>26</RunwayNumberFP>
+            <WorldPosition>N52° 32' 49.00",E11° 5' 59.00",+024000.00</WorldPosition>
+            <ATCAirway>P12</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>BATEL</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="HLZ">
+            <ATCWaypointType>VOR</ATCWaypointType>
+            <WorldPosition>N52° 21' 48.22",E10° 47' 42.79",+024000.00</WorldPosition>
+            <ATCAirway>P12</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>HLZ</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="NORTA">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N51° 52' 6.56",E9° 48' 35.10",+024000.00</WorldPosition>
+            <ATCAirway>P12</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>NORTA</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="TOLTA">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N51° 41' 13.60",E9° 30' 44.52",+024000.00</WorldPosition>
+            <ATCAirway>P12</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>TOLTA</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="WRB">
+            <ATCWaypointType>VOR</ATCWaypointType>
+            <WorldPosition>N51° 30' 20.51",E9° 6' 39.29",+024000.00</WorldPosition>
+            <ATCAirway>P12</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>WRB</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="ESADU">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N51° 24' 36.00",E8° 45' 22.00",+024000.00</WorldPosition>
+            <ATCAirway>P12</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>ESADU</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="RUNER">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N51° 16' 35.00",E8° 23' 15.00",+022400.00</WorldPosition>
+            <ATCAirway>T858</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>RUNER</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="GETNI">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N51° 7' 6.00",E7° 57' 17.00",+015000.00</WorldPosition>
+            <ATCAirway>T858</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>GETNI</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="KOPAG">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N51° 3' 53.52",E7° 48' 36.18",+012600.00</WorldPosition>
+            <ATCAirway>T858</ATCAirway>
+            <ArrivalFP>KOPA3V</ArrivalFP>
+            <RunwayNumberFP>13</RunwayNumberFP>
             <RunwayDesignatorFP>LEFT</RunwayDesignatorFP>
             <ICAO>
                 <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>ROKIL</ICAOIdent>
+                <ICAOIdent>KOPAG</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="MIQ">
-            <ATCWaypointType>NDB</ATCWaypointType>
-            <WorldPosition>N48° 34' 12.81",E11° 35' 51.01",+011600.00</WorldPosition>
-            <ArrivalFP>ROKI1B</ArrivalFP>
-            <RunwayNumberFP>26</RunwayNumberFP>
+        <ATCWaypoint id="D350Q">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N51° 3' 22.69",E7° 31' 32.23",+008300.00</WorldPosition>
+            <ArrivalFP>KOPA3V</ArrivalFP>
+            <RunwayNumberFP>13</RunwayNumberFP>
             <RunwayDesignatorFP>LEFT</RunwayDesignatorFP>
             <ICAO>
                 <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>MIQ</ICAOIdent>
+                <ICAOIdent>D350Q</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="EDDM">
+        <ATCWaypoint id="WYP">
+            <ATCWaypointType>VOR</ATCWaypointType>
+            <WorldPosition>N51° 2' 54.07",E7° 16' 47.99",+004700.00</WorldPosition>
+            <ArrivalFP>KOPA3V</ArrivalFP>
+            <RunwayNumberFP>13</RunwayNumberFP>
+            <RunwayDesignatorFP>LEFT</RunwayDesignatorFP>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>WYP</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="EDDK">
             <ATCWaypointType>Airport</ATCWaypointType>
-            <WorldPosition>N48° 21' 13.62",E11° 47' 9.91",+001487.00</WorldPosition>
-            <RunwayNumberFP>26</RunwayNumberFP>
+            <WorldPosition>N50° 51' 57.30",E7° 8' 33.88",+000302.00</WorldPosition>
+            <RunwayNumberFP>13</RunwayNumberFP>
             <RunwayDesignatorFP>LEFT</RunwayDesignatorFP>
             <ICAO>
-                <ICAOIdent>EDDM</ICAOIdent>
+                <ICAOIdent>EDDK</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
     </FlightPlan.FlightPlan>

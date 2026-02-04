@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -20,13 +21,11 @@ namespace Kneeboard_Server.Navigraph
         private const string AUTH_BASE = "https://identity.api.navigraph.com";
         private const string DEVICE_AUTH_ENDPOINT = AUTH_BASE + "/connect/deviceauthorization";
         private const string TOKEN_ENDPOINT = AUTH_BASE + "/connect/token";
-        private const string SUBSCRIPTIONS_ENDPOINT = "https://subscriptions.api.navigraph.com/v1/subscriptions";
+        private const string SUBSCRIPTIONS_ENDPOINT = "https://api.navigraph.com/v1/subscriptions/valid";
         private const string USERINFO_ENDPOINT = AUTH_BASE + "/connect/userinfo";
 
-        // OAuth Client Configuration
-        // These should be replaced with actual Navigraph developer credentials
-        private const string DEFAULT_CLIENT_ID = "kneeboard-server";
-        private const string SCOPE = "openid offline_access fmsdata";
+        // OAuth Scopes - fmsdata scope required for navigation data packages access
+        private const string SCOPE = "openid fmsdata offline_access";
 
         // PKCE
         private string _codeVerifier;
@@ -48,9 +47,14 @@ namespace Kneeboard_Server.Navigraph
 
         public bool IsAuthenticated => !string.IsNullOrEmpty(AccessToken) && TokenExpiry > DateTime.UtcNow;
 
-        public string ClientId => !string.IsNullOrEmpty(Settings.Default.NavigraphClientId)
-            ? Settings.Default.NavigraphClientId
-            : DEFAULT_CLIENT_ID;
+        // Client ID from secrets.config
+        public string ClientId => ConfigurationManager.AppSettings["NavigraphClientId"]
+            ?? Settings.Default.NavigraphClientId
+            ?? "gsimulations-kneeboard";
+
+        // Client Secret from secrets.config
+        private string ClientSecret => ConfigurationManager.AppSettings["NavigraphClientSecret"]
+            ?? "";
 
         public NavigraphAuthService()
         {
@@ -163,13 +167,19 @@ namespace Kneeboard_Server.Navigraph
                 var content = new FormUrlEncodedContent(new Dictionary<string, string>
                 {
                     { "client_id", ClientId },
+                    { "client_secret", ClientSecret },
                     { "scope", SCOPE },
                     { "code_challenge", _codeChallenge },
                     { "code_challenge_method", "S256" }
                 });
 
+                Log($"Navigraph: Sende Device Auth Request an {DEVICE_AUTH_ENDPOINT}");
+                Log($"Navigraph: Client ID: {ClientId}");
+
                 var response = await _httpClient.PostAsync(DEVICE_AUTH_ENDPOINT, content);
                 var responseBody = await response.Content.ReadAsStringAsync();
+
+                Log($"Navigraph: Device Auth Response: {response.StatusCode}");
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -217,9 +227,11 @@ namespace Kneeboard_Server.Navigraph
                     var content = new FormUrlEncodedContent(new Dictionary<string, string>
                     {
                         { "client_id", ClientId },
+                        { "client_secret", ClientSecret },
                         { "grant_type", "urn:ietf:params:oauth:grant-type:device_code" },
                         { "device_code", deviceCode },
-                        { "code_verifier", _codeVerifier }
+                        { "code_verifier", _codeVerifier },
+                        { "scope", SCOPE }
                     });
 
                     var response = await _httpClient.PostAsync(TOKEN_ENDPOINT, content, cancellationToken);
@@ -410,27 +422,66 @@ namespace Kneeboard_Server.Navigraph
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
 
                 var response = await _httpClient.SendAsync(request);
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                Log($"Navigraph: Subscription API Response: {response.StatusCode}");
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var responseBody = await response.Content.ReadAsStringAsync();
-                    var json = JObject.Parse(responseBody);
-
-                    // Check for fmsdata subscription
-                    var subs = json["subscriptions"] as JArray;
-                    if (subs != null)
+                    // API can return either an array or an object with subscriptions array
+                    JToken json;
+                    try
                     {
+                        json = JToken.Parse(responseBody);
+                    }
+                    catch
+                    {
+                        Log($"Navigraph: Konnte Subscription Response nicht parsen: {responseBody.Substring(0, Math.Min(200, responseBody.Length))}");
+                        HasFmsDataSubscription = false;
+                        return false;
+                    }
+
+                    // Handle array response (list of subscriptions)
+                    JArray subs = null;
+                    if (json is JArray array)
+                    {
+                        subs = array;
+                    }
+                    else if (json is JObject obj)
+                    {
+                        // Try to find subscriptions in object
+                        subs = obj["subscriptions"] as JArray ?? obj["items"] as JArray;
+                    }
+
+                    if (subs != null && subs.Count > 0)
+                    {
+                        Log($"Navigraph: {subs.Count} Subscriptions gefunden");
+
                         foreach (var sub in subs)
                         {
-                            var type = sub["type"]?.ToString();
-                            if (type == "fmsdata" || type == "ultimate")
+                            // API returns: type, subscription_name, date_active, date_expiry
+                            var type = sub["type"]?.ToString() ?? "";
+                            var subscriptionName = sub["subscription_name"]?.ToString() ?? "";
+
+                            Log($"Navigraph: Subscription: type={type}, name={subscriptionName}");
+
+                            // Check if type is "fmsdata" (exact match from API)
+                            if (type.Equals("fmsdata", StringComparison.OrdinalIgnoreCase))
                             {
                                 HasFmsDataSubscription = true;
-                                Log($"Navigraph: FMS Data Subscription gefunden ({type})");
+                                Log($"Navigraph: FMS Data Subscription gefunden ({subscriptionName})");
                                 return true;
                             }
                         }
                     }
+                    else
+                    {
+                        Log($"Navigraph: Keine Subscriptions in Response gefunden");
+                    }
+                }
+                else
+                {
+                    Log($"Navigraph: Subscription API Fehler: {responseBody.Substring(0, Math.Min(500, responseBody.Length))}");
                 }
 
                 HasFmsDataSubscription = false;
@@ -499,6 +550,7 @@ namespace Kneeboard_Server.Navigraph
                 var content = new FormUrlEncodedContent(new Dictionary<string, string>
                 {
                     { "client_id", ClientId },
+                    { "client_secret", ClientSecret },
                     { "grant_type", "refresh_token" },
                     { "refresh_token", RefreshToken }
                 });
@@ -599,6 +651,355 @@ namespace Kneeboard_Server.Navigraph
             };
         }
 
+        // Navigation Data API
+        private const string NAVDATA_API = "https://api.navigraph.com/v1/navdata/packages";
+        private const string NAVDATA_INFO_API = "https://navdata.api.navigraph.com/info";
+
+        /// <summary>
+        /// Get current AIRAC cycle info from Navigraph (no package access needed)
+        /// </summary>
+        public async Task<string> GetCurrentAiracCycleAsync()
+        {
+            try
+            {
+                if (!await EnsureValidTokenAsync())
+                {
+                    return null;
+                }
+
+                var request = new HttpRequestMessage(HttpMethod.Get, NAVDATA_INFO_API);
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
+
+                Log($"Navigraph: Rufe AIRAC Info ab: {NAVDATA_INFO_API}");
+
+                var response = await _httpClient.SendAsync(request);
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                Log($"Navigraph: Info API Status: {response.StatusCode}");
+                Log($"Navigraph: Info API Response: {responseBody}");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = JObject.Parse(responseBody);
+                    return json["cycle"]?.ToString();
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Log($"Navigraph: AIRAC Info Fehler: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Download the latest navigation database
+        /// </summary>
+        public async Task<NavigraphDatabaseInfo> DownloadLatestDatabaseAsync(string targetDirectory)
+        {
+            try
+            {
+                if (!await EnsureValidTokenAsync())
+                {
+                    Log("Navigraph: Kein gültiger Token für Datenbank-Download");
+                    return null;
+                }
+
+                Log("Navigraph: Lade verfügbare Pakete...");
+
+                // Try different format parameters - Navigraph assigns formats to clients
+                // Common formats: dfd (DFD v1), dfd_v2 (DFD v2), or client-specific
+                string[] formatsToTry = { "", "dfd", "dfd_v2", "navigraph_dfd" };
+                JArray allPackages = null;
+
+                foreach (var format in formatsToTry)
+                {
+                    var url = string.IsNullOrEmpty(format)
+                        ? NAVDATA_API
+                        : $"{NAVDATA_API}?format={format}";
+
+                    var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
+
+                    Log($"Navigraph: Versuche Package API mit format='{format}': {url}");
+
+                    var response = await _httpClient.SendAsync(request);
+                    var responseBody = await response.Content.ReadAsStringAsync();
+
+                    Log($"Navigraph: Response Status: {response.StatusCode}");
+                    Log($"Navigraph: Response Body: {responseBody}");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        // API might return object with packages array or direct array
+                        JToken parsed = JToken.Parse(responseBody);
+                        JArray packages;
+
+                        if (parsed is JArray arr)
+                        {
+                            packages = arr;
+                        }
+                        else if (parsed is JObject obj)
+                        {
+                            // Try common wrapper properties
+                            packages = obj["packages"] as JArray
+                                ?? obj["items"] as JArray
+                                ?? obj["data"] as JArray;
+
+                            if (packages == null)
+                            {
+                                Log($"Navigraph: Response ist ein Objekt mit Keys: {string.Join(", ", obj.Properties().Select(p => p.Name))}");
+                                continue;
+                            }
+                        }
+                        else
+                        {
+                            continue;
+                        }
+
+                        Log($"Navigraph: {packages.Count} Paket(e) mit format='{format}'");
+
+                        if (packages.Count > 0)
+                        {
+                            allPackages = packages;
+                            break;
+                        }
+                    }
+                }
+
+                if (allPackages == null || allPackages.Count == 0)
+                {
+                    Log("Navigraph: HINWEIS - Keine Pakete gefunden!");
+                    Log("Navigraph: Der Client muss bei Navigraph für Navigation Data API registriert werden.");
+                    Log("Navigraph: Bitte kontaktiere dev@navigraph.com um Zugang zu erhalten.");
+                    return null;
+                }
+
+                Log($"Navigraph: {allPackages.Count} Paket(e) gefunden");
+
+                // Filter for DFD format (SQLite database)
+                JToken package = null;
+                foreach (var pkg in allPackages)
+                {
+                    var format = pkg["format"]?.ToString()?.ToLower() ?? "";
+                    Log($"Navigraph: Package format: {format}, cycle: {pkg["cycle"]}");
+
+                    if (format.Contains("dfd") || format.Contains("sqlite") || format.Contains("fmsdata"))
+                    {
+                        package = pkg;
+                        break;
+                    }
+                }
+
+                if (package == null && allPackages.Count > 0)
+                {
+                    // Fallback: use first package if no DFD found
+                    package = allPackages[0];
+                    Log($"Navigraph: Kein DFD-Format gefunden, verwende erstes Paket: {package["format"]}");
+                }
+
+                if (package == null)
+                {
+                    Log("Navigraph: Keine aktuellen Pakete gefunden");
+                    return null;
+                }
+                var cycle = package["cycle"]?.ToString();
+                var revision = package["revision"]?.ToString();
+                var files = package["files"] as JArray;
+
+                Log($"Navigraph: Aktueller AIRAC Cycle: {cycle} (Revision {revision})");
+
+                if (files == null || files.Count == 0)
+                {
+                    Log("Navigraph: Keine Dateien im Paket");
+                    return null;
+                }
+
+                // Find the SQLite database file
+                JToken dbFile = null;
+                foreach (var file in files)
+                {
+                    var key = file["key"]?.ToString() ?? "";
+                    if (key.EndsWith(".s3db") || key.EndsWith(".sqlite") || key.EndsWith(".db"))
+                    {
+                        dbFile = file;
+                        break;
+                    }
+                }
+
+                if (dbFile == null)
+                {
+                    // Take first file if no .s3db found
+                    dbFile = files[0];
+                }
+
+                var signedUrl = dbFile["signed_url"]?.ToString();
+                var hash = dbFile["hash"]?.ToString();
+                var fileName = dbFile["key"]?.ToString() ?? $"ng_navdata_{cycle}.s3db";
+
+                if (string.IsNullOrEmpty(signedUrl))
+                {
+                    Log("Navigraph: Keine Download-URL gefunden");
+                    return null;
+                }
+
+                Log($"Navigraph: Lade Datenbank herunter: {fileName}");
+
+                // Download the file
+                var downloadResponse = await _httpClient.GetAsync(signedUrl);
+                if (!downloadResponse.IsSuccessStatusCode)
+                {
+                    Log($"Navigraph: Download fehlgeschlagen: {downloadResponse.StatusCode}");
+                    return null;
+                }
+
+                // Ensure target directory exists
+                if (!System.IO.Directory.Exists(targetDirectory))
+                {
+                    System.IO.Directory.CreateDirectory(targetDirectory);
+                }
+
+                var targetPath = System.IO.Path.Combine(targetDirectory, $"ng_jeppesen_fwdfd_{cycle}.s3db");
+                var bytes = await downloadResponse.Content.ReadAsByteArrayAsync();
+
+                // Verify hash if provided
+                if (!string.IsNullOrEmpty(hash))
+                {
+                    using (var sha256 = SHA256.Create())
+                    {
+                        var computedHash = BitConverter.ToString(sha256.ComputeHash(bytes)).Replace("-", "").ToLower();
+                        if (computedHash != hash.ToLower())
+                        {
+                            Log($"Navigraph: Hash-Prüfung fehlgeschlagen! Erwartet: {hash}, Berechnet: {computedHash}");
+                            return null;
+                        }
+                        Log("Navigraph: Hash-Prüfung erfolgreich");
+                    }
+                }
+
+                // Save file
+                System.IO.File.WriteAllBytes(targetPath, bytes);
+                Log($"Navigraph: Datenbank gespeichert: {targetPath} ({bytes.Length / 1024 / 1024} MB)");
+
+                return new NavigraphDatabaseInfo
+                {
+                    Cycle = cycle,
+                    Revision = revision,
+                    FilePath = targetPath,
+                    FileSize = bytes.Length
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Navigraph: Datenbank-Download Fehler: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Get info about latest available database without downloading
+        /// </summary>
+        public async Task<NavigraphDatabaseInfo> GetLatestDatabaseInfoAsync()
+        {
+            try
+            {
+                if (!await EnsureValidTokenAsync())
+                {
+                    return null;
+                }
+
+                // Try different format parameters
+                string[] formatsToTry = { "", "dfd", "dfd_v2", "navigraph_dfd" };
+                JArray allPackages = null;
+
+                foreach (var format in formatsToTry)
+                {
+                    var url = string.IsNullOrEmpty(format)
+                        ? NAVDATA_API
+                        : $"{NAVDATA_API}?format={format}";
+
+                    var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
+
+                    Log($"Navigraph: Prüfe Pakete mit format='{format}'");
+
+                    var response = await _httpClient.SendAsync(request);
+                    var responseBody = await response.Content.ReadAsStringAsync();
+
+                    Log($"Navigraph: GetInfo Response: {responseBody}");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        JToken parsed = JToken.Parse(responseBody);
+                        JArray packages;
+
+                        if (parsed is JArray arr)
+                        {
+                            packages = arr;
+                        }
+                        else if (parsed is JObject obj)
+                        {
+                            packages = obj["packages"] as JArray
+                                ?? obj["items"] as JArray
+                                ?? obj["data"] as JArray;
+
+                            if (packages == null)
+                            {
+                                Log($"Navigraph: Response Keys: {string.Join(", ", obj.Properties().Select(p => p.Name))}");
+                                continue;
+                            }
+                        }
+                        else
+                        {
+                            continue;
+                        }
+
+                        if (packages.Count > 0)
+                        {
+                            allPackages = packages;
+                            Log($"Navigraph: {packages.Count} Paket(e) gefunden mit format='{format}'");
+                            break;
+                        }
+                    }
+                }
+
+                if (allPackages == null || allPackages.Count == 0)
+                {
+                    Log("Navigraph: Keine Pakete gefunden - Client benötigt Navigation Data API Zugang");
+                    return null;
+                }
+
+                // Filter for DFD format
+                JToken package = null;
+                foreach (var pkg in allPackages)
+                {
+                    var format = pkg["format"]?.ToString()?.ToLower() ?? "";
+                    if (format.Contains("dfd") || format.Contains("sqlite") || format.Contains("fmsdata"))
+                    {
+                        package = pkg;
+                        break;
+                    }
+                }
+
+                if (package == null)
+                {
+                    package = allPackages[0];
+                }
+
+                return new NavigraphDatabaseInfo
+                {
+                    Cycle = package["cycle"]?.ToString(),
+                    Revision = package["revision"]?.ToString(),
+                    PackageStatus = package["package_status"]?.ToString()
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         /// <summary>
         /// Log message
         /// </summary>
@@ -607,5 +1008,17 @@ namespace Kneeboard_Server.Navigraph
             Console.WriteLine(message);
             OnLog?.Invoke(this, message);
         }
+    }
+
+    /// <summary>
+    /// Information about a Navigraph database
+    /// </summary>
+    public class NavigraphDatabaseInfo
+    {
+        public string Cycle { get; set; }
+        public string Revision { get; set; }
+        public string FilePath { get; set; }
+        public long FileSize { get; set; }
+        public string PackageStatus { get; set; }
     }
 }

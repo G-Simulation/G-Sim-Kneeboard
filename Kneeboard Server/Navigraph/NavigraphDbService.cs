@@ -332,13 +332,8 @@ namespace Kneeboard_Server.Navigraph
                     }
                 }
 
-                if (runways.Count > 0)
-                {
-                    Console.WriteLine($"[Runway Debug] No exact match, returning first runway: {runways[0].Identifier}");
-                    return runways[0];
-                }
-
-                Console.WriteLine($"[Runway Debug] No runway found for {icao} {runwayId}");
+                // KEIN Fallback - wenn keine Übereinstimmung, null zurückgeben
+                Console.WriteLine($"[Runway Debug] No matching runway found for {icao} {runwayId} - returning null");
             }
             catch (Exception ex)
             {
@@ -781,8 +776,9 @@ namespace Kneeboard_Server.Navigraph
                     else if (!string.IsNullOrEmpty(transition))
                     {
                         // Only enroute transition - enroute + common
-                        // FIX: Also include Route 3/6 (Runway Transitions) to ensure connection to airport!
-                        routeTypeFilter = "(route_type IN ('2', '5') OR route_type IN ('3', '6') OR ((route_type = '1' OR route_type = '4') AND transition_identifier = @transition))";
+                        // WICHTIG: KEINE Runway Transitions (3/6) wenn keine Runway gewählt!
+                        // Sonst werden ALLE Runway Transitions geholt → mehrere Linien!
+                        routeTypeFilter = "(route_type IN ('2', '5') OR ((route_type = '1' OR route_type = '4') AND transition_identifier = @transition))";
                         orderBy = "CASE WHEN route_type IN ('1', '4') THEN 0 ELSE 1 END, CAST(seqno AS INTEGER) ASC";
                     }
                     else if (!string.IsNullOrEmpty(runwayTransition))
@@ -803,16 +799,17 @@ namespace Kneeboard_Server.Navigraph
 
                 case ProcedureType.Approach:
                     tableName = "tbl_pf_iaps";
-                    // Approach: Transition (A) -> Final (F) -> Missed (Z)
+                    // Approach RouteTypes: A=Transition, D=DME, F=Final, I=ILS, J=GNSS, L=LOC, P=GPS, R=RNAV, S=VOR, Z=Missed
                     if (!string.IsNullOrEmpty(transition))
                     {
-                        // Transition + Final approach
-                        routeTypeFilter = "(route_type = 'F' OR (route_type = 'A' AND transition_identifier = @transition))";
+                        // Mit Transition: Approach Transition + alle anderen außer Missed
+                        // Holt: Transition Legs (A für diese Transition) + Final Legs (alles außer A und Z)
+                        routeTypeFilter = "((route_type = 'A' AND transition_identifier = @transition) OR route_type NOT IN ('A', 'Z'))";
                         orderBy = "CASE WHEN route_type = 'A' THEN 0 ELSE 1 END, CAST(seqno AS INTEGER) ASC";
                     }
                     else
                     {
-                        // No transition - Final approach legs (F=Final, I=ILS, J=GNSS, P=GPS, R=RNAV, S=VOR/DME, etc.)
+                        // Ohne Transition - alle Legs außer Transitions (A) und Missed (Z)
                         routeTypeFilter = "route_type NOT IN ('A', 'Z')";
                         orderBy = "CAST(seqno AS INTEGER) ASC";
                     }

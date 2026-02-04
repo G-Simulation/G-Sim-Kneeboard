@@ -258,11 +258,18 @@ namespace Kneeboard_Server
                 }
                 else
                 {
-                    string username = _navigraphAuth.Username ?? "Connected";
                     var dataService = SimpleHTTPServer.GetNavigraphData();
                     string airac = dataService?.CurrentAiracCycle ?? "";
 
-                    navigraphStatusLabel.Text = $"{username}" + (string.IsNullOrEmpty(airac) ? "" : $" (AIRAC {airac})");
+                    // Show "OK" with AIRAC cycle instead of username (which might be a GUID)
+                    if (!string.IsNullOrEmpty(airac))
+                    {
+                        navigraphStatusLabel.Text = $"OK (AIRAC {airac})";
+                    }
+                    else
+                    {
+                        navigraphStatusLabel.Text = "OK";
+                    }
                     navigraphStatusLabel.ForeColor = System.Drawing.Color.Green;
                     navigraphLoginButton.Text = "Logout";
                 }
@@ -333,14 +340,25 @@ namespace Kneeboard_Server
 
                 if (success)
                 {
-                    // Download navdata
-                    navigraphStatusLabel.Text = "Downloading navdata...";
-                    var dataService = SimpleHTTPServer.GetNavigraphData();
-                    await dataService.CheckAndDownloadUpdatesAsync();
+                    // Check subscription status first
+                    navigraphStatusLabel.Text = "Checking subscription...";
+                    await _navigraphAuth.CheckSubscriptionAsync();
+
+                    // Download navdata if user has subscription
+                    if (_navigraphAuth.HasFmsDataSubscription)
+                    {
+                        navigraphStatusLabel.Text = "Downloading navdata...";
+                        var dataService = SimpleHTTPServer.GetNavigraphData();
+                        await dataService.CheckAndDownloadUpdatesAsync();
+                    }
 
                     UpdateNavigraphStatus();
-                    MessageBox.Show($"Successfully logged in as {_navigraphAuth.Username}!", "Navigraph",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    var successMessage = _navigraphAuth.HasFmsDataSubscription
+                        ? $"Successfully logged in as {_navigraphAuth.Username}!\nNavdata will be updated."
+                        : $"Successfully logged in as {_navigraphAuth.Username}!\nNo FMS Data subscription - using bundled database.";
+
+                    MessageBox.Show(successMessage, "Navigraph", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {

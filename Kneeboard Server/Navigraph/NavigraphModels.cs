@@ -52,6 +52,8 @@ namespace Kneeboard_Server.Navigraph
         public DateTime ExpirationDate { get; set; }
         public string DownloadUrl { get; set; }
         public long FileSize { get; set; }
+        public string Hash { get; set; }
+        public string PackageStatus { get; set; }
     }
 
     /// <summary>

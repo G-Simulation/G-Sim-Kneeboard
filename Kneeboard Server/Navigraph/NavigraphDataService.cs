@@ -184,11 +184,18 @@ namespace Kneeboard_Server.Navigraph
         {
             try
             {
+                // First call WITHOUT format parameter to see all available packages
                 var request = new HttpRequestMessage(HttpMethod.Get, PACKAGES_ENDPOINT);
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
                     "Bearer", _authService.AccessToken);
 
+                Log($"Navigraph: Rufe Package API auf: {PACKAGES_ENDPOINT}");
+
                 var response = await _httpClient.SendAsync(request);
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                Log($"Navigraph: Package API Status: {response.StatusCode}");
+                Log($"Navigraph: Package API Response: {responseBody}");
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -196,43 +203,68 @@ namespace Kneeboard_Server.Navigraph
                     return null;
                 }
 
-                var responseBody = await response.Content.ReadAsStringAsync();
-                var json = JObject.Parse(responseBody);
+                // API returns a JSON array of packages
+                var packages = JArray.Parse(responseBody);
 
-                // Find DFD package (we need the SQLite format)
-                var packages = json["packages"] as JArray;
-                if (packages != null)
+                Log($"Navigraph: {packages.Count} Paket(e) in Response");
+
+                // Log all available formats
+                foreach (var p in packages)
                 {
-                    foreach (var pkg in packages)
+                    var fmt = p["format"]?.ToString() ?? "unknown";
+                    var cyc = p["cycle"]?.ToString() ?? "unknown";
+                    var stat = p["package_status"]?.ToString() ?? "unknown";
+                    Log($"Navigraph: Verfügbares Paket - Format: {fmt}, Cycle: {cyc}, Status: {stat}");
+                }
+
+                if (packages.Count == 0)
+                {
+                    Log("Navigraph: Keine Pakete gefunden - Client hat möglicherweise keinen Navdata-Zugang");
+                    return null;
+                }
+
+                // Get the first (current) package
+                var pkg = packages[0];
+                var files = pkg["files"] as JArray;
+
+                // Find the database file
+                string downloadUrl = null;
+                string hash = null;
+                long fileSize = 0;
+
+                if (files != null && files.Count > 0)
+                {
+                    // Find .s3db file
+                    foreach (var file in files)
                     {
-                        var format = pkg["format"]?.ToString();
-                        if (format == "dfd" || format == "sqlite" || format == "fwdfd")
+                        var key = file["key"]?.ToString() ?? "";
+                        if (key.EndsWith(".s3db") || key.EndsWith(".sqlite") || key.EndsWith(".db"))
                         {
-                            return new NavdataPackage
-                            {
-                                PackageId = pkg["id"]?.ToString(),
-                                Cycle = pkg["cycle"]?.ToString(),
-                                Revision = pkg["revision"]?.ToString() ?? "",
-                                Format = format,
-                                DownloadUrl = pkg["url"]?.ToString(),
-                                FileSize = pkg["size"]?.ToObject<long>() ?? 0
-                            };
+                            downloadUrl = file["signed_url"]?.ToString();
+                            hash = file["hash"]?.ToString();
+                            break;
                         }
+                    }
+
+                    // Fallback to first file
+                    if (string.IsNullOrEmpty(downloadUrl))
+                    {
+                        downloadUrl = files[0]["signed_url"]?.ToString();
+                        hash = files[0]["hash"]?.ToString();
                     }
                 }
 
-                // Alternative: Try single package response format
-                var cycle = json["cycle"]?.ToString();
-                if (!string.IsNullOrEmpty(cycle))
+                return new NavdataPackage
                 {
-                    return new NavdataPackage
-                    {
-                        Cycle = cycle,
-                        DownloadUrl = json["url"]?.ToString()
-                    };
-                }
-
-                return null;
+                    PackageId = pkg["package_id"]?.ToString(),
+                    Cycle = pkg["cycle"]?.ToString(),
+                    Revision = pkg["revision"]?.ToString() ?? "",
+                    Format = pkg["format"]?.ToString(),
+                    DownloadUrl = downloadUrl,
+                    Hash = hash,
+                    FileSize = fileSize,
+                    PackageStatus = pkg["package_status"]?.ToString()
+                };
             }
             catch (Exception ex)
             {
@@ -248,11 +280,16 @@ namespace Kneeboard_Server.Navigraph
         {
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Get, package.DownloadUrl);
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
-                    "Bearer", _authService.AccessToken);
+                if (string.IsNullOrEmpty(package.DownloadUrl))
+                {
+                    Log("Navigraph: Keine Download-URL vorhanden");
+                    return;
+                }
 
-                var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+                Log($"Navigraph: Starte Download von {package.DownloadUrl.Substring(0, Math.Min(80, package.DownloadUrl.Length))}...");
+
+                // signed_url can be used directly without Authorization header
+                var response = await _httpClient.GetAsync(package.DownloadUrl, HttpCompletionOption.ResponseHeadersRead);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -263,12 +300,15 @@ namespace Kneeboard_Server.Navigraph
                 var totalBytes = response.Content.Headers.ContentLength ?? 0;
                 var tempPath = targetPath + ".tmp";
 
+                Log($"Navigraph: Lade {totalBytes / 1024 / 1024} MB herunter...");
+
                 using (var contentStream = await response.Content.ReadAsStreamAsync())
                 using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
                     var buffer = new byte[81920];
                     long downloadedBytes = 0;
                     int bytesRead;
+                    int lastProgress = 0;
 
                     while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                     {
@@ -278,8 +318,34 @@ namespace Kneeboard_Server.Navigraph
                         if (totalBytes > 0)
                         {
                             var progress = (int)((downloadedBytes * 100) / totalBytes);
-                            OnDownloadProgress?.Invoke(this, progress);
+                            if (progress != lastProgress)
+                            {
+                                lastProgress = progress;
+                                OnDownloadProgress?.Invoke(this, progress);
+                                if (progress % 10 == 0)
+                                {
+                                    Log($"Navigraph: Download {progress}%");
+                                }
+                            }
                         }
+                    }
+                }
+
+                // Verify hash if provided
+                if (!string.IsNullOrEmpty(package.Hash))
+                {
+                    Log("Navigraph: Prüfe Hash...");
+                    using (var sha256 = System.Security.Cryptography.SHA256.Create())
+                    using (var stream = File.OpenRead(tempPath))
+                    {
+                        var computedHash = BitConverter.ToString(sha256.ComputeHash(stream)).Replace("-", "").ToLower();
+                        if (computedHash != package.Hash.ToLower())
+                        {
+                            Log($"Navigraph: Hash-Prüfung fehlgeschlagen! Erwartet: {package.Hash}, Berechnet: {computedHash}");
+                            File.Delete(tempPath);
+                            return;
+                        }
+                        Log("Navigraph: Hash-Prüfung erfolgreich");
                     }
                 }
 
