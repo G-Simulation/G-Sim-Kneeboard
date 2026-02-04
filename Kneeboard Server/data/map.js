@@ -14099,8 +14099,9 @@ function drawLines() {
     map.setZoom(zoomLevel);
   }
 
-  // Only load cached points if no autoload is in progress (prevents double loading)
-  if (!window.flightplanAnimationInProgress && !window.autoloadCheckInProgress) {
+  // Load cached waypoints - auch wenn flightplanAnimationInProgress (das Flag wird für Zentrierung gesetzt)
+  // WICHTIG: loadPoints() muss laufen um die Waypoints aus dem Cache zu laden!
+  if (!window.autoloadCheckInProgress) {
     loadPoints();
   }
 
@@ -17285,6 +17286,8 @@ function getStoredWaypointMetadata() {
 }
 
 function loadPoints() {
+  console.log('[loadPoints] Called');
+
   // If flightplan animation is pending, don't load points here
   // The animation will handle displaying waypoints with proper animation
   if (window.flightplanAnimationInProgress) {
@@ -17299,9 +17302,16 @@ function loadPoints() {
 
   var coordinates = getJSON("clickedPoints");
   wpNum = 0;
+  console.log('[loadPoints] Cached coordinates:', coordinates ? coordinates.length : 'none');
+
   if (coordinates) {
     WpBlocked = false;
     var stored = getStoredWaypointMetadata();
+
+    // DEBUG: Was haben wir aus dem Cache?
+    console.log('[loadPoints] Cached types:', stored.types);
+    console.log('[loadPoints] Cached names:', stored.names);
+
     wpNames = [];
     wpTypes = [];
     altitudes = [];
@@ -23103,6 +23113,16 @@ function setWaypoints(flightplanData) {
     return;
   }
 
+  // WICHTIG: Wenn bereits Waypoints aus dem Cache geladen wurden, nicht nochmal erstellen!
+  // Dies verhindert doppelte RWY-Waypoints beim Browser-Reload
+  var existingWaypoints = getWaypointLayersSorted();
+  if (existingWaypoints && existingWaypoints.length > 0) {
+    console.log('[setWaypoints] SKIPPED - ' + existingWaypoints.length + ' waypoints already loaded from cache');
+    // Linien trotzdem neu zeichnen um korrekte Farben zu haben
+    drawLines();
+    return;
+  }
+
   // v1.45: Render-ID Logik entfernt - funktioniert nicht in Coherent
   // Stattdessen werden Marker SOFORT am Anfang von scheduleFlightplanRender gelöscht
 
@@ -23330,12 +23350,20 @@ function setWaypoints(flightplanData) {
         wpTypes.push("Info");
       } else {
         wpNames.push(entry.name);
-        // Wenn keine gültige Arrival-Runway gewählt ist, ARR-Waypoints als normale Waypoints behandeln
-        // Verhindert gelbe ARR-Linie komplett (nicht nur Label)
         var wpType = entry.waypointType || "User";
-        var hasValidArrivalRunway = flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.selectedRunway;
-        if (!hasValidArrivalRunway && typeof wpType === 'string' && wpType.toUpperCase().indexOf('ARR') === 0) {
-          // ARR -> User: Waypoint wird Teil der blauen Hauptlinie, nicht gelbe ARR-Linie
+
+        // ARR→User Konvertierung NUR wenn:
+        // 1. flightplanPanelState.arrival existiert (Panel wurde initialisiert)
+        // 2. ABER keine selectedRunway hat (User hat Runway abgewählt)
+        // 3. UND arrivalRunwayData ist auch nicht vorhanden (aus Cache)
+        // Beim Reload ist arrivalRunwayData aus dem Cache da → ARR bleibt erhalten
+        var panelArrival = flightplanPanelState && flightplanPanelState.arrival;
+        var panelInitialized = panelArrival && typeof panelArrival.icao !== 'undefined';
+        var hasSelectedRunway = panelArrival && panelArrival.selectedRunway;
+        var hasCachedRunway = arrivalRunwayData && arrivalRunwayData.endLat;
+
+        if (panelInitialized && !hasSelectedRunway && !hasCachedRunway && typeof wpType === 'string' && wpType.toUpperCase().indexOf('ARR') === 0) {
+          // User hat bewusst keine Runway gewählt → ARR-Waypoints werden User
           wpType = entry.sourceAtcWaypointType || entry.atcWaypointType || 'User';
         }
         wpTypes.push(wpType);
@@ -23350,7 +23378,8 @@ function setWaypoints(flightplanData) {
     wpSourceTypes.push(entry.sourceAtcWaypointType || entry.atcWaypointType || entry.sourceType || "");
     var depProcValue = entry.departureProcedure || (idx === 0 ? defaultSid : "");
     // Wenn keine gültige Arrival-Runway, auch arrivalProcedure leeren
-    var hasValidArrivalRunway = flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.selectedRunway;
+    // arrivalRunwayData wird aus Cache geladen BEVOR setWaypoints läuft, daher zuerst prüfen
+    var hasValidArrivalRunway = arrivalRunwayData || (flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.selectedRunway);
     var arrProcValue = hasValidArrivalRunway
       ? (entry.arrivalProcedure || (idx === flightplan.length - 1 ? defaultStar : ""))
       : ""; // Kein Arrival Procedure ohne gültige Runway
@@ -24134,7 +24163,7 @@ function collectWaypointCoordinateData() {
     }
     if (type && type.startsWith("DEP")) {
       coordsDep.push(coordPair);
-    } else if (type && type.startsWith("ARR") || type === "RWY") {
+    } else if (type && (type.startsWith("ARR") || type === "RWY")) {
       // ARR und RWY gehören zur gelben Arrival-Linie
       coordsArr.push(coordPair);
     }
