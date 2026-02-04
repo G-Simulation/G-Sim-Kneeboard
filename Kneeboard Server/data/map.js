@@ -13600,45 +13600,97 @@ function setupWaypointEventHandlers(waypointLayers) {
 /**
  * Gets the icon class and text for a waypoint type
  * @param {string} type - Waypoint type string
- * @returns {Object} - { iconClass, iconText }
+ * @returns {Object} - { iconClass, iconSvg }
  */
 function getWaypointIconInfo(type) {
-  if (!type) return { iconClass: 'fp-wp-icon-fix', iconText: '▲' };
+  // SVG Icons im Luftfahrtkarten-Stil
+  var svgIcons = {
+    // Airport - Kreis mit Bahnen (vereinfacht)
+    airport: '<svg viewBox="0 0 20 20" width="18" height="18"><circle cx="10" cy="10" r="8" fill="none" stroke="#4a5568" stroke-width="1.5"/><line x1="4" y1="10" x2="16" y2="10" stroke="#4a5568" stroke-width="1.5"/><line x1="10" y1="4" x2="10" y2="16" stroke="#4a5568" stroke-width="1.5"/></svg>',
+    // VOR - Hexagon mit Punkt
+    vor: '<svg viewBox="0 0 20 20" width="18" height="18"><polygon points="10,1 18,5 18,15 10,19 2,15 2,5" fill="none" stroke="#0066cc" stroke-width="1.5"/><circle cx="10" cy="10" r="2" fill="#0066cc"/></svg>',
+    // VORDME - Hexagon mit Quadrat
+    vordme: '<svg viewBox="0 0 20 20" width="18" height="18"><polygon points="10,1 18,5 18,15 10,19 2,15 2,5" fill="none" stroke="#0066cc" stroke-width="1.5"/><rect x="7" y="7" width="6" height="6" fill="none" stroke="#0066cc" stroke-width="1.2"/></svg>',
+    // DME - Quadrat
+    dme: '<svg viewBox="0 0 20 20" width="18" height="18"><rect x="3" y="3" width="14" height="14" fill="none" stroke="#0066cc" stroke-width="1.5"/></svg>',
+    // TACAN - Hexagon mit drei Linien
+    tacan: '<svg viewBox="0 0 20 20" width="18" height="18"><polygon points="10,1 18,5 18,15 10,19 2,15 2,5" fill="none" stroke="#0066cc" stroke-width="1.5"/><line x1="10" y1="4" x2="10" y2="16" stroke="#0066cc" stroke-width="1"/><line x1="4" y1="7" x2="16" y2="13" stroke="#0066cc" stroke-width="1"/><line x1="4" y1="13" x2="16" y2="7" stroke="#0066cc" stroke-width="1"/></svg>',
+    // NDB - Kreis mit Punkt
+    ndb: '<svg viewBox="0 0 20 20" width="18" height="18"><circle cx="10" cy="10" r="7" fill="none" stroke="#b45309" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" fill="#b45309"/></svg>',
+    // FIX/Waypoint - Dreieck
+    fix: '<svg viewBox="0 0 20 20" width="18" height="18"><polygon points="10,2 18,17 2,17" fill="none" stroke="#4a5568" stroke-width="1.5"/></svg>',
+    // RNAV Waypoint - Stern (4-zackig)
+    rnav: '<svg viewBox="0 0 20 20" width="18" height="18"><polygon points="10,1 12,8 19,10 12,12 10,19 8,12 1,10 8,8" fill="none" stroke="#4a5568" stroke-width="1.3"/></svg>',
+    // TOC - Pfeil nach oben
+    toc: '<svg viewBox="0 0 20 20" width="18" height="18"><path d="M10,2 L16,12 L12,12 L12,18 L8,18 L8,12 L4,12 Z" fill="#38a169" stroke="#38a169" stroke-width="1"/></svg>',
+    // TOD - Pfeil nach unten
+    tod: '<svg viewBox="0 0 20 20" width="18" height="18"><path d="M10,18 L16,8 L12,8 L12,2 L8,2 L8,8 L4,8 Z" fill="#e53e3e" stroke="#e53e3e" stroke-width="1"/></svg>',
+    // Step Climb - Treppenstufe
+    sc: '<svg viewBox="0 0 20 20" width="18" height="18"><path d="M2,16 L2,12 L7,12 L7,8 L12,8 L12,4 L18,4" fill="none" stroke="#d69e2e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    // Runway - Rechteck mit Mittellinie
+    runway: '<svg viewBox="0 0 20 20" width="18" height="18"><rect x="6" y="2" width="8" height="16" fill="none" stroke="#4a5568" stroke-width="1.5"/><line x1="10" y1="4" x2="10" y2="16" stroke="#4a5568" stroke-width="1" stroke-dasharray="2,2"/></svg>'
+  };
+
+  if (!type) return { iconClass: 'fp-wp-icon-fix', iconSvg: svgIcons.fix };
 
   var normalizedType = type.toUpperCase().split(' ')[0]; // Get first word only
 
   // Airport types
   if (normalizedType === 'APT' || normalizedType === 'AIRPORT' ||
       normalizedType === 'DEP' || normalizedType === 'ARR') {
-    return { iconClass: 'fp-wp-icon-apt', iconText: 'A' };
+    return { iconClass: 'fp-wp-icon-apt', iconSvg: svgIcons.airport };
   }
 
-  // VOR types (VOR, VORDME, DVOR, TACAN, etc.)
-  if (normalizedType.indexOf('VOR') !== -1 || normalizedType.indexOf('TACAN') !== -1 ||
-      normalizedType === 'DME') {
-    return { iconClass: 'fp-wp-icon-vor', iconText: 'V' };
+  // Runway
+  if (normalizedType.match(/^RWY?\d{2}[LRCB]?$/i)) {
+    return { iconClass: 'fp-wp-icon-rwy', iconSvg: svgIcons.runway };
+  }
+
+  // VORDME (check before VOR)
+  if (normalizedType.indexOf('VORDME') !== -1 || normalizedType === 'VOR/DME') {
+    return { iconClass: 'fp-wp-icon-vordme', iconSvg: svgIcons.vordme };
+  }
+
+  // TACAN
+  if (normalizedType.indexOf('TACAN') !== -1 || normalizedType === 'VORTAC') {
+    return { iconClass: 'fp-wp-icon-tacan', iconSvg: svgIcons.tacan };
+  }
+
+  // VOR types
+  if (normalizedType.indexOf('VOR') !== -1) {
+    return { iconClass: 'fp-wp-icon-vor', iconSvg: svgIcons.vor };
+  }
+
+  // DME only
+  if (normalizedType === 'DME') {
+    return { iconClass: 'fp-wp-icon-dme', iconSvg: svgIcons.dme };
   }
 
   // NDB types
   if (normalizedType === 'NDB' || normalizedType.indexOf('NDB') !== -1) {
-    return { iconClass: 'fp-wp-icon-ndb', iconText: 'N' };
+    return { iconClass: 'fp-wp-icon-ndb', iconSvg: svgIcons.ndb };
   }
 
   // TOC/TOD
   if (normalizedType === 'TOC') {
-    return { iconClass: 'fp-wp-icon-toc', iconText: '↑' };
+    return { iconClass: 'fp-wp-icon-toc', iconSvg: svgIcons.toc };
   }
   if (normalizedType === 'TOD') {
-    return { iconClass: 'fp-wp-icon-tod', iconText: '↓' };
+    return { iconClass: 'fp-wp-icon-tod', iconSvg: svgIcons.tod };
   }
 
   // Step Climb
   if (normalizedType === 'SC' || normalizedType === 'S/C') {
-    return { iconClass: 'fp-wp-icon-sc', iconText: 'SC' };
+    return { iconClass: 'fp-wp-icon-sc', iconSvg: svgIcons.sc };
+  }
+
+  // RNAV waypoints (5-letter fixes are often RNAV)
+  if (normalizedType === 'WPT' || normalizedType === 'RNAV') {
+    return { iconClass: 'fp-wp-icon-rnav', iconSvg: svgIcons.rnav };
   }
 
   // Default: FIX/Waypoint
-  return { iconClass: 'fp-wp-icon-fix', iconText: '▲' };
+  return { iconClass: 'fp-wp-icon-fix', iconSvg: svgIcons.fix };
 }
 
 /**
@@ -13835,7 +13887,7 @@ function updateWaypointList(waypointLayers, coordinatesArray) {
     overlayListHtml.push(
       '<li class="fp-waypoint target" id="' + originalIndex + '" data-layer-id="' + layer.options.myId + '"' + navFreqAttr + '>' +
         '<div class="fp-wp-row">' +
-          '<span class="fp-wp-icon ' + iconInfo.iconClass + '">' + iconInfo.iconText + '</span>' +
+          '<span class="fp-wp-icon ' + iconInfo.iconClass + '">' + (iconInfo.iconSvg || iconInfo.iconText || '') + '</span>' +
           '<span class="fp-wp-ident">' + escapeHtml(layer.options.name || '') + '</span>' +
           freqHtml +
           airwayHtml +
@@ -19005,7 +19057,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
     flightplan.forEach(function(wp) {
       if (wp.name) {
         existingNames[wp.name.toUpperCase()] = true;
-        var rwMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+        var rwMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
         if (rwMatch) {
           existingRunways[rwMatch[1].toUpperCase()] = true;
         }
@@ -19032,7 +19084,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
       }
 
       // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
-      var rwMatch = name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+      var rwMatch = name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
       if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
         if (MAP_DEBUG) console.log('[Map] Skipping duplicate runway in approach:', name);
         return;
@@ -19283,14 +19335,33 @@ async function processFlightplanMessage(message, skipSourceCheck) {
           flightplan.forEach(function(wp) {
             if (wp.name) {
               existingNames[wp.name.toUpperCase()] = true;
-              var rwMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+              var rwMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
               if (rwMatch) {
                 existingRunways[rwMatch[1].toUpperCase()] = true;
               }
             }
           });
 
-          approachWaypointsForFlightpath.forEach(function(wp) {
+          // ZIGZAG FIX v2: Finde den LETZTEN gemeinsamen Waypoint zwischen Flightplan und Approach
+          // Nur Approach-Waypoints NACH diesem Punkt hinzufügen
+          var lastCommonWpIndex = -1;
+          for (var i = 0; i < approachWaypointsForFlightpath.length; i++) {
+            var wpName = approachWaypointsForFlightpath[i].Identifier || approachWaypointsForFlightpath[i].identifier ||
+                         approachWaypointsForFlightpath[i].Name || approachWaypointsForFlightpath[i].name || '';
+            if (existingNames[wpName.toUpperCase()]) {
+              lastCommonWpIndex = i;
+              if (MAP_DEBUG) console.log('[Map] Approach/Flightplan common waypoint at index', i, ':', wpName);
+              // Nicht break - wir wollen den LETZTEN gemeinsamen finden
+            }
+          }
+
+          // Starte NACH dem letzten gemeinsamen Waypoint (der ist ja schon im Flightplan)
+          var startIndex = lastCommonWpIndex >= 0 ? lastCommonWpIndex + 1 : 0;
+          if (MAP_DEBUG) {
+            console.log('[Map] Approach: lastCommonWpIndex=' + lastCommonWpIndex + ', starting from index ' + startIndex);
+          }
+
+          approachWaypointsForFlightpath.slice(startIndex).forEach(function(wp) {
             var lat = wp.Latitude || wp.latitude;
             var lon = wp.Longitude || wp.longitude;
             var name = wp.Identifier || wp.identifier || wp.Name || wp.name || 'APPR';
@@ -19308,7 +19379,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
             }
 
             // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
-            var rwMatch = name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+            var rwMatch = name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
             if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
               if (MAP_DEBUG) console.log('[Map] Skipping duplicate runway in approach:', name);
               return;
@@ -21612,7 +21683,7 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
         if (wp.name) {
             existingNames[wp.name.toUpperCase()] = true;
             // Runway-Namen normalisieren
-            var rwMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+            var rwMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
             if (rwMatch) {
                 existingRunways[rwMatch[1].toUpperCase()] = true;
             }
@@ -21634,7 +21705,7 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
         }
 
         // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
-        var rwMatch = name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+        var rwMatch = name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
         if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
             MAP_DEBUG && console.log('[SID_DEBUG] SKIPPING duplicate runway: ' + name);
             return;
@@ -21694,9 +21765,12 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
     }
 
     // WICHTIG: Waypoints sortieren bevor sie eingefügt werden
+    console.log('[STAR_DEBUG] RAW waypoints from API:', procedureData.Waypoints.map(function(wp) {
+        return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || wp.routeType || '?') + ', Seq:' + (wp.SequenceNumber || wp.sequenceNumber || '?') + ')';
+    }).join(' → '));
     var sortedWaypoints = sortProcedureWaypoints(procedureData.Waypoints);
-    MAP_DEBUG && console.log('[STAR_DEBUG] Sorted waypoints:', sortedWaypoints.map(function(wp) {
-        return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || '') + ', Seq:' + (wp.SequenceNumber || '') + ')';
+    console.log('[STAR_DEBUG] SORTED waypoints:', sortedWaypoints.map(function(wp) {
+        return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || wp.routeType || '?') + ', Seq:' + (wp.SequenceNumber || wp.sequenceNumber || '?') + ')';
     }).join(' → '));
 
     // Sammle existierende Waypoint-Namen um Duplikate zu vermeiden
@@ -21707,7 +21781,7 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         if (wp.name) {
             existingNames[wp.name.toUpperCase()] = true;
             // Runway-Namen normalisieren
-            var rwMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+            var rwMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
             if (rwMatch) {
                 existingRunways[rwMatch[1].toUpperCase()] = true;
             }
@@ -21728,7 +21802,7 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         }
 
         // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
-        var rwMatch = name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+        var rwMatch = name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
         if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
             if (MAP_DEBUG) console.log('[Map] Skipping duplicate runway in STAR:', name);
             return;
@@ -23974,8 +24048,28 @@ async function rebuildFlightplanWithProcedures() {
                 if (wp.name) existingNames[wp.name.toUpperCase()] = true;
             });
 
+            // ZIGZAG FIX v2: Finde den LETZTEN gemeinsamen Waypoint zwischen Flightplan und Approach
+            // Nur Approach-Waypoints NACH diesem Punkt hinzufügen
+            var lastCommonWpIndex = -1;
+            for (var i = 0; i < approachData.waypoints.length; i++) {
+                var wpName = approachData.waypoints[i].Identifier || approachData.waypoints[i].identifier ||
+                             approachData.waypoints[i].Name || approachData.waypoints[i].name || '';
+                if (existingNames[wpName.toUpperCase()]) {
+                    lastCommonWpIndex = i;
+                    console.log('[RebuildFlightplan] Approach/Flightplan common waypoint at index', i, ':', wpName);
+                    // Nicht break - wir wollen den LETZTEN gemeinsamen finden
+                }
+            }
+
+            // Starte NACH dem letzten gemeinsamen Waypoint (der ist ja schon im Flightplan)
+            var approachWaypointsToProcess = lastCommonWpIndex >= 0
+                ? approachData.waypoints.slice(lastCommonWpIndex + 1)
+                : approachData.waypoints;
+            console.log('[RebuildFlightplan] Approach: lastCommonWpIndex=' + lastCommonWpIndex +
+                        ', processing ' + approachWaypointsToProcess.length + ' waypoints');
+
             var approachEntries = [];
-            approachData.waypoints.forEach(function(wp) {
+            approachWaypointsToProcess.forEach(function(wp) {
                 var lat = wp.Latitude || wp.latitude;
                 var lon = wp.Longitude || wp.longitude;
                 var name = wp.Identifier || wp.identifier || wp.Name || wp.name || 'APPR';
@@ -24220,7 +24314,7 @@ function setWaypoints(flightplanData) {
       flightplan = flightplan.filter(function(wp, idx) {
         if (idx === 0) return true; // Erster Waypoint wird sowieso ersetzt
         if (!wp.name) return true;
-        var wpRwyMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+        var wpRwyMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
         if (wpRwyMatch && wpRwyMatch[1].toUpperCase() === depRwyNumber) {
           if (MAP_DEBUG) console.log('[RWY_DEBUG] Removing duplicate departure runway waypoint:', wp.name);
           return false;
@@ -24264,7 +24358,7 @@ function setWaypoints(flightplanData) {
       flightplan = flightplan.filter(function(wp, idx) {
         if (idx === lastIdx) return true; // Letzter Waypoint wird sowieso ersetzt
         if (!wp.name) return true;
-        var wpRwyMatch = wp.name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
+        var wpRwyMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
         if (wpRwyMatch && wpRwyMatch[1].toUpperCase() === arrRwyNumber) {
           if (MAP_DEBUG) console.log('[RWY_DEBUG] Removing duplicate arrival runway waypoint:', wp.name);
           return false;

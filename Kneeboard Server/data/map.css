@@ -4133,53 +4133,20 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     width: 100%;
 }
 
-/* Waypoint Type Icons */
+/* Waypoint Type Icons - SVG Style */
 .fp-wp-icon {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 9px;
-    font-weight: 700;
-    border-radius: 3px;
-    color: white;
+    background: transparent;
 }
 
-.fp-wp-icon-apt {
-    background-color: var(--light);
-}
-
-.fp-wp-icon-vor {
-    background-color: #0066cc;
-    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-    width: 16px;
-    height: 16px;
-}
-
-.fp-wp-icon-ndb {
-    background-color: #ff9900;
-    border-radius: 50%;
-}
-
-.fp-wp-icon-fix,
-.fp-wp-icon-wpt {
-    background-color: #718096;
-    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
-}
-
-.fp-wp-icon-toc {
-    background-color: #38a169;
-}
-
-.fp-wp-icon-tod {
-    background-color: #e53e3e;
-}
-
-.fp-wp-icon-sc {
-    background-color: #ffcc00;
-    color: #333;
+.fp-wp-icon svg {
+    width: 18px;
+    height: 18px;
 }
 
 /* Waypoint Identifier */
