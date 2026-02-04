@@ -12324,6 +12324,7 @@ function initializeMapWithLayers(layers) {
           isSynthetic && typeof e.setRunwayDesignator === "string"
             ? e.setRunwayDesignator
             : "";
+        var skipDrawLinesFlag = isSynthetic && e.skipDrawLines === true;
 
         // If forcedAltitude is null, we need to fetch ground elevation
         var needsElevationFetch = (forcedAltitude === null);
@@ -12365,13 +12366,13 @@ function initializeMapWithLayers(layers) {
             var altitudeFeet = groundElevMeters !== null ? Math.round(groundElevMeters * 3.28084) + 1000 : 1000;
             altitudes[elevInsertIndex] = String(altitudeFeet);
             // Update UI - redraw waypoint list to show correct altitude in info row
-            drawLines();
+            if (!skipDrawLinesFlag) drawLines();
             scheduleNavlogSync();
           }).catch(function(err) {
             console.error('[contextmenu] Error fetching elevation:', err);
             // Set fallback altitude: 1000 ft
             altitudes[elevInsertIndex] = "1000";
-            drawLines();
+            if (!skipDrawLinesFlag) drawLines();
           });
         }
 
@@ -12518,7 +12519,7 @@ function initializeMapWithLayers(layers) {
         coordinatesArray = [];
         coordinatesArrayDEP = [];
         coordinatesArrayARR = [];
-        drawLines();
+        if (!skipDrawLinesFlag) drawLines();
         id = marker.options.myId;
         if (document.getElementById("keyboard")) {
           var x = document.getElementById("keyboard");
@@ -13605,7 +13606,10 @@ function drawLines() {
     wpi = coordinateData.waypointCount;
 
     // Create and configure all route polylines
-    createPolylines(coordinateData);
+    // Skip polyline creation if called from animation completion (polylines already exist)
+    if (!window._skipPolylineCreation) {
+      createPolylines(coordinateData);
+    }
 
     // Build and update waypoint list UI
     // Use coordinatesArrayComplete for heading/distance calculations (includes ALL waypoints)
@@ -13620,6 +13624,9 @@ function drawLines() {
       updateElevationProfile();
     }
   }
+
+  // Export drawLines to window for global access (needed by animateFlightplanRoute callback)
+  window.drawLines = drawLines;
 
   function markerFunction(id) {
     // Elevation Profile einblenden wenn geschlossen (nur wenn keine Animation läuft)
@@ -15214,6 +15221,199 @@ function drawLines() {
       if (MAP_DEBUG) console.log('[Map] No cached OFP data for Flightplan Panel');
     }
   }, 800);
+}
+
+/**
+ * Animates the complete flightplan route with synchronized line drawing and marker bouncing.
+ * This function collects ALL coordinates BEFORE animation starts, then draws the line
+ * point by point while adding markers with bounce animation in sync.
+ *
+ * NOTE: This function MUST be at global scope (outside initializeMapWithLayers) to be callable!
+ *
+ * @param {Array} flightplanData - Array of waypoint objects with lat, lng, name, waypointType, etc.
+ * @param {Function} onComplete - Callback when animation is complete
+ */
+function animateFlightplanRoute(flightplanData, onComplete) {
+  if (!flightplanData || flightplanData.length === 0) {
+    console.log('[AnimRoute] No flightplan data provided');
+    if (onComplete) onComplete();
+    return;
+  }
+
+  console.log('[AnimRoute] Starting synchronized line+marker animation with', flightplanData.length, 'waypoints');
+
+  // Line colors matching createPolylines()
+  var colorDEP = "rgb(70,195,51)";   // Green for departure
+  var colorMAIN = "rgb(41,129,202)"; // Blue for enroute
+  var colorARR = "rgb(255,198,0)";   // Yellow for arrival
+
+  var lineOptions = {
+    weight: 5,
+    smoothFactor: 0,
+    noClip: true,
+    interactive: false
+  };
+
+  // Clear existing polylines
+  clearAllPolylineLayers();
+
+  // Create empty polylines for each segment
+  var polylineDEP = L.polyline([], Object.assign({}, lineOptions, { color: colorDEP }));
+  var polylineMAIN = L.polyline([], Object.assign({}, lineOptions, { color: colorMAIN }));
+  var polylineARR = L.polyline([], Object.assign({}, lineOptions, { color: colorARR }));
+
+  // Add to map immediately (empty lines)
+  pLineGroupDEP.addLayer(polylineDEP);
+  pLineGroup.addLayer(polylineMAIN);
+  pLineGroupARR.addLayer(polylineARR);
+
+  // Classify waypoints by segment type BEFORE animation
+  var waypointsWithSegment = flightplanData.map(function(wp, idx) {
+    var segment = 'MAIN'; // Default
+    var wpType = (wp.waypointType || wp.type || '').toUpperCase();
+
+    if (wpType.indexOf('DEP') === 0) {
+      segment = 'DEP';
+    } else if (wpType.indexOf('ARR') === 0) {
+      segment = 'ARR';
+    }
+
+    return {
+      lat: wp.lat,
+      lng: wp.lng,
+      name: wp.name,
+      segment: segment,
+      waypointType: wp.waypointType || wp.type,
+      altitude: wp.altitude,
+      atbl: wp.atbl,
+      sourceType: wp.sourceAtcWaypointType || wp.atcWaypointType || wp.waypointType,
+      departureProcedure: wp.DepartureFP || wp.departureFP || wp.departureProcedure || "",
+      arrivalProcedure: wp.ArrivalFP || wp.arrivalFP || wp.arrivalProcedure || "",
+      airway: wp.airway || wp.ATCAirway || "",
+      runwayNumber: wp.runwayNumberFP || wp.runwayNumber || "",
+      runwayDesignator: wp.runwayDesignatorFP || wp.runwayDesignator || "",
+      isRunwayEnd: (wp.name || '').indexOf('_END') !== -1
+    };
+  });
+
+  // Track coordinates for each segment (for line continuity)
+  var coordsDEP = [];
+  var coordsMAIN = [];
+  var coordsARR = [];
+  var lastCoord = null;
+
+  // Animation state
+  var currentIndex = 0;
+  var perfNow = typeof performance !== 'undefined' && performance.now ?
+                function() { return performance.now(); } :
+                function() { return Date.now(); };
+  var lastFrameTime = perfNow();
+
+  // Animation speed (waypoints per second)
+  var waypointsPerSecond = flightplanData.length > 50 ? 25 :
+                           flightplanData.length > 30 ? 20 :
+                           flightplanData.length > 15 ? 12 : 8;
+  var msPerWaypoint = 1000 / waypointsPerSecond;
+
+  function animateStep() {
+    // Check if animation should be cancelled
+    if (flightplanAnimationState.shouldCancel) {
+      console.log('[AnimRoute] Animation cancelled');
+      flightplanAnimationState.inProgress = false;
+      if (onComplete) onComplete();
+      return;
+    }
+
+    var now = perfNow();
+    var deltaTime = now - lastFrameTime;
+
+    // Only proceed if enough time has passed
+    if (deltaTime >= msPerWaypoint) {
+      lastFrameTime = now;
+
+      if (currentIndex >= waypointsWithSegment.length) {
+        // Animation complete
+        console.log('[AnimRoute] Animation complete');
+
+        // Update global polylines for compatibility with other functions
+        pline = polylineMAIN;
+        plineDEP = polylineDEP;
+        plineARR = polylineARR;
+
+        // Create middle markers for the main line
+        pLineGroup.eachLayer(function(layer) {
+          createMiddleMarkers(layer);
+        });
+
+        // Set flag so drawLines() knows to skip polyline creation (already done by animation)
+        // The actual drawLines() call happens in the onComplete callback where it has scope access
+        window._skipPolylineCreation = true;
+
+        if (onComplete) onComplete();
+        return;
+      }
+
+      var wp = waypointsWithSegment[currentIndex];
+      var coord = [wp.lat, wp.lng];
+      var segment = wp.segment;
+
+      // Ensure line continuity between segments
+      if (lastCoord) {
+        if (segment === 'MAIN' && coordsMAIN.length === 0 && coordsDEP.length > 0) {
+          // Transition from DEP to MAIN: add last DEP point to start of MAIN
+          coordsMAIN.push(lastCoord);
+        } else if (segment === 'ARR' && coordsARR.length === 0) {
+          // Transition to ARR: add last point to start of ARR
+          coordsARR.push(lastCoord);
+        }
+      }
+
+      // Add coordinate to appropriate segment
+      if (segment === 'DEP') {
+        coordsDEP.push(coord);
+        polylineDEP.setLatLngs(coordsDEP);
+      } else if (segment === 'ARR') {
+        coordsARR.push(coord);
+        polylineARR.setLatLngs(coordsARR);
+      } else {
+        coordsMAIN.push(coord);
+        polylineMAIN.setLatLngs(coordsMAIN);
+      }
+
+      lastCoord = coord;
+
+      // Add marker with bounce (unless it's a runway END point which has no marker)
+      if (!wp.isRunwayEnd) {
+        nextWaypointInsertIndex = currentIndex;
+        nextWaypointUseExisting = true;
+
+        // Fire contextmenu event to add the marker (this triggers marker creation with bounce)
+        map.fire("contextmenu", {
+          latlng: L.latLng([wp.lat, wp.lng]),
+          synthetic: true,
+          setType: wp.waypointType,
+          setName: wp.name || null,
+          setAltitude: typeof wp.altitude !== "undefined" ? String(wp.altitude) : "0",
+          setAtbl: typeof wp.atbl !== "undefined" ? String(wp.atbl) : "",
+          setSourceType: wp.sourceType,
+          setDepartureProcedure: wp.departureProcedure,
+          setArrivalProcedure: wp.arrivalProcedure,
+          setAirway: wp.airway,
+          setRunwayNumber: wp.runwayNumber,
+          setRunwayDesignator: wp.runwayDesignator,
+          skipDrawLines: true  // Skip drawLines() call during animation - we handle lines ourselves
+        });
+      }
+
+      currentIndex++;
+    }
+
+    // Continue animation
+    requestAnimationFrame(animateStep);
+  }
+
+  // Start animation
+  requestAnimationFrame(animateStep);
 }
 
 function hideMetarContainer() {
@@ -23229,157 +23429,101 @@ function setWaypoints(flightplanData) {
     return; // Skip animated version for large flightplans
   }
 
-  // Start waypoint animation directly (elevation profile will auto-show during animation)
-  // Using requestAnimationFrame for smooth 60 FPS animation
-  requestAnimationFrame(function startAnimation() {
-    if (MAP_DEBUG) console.log('[Map] Starting waypoint animation with', flightplan.length, 'waypoints');
+  // NEW: Use synchronized line+marker animation
+  // This animates line drawing AND marker bouncing together
+  var hasValidArrRwy = flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.selectedRunway;
 
-    // Fallback for browsers without performance.now() (should be rare with Coherent)
-    var perfNow = typeof performance !== 'undefined' && performance.now ?
-                  function() { return performance.now(); } :
-                  function() { return Date.now(); };
-
-    var lastFrameTime = perfNow();
-    var currentIndex = 0;
-
-    // Calculate waypoints per second for smooth animation (verlangsamt f�r bessere Sichtbarkeit)
-    var waypointsPerSecond = flightplan.length > 50 ? 25 :   // 25 wp/s for large routes (40ms pro wp)
-                             flightplan.length > 30 ? 20 :   // 20 wp/s (50ms pro wp)
-                             flightplan.length > 15 ? 12 :   // 12 wp/s (83ms pro wp)
-                                                      8;     // 8 wp/s for small routes (125ms pro wp)
-    var msPerWaypoint = 1000 / waypointsPerSecond;
-
-    function addWaypointSmooth() {
-      // v1.45: Render-ID Check entfernt - funktioniert nicht in Coherent
-      // Marker werden stattdessen SOFORT am Anfang von scheduleFlightplanRender gelöscht
-
-      // Check if animation should be cancelled
-      if (flightplanAnimationState.shouldCancel) {
-        if (MAP_DEBUG) console.log('[Map] Animation abgebrochen');
-        flightplanAnimationState.inProgress = false;
-        WpBlocked = false;
-        return;
-      }
-
-      var now = perfNow();
-      var deltaTime = now - lastFrameTime;
-
-      // Only add waypoint if enough time has passed
-      if (deltaTime >= msPerWaypoint) {
-        lastFrameTime = now;
-
-        if (currentIndex >= flightplan.length) {
-          // Animation complete
-          if (MAP_DEBUG) console.log('[Map] Animation complete');
-          // Nicht einblenden wenn Controller Modus aktiv
-          if (flightplan.length > 0 && !moverX) {
-            showWpList(true);
-          }
-          if (flightplan.length > 2) {
-            toggle.enable();
-            follow = false;
-          } else {
-            toggle.disable();
-            follow = true;
-          }
-          getMarkerId();
-          WpBlocked = false;
-          scheduleNavlogSync();
-
-          // SEGMENT-ANIMATION: Nach Hauptanimation
-          // 1. Animation-Flag zurücksetzen
-          // 2. Alternate animieren
-          // 3. Elevation Profile einblenden
-          // NOTE: drawLines() nicht nötig - Segment-Farben werden bereits während Animation korrekt gezeichnet
-          window.flightplanAnimationInProgress = false;
-          if (MAP_DEBUG) console.log('[Animation] Main animation complete');
-
-          // Alternate-Animation starten, danach Elevation Profile
-          if (window.pendingAlternateRouteDraw && typeof animateAlternateRoute === 'function') {
-            window.pendingAlternateRouteDraw = false;
-            if (MAP_DEBUG) console.log('[Animation] Starting alternate route animation');
-            animateAlternateRoute(function() {
-              if (MAP_DEBUG) console.log('[Animation] Alternate complete, showing elevation');
-              requestAnimationFrame(function() {
-                updateElevationProfile()
-                  .then(function(elevationResult) {
-                    if (MAP_DEBUG) console.log('[Elevation] Profile ready:', elevationResult.panelVisible);
-                    emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-complete' });
-                  })
-                  .catch(function(error) {
-                    console.warn('[Elevation] Update error:', error);
-                    emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-error' });
-                  });
-              });
-            });
-          } else {
-            // Kein Alternate - direkt Elevation Profile
-            requestAnimationFrame(function() {
-              if (MAP_DEBUG) console.log('[Waypoints] Animation complete, updating elevation');
-              updateElevationProfile()
-                .then(function(elevationResult) {
-                  if (MAP_DEBUG) console.log('[Elevation] Profile ready:', elevationResult.panelVisible);
-                  emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-complete' });
-                })
-                .catch(function(error) {
-                  console.warn('[Elevation] Update error:', error);
-                  emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-error' });
-                });
-            });
-          }
-          return;
-        }
-
-        // Add current waypoint
-        var entry = flightplan[currentIndex];
-        if (entry) {
-          var lat = Number(entry.lat);
-          var lng = Number(entry.lng);
-          if (Number.isFinite(lat) && Number.isFinite(lng)) {
-            nextWaypointInsertIndex = currentIndex;
-            nextWaypointUseExisting = true;
-
-            // Wenn keine gültige Arrival-Runway, ARR-Waypoints als normale Waypoints behandeln
-            // Verhindert gelbe ARR-Linie komplett
-            var hasValidArrRwy = flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.selectedRunway;
-            var wpType = entry.waypointType || null;
-            if (!hasValidArrRwy && wpType && typeof wpType === 'string' && wpType.toUpperCase().indexOf('ARR') === 0) {
-              // ARR -> sourceType oder User: Verhindert gelbe Linie
-              wpType = entry.sourceAtcWaypointType || entry.atcWaypointType || 'User';
-            }
-            var arrProc = hasValidArrRwy
-              ? (entry.ArrivalFP || entry.arrivalFP || entry.arrivalProcedure || "")
-              : "";
-
-            map.fire("contextmenu", {
-              latlng: L.latLng([lat, lng]),
-              synthetic: true,
-              setType: wpType,
-              setName: entry.name || null,
-              setAltitude: typeof entry.altitude !== "undefined" ? String(entry.altitude) : "0",
-              setAtbl: typeof entry.atbl !== "undefined" ? String(entry.atbl) : "",
-              setSourceType: entry.sourceAtcWaypointType || entry.atcWaypointType || entry.waypointType,
-              setDepartureProcedure: entry.DepartureFP || entry.departureFP || entry.departureProcedure || "",
-              setArrivalProcedure: arrProc,
-              setAirway: entry.airway || entry.ATCAirway || "",
-              setRunwayNumber: entry.runwayNumberFP || entry.runwayNumber || "",
-              setRunwayDesignator: entry.runwayDesignatorFP || entry.runwayDesignator || "",
-            });
-          }
-        }
-
-        currentIndex++;
-      }
-
-      // Continue animation on next frame (60 FPS)
-      requestAnimationFrame(addWaypointSmooth);
+  // Prepare flightplan data with proper waypointType handling
+  var flightplanForAnimation = flightplan.map(function(entry) {
+    var wpType = entry.waypointType || null;
+    // Wenn keine gültige Arrival-Runway, ARR-Waypoints als normale Waypoints behandeln
+    if (!hasValidArrRwy && wpType && typeof wpType === 'string' && wpType.toUpperCase().indexOf('ARR') === 0) {
+      wpType = entry.sourceAtcWaypointType || entry.atcWaypointType || 'User';
     }
-
-    // Start smooth animation
-    addWaypointSmooth();
+    return Object.assign({}, entry, { waypointType: wpType });
   });
 
-  if (MAP_DEBUG) console.log('[Map] setWaypoints completed. Animation scheduled.');
+  // Add runway END point if we have arrival runway data (for line drawing only, no marker)
+  if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
+    flightplanForAnimation.push({
+      lat: arrivalRunwayData.endLat,
+      lng: arrivalRunwayData.endLon,
+      name: (arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY') + '_END',
+      waypointType: 'ARR',
+      altitude: arrivalRunwayData.elevation || 0
+    });
+    console.log('[setWaypoints] Added runway END to animation:', arrivalRunwayData.endLat, arrivalRunwayData.endLon);
+  }
+
+  animateFlightplanRoute(flightplanForAnimation, function onAnimationComplete() {
+    if (MAP_DEBUG) console.log('[Map] Synchronized animation complete');
+
+    // IMPORTANT: Update the waypoint list in the Flightplan Panel
+    // This was skipped during animation (skipDrawLines: true)
+    // drawLines() has scope access here (inside initializeMapWithLayers)
+    try {
+      drawLines();
+      console.log('[AnimRoute] Waypoint list updated via drawLines()');
+    } catch (e) {
+      console.error('[AnimRoute] Error updating waypoint list:', e);
+    }
+    window._skipPolylineCreation = false;
+
+    // Nicht einblenden wenn Controller Modus aktiv
+    if (flightplan.length > 0 && !moverX) {
+      showWpList(true);
+    }
+    if (flightplan.length > 2) {
+      toggle.enable();
+      follow = false;
+    } else {
+      toggle.disable();
+      follow = true;
+    }
+    getMarkerId();
+    WpBlocked = false;
+    scheduleNavlogSync();
+
+    // Animation-Flag zurücksetzen
+    window.flightplanAnimationInProgress = false;
+    flightplanAnimationState.inProgress = false;
+
+    // Alternate-Animation starten, danach Elevation Profile
+    if (window.pendingAlternateRouteDraw && typeof animateAlternateRoute === 'function') {
+      window.pendingAlternateRouteDraw = false;
+      if (MAP_DEBUG) console.log('[Animation] Starting alternate route animation');
+      animateAlternateRoute(function() {
+        if (MAP_DEBUG) console.log('[Animation] Alternate complete, showing elevation');
+        requestAnimationFrame(function() {
+          updateElevationProfile()
+            .then(function(elevationResult) {
+              if (MAP_DEBUG) console.log('[Elevation] Profile ready:', elevationResult.panelVisible);
+              emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-complete' });
+            })
+            .catch(function(error) {
+              console.warn('[Elevation] Update error:', error);
+              emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-error' });
+            });
+        });
+      });
+    } else {
+      // Kein Alternate - direkt Elevation Profile
+      requestAnimationFrame(function() {
+        if (MAP_DEBUG) console.log('[Waypoints] Animation complete, updating elevation');
+        updateElevationProfile()
+          .then(function(elevationResult) {
+            if (MAP_DEBUG) console.log('[Elevation] Profile ready:', elevationResult.panelVisible);
+            emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-complete' });
+          })
+          .catch(function(error) {
+            console.warn('[Elevation] Update error:', error);
+            emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-error' });
+          });
+      });
+    }
+  });
+
+  if (MAP_DEBUG) console.log('[Map] setWaypoints completed. Synchronized animation scheduled.');
 }
 
 function postMessageToBridge(message) {
