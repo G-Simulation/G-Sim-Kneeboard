@@ -2933,10 +2933,10 @@ async function updateRunwayDataFromOFP() {
       var arrData = await fetchRunwayData(arrIcao, arrRunway);
       if (arrData) {
         arrivalRunwayData = arrData;
-        console.log('[Runway] Arrival runway loaded from OFP:', arrRunway, 'endLat:', arrData.endLat);
+        MAP_DEBUG && console.log('[Runway] Arrival runway loaded from OFP:', arrRunway, 'endLat:', arrData.endLat);
       }
     } else {
-      console.log('[Runway] Arrival runway already set by loadArrivalProcedures, keeping:', arrivalRunwayData.identifier || arrivalRunwayData.runway);
+      MAP_DEBUG && console.log('[Runway] Arrival runway already set by loadArrivalProcedures, keeping:', arrivalRunwayData.identifier || arrivalRunwayData.runway);
     }
 
     if (MAP_DEBUG) {
@@ -12918,17 +12918,11 @@ function buildCoordinateArrays() {
 
   // Add runway endpoint to ARR line - ALWAYS (also during animation for complete route display)
   // The runway END coordinates are loaded BEFORE animation starts in processFlightplanMessage
-  console.log('[buildCoords] Adding runway/destination. arrivalRunwayData:', arrivalRunwayData ? 'exists' : 'null',
-    'endLat:', arrivalRunwayData?.endLat, 'endLon:', arrivalRunwayData?.endLon,
-    'coordsArrayARR length before:', coordsArrayARR.length, 'isAnimating:', isAnimating);
   if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
     pushUnique(coordsArrayARR, [arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon]);
     // Add runway END point to draw line to end of runway (but NOT to waypoint list!)
     if (arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
       pushUnique(coordsArrayARR, [arrivalRunwayData.endLat, arrivalRunwayData.endLon]);
-      console.log('[buildCoords] Added runway END to ARR line:', arrivalRunwayData.endLat, arrivalRunwayData.endLon);
-    } else {
-      console.log('[buildCoords] WARNING: arrivalRunwayData has no endLat/endLon!');
     }
   } else if (!isAnimating && destination) {
     // Fallback nur wenn keine Runway-Daten UND nicht animierend
@@ -13530,6 +13524,27 @@ function createPolylines(coordinateData) {
     noClip: true,
   };
 
+  // ENSURE runway threshold + END is in ARR coords
+  if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
+    var thresholdCoord = [arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon];
+    var hasThreshold = coordinatesArrayARR.some(function(c) {
+      return Math.abs(c[0] - thresholdCoord[0]) < 0.0001 && Math.abs(c[1] - thresholdCoord[1]) < 0.0001;
+    });
+    if (!hasThreshold) {
+      coordinatesArrayARR.push(thresholdCoord);
+    }
+
+    if (arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
+      var endCoord = [arrivalRunwayData.endLat, arrivalRunwayData.endLon];
+      var hasEnd = coordinatesArrayARR.some(function(c) {
+        return Math.abs(c[0] - endCoord[0]) < 0.0001 && Math.abs(c[1] - endCoord[1]) < 0.0001;
+      });
+      if (!hasEnd) {
+        coordinatesArrayARR.push(endCoord);
+      }
+    }
+  }
+
   // Create main polylines
   pline = L.polyline(coordinatesArray, mainLineOptions);
   plineDEP = L.polyline(coordinatesArrayDEP, depLineOptions);
@@ -13552,6 +13567,11 @@ function createPolylines(coordinateData) {
   pLineGroup.addLayer(pline);
   pLineGroupDEP.addLayer(plineDEP);
   pLineGroupARR.addLayer(plineARR);
+
+  // Ensure layer groups are on the map
+  if (!map.hasLayer(pLineGroup)) pLineGroup.addTo(map);
+  if (!map.hasLayer(pLineGroupDEP)) pLineGroupDEP.addTo(map);
+  if (!map.hasLayer(pLineGroupARR)) pLineGroupARR.addTo(map);
 
   safeCleanupTimer('startlineInterval');
   if (waypointCount > 0) {
@@ -15235,12 +15255,16 @@ function drawLines() {
  */
 function animateFlightplanRoute(flightplanData, onComplete) {
   if (!flightplanData || flightplanData.length === 0) {
-    console.log('[AnimRoute] No flightplan data provided');
+    MAP_DEBUG && console.log('[AnimRoute] No flightplan data provided');
     if (onComplete) onComplete();
     return;
   }
 
-  console.log('[AnimRoute] Starting synchronized line+marker animation with', flightplanData.length, 'waypoints');
+  MAP_DEBUG && console.log('[AnimRoute] Starting synchronized line+marker animation with', flightplanData.length, 'waypoints');
+
+  // IMPORTANT: Skip polyline creation in drawLines() during entire animation
+  // Animation creates its own polylines that include the runway END point
+  window._skipPolylineCreation = true;
 
   // Line colors matching createPolylines()
   var colorDEP = "rgb(70,195,51)";   // Green for departure
@@ -15258,14 +15282,15 @@ function animateFlightplanRoute(flightplanData, onComplete) {
   clearAllPolylineLayers();
 
   // Create empty polylines for each segment
-  var polylineDEP = L.polyline([], Object.assign({}, lineOptions, { color: colorDEP }));
-  var polylineMAIN = L.polyline([], Object.assign({}, lineOptions, { color: colorMAIN }));
-  var polylineARR = L.polyline([], Object.assign({}, lineOptions, { color: colorARR }));
+  // IMPORTANT: Update the GLOBAL polyline variables so they persist after animation!
+  plineDEP = L.polyline([], Object.assign({}, lineOptions, { color: colorDEP }));
+  pline = L.polyline([], Object.assign({}, lineOptions, { color: colorMAIN }));
+  plineARR = L.polyline([], Object.assign({}, lineOptions, { color: colorARR }));
 
   // Add to map immediately (empty lines)
-  pLineGroupDEP.addLayer(polylineDEP);
-  pLineGroup.addLayer(polylineMAIN);
-  pLineGroupARR.addLayer(polylineARR);
+  pLineGroupDEP.addLayer(plineDEP);
+  pLineGroup.addLayer(pline);
+  pLineGroupARR.addLayer(plineARR);
 
   // Classify waypoints by segment type BEFORE animation
   var waypointsWithSegment = flightplanData.map(function(wp, idx) {
@@ -15318,7 +15343,7 @@ function animateFlightplanRoute(flightplanData, onComplete) {
   function animateStep() {
     // Check if animation should be cancelled
     if (flightplanAnimationState.shouldCancel) {
-      console.log('[AnimRoute] Animation cancelled');
+      MAP_DEBUG && console.log('[AnimRoute] Animation cancelled');
       flightplanAnimationState.inProgress = false;
       if (onComplete) onComplete();
       return;
@@ -15333,21 +15358,20 @@ function animateFlightplanRoute(flightplanData, onComplete) {
 
       if (currentIndex >= waypointsWithSegment.length) {
         // Animation complete
-        console.log('[AnimRoute] Animation complete');
+        MAP_DEBUG && console.log('[AnimRoute] Animation complete');
 
-        // Update global polylines for compatibility with other functions
-        pline = polylineMAIN;
-        plineDEP = polylineDEP;
-        plineARR = polylineARR;
+        // Add arrival runway END point to drawing (NOT to flightplan/navlog!)
+        // This matches what buildCoordinateArrays() does for non-animated drawing
+        if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
+          var endCoord = [arrivalRunwayData.endLat, arrivalRunwayData.endLon];
+          coordsARR.push(endCoord);
+          plineARR.setLatLngs(coordsARR);
+          MAP_DEBUG && console.log('[AnimRoute] Added arrival runway END point:', endCoord);
+        }
 
-        // Create middle markers for the main line
-        pLineGroup.eachLayer(function(layer) {
-          createMiddleMarkers(layer);
-        });
-
-        // Set flag so drawLines() knows to skip polyline creation (already done by animation)
-        // The actual drawLines() call happens in the onComplete callback where it has scope access
-        window._skipPolylineCreation = true;
+        // Animation is done - let drawLines() recreate polylines with proper data
+        // This ensures runway END is included via buildCoordinateArrays()
+        window._skipPolylineCreation = false;
 
         if (onComplete) onComplete();
         return;
@@ -15356,6 +15380,11 @@ function animateFlightplanRoute(flightplanData, onComplete) {
       var wp = waypointsWithSegment[currentIndex];
       var coord = [wp.lat, wp.lng];
       var segment = wp.segment;
+
+      // Debug: Log runway END processing
+      if (MAP_DEBUG && wp.isRunwayEnd) {
+        console.log('[AnimRoute] Processing runway END:', wp.name, 'segment:', segment, 'coord:', coord);
+      }
 
       // Ensure line continuity between segments
       if (lastCoord) {
@@ -15368,16 +15397,17 @@ function animateFlightplanRoute(flightplanData, onComplete) {
         }
       }
 
-      // Add coordinate to appropriate segment
+      // Add coordinate to appropriate segment (ALWAYS, even for runway END)
+      // Use GLOBAL polyline variables (plineDEP, pline, plineARR) so they persist after animation
       if (segment === 'DEP') {
         coordsDEP.push(coord);
-        polylineDEP.setLatLngs(coordsDEP);
+        plineDEP.setLatLngs(coordsDEP);
       } else if (segment === 'ARR') {
         coordsARR.push(coord);
-        polylineARR.setLatLngs(coordsARR);
+        plineARR.setLatLngs(coordsARR);
       } else {
         coordsMAIN.push(coord);
-        polylineMAIN.setLatLngs(coordsMAIN);
+        pline.setLatLngs(coordsMAIN);
       }
 
       lastCoord = coord;
@@ -19595,10 +19625,18 @@ async function animateAlternateRoute(onComplete) {
     // Waypoints für Alternate sammeln (gleiche Logik wie drawAlternateRoute)
     var altWaypoints = [];
 
-    // Startpunkt = Arrival Runway Endpunkt (Threshold) des Hauptflugs
+    // Startpunkt = Arrival Runway END-Punkt (nicht Threshold!) für nahtlose Verbindung zur Hauptroute
     var destIcao = flightplanPanelState.arrival.icao;
 
-    if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
+    if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
+        // Priorität: END-Punkt für nahtlose Verbindung zur gelben ARR-Linie
+        altWaypoints.push({
+            lat: arrivalRunwayData.endLat,
+            lng: arrivalRunwayData.endLon,
+            name: (arrivalRunwayData.identifier || 'RWY') + '-END@' + destIcao
+        });
+    } else if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
+        // Fallback: Threshold wenn keine END-Koordinaten vorhanden
         altWaypoints.push({
             lat: arrivalRunwayData.thresholdLat,
             lng: arrivalRunwayData.thresholdLon,
@@ -20057,12 +20095,12 @@ function populateDropdown(elementId, items, labelProperty, selectedValue) {
  * @returns {Array} SIDs die für diese Runway verfügbar sind
  */
 function filterSidsByRunway(sids, runway) {
-    console.log('[filterSidsByRunway] runway:', runway, 'sids count:', sids ? sids.length : 0);
+    MAP_DEBUG && console.log('[filterSidsByRunway] runway:', runway, 'sids count:', sids ? sids.length : 0);
 
     if (!runway || !sids || sids.length === 0) return sids;
 
     var runwayNumber = runway.replace(/^RW/i, '');
-    console.log('[filterSidsByRunway] Looking for runway:', runwayNumber);
+    MAP_DEBUG && console.log('[filterSidsByRunway] Looking for runway:', runwayNumber);
 
     var sidNamesForRunway = {};
     var sidsWithRunway = {};
@@ -20082,7 +20120,7 @@ function filterSidsByRunway(sids, runway) {
             if (sidRunway === runwayNumber ||
                 sidRunway.replace(/[LRC]$/i, '') === runwayNumber.replace(/[LRC]$/i, '')) {
                 sidNamesForRunway[name] = true;
-                console.log('[filterSidsByRunway] SID', name, 'matches runway via Runway field:', sidRunway);
+                MAP_DEBUG && console.log('[filterSidsByRunway] SID', name, 'matches runway via Runway field:', sidRunway);
             }
         }
 
@@ -20096,14 +20134,14 @@ function filterSidsByRunway(sids, runway) {
                 if (transId === runwayNumber ||
                     transId.replace(/[LRCB]$/i, '') === runwayNumber.replace(/[LRCB]$/i, '')) {
                     sidNamesForRunway[name] = true;
-                    console.log('[filterSidsByRunway] SID', name, 'matches runway via TransitionIdentifier:', transId, 'RouteType:', routeType);
+                    MAP_DEBUG && console.log('[filterSidsByRunway] SID', name, 'matches runway via TransitionIdentifier:', transId, 'RouteType:', routeType);
                 }
             }
         }
     });
 
-    console.log('[filterSidsByRunway] SIDs with runway assignment:', Object.keys(sidsWithRunway).length);
-    console.log('[filterSidsByRunway] SIDs matching selected runway:', Object.keys(sidNamesForRunway).length);
+    MAP_DEBUG && console.log('[filterSidsByRunway] SIDs with runway assignment:', Object.keys(sidsWithRunway).length);
+    MAP_DEBUG && console.log('[filterSidsByRunway] SIDs matching selected runway:', Object.keys(sidNamesForRunway).length);
 
     // Finde SIDs die KEINE Runway-Zuordnung haben - diese sind für ALLE Runways verfügbar
     var sidsWithoutRunwayAssignment = {};
@@ -20113,7 +20151,7 @@ function filterSidsByRunway(sids, runway) {
             sidsWithoutRunwayAssignment[name] = true;
         }
     });
-    console.log('[filterSidsByRunway] SIDs without runway assignment (available for all):', Object.keys(sidsWithoutRunwayAssignment).length);
+    MAP_DEBUG && console.log('[filterSidsByRunway] SIDs without runway assignment (available for all):', Object.keys(sidsWithoutRunwayAssignment).length);
 
     // KOMBINIERTE FILTERUNG:
     // - SIDs mit passender Runway-Zuordnung
@@ -20123,7 +20161,7 @@ function filterSidsByRunway(sids, runway) {
         return sidNamesForRunway[name] || sidsWithoutRunwayAssignment[name];
     });
 
-    console.log('[filterSidsByRunway] Final result:', result.length, 'SIDs available for runway', runwayNumber);
+    MAP_DEBUG && console.log('[filterSidsByRunway] Final result:', result.length, 'SIDs available for runway', runwayNumber);
     return result;
 }
 
@@ -20141,7 +20179,7 @@ function filterStarsByRunway(stars, runway) {
     var starNamesForRunway = {};
     var starsWithRunwayTransition = {};
 
-    console.log('[filterStarsByRunway] runway:', runway, 'stars count:', stars ? stars.length : 0);
+    MAP_DEBUG && console.log('[filterStarsByRunway] runway:', runway, 'stars count:', stars ? stars.length : 0);
 
     stars.forEach(function(star) {
         var name = star.Identifier || star.identifier;
@@ -20158,14 +20196,14 @@ function filterStarsByRunway(stars, runway) {
                 if (transId === runwayNumber ||
                     transId.replace(/[LRCB]$/i, '') === runwayNumber.replace(/[LRCB]$/i, '')) {
                     starNamesForRunway[name] = true;
-                    console.log('[filterStarsByRunway] STAR', name, 'matches runway via TransitionIdentifier:', transId, 'RouteType:', routeType);
+                    MAP_DEBUG && console.log('[filterStarsByRunway] STAR', name, 'matches runway via TransitionIdentifier:', transId, 'RouteType:', routeType);
                 }
             }
         }
     });
 
-    console.log('[filterStarsByRunway] STARs with runway assignment:', Object.keys(starsWithRunwayTransition).length);
-    console.log('[filterStarsByRunway] STARs matching selected runway:', Object.keys(starNamesForRunway).length);
+    MAP_DEBUG && console.log('[filterStarsByRunway] STARs with runway assignment:', Object.keys(starsWithRunwayTransition).length);
+    MAP_DEBUG && console.log('[filterStarsByRunway] STARs matching selected runway:', Object.keys(starNamesForRunway).length);
 
     // Finde STARs die KEINE Runway-Zuordnung haben - diese sind für ALLE Runways verfügbar
     var starsWithoutRunwayAssignment = {};
@@ -20175,7 +20213,7 @@ function filterStarsByRunway(stars, runway) {
             starsWithoutRunwayAssignment[name] = true;
         }
     });
-    console.log('[filterStarsByRunway] STARs without runway assignment (available for all):', Object.keys(starsWithoutRunwayAssignment).length);
+    MAP_DEBUG && console.log('[filterStarsByRunway] STARs without runway assignment (available for all):', Object.keys(starsWithoutRunwayAssignment).length);
 
     // KOMBINIERTE FILTERUNG:
     // - STARs mit passender Runway-Zuordnung
@@ -20185,7 +20223,7 @@ function filterStarsByRunway(stars, runway) {
         return starNamesForRunway[name] || starsWithoutRunwayAssignment[name];
     });
 
-    console.log('[filterStarsByRunway] Final result:', result.length, 'STARs available for runway', runwayNumber);
+    MAP_DEBUG && console.log('[filterStarsByRunway] Final result:', result.length, 'STARs available for runway', runwayNumber);
     return result;
 }
 
@@ -20319,12 +20357,12 @@ function populateSidDropdown(elementId, sids, selectedValue) {
         return null;
     }
 
-    console.log('[populateSidDropdown]', elementId, '- sids:', sids ? sids.length : 0, 'selected:', selectedValue);
+    MAP_DEBUG && console.log('[populateSidDropdown]', elementId, '- sids:', sids ? sids.length : 0, 'selected:', selectedValue);
 
     select.innerHTML = '<option value="">-</option>';
 
     if (!sids || sids.length === 0) {
-        console.warn('[populateSidDropdown]', elementId, '- No SIDs to populate!');
+        MAP_DEBUG && console.warn('[populateSidDropdown]', elementId, '- No SIDs to populate!');
         return null;
     }
 
@@ -20346,7 +20384,7 @@ function populateSidDropdown(elementId, sids, selectedValue) {
     });
 
     var sidNames = Object.keys(sidsByName).sort();
-    console.log('[populateSidDropdown] Available SID names:', sidNames.slice(0, 20).join(', '), '...');
+    MAP_DEBUG && console.log('[populateSidDropdown] Available SID names:', sidNames.slice(0, 20).join(', '), '...');
 
     // Try to find matching SID (handles partial matches like "CIND8S" -> "CIND5S")
     var matchedSid = null;
@@ -20385,9 +20423,9 @@ function populateSidDropdown(elementId, sids, selectedValue) {
                 scoredCandidates.sort(function(a, b) { return b.score - a.score; });
                 matchedSid = scoredCandidates[0].name;
 
-                console.log('[populateSidDropdown] Partial match candidates for', selectedValue + ':',
+                MAP_DEBUG && console.log('[populateSidDropdown] Partial match candidates for', selectedValue + ':',
                     scoredCandidates.map(function(c) { return c.name + '(score:' + c.score + ')'; }).join(', '));
-                console.log('[populateSidDropdown] Best match:', selectedValue, '->', matchedSid);
+                MAP_DEBUG && console.log('[populateSidDropdown] Best match:', selectedValue, '->', matchedSid);
             }
         }
     }
@@ -20399,7 +20437,7 @@ function populateSidDropdown(elementId, sids, selectedValue) {
         option.textContent = name;
         if (matchedSid && name === matchedSid) {
             option.selected = true;
-            console.log('[populateSidDropdown] Setting selected:', name);
+            MAP_DEBUG && console.log('[populateSidDropdown] Setting selected:', name);
         }
         select.appendChild(option);
     });
@@ -20777,26 +20815,26 @@ async function loadDepartureProcedures(icao, ofpData) {
                idNorm.replace(/[LRC]$/, '') === selectedRunwayNorm.replace(/[LRC]$/, '');
     });
 
-    console.log('[loadDepartureProcedures] OFP runway:', selectedRunway, '-> norm:', selectedRunwayNorm);
-    console.log('[loadDepartureProcedures] Available runways:', runways.map(function(r) { return r.Identifier || r.identifier; }).join(', '));
+    MAP_DEBUG && console.log('[loadDepartureProcedures] OFP runway:', selectedRunway, '-> norm:', selectedRunwayNorm);
+    MAP_DEBUG && console.log('[loadDepartureProcedures] Available runways:', runways.map(function(r) { return r.Identifier || r.identifier; }).join(', '));
 
     if (matchedRunway) {
         selectedRunway = matchedRunway.Identifier || matchedRunway.identifier;
         flightplanPanelState.departure.selectedRunway = selectedRunway;
-        console.log('[loadDepartureProcedures] Matched runway:', selectedRunway);
+        MAP_DEBUG && console.log('[loadDepartureProcedures] Matched runway:', selectedRunway);
     } else if (runways.length > 0 && !selectedRunwayNorm) {
         // NUR wenn OFP KEINE Runway hatte, erste nehmen
         selectedRunway = runways[0].Identifier || runways[0].identifier || '';
         flightplanPanelState.departure.selectedRunway = selectedRunway;
-        console.log('[loadDepartureProcedures] No OFP runway, using first:', selectedRunway);
+        MAP_DEBUG && console.log('[loadDepartureProcedures] No OFP runway, using first:', selectedRunway);
     } else {
         // OFP hatte Runway aber existiert nicht - NICHT raten
         selectedRunway = '';
         flightplanPanelState.departure.selectedRunway = '';
-        console.log('[loadDepartureProcedures] OFP runway "' + selectedRunwayNorm + '" not found - user must select manually');
+        MAP_DEBUG && console.log('[loadDepartureProcedures] OFP runway "' + selectedRunwayNorm + '" not found - user must select manually');
     }
 
-    console.log('[loadDepartureProcedures] Final selectedRunway for dropdown:', selectedRunway);
+    MAP_DEBUG && console.log('[loadDepartureProcedures] Final selectedRunway for dropdown:', selectedRunway);
     populateDropdown('depRunwaySelect', runways, 'Identifier', selectedRunway);
 
     // Load SIDs
@@ -20804,23 +20842,27 @@ async function loadDepartureProcedures(icao, ofpData) {
     flightplanPanelState.departure.sids = sids;
 
     // DEBUG: Log all unique SID names
-    var uniqueSidNames = [];
-    sids.forEach(function(s) {
-        var name = s.Identifier || s.identifier;
-        if (uniqueSidNames.indexOf(name) === -1) uniqueSidNames.push(name);
-    });
-    console.log('[loadDepartureProcedures] All unique SID names (' + uniqueSidNames.length + '):', uniqueSidNames.sort().join(', '));
+    if (MAP_DEBUG) {
+        var uniqueSidNames = [];
+        sids.forEach(function(s) {
+            var name = s.Identifier || s.identifier;
+            if (uniqueSidNames.indexOf(name) === -1) uniqueSidNames.push(name);
+        });
+        console.log('[loadDepartureProcedures] All unique SID names (' + uniqueSidNames.length + '):', uniqueSidNames.sort().join(', '));
+    }
 
     // Filter SIDs by selected runway (analog zu STAR-Filterung in loadArrivalProcedures)
     var filteredSids = filterSidsByRunway(sids, selectedRunway);
 
     // DEBUG: Log filtered SID names
-    var filteredSidNames = [];
-    filteredSids.forEach(function(s) {
-        var name = s.Identifier || s.identifier;
-        if (filteredSidNames.indexOf(name) === -1) filteredSidNames.push(name);
-    });
-    console.log('[loadDepartureProcedures] Filtered SID names (' + filteredSidNames.length + '):', filteredSidNames.sort().join(', '));
+    if (MAP_DEBUG) {
+        var filteredSidNames = [];
+        filteredSids.forEach(function(s) {
+            var name = s.Identifier || s.identifier;
+            if (filteredSidNames.indexOf(name) === -1) filteredSidNames.push(name);
+        });
+        console.log('[loadDepartureProcedures] Filtered SID names (' + filteredSidNames.length + '):', filteredSidNames.sort().join(', '));
+    }
 
     // Get SID from OFP - check Route field for SID name
     var general = ofpData.General || ofpData.general || {};
@@ -20899,7 +20941,7 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
 
     // WICHTIG: Waypoints sortieren bevor sie eingefügt werden
     var sortedWaypoints = sortProcedureWaypoints(procedureData.Waypoints);
-    console.log('[SID_DEBUG] Sorted waypoints:', sortedWaypoints.map(function(wp) {
+    MAP_DEBUG && console.log('[SID_DEBUG] Sorted waypoints:', sortedWaypoints.map(function(wp) {
         return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || '') + ', Seq:' + (wp.SequenceNumber || '') + ')';
     }).join(' → '));
 
@@ -20924,23 +20966,23 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
         var lon = wp.Longitude || wp.longitude;
         var name = wp.Identifier || wp.identifier || 'SID';
 
-        console.log('[SID_DEBUG] Waypoint ' + idx + ': ' + name + ' lat=' + lat + ' lon=' + lon + ' RouteType=' + wp.RouteType);
+        MAP_DEBUG && console.log('[SID_DEBUG] Waypoint ' + idx + ': ' + name + ' lat=' + lat + ' lon=' + lon + ' RouteType=' + wp.RouteType);
 
         // Skip wenn Waypoint bereits existiert oder ungültige Koordinaten
         if (existingNames[name.toUpperCase()]) {
-            console.log('[SID_DEBUG] SKIPPING duplicate: ' + name);
+            MAP_DEBUG && console.log('[SID_DEBUG] SKIPPING duplicate: ' + name);
             return;
         }
 
         // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
         var rwMatch = name.match(/^(?:RW)?(\d{2}[LRCB]?)$/i);
         if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
-            console.log('[SID_DEBUG] SKIPPING duplicate runway: ' + name);
+            MAP_DEBUG && console.log('[SID_DEBUG] SKIPPING duplicate runway: ' + name);
             return;
         }
 
         if (!lat || !lon || isNaN(lat) || isNaN(lon) || Math.abs(lat) < 0.001) {
-            console.log('[SID_DEBUG] SKIPPING invalid coords: ' + name + ' lat=' + lat + ' lon=' + lon);
+            MAP_DEBUG && console.log('[SID_DEBUG] SKIPPING invalid coords: ' + name + ' lat=' + lat + ' lon=' + lon);
             return;
         }
 
@@ -20994,7 +21036,7 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
 
     // WICHTIG: Waypoints sortieren bevor sie eingefügt werden
     var sortedWaypoints = sortProcedureWaypoints(procedureData.Waypoints);
-    console.log('[STAR_DEBUG] Sorted waypoints:', sortedWaypoints.map(function(wp) {
+    MAP_DEBUG && console.log('[STAR_DEBUG] Sorted waypoints:', sortedWaypoints.map(function(wp) {
         return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || '') + ', Seq:' + (wp.SequenceNumber || '') + ')';
     }).join(' → '));
 
@@ -21014,7 +21056,7 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
     });
 
     var starEntries = [];
-    console.log('[STAR_DEBUG] Processing', sortedWaypoints.length, 'waypoints. Existing names:', Object.keys(existingNames).join(', '));
+    MAP_DEBUG && console.log('[STAR_DEBUG] Processing', sortedWaypoints.length, 'waypoints. Existing names:', Object.keys(existingNames).join(', '));
     sortedWaypoints.forEach(function(wp) {
         var lat = wp.Latitude || wp.latitude;
         var lon = wp.Longitude || wp.longitude;
@@ -21022,7 +21064,7 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
 
         // Skip wenn Waypoint bereits existiert oder ungültige Koordinaten
         if (existingNames[name.toUpperCase()]) {
-            console.log('[STAR_DEBUG] Skipping duplicate STAR waypoint:', name);
+            MAP_DEBUG && console.log('[STAR_DEBUG] Skipping duplicate STAR waypoint:', name);
             return;
         }
 
@@ -21058,17 +21100,17 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         existingNames[name.toUpperCase()] = true;
     });
 
-    console.log('[STAR_DEBUG] Star entries to inject:', starEntries.length);
+    MAP_DEBUG && console.log('[STAR_DEBUG] Star entries to inject:', starEntries.length);
     if (starEntries.length > 0) {
         // Insert before destination airport (before last element)
         var insertIndex = flightplanArray.length > 0 ? flightplanArray.length - 1 : 0;
         var before = flightplanArray.slice(0, insertIndex);
         var after = flightplanArray.slice(insertIndex);
-        console.log('[STAR_DEBUG] Injecting', starEntries.length, 'STAR waypoints at index', insertIndex);
+        MAP_DEBUG && console.log('[STAR_DEBUG] Injecting', starEntries.length, 'STAR waypoints at index', insertIndex);
         return before.concat(starEntries).concat(after);
     }
 
-    console.log('[STAR_DEBUG] No STAR entries to inject!');
+    MAP_DEBUG && console.log('[STAR_DEBUG] No STAR entries to inject!');
     return flightplanArray;
 }
 
@@ -21086,8 +21128,8 @@ async function loadArrivalProcedures(icao, ofpData) {
     var selectedRunway = flightplanPanelState.arrival.selectedRunway || '';
     var selectedRunwayNorm = selectedRunway.toUpperCase().replace(/^RW/i, '');
 
-    console.log('[loadArrivalProcedures] OFP runway:', selectedRunway, '-> norm:', selectedRunwayNorm);
-    console.log('[loadArrivalProcedures] Available runways:', runways.map(function(r) { return r.Identifier || r.identifier; }).join(', '));
+    MAP_DEBUG && console.log('[loadArrivalProcedures] OFP runway:', selectedRunway, '-> norm:', selectedRunwayNorm);
+    MAP_DEBUG && console.log('[loadArrivalProcedures] Available runways:', runways.map(function(r) { return r.Identifier || r.identifier; }).join(', '));
 
     var matchedRunway = runways.find(function(rwy) {
         var id = (rwy.Identifier || rwy.identifier || '').toUpperCase();
@@ -21099,20 +21141,20 @@ async function loadArrivalProcedures(icao, ofpData) {
     if (matchedRunway) {
         selectedRunway = matchedRunway.Identifier || matchedRunway.identifier;
         flightplanPanelState.arrival.selectedRunway = selectedRunway;
-        console.log('[loadArrivalProcedures] Matched runway:', selectedRunway);
+        MAP_DEBUG && console.log('[loadArrivalProcedures] Matched runway:', selectedRunway);
     } else if (runways.length > 0 && !selectedRunwayNorm) {
         // NUR wenn OFP KEINE Runway hatte, erste nehmen
         selectedRunway = runways[0].Identifier || runways[0].identifier || '';
         flightplanPanelState.arrival.selectedRunway = selectedRunway;
-        console.log('[loadArrivalProcedures] No OFP runway, using first:', selectedRunway);
+        MAP_DEBUG && console.log('[loadArrivalProcedures] No OFP runway, using first:', selectedRunway);
     } else {
         // OFP hatte Runway aber existiert nicht - NICHT raten, User muss manuell wählen
         selectedRunway = '';
         flightplanPanelState.arrival.selectedRunway = '';
-        console.log('[loadArrivalProcedures] OFP runway "' + selectedRunwayNorm + '" not found - user must select manually');
+        MAP_DEBUG && console.log('[loadArrivalProcedures] OFP runway "' + selectedRunwayNorm + '" not found - user must select manually');
     }
 
-    console.log('[loadArrivalProcedures] Final selectedRunway for dropdown:', selectedRunway);
+    MAP_DEBUG && console.log('[loadArrivalProcedures] Final selectedRunway for dropdown:', selectedRunway);
     populateDropdown('arrRunwaySelect', runways, 'Identifier', selectedRunway);
 
     // WICHTIG: Runway-Daten laden für Approach-Linie zum Runway-Ende
@@ -21120,9 +21162,9 @@ async function loadArrivalProcedures(icao, ofpData) {
         var rwyData = await fetchRunwayData(icao, selectedRunway);
         if (rwyData) {
             arrivalRunwayData = rwyData;
-            console.log('[loadArrivalProcedures] Loaded arrivalRunwayData:', selectedRunway, 'endLat:', rwyData.endLat, 'endLon:', rwyData.endLon);
+            MAP_DEBUG && console.log('[loadArrivalProcedures] Loaded arrivalRunwayData:', selectedRunway, 'endLat:', rwyData.endLat, 'endLon:', rwyData.endLon);
         } else {
-            console.log('[loadArrivalProcedures] WARNING: Failed to load arrivalRunwayData for', selectedRunway);
+            MAP_DEBUG && console.log('[loadArrivalProcedures] WARNING: Failed to load arrivalRunwayData for', selectedRunway);
         }
     }
 
@@ -21132,7 +21174,7 @@ async function loadArrivalProcedures(icao, ofpData) {
 
     // WICHTIG: Wenn keine Runway ausgewählt, keine STAR/Approach laden
     if (!selectedRunway) {
-        console.log('[loadArrivalProcedures] No runway selected - skipping STAR/Approach selection');
+        MAP_DEBUG && console.log('[loadArrivalProcedures] No runway selected - skipping STAR/Approach selection');
         populateStarDropdown('arrStarSelect', [], '');
         populateTransitionDropdown('arrTransitionSelect', [], '', '', 'STAR');
         flightplanPanelState.arrival.selectedStar = '';
@@ -23147,6 +23189,16 @@ function setWaypoints(flightplanData) {
       flightplan.splice(1, 0, endWp);
     }
 
+    // DEBUG: Log arrival runway data state
+    console.log('[RWY_DEBUG] Arrival runway check:', {
+      hasData: !!arrivalRunwayData,
+      thresholdLat: arrivalRunwayData ? arrivalRunwayData.thresholdLat : 'N/A',
+      thresholdLon: arrivalRunwayData ? arrivalRunwayData.thresholdLon : 'N/A',
+      endLat: arrivalRunwayData ? arrivalRunwayData.endLat : 'N/A',
+      endLon: arrivalRunwayData ? arrivalRunwayData.endLon : 'N/A',
+      identifier: arrivalRunwayData ? (arrivalRunwayData.runway || arrivalRunwayData.identifier) : 'N/A'
+    });
+
     if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
       // Runway-Name aus den Daten extrahieren (z.B. "RW08L" oder "08L")
       var arrRwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
@@ -23307,8 +23359,8 @@ function setWaypoints(flightplanData) {
       wpi3++;
     }
 
-    // Other waypoint data
-    wpSourceTypes.push(entry.sourceType || "");
+    // Other waypoint data - use sourceAtcWaypointType for proper navlog display (e.g., "Intersection", "VOR")
+    wpSourceTypes.push(entry.sourceAtcWaypointType || entry.atcWaypointType || entry.sourceType || "");
     var depProcValue = entry.departureProcedure || (idx === 0 ? defaultSid : "");
     // Wenn keine gültige Arrival-Runway, auch arrivalProcedure leeren
     var hasValidArrivalRunway = flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.selectedRunway;
@@ -23452,22 +23504,20 @@ function setWaypoints(flightplanData) {
       waypointType: 'ARR',
       altitude: arrivalRunwayData.elevation || 0
     });
-    console.log('[setWaypoints] Added runway END to animation:', arrivalRunwayData.endLat, arrivalRunwayData.endLon);
+    MAP_DEBUG && console.log('[setWaypoints] Added runway END to animation:', arrivalRunwayData.endLat, arrivalRunwayData.endLon, 'total waypoints:', flightplanForAnimation.length);
   }
 
   animateFlightplanRoute(flightplanForAnimation, function onAnimationComplete() {
     if (MAP_DEBUG) console.log('[Map] Synchronized animation complete');
 
-    // IMPORTANT: Update the waypoint list in the Flightplan Panel
-    // This was skipped during animation (skipDrawLines: true)
-    // drawLines() has scope access here (inside initializeMapWithLayers)
+    // Update waypoint list and recreate polylines with proper runway END coordinates
+    // buildCoordinateArrays() includes runway END from arrivalRunwayData
     try {
       drawLines();
-      console.log('[AnimRoute] Waypoint list updated via drawLines()');
+      MAP_DEBUG && console.log('[AnimRoute] Waypoint list and polylines updated via drawLines()');
     } catch (e) {
       console.error('[AnimRoute] Error updating waypoint list:', e);
     }
-    window._skipPolylineCreation = false;
 
     // Nicht einblenden wenn Controller Modus aktiv
     if (flightplan.length > 0 && !moverX) {
@@ -24167,6 +24217,31 @@ function buildNavlogFlightplanPayload() {
       });
     });
   }
+
+  // Add arrival runway as last waypoint for Navlog (if available)
+  if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
+    var rwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
+    // Only add if not already present
+    var lastWp = waypoints.length > 0 ? waypoints[waypoints.length - 1] : null;
+    if (!lastWp || lastWp.name !== rwyName) {
+      waypoints.push({
+        lat: arrivalRunwayData.endLat,
+        lng: arrivalRunwayData.endLon,
+        altitude: arrivalRunwayData.elevation || 0,
+        name: rwyName,
+        waypointType: 'ARR',
+        atcWaypointType: 'Runway',
+        sourceAtcWaypointType: 'Runway',
+        DepartureFP: '',
+        ArrivalFP: '',
+        airway: '',
+        ATCAirway: '',
+        runwayNumberFP: '',
+        runwayDesignatorFP: '',
+      });
+    }
+  }
+
   var meta = {
     source: "map",
     departureName: wpNames[0] || "",
@@ -28387,11 +28462,16 @@ async function updateElevationProfileImmediate() {
   if (MAP_DEBUG) console.log('[Map] Waypoint layers:', waypointLayers.length, 'Layer on map:', map && elevationProfileLayer && map.hasLayer(elevationProfileLayer), 'Panel visible:', elevationProfileVisible);
 
   // Validate waypoint array synchronization
-  if (typeof altitudes !== 'undefined' && waypointLayers.length !== altitudes.length) {
+  // Note: A difference of exactly 1 is allowed because the runway END point
+  // is added to the flightplan data but doesn't have a marker
+  var altDiff = typeof altitudes !== 'undefined' ? Math.abs(waypointLayers.length - altitudes.length) : 0;
+  var nameDiff = typeof wpNames !== 'undefined' ? Math.abs(waypointLayers.length - wpNames.length) : 0;
+
+  if (altDiff > 1) {
     console.warn('[Map] Waypoint array synchronization issue: layers=' + waypointLayers.length +
                 ', altitudes=' + altitudes.length);
   }
-  if (typeof wpNames !== 'undefined' && waypointLayers.length !== wpNames.length) {
+  if (nameDiff > 1) {
     console.warn('[Map] Waypoint array synchronization issue: layers=' + waypointLayers.length +
                 ', wpNames=' + wpNames.length);
   }

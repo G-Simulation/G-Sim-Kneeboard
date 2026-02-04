@@ -490,7 +490,7 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 	NAVLOG_DEBUG && console.log('[OFP Enrichment] Merging data from', fixes.length, 'fixes to', waypoints.length, 'waypoints');
 
 	// DEBUG: Ersten Fix komplett ausgeben um alle verfügbaren Felder zu sehen
-	if (fixes.length > 0) {
+	if (NAVLOG_DEBUG && fixes.length > 0) {
 		console.log('[OFP Enrichment] FIRST FIX ALL KEYS:', Object.keys(fixes[0]));
 		console.log('[OFP Enrichment] FIRST FIX DATA:', JSON.stringify(fixes[0], null, 2));
 	}
