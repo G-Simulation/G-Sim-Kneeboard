@@ -3,6 +3,14 @@
     "defaultZoom": 9,
     "smoothSensitivity": 4.0
   },
+  "routeColors": {
+    "sid": "#f52929",
+    "route": "#9039e9",
+    "arrival": "#41dc7a",
+    "approach": "#fb8423",
+    "goAround": "#fdbd7a",
+    "alternate": "#0e88bf"
+  },
   "defaultBaseLayer": "Streets",
   "defaultOverlays": {
     "OpenAip": "On",
@@ -50,10 +58,10 @@
         "maxZoom": 19,
         "minZoom": 0,
         "crossOrigin": "anonymous",
-        "keepBuffer": 6,
-        "updateWhenIdle": false,
-        "updateWhenZooming": true,
-        "updateInterval": 100,
+        "keepBuffer": 8,
+        "updateWhenIdle": true,
+        "updateWhenZooming": false,
+        "updateInterval": 150,
         "maxNativeZoom": 19,
         "errorTileUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
       }
@@ -67,10 +75,10 @@
         "maxZoom": 21,
         "minZoom": 0,
         "crossOrigin": "anonymous",
-        "keepBuffer": 6,
-        "updateWhenIdle": false,
-        "updateWhenZooming": true,
-        "updateInterval": 100,
+        "keepBuffer": 8,
+        "updateWhenIdle": true,
+        "updateWhenZooming": false,
+        "updateInterval": 150,
         "maxNativeZoom": 21
       }
     },
@@ -83,10 +91,10 @@
         "maxZoom": 21,
         "minZoom": 0,
         "crossOrigin": "anonymous",
-        "keepBuffer": 6,
-        "updateWhenIdle": false,
-        "updateWhenZooming": true,
-        "updateInterval": 100,
+        "keepBuffer": 8,
+        "updateWhenIdle": true,
+        "updateWhenZooming": false,
+        "updateInterval": 150,
         "maxNativeZoom": 21
       }
     },
@@ -98,10 +106,10 @@
         "attribution": "Map data: &copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors, <a href=\"http://viewfinderpanoramas.org\">SRTM</a> | Map style: &copy; <a href=\"https://opentopomap.org\">OpenTopoMap</a> (<a href=\"https://creativecommons.org/licenses/by-sa/3.0/\">CC-BY-SA</a>)",
         "maxZoom": 17,
         "minZoom": 0,
-        "keepBuffer": 6,
-        "updateWhenIdle": false,
-        "updateWhenZooming": true,
-        "updateInterval": 100,
+        "keepBuffer": 8,
+        "updateWhenIdle": true,
+        "updateWhenZooming": false,
+        "updateInterval": 150,
         "maxNativeZoom": 17
       }
     }
@@ -119,7 +127,7 @@
             "minZoom": 7,
             "maxZoom": 18,
             "crossOrigin": "anonymous",
-            "keepBuffer": 4,
+            "keepBuffer": 8,
             "updateWhenIdle": true,
             "updateWhenZooming": false,
             "maxNativeZoom": 18

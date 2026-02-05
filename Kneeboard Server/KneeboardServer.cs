@@ -333,7 +333,6 @@ namespace Kneeboard_Server
 
                 // Extract SID/STAR waypoints from SimBrief navlog
                 bool foundFirstSidWaypoint = false;
-                bool foundFirstStarWaypoint = false;
 
                 foreach (var fix in ofp.Navlog.Fix)
                 {
@@ -364,13 +363,12 @@ namespace Kneeboard_Server
                             });
                         }
                     }
-                    // STAR: All DSC waypoints from first Is_sid_star onwards
+                    // STAR: Only waypoints that are actually part of the STAR procedure
                     else if (fix.Stage == "DSC")
                     {
+                        // NUR echte STAR-Waypoints als ARR markieren (Is_sid_star == "1")
+                        // Andere DSC-Waypoints bleiben ENROUTE (werden nicht hinzugefügt)
                         if (fix.Is_sid_star == "1")
-                            foundFirstStarWaypoint = true;
-
-                        if (foundFirstStarWaypoint || fix.Is_sid_star == "1")
                         {
                             starWaypoints.Add(new
                             {
@@ -380,7 +378,7 @@ namespace Kneeboard_Server
                                 lat = lat,
                                 lon = lon,
                                 alt = alt,
-                                isSidStar = fix.Is_sid_star == "1"
+                                isSidStar = true
                             });
                         }
                     }

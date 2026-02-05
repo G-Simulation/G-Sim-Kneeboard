@@ -2107,6 +2107,16 @@ var mapSettings = {
   defaultZoom: 9,
   smoothSensitivity: 1.5
 }; // Will be loaded from config
+
+// Route colors - will be loaded from config
+var routeColors = {
+  sid: "#f52929",       // SID - Rot
+  route: "#9039e9",     // ROUTE - Lila
+  arrival: "#41dc7a",   // ARRIVAL - Grün
+  approach: "#fb8423",  // APPROACH - Orange
+  goAround: "#fdbd7a",  // GoAround - Hellorange
+  alternate: "#0e88bf"  // ALTERNATE - Blau
+};
 var defaultOverlays = {}; // Will be loaded from config
 var defaultBaseLayer = 'Streets'; // Will be loaded from config
 var scaleControl = {
@@ -3098,6 +3108,10 @@ var controllersInRange = [];
 
 // Approach waypoints to integrate into the main flightpath (not just preview)
 var approachWaypointsForFlightpath = [];
+
+// Missed Approach waypoints (separate line, separate color)
+var missedApproachWaypoints = [];
+var missedApproachPolyline = null;
 
 // Layer registry for cleanup
 var layerRegistry = {
@@ -11716,6 +11730,28 @@ function loadMap(lat, lon) {
       if (MAP_DEBUG) if (MAP_DEBUG) console.log('Map settings loaded from config:', mapSettings);
     }
 
+    // Load route colors from config
+    if (config.routeColors) {
+      if (config.routeColors.sid) routeColors.sid = config.routeColors.sid;
+      if (config.routeColors.route) routeColors.route = config.routeColors.route;
+      if (config.routeColors.arrival) routeColors.arrival = config.routeColors.arrival;
+      if (config.routeColors.approach) routeColors.approach = config.routeColors.approach;
+      if (config.routeColors.goAround) routeColors.goAround = config.routeColors.goAround;
+      if (config.routeColors.alternate) routeColors.alternate = config.routeColors.alternate;
+      console.log('[Config] Route colors loaded:', routeColors);
+
+      // Update previewStyle with loaded colors
+      if (typeof previewStyle !== 'undefined') {
+        previewStyle.sid.color = routeColors.sid;
+        previewStyle.star.color = routeColors.arrival;
+        previewStyle.approach.color = routeColors.approach;
+        previewStyle.alternateStar.color = routeColors.alternate;
+        previewStyle.alternateApproach.color = routeColors.alternate;
+        previewStyle.visualDeparture.color = routeColors.sid;
+        previewStyle.visualApproach.color = routeColors.approach;
+      }
+    }
+
     // Load default base layer from config
     if (config.defaultBaseLayer) {
       defaultBaseLayer = config.defaultBaseLayer;
@@ -11905,6 +11941,20 @@ function initializeMapWithLayers(layers) {
   // Get configured base layer or fall back to first
   var initialBaseLayer = baseMaps[defaultBaseLayer] || firstBaseLayer;
 
+  // Progressive Tile Loading: Low-resolution background layer
+  // Lädt schnell niedrig aufgelöste Tiles als Platzhalter während die hochauflösenden laden
+  var lowResBackgroundLayer = L.tileLayer('{{OPENAIP_PROXY}}/api/tiles/osm/{z}/{x}/{y}.png'.replace('{{OPENAIP_PROXY}}', window.location.origin), {
+    maxZoom: 8,           // Maximale Auflösung begrenzt - lädt schneller
+    maxNativeZoom: 8,     // Nie höher als Zoom 8 anfragen
+    minZoom: 0,
+    opacity: 1,
+    crossOrigin: 'anonymous',
+    className: 'low-res-background-tiles',
+    updateWhenIdle: false,  // Sofort laden
+    updateWhenZooming: true, // Auch beim Zoomen laden
+    keepBuffer: 4
+  });
+
   // Coherent GT (MSFS) performance optimizations
   // SVG renderer is kept for correct polyline rendering (Canvas causes zoom artifacts)
   var useCoherentGTOptimizations = window.isCoherentGT === true;
@@ -11918,8 +11968,8 @@ function initializeMapWithLayers(layers) {
     minZoom: 2,                                             // Wie WebEye: Erlaubt Herauszoomen für globale Ansicht
     maxZoom: 18,                                            // Consistent max zoom across all base layers
     zoom: mapSettings.defaultZoom,                          // Default-Zoom aus Config
-    edgeBufferTiles: useCoherentGTOptimizations ? 3 : 2,  // More buffer for slower tile loading in GT
-    layers: [initialBaseLayer], // base layer from config
+    edgeBufferTiles: useCoherentGTOptimizations ? 4 : 3,  // Increased buffer to reduce gray tiles during zoom
+    layers: [lowResBackgroundLayer, initialBaseLayer], // Low-res background + main base layer
     bounds: maxExtent,
     // Wie WebEye: Keine Begrenzung, freies Pannen um die Welt
     worldCopyJump: true,                                   // Nahtloses Pannen um die Welt (wie WebEye)
@@ -13987,20 +14037,20 @@ function createPolylines(coordinateData) {
   // Main line options with increased weight
   // interactive: false - Klicks nur über Middle Markers, nicht auf der Linie selbst
   var mainLineOptions = {
-    color: "rgb(41,129,202)",
+    color: routeColors.route,  // ROUTE
     weight: 5,
     smoothFactor: 0,
     noClip: true,
     interactive: false,  // Deaktiviert Klick-Toleranz - Middle Markers übernehmen
   };
   var depLineOptions = {
-    color: "rgb(70,195,51)",
+    color: routeColors.sid,  // SID
     weight: 5,
     smoothFactor: 0,
     noClip: true,
   };
   var arrLineOptions = {
-    color: "rgb(255,198,0)",
+    color: routeColors.arrival,  // ARRIVAL
     weight: 5,
     smoothFactor: 0,
     noClip: true,
@@ -14070,9 +14120,14 @@ function createPolylines(coordinateData) {
       map.removeLayer(startLineGroup);
     }
   }
-  pLineGroup.eachLayer(function (layer) {
-    createMiddleMarkers(layer);
-  });
+  // Fix: Direkt pline verwenden statt pLineGroup.eachLayer
+  // pLineGroup enthält möglicherweise keine Layer wenn Animation neu gezeichnet wurde
+  if (pline && typeof pline.getLatLngs === 'function' && pline.getLatLngs().length > 1) {
+    createMiddleMarkers(pline);
+  } else {
+    console.log('[drawLines] pline not ready for middle markers - latLngs:',
+      pline ? pline.getLatLngs().length : 'null');
+  }
 }
 
 function drawLines() {
@@ -15190,6 +15245,76 @@ function drawLines() {
     L.DomEvent.disableScrollPropagation(LayerControl._form);
   }
 
+  // Smooth base layer transition - keep old layer until new one is fully loaded
+  // This prevents gray/empty tiles from showing during layer switches
+  (function() {
+    var currentBaseLayer = null;
+    var pendingRemoval = null;
+
+    // Find the current active base layer
+    for (var name in baseMaps) {
+      if (map.hasLayer(baseMaps[name])) {
+        currentBaseLayer = baseMaps[name];
+        break;
+      }
+    }
+
+    map.on('baselayerchange', function(e) {
+      var newLayer = e.layer;
+      var oldLayer = currentBaseLayer;
+
+      if (MAP_DEBUG) console.log('[Map] Base layer change - new:', e.name, 'old:', oldLayer ? 'exists' : 'none');
+
+      // If there's a pending removal from a previous switch, cancel it
+      if (pendingRemoval) {
+        clearTimeout(pendingRemoval.timeout);
+        if (pendingRemoval.layer && map.hasLayer(pendingRemoval.layer)) {
+          map.removeLayer(pendingRemoval.layer);
+        }
+        pendingRemoval = null;
+      }
+
+      // If we have an old layer and it's different from the new one
+      if (oldLayer && oldLayer !== newLayer) {
+        // Re-add the old layer temporarily (Leaflet has already removed it)
+        if (!map.hasLayer(oldLayer)) {
+          map.addLayer(oldLayer);
+          // Make sure old layer is below the new one
+          oldLayer.setZIndex(0);
+          newLayer.setZIndex(1);
+        }
+
+        // Wait for new layer to load, then remove old layer
+        var removeOldLayer = function() {
+          if (MAP_DEBUG) console.log('[Map] New base layer loaded - removing old layer');
+          if (oldLayer && map.hasLayer(oldLayer)) {
+            map.removeLayer(oldLayer);
+          }
+          pendingRemoval = null;
+        };
+
+        // Listen for the 'load' event on the new layer
+        if (newLayer.once) {
+          newLayer.once('load', removeOldLayer);
+        }
+
+        // Fallback timeout in case 'load' event doesn't fire (e.g., cached tiles)
+        pendingRemoval = {
+          layer: oldLayer,
+          timeout: setTimeout(function() {
+            if (MAP_DEBUG) console.log('[Map] Base layer timeout - removing old layer');
+            removeOldLayer();
+          }, 3000) // 3 seconds max wait
+        };
+      }
+
+      // Update current base layer reference
+      currentBaseLayer = newLayer;
+    });
+
+    if (MAP_DEBUG) console.log('[Map] Smooth base layer transition enabled');
+  })();
+
   // Override _expand to prevent size changes when elevation profile is toggled
   (function() {
     var originalExpand = LayerControl._expand;
@@ -15750,9 +15875,9 @@ function animateFlightplanRoute(flightplanData, onComplete) {
   window._skipPolylineCreation = true;
 
   // Line colors matching createPolylines()
-  var colorDEP = "rgb(70,195,51)";   // Green for departure
-  var colorMAIN = "rgb(41,129,202)"; // Blue for enroute
-  var colorARR = "rgb(255,198,0)";   // Yellow for arrival
+  var colorDEP = routeColors.sid;      // SID
+  var colorMAIN = routeColors.route;   // ROUTE
+  var colorARR = routeColors.arrival;  // ARRIVAL
 
   var lineOptions = {
     weight: 5,
@@ -18053,10 +18178,10 @@ function createMiddleMarkers(line) {
     var markerSize = 60; // Größere unsichtbare Hitbox für Proximity-Detection
     var anchorOffset = markerSize / 2;
     var plusSize = 18; // Größe des Plus-Symbols
-    var plusColor = 'rgba(41, 129, 202, 0.9)'; // Blau passend zum Theme
+    var plusColor = 'rgba(144, 57, 233, 0.9)'; // Lila passend zum ROUTE Theme
 
     // SVG Plus-Symbol mit Glow-Effekt - initial unsichtbar (opacity:0)
-    var plusSvg = '<svg class="middle-marker-plus" width="' + plusSize + '" height="' + plusSize + '" viewBox="0 0 16 16" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(0.5);opacity:0;transition:opacity 0.2s ease, transform 0.2s ease;filter:drop-shadow(0 0 3px rgba(41,129,202,0.8));">' +
+    var plusSvg = '<svg class="middle-marker-plus" width="' + plusSize + '" height="' + plusSize + '" viewBox="0 0 16 16" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(0.5);opacity:0;transition:opacity 0.2s ease, transform 0.2s ease;filter:drop-shadow(0 0 3px rgba(144,57,233,0.8));">' +
       '<circle cx="8" cy="8" r="7" fill="rgba(255,255,255,0.25)" stroke="' + plusColor + '" stroke-width="1.5"/>' +
       '<line x1="8" y1="4" x2="8" y2="12" stroke="' + plusColor + '" stroke-width="2.5" stroke-linecap="round"/>' +
       '<line x1="4" y1="8" x2="12" y2="8" stroke="' + plusColor + '" stroke-width="2.5" stroke-linecap="round"/>' +
@@ -19758,12 +19883,14 @@ function clearPendingHighlights() {
  */
 function commitCurrentSelections() {
     flightplanCommittedState.departure = {
+        icao: flightplanPanelState.departure.icao || '',
         selectedRunway: flightplanPanelState.departure.selectedRunway || '',
         selectedSid: flightplanPanelState.departure.selectedSid || '',
         selectedTransition: flightplanPanelState.departure.selectedTransition || ''
     };
 
     flightplanCommittedState.arrival = {
+        icao: flightplanPanelState.arrival.icao || '',
         selectedRunway: flightplanPanelState.arrival.selectedRunway || '',
         selectedStar: flightplanPanelState.arrival.selectedStar || '',
         selectedTransition: flightplanPanelState.arrival.selectedTransition || '',
@@ -19786,9 +19913,20 @@ function commitCurrentSelections() {
  * Übernimmt Änderungen und baut Route neu
  */
 async function applyFlightplanChanges() {
+    // DEBUG: Log state before commit
+    console.log('[ApplyChanges] PanelState BEFORE commit:', {
+        approach: flightplanPanelState.arrival.selectedApproach,
+        approachTransition: flightplanPanelState.arrival.selectedApproachTransition
+    });
 
     // Kopiere aktuelle Auswahl in Committed-State
     commitCurrentSelections();
+
+    // DEBUG: Log state after commit
+    console.log('[ApplyChanges] CommittedState AFTER commit:', {
+        approach: flightplanCommittedState.arrival.selectedApproach,
+        approachTransition: flightplanCommittedState.arrival.selectedApproachTransition
+    });
 
     // Pending zurücksetzen
     flightplanPendingState.hasPendingChanges = false;
@@ -19796,14 +19934,18 @@ async function applyFlightplanChanges() {
     clearPendingHighlights();
 
     // Previews entfernen
+    console.log('[ApplyChanges] Step 1: Clearing previews...');
     clearAllPreviews();
 
     // Haupt-Route mit SID/STAR/Approach neu aufbauen
+    console.log('[ApplyChanges] Step 2: Rebuilding flightplan...');
     await rebuildFlightplanWithProcedures();
+    console.log('[ApplyChanges] Step 3: Flightplan rebuild complete');
 
     // Alternate-Route separat zeichnen (andere Farbe)
+    console.log('[ApplyChanges] Step 4: Drawing alternate route...');
     await drawAlternateRoute();
-
+    console.log('[ApplyChanges] Step 5: Complete!');
 }
 
 /**
@@ -19943,6 +20085,75 @@ function getArrivalCoordinates() {
         }
     }
     return null;
+}
+
+/**
+ * Zeichnet Missed Approach Linie in separater Farbe (Orange)
+ * Startet am letzten ARR-Waypoint (Runway Threshold) und führt zum Missed Approach Holding
+ */
+function drawMissedApproachLine() {
+    // Alte Missed Approach Linie entfernen
+    if (missedApproachPolyline) {
+        map.removeLayer(missedApproachPolyline);
+        missedApproachPolyline = null;
+    }
+
+    if (!missedApproachWaypoints || missedApproachWaypoints.length === 0) {
+        console.log('[MissedApproach] No waypoints to draw');
+        return;
+    }
+
+    console.log('[MissedApproach] Drawing line with', missedApproachWaypoints.length, 'waypoints');
+
+    // Finde den letzten ARR-Waypoint (Runway Threshold) als Startpunkt
+    var startCoord = null;
+    if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
+        startCoord = [arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon];
+    } else {
+        // Fallback: Letzter Waypoint vom Typ ARR
+        var waypointLayers = getWaypointLayersSorted();
+        for (var i = waypointLayers.length - 1; i >= 0; i--) {
+            var layer = waypointLayers[i];
+            var opts = layer.options || {};
+            var type = (opts.waypointType || '').toUpperCase();
+            if (type.indexOf('ARR') === 0 || type === 'RWY') {
+                var pos = layer.getLatLng();
+                if (pos) {
+                    startCoord = [pos.lat, pos.lng];
+                    break;
+                }
+            }
+        }
+    }
+
+    // Erstelle Koordinaten-Array
+    var coords = [];
+    if (startCoord) {
+        coords.push(startCoord);
+    }
+
+    missedApproachWaypoints.forEach(function(wp) {
+        if (wp.lat && wp.lng && !isNaN(wp.lat) && !isNaN(wp.lng)) {
+            coords.push([wp.lat, wp.lng]);
+        }
+    });
+
+    if (coords.length < 2) {
+        console.log('[MissedApproach] Not enough coordinates to draw line');
+        return;
+    }
+
+    // Zeichne Linie in Orange (gestrichelt)
+    missedApproachPolyline = L.polyline(coords, {
+        color: routeColors.goAround,  // GoAround
+        weight: 3,
+        opacity: 0.8,
+        dashArray: '8, 6',     // Gestrichelt
+        lineCap: 'round',
+        lineJoin: 'round'
+    }).addTo(map);
+
+    console.log('[MissedApproach] Line drawn with', coords.length, 'points');
 }
 
 /**
@@ -20360,45 +20571,45 @@ var alternateApproachPreviewRequestId = 0;
 // Preview Styling - unterschiedliche Farben für bessere Unterscheidung
 var previewStyle = {
     sid: {
-        color: '#33cc33',      // Grün - Departure
+        color: '#f52929',      // SID - Rot
         weight: 3,
         opacity: 0.8,
         dashArray: '10, 5'
     },
     star: {
-        color: '#ff9900',      // Orange - STAR
+        color: '#41dc7a',      // ARRIVAL - Grün
         weight: 3,
         opacity: 0.8,
         dashArray: '10, 5'
     },
     approach: {
-        color: '#ff33ff',      // Magenta - Approach
+        color: '#fb8423',      // APPROACH - Orange
         weight: 3,
         opacity: 0.8,
         dashArray: '5, 3'
     },
     // Alternate styles
     alternateStar: {
-        color: '#9933ff',      // Lila - Alternate STAR
+        color: '#0e88bf',      // ALTERNATE - Blau
         weight: 3,
         opacity: 0.7,
         dashArray: '10, 5'
     },
     alternateApproach: {
-        color: '#00cccc',      // Cyan - Alternate Approach
+        color: '#0e88bf',      // ALTERNATE - Blau
         weight: 3,
         opacity: 0.7,
         dashArray: '5, 3'
     },
     // Visual styles (VFR)
     visualDeparture: {
-        color: '#33cc33',      // Grün - wie SID
+        color: '#f52929',      // SID - Rot
         weight: 4,
         opacity: 0.9,
         dashArray: '15, 10'    // Längere Striche für Visual
     },
     visualApproach: {
-        color: '#ff33ff',      // Magenta - wie Approach
+        color: '#fb8423',      // APPROACH - Orange
         weight: 4,
         opacity: 0.9,
         dashArray: '15, 10'    // Längere Striche für Visual
@@ -20408,6 +20619,37 @@ var previewStyle = {
 // Alternate Preview Layers
 var alternateStarPreviewLayer = null;
 var alternateApproachPreviewLayer = null;
+
+/**
+ * Prüft ob ein Waypoint zum Missed Approach gehört
+ * RouteType 3 = Missed Approach (STAR notation)
+ * RouteType Z = Missed Approach (Approach notation)
+ */
+function isMissedApproachWaypoint(wp) {
+    var rt = String(wp.RouteType || wp.routeType || '');
+    return rt === '3' || rt.toUpperCase() === 'Z';
+}
+
+/**
+ * Trennt Waypoints in normale und Missed Approach Waypoints
+ * @returns {{ normal: Array, missed: Array }}
+ */
+function separateMissedApproachWaypoints(waypoints) {
+    var normal = [];
+    var missed = [];
+
+    if (!Array.isArray(waypoints)) return { normal: [], missed: [] };
+
+    waypoints.forEach(function(wp) {
+        if (isMissedApproachWaypoint(wp)) {
+            missed.push(wp);
+        } else {
+            normal.push(wp);
+        }
+    });
+
+    return { normal: normal, missed: missed };
+}
 
 function sortProcedureWaypoints(list) {
     if (!Array.isArray(list)) return [];
@@ -20805,9 +21047,9 @@ function filterSidsByRunway(sids, runway) {
             }
         }
 
-        // ARINC 424 SID Route Types: 1=Runway Trans (conv), 4=RNAV Runway Trans
-        // TransitionIdentifier prüfen für RouteType 1 und 4 (Runway Transitions)
-        if ((routeType === '1' || routeType === '4') && transId) {
+        // ARINC 424 SID Route Types: 1=Runway Trans (conv), 4=RNAV Runway Trans, 5=RNAV Runway Trans (alt)
+        // TransitionIdentifier prüfen für RouteType 1, 4 und 5 (Runway Transitions)
+        if ((routeType === '1' || routeType === '4' || routeType === '5') && transId) {
             // Prüfe ob TransitionIdentifier eine Runway ist (z.B. "07R", "18", "26L")
             var isRunwayIdentifier = /^\d{2}[LRCB]?$/i.test(transId);
             if (isRunwayIdentifier) {
@@ -20867,9 +21109,9 @@ function filterStarsByRunway(stars, runway) {
         var routeType = String(star.RouteType || star.routeType || '');
         var transId = (star.TransitionIdentifier || star.transitionIdentifier || '').replace(/^RW/i, '');
 
-        // ARINC 424 STAR Route Types: 3=Runway Trans (conv), 6=RNAV Runway Trans
-        // RouteType 3 und 6 sind Runway Transitions
-        if (routeType === '3' || routeType === '6') {
+        // ARINC 424 STAR Route Types: 3=Runway Trans (conv), 5=RNAV Runway Trans, 6=Runway Trans (alt)
+        // RouteType 3, 5 und 6 sind Runway Transitions
+        if (routeType === '3' || routeType === '5' || routeType === '6') {
             // Prüfe ob TransitionIdentifier eine Runway ist (z.B. "08L", "26B")
             var isRunwayIdentifier = /^\d{2}[LRCB]?$/i.test(transId);
             if (isRunwayIdentifier) {
@@ -21031,14 +21273,14 @@ function getRunwaysForApproach(approaches, approachId, allRunways) {
 /**
  * Populate SID dropdown with grouped options
  */
-function populateSidDropdown(elementId, sids, selectedValue) {
+function populateSidDropdown(elementId, sids, selectedValue, filterRunway) {
     var select = document.getElementById(elementId);
     if (!select) {
         console.error('[populateSidDropdown] Element not found:', elementId);
         return null;
     }
 
-    MAP_DEBUG && console.log('[populateSidDropdown]', elementId, '- sids:', sids ? sids.length : 0, 'selected:', selectedValue);
+    MAP_DEBUG && console.log('[populateSidDropdown]', elementId, '- sids:', sids ? sids.length : 0, 'selected:', selectedValue, 'filterRunway:', filterRunway);
 
     select.innerHTML = '<option value="">-</option>';
 
@@ -21046,6 +21288,9 @@ function populateSidDropdown(elementId, sids, selectedValue) {
         MAP_DEBUG && console.warn('[populateSidDropdown]', elementId, '- No SIDs to populate!');
         return null;
     }
+
+    // Normalisiere Runway für Vergleich (RW10 -> 10, RWY10 -> 10)
+    var normalizedFilter = filterRunway ? filterRunway.replace(/^RWY?/i, '').toUpperCase() : '';
 
     // Group SIDs by identifier
     var sidsByName = {};
@@ -21064,7 +21309,19 @@ function populateSidDropdown(elementId, sids, selectedValue) {
         }
     });
 
-    var sidNames = Object.keys(sidsByName).sort();
+    // Filtere SIDs nach Runway wenn filterRunway angegeben
+    var sidNames = Object.keys(sidsByName).filter(function(name) {
+        if (!normalizedFilter) return true; // Kein Filter, alle anzeigen
+        var runways = sidsByName[name].runways;
+        // SID ist gültig wenn: 'ALL' in runways ODER die filterRunway in runways
+        return runways.some(function(rwy) {
+            if (rwy === 'ALL') return true;
+            var normalizedRwy = rwy.replace(/^RWY?/i, '').toUpperCase();
+            return normalizedRwy === normalizedFilter;
+        });
+    }).sort();
+
+    MAP_DEBUG && console.log('[populateSidDropdown] Filtered SIDs for', filterRunway + ':', sidNames.length, 'of', Object.keys(sidsByName).length);
     MAP_DEBUG && console.log('[populateSidDropdown] Available SID names:', sidNames.slice(0, 20).join(', '), '...');
 
     // Try to find matching SID (handles partial matches like "CIND8S" -> "CIND5S")
@@ -21134,25 +21391,48 @@ function populateSidDropdown(elementId, sids, selectedValue) {
 
 /**
  * Populate STAR dropdown
+ * @param filterRunway - Optionaler Runway-Filter (z.B. 'RW13L')
  */
-function populateStarDropdown(elementId, stars, selectedValue) {
+function populateStarDropdown(elementId, stars, selectedValue, filterRunway) {
     var select = document.getElementById(elementId);
     if (!select) return null;
+
+    MAP_DEBUG && console.log('[populateStarDropdown]', elementId, '- stars:', stars ? stars.length : 0, 'selected:', selectedValue, 'filterRunway:', filterRunway);
 
     select.innerHTML = '<option value="">-</option>';
 
     if (!stars || stars.length === 0) return null;
 
-    // Group STARs by identifier
+    // Normalisiere Runway für Vergleich (RW13L -> 13L, RWY13L -> 13L)
+    var normalizedFilter = filterRunway ? filterRunway.replace(/^RWY?/i, '').toUpperCase() : '';
+
+    // Group STARs by identifier und sammle Runway-Informationen
     var starsByName = {};
     stars.forEach(function(star) {
         var name = star.Identifier || star.identifier;
         if (!starsByName[name]) {
-            starsByName[name] = { name: name };
+            starsByName[name] = { name: name, runways: [] };
+        }
+        var runway = star.Runway || star.runway;
+        if (runway && starsByName[name].runways.indexOf(runway) === -1) {
+            starsByName[name].runways.push(runway);
         }
     });
 
-    var starNames = Object.keys(starsByName).sort();
+    // Filtere STARs nach Runway wenn filterRunway angegeben
+    var starNames = Object.keys(starsByName).filter(function(name) {
+        if (!normalizedFilter) return true; // Kein Filter, alle anzeigen
+        var runways = starsByName[name].runways;
+        if (runways.length === 0) return true; // Keine Runway-Info = für alle gültig
+        // STAR ist gültig wenn: 'ALL' in runways ODER die filterRunway in runways
+        return runways.some(function(rwy) {
+            if (rwy === 'ALL') return true;
+            var normalizedRwy = rwy.replace(/^RWY?/i, '').toUpperCase();
+            return normalizedRwy === normalizedFilter;
+        });
+    }).sort();
+
+    MAP_DEBUG && console.log('[populateStarDropdown] Filtered STARs for', filterRunway + ':', starNames.length, 'of', Object.keys(starsByName).length);
 
     // Try to find matching STAR (handles partial matches)
     var matchedStar = null;
@@ -21584,6 +21864,9 @@ async function loadDepartureProcedures(icao, ofpData) {
     // Filter SIDs by selected runway (analog zu STAR-Filterung in loadArrivalProcedures)
     var filteredSids = filterSidsByRunway(sids, selectedRunway);
 
+    // ALWAYS log filtering result for debugging
+    console.log('[SID-Filter] Runway:', selectedRunway, '| Total SIDs:', sids.length, '| Filtered:', filteredSids.length);
+
     // DEBUG: Log filtered SID names
     if (MAP_DEBUG) {
         var filteredSidNames = [];
@@ -21978,6 +22261,19 @@ async function loadArrivalProcedures(icao, ofpData) {
     // Filter STARs by selected runway
     var filteredStars = filterStarsByRunway(stars, selectedRunway);
 
+    // ALWAYS log filtering result for debugging
+    console.log('[STAR-Filter] Runway:', selectedRunway, '| Total STARs:', stars.length, '| Filtered:', filteredStars.length);
+
+    // Debug: Log first 5 STARs with their RouteTypes to understand filtering
+    var sampleStars = stars.slice(0, 5);
+    sampleStars.forEach(function(s) {
+        var name = s.Identifier || s.identifier;
+        var rt = s.RouteType || s.routeType || '?';
+        var rwy = s.Runway || s.runway || 'none';
+        var trans = s.TransitionIdentifier || s.transitionIdentifier || '';
+        console.log('[STAR-Sample]', name, '| RouteType:', rt, '| Runway:', rwy, '| Trans:', trans);
+    });
+
     // Get STAR from OFP - check Route field for STAR name (last element, e.g., "...BRIXX4")
     var ofpStar = general.Star_name || general.star_name || '';
 
@@ -22059,6 +22355,9 @@ async function loadArrivalProcedures(icao, ofpData) {
         selectedApproachId = selectedApproach ? (selectedApproach.Identifier || selectedApproach.identifier) : '';
     }
 
+    // ALWAYS log approach filtering for debugging
+    console.log('[Approach-Filter] Runway:', selectedRunway, '| Total Approaches:', approaches.length, '| Selected:', selectedApproachId);
+
     populateApproachDropdown('arrApproachSelect', approaches, selectedRunway, selectedApproachId);
     flightplanPanelState.arrival.selectedApproach = selectedApproachId;
 
@@ -22067,22 +22366,23 @@ async function loadArrivalProcedures(icao, ofpData) {
     if (selectedApproachId) {
         var availableApproachTransitions = getAvailableApproachTransitions(approaches, selectedApproachId);
         ofpApproachTransition = extractApproachTransitionFromNavlog(ofpData, availableApproachTransitions);
-
-        // Fallback: Select first available transition
-        if (!ofpApproachTransition && availableApproachTransitions.length > 0) {
-            ofpApproachTransition = availableApproachTransitions[0];
-        }
-
+        // populateApproachTransitionDropdown macht jetzt Auto-Select wenn ofpApproachTransition leer ist
+        // und aktualisiert automatisch flightplanPanelState.arrival.selectedApproachTransition
         populateApproachTransitionDropdown('arrApproachTransitionSelect', availableApproachTransitions, ofpApproachTransition);
-        flightplanPanelState.arrival.selectedApproachTransition = ofpApproachTransition;
+        // State nur setzen wenn OFP Transition vorhanden war (sonst hat populateApproachTransitionDropdown bereits auto-selected)
+        if (ofpApproachTransition) {
+            flightplanPanelState.arrival.selectedApproachTransition = ofpApproachTransition;
+        }
     } else {
         populateApproachTransitionDropdown('arrApproachTransitionSelect', [], '');
         flightplanPanelState.arrival.selectedApproachTransition = '';
     }
 
-    // Integrate approach into flightpath
+    // Integrate approach into flightpath - MIT der (ggf. auto-selektierten) Transition
     if (selectedApproachId) {
-        await integrateApproachIntoFlightpath(icao, selectedApproachId, ofpApproachTransition);
+        var approachTransitionToUse = flightplanPanelState.arrival.selectedApproachTransition || '';
+        console.log('[loadArrivalProcedures] Integrating approach with transition:', approachTransitionToUse);
+        await integrateApproachIntoFlightpath(icao, selectedApproachId, approachTransitionToUse);
     }
 }
 
@@ -22532,15 +22832,35 @@ function populateApproachTransitionDropdown(elementId, transitions, selectedValu
         return;
     }
 
+    // Auto-Select: Wenn keine Transition im OFP, erste verfügbare wählen
+    // Dies ist nötig damit Missed Approach Waypoints geladen werden (API gibt sie nur mit Transition)
+    var valueToSelect = selectedValue;
+    if ((!valueToSelect || valueToSelect === '') && transitions.length > 0) {
+        valueToSelect = transitions[0];
+        console.log('[populateApproachTransitionDropdown] Auto-selecting first transition:', valueToSelect);
+    }
+
     transitions.forEach(function(t) {
         var option = document.createElement('option');
         option.value = t;
         option.textContent = t;
-        if (t === selectedValue) {
+        if (t === valueToSelect) {
             option.selected = true;
         }
         select.appendChild(option);
     });
+
+    // Wenn Auto-Select aktiv, auch den State aktualisieren
+    if (valueToSelect && valueToSelect !== selectedValue) {
+        // Update flightplanPanelState with auto-selected transition
+        if (elementId === 'arrApproachTransitionSelect') {
+            flightplanPanelState.arrival.selectedApproachTransition = valueToSelect;
+            console.log('[populateApproachTransitionDropdown] Updated arrival approach transition state to:', valueToSelect);
+        } else if (elementId === 'altApproachTransitionSelect') {
+            flightplanPanelState.alternate.selectedApproachTransition = valueToSelect;
+            console.log('[populateApproachTransitionDropdown] Updated alternate approach transition state to:', valueToSelect);
+        }
+    }
 }
 
 /**
@@ -23886,6 +24206,7 @@ function clearAllPreviews() {
 async function integrateApproachIntoFlightpath(icao, approachName, approachTransition) {
     if (!approachName || !icao) {
         approachWaypointsForFlightpath = [];
+        missedApproachWaypoints = [];
         return;
     }
 
@@ -23896,12 +24217,18 @@ async function integrateApproachIntoFlightpath(icao, approachName, approachTrans
 
         if (!procedureData || !procedureData.Waypoints || procedureData.Waypoints.length === 0) {
             approachWaypointsForFlightpath = [];
+            missedApproachWaypoints = [];
             return;
         }
 
         var sorted = sortProcedureWaypoints(procedureData.Waypoints);
 
-        var validWaypoints = sorted.filter(function(wp) {
+        // Trenne normale Approach-Waypoints von Missed Approach
+        var separated = separateMissedApproachWaypoints(sorted);
+        console.log('[integrateApproach] Waypoints - normal:', separated.normal.length, ', missed:', separated.missed.length);
+
+        // Nur normale Waypoints filtern (mit gültigen Koordinaten)
+        var validWaypoints = separated.normal.filter(function(wp) {
             var lat = wp.Latitude || wp.latitude;
             var lon = wp.Longitude || wp.longitude;
             return lat !== undefined && lat !== null && !isNaN(lat) && lat !== 0 &&
@@ -23919,11 +24246,26 @@ async function integrateApproachIntoFlightpath(icao, approachName, approachTrans
         }
 
         approachWaypointsForFlightpath = validWaypoints;
+
+        // Missed Approach Waypoints separat speichern
+        missedApproachWaypoints = separated.missed.map(function(wp) {
+            return {
+                lat: parseFloat(wp.Latitude || wp.latitude),
+                lng: parseFloat(wp.Longitude || wp.longitude),
+                name: wp.Identifier || wp.identifier || wp.Name || wp.name || 'MISSED',
+                altitude: wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0
+            };
+        }).filter(function(wp) {
+            return wp.lat && wp.lng && !isNaN(wp.lat) && !isNaN(wp.lng);
+        });
+        console.log('[integrateApproach] Stored', missedApproachWaypoints.length, 'missed approach waypoints');
+
         // NOTE: Waypoints will be injected into flightplan in processFlightplanMessage BEFORE animation
         // No need to update polyline afterwards - it's drawn correctly from the start
     } catch (err) {
         console.error('[FlightplanPanel] Error integrating approach:', err);
         approachWaypointsForFlightpath = [];
+        missedApproachWaypoints = [];
     }
 }
 
@@ -24032,16 +24374,27 @@ async function rebuildFlightplanWithProcedures() {
 
     // 3. Inject Approach waypoints if selected
     if (arrState.icao && arrState.selectedApproach && arrState.selectedRunway) {
-        console.log('[RebuildFlightplan] 3. Injecting Approach:', arrState.selectedApproach);
+        console.log('[RebuildFlightplan] 3. Injecting Approach:', arrState.selectedApproach, 'Transition:', arrState.selectedApproachTransition);
         var approachData = await fetchProcedureDetail(
             arrState.icao,
             arrState.selectedApproach,
-            'Approach',
+            'APPROACH',
             arrState.selectedApproachTransition,
             arrState.selectedRunway
         );
+        console.log('[RebuildFlightplan] Approach data received:', approachData);
 
-        if (approachData && approachData.waypoints && approachData.waypoints.length > 0) {
+        // FIX: API gibt 'Waypoints' zurück (mit großem W), nicht 'waypoints'
+        var approachWaypoints = approachData && (approachData.Waypoints || approachData.waypoints);
+        if (approachWaypoints && approachWaypoints.length > 0) {
+            // Sortiere Waypoints nach RouteType und SequenceNumber
+            var sortedWaypoints = sortProcedureWaypoints(approachWaypoints);
+
+            // Trenne normale Approach-Waypoints von Missed Approach (RouteType 3 oder Z)
+            var separated = separateMissedApproachWaypoints(sortedWaypoints);
+            console.log('[RebuildFlightplan] Sorted approach waypoints:', sortedWaypoints.length,
+                        '(normal:', separated.normal.length, ', missed:', separated.missed.length, ')');
+
             var insertIndex = baseFlightplan.length > 0 ? baseFlightplan.length - 1 : 0;
             var existingNames = {};
             baseFlightplan.forEach(function(wp) {
@@ -24049,11 +24402,11 @@ async function rebuildFlightplanWithProcedures() {
             });
 
             // ZIGZAG FIX v2: Finde den LETZTEN gemeinsamen Waypoint zwischen Flightplan und Approach
-            // Nur Approach-Waypoints NACH diesem Punkt hinzufügen
+            // Nur Approach-Waypoints NACH diesem Punkt hinzufügen (nur normale, nicht missed)
             var lastCommonWpIndex = -1;
-            for (var i = 0; i < approachData.waypoints.length; i++) {
-                var wpName = approachData.waypoints[i].Identifier || approachData.waypoints[i].identifier ||
-                             approachData.waypoints[i].Name || approachData.waypoints[i].name || '';
+            for (var i = 0; i < separated.normal.length; i++) {
+                var wpName = separated.normal[i].Identifier || separated.normal[i].identifier ||
+                             separated.normal[i].Name || separated.normal[i].name || '';
                 if (existingNames[wpName.toUpperCase()]) {
                     lastCommonWpIndex = i;
                     console.log('[RebuildFlightplan] Approach/Flightplan common waypoint at index', i, ':', wpName);
@@ -24063,10 +24416,10 @@ async function rebuildFlightplanWithProcedures() {
 
             // Starte NACH dem letzten gemeinsamen Waypoint (der ist ja schon im Flightplan)
             var approachWaypointsToProcess = lastCommonWpIndex >= 0
-                ? approachData.waypoints.slice(lastCommonWpIndex + 1)
-                : approachData.waypoints;
+                ? separated.normal.slice(lastCommonWpIndex + 1)
+                : separated.normal;
             console.log('[RebuildFlightplan] Approach: lastCommonWpIndex=' + lastCommonWpIndex +
-                        ', processing ' + approachWaypointsToProcess.length + ' waypoints');
+                        ', processing ' + approachWaypointsToProcess.length + ' normal waypoints');
 
             var approachEntries = [];
             approachWaypointsToProcess.forEach(function(wp) {
@@ -24101,6 +24454,21 @@ async function rebuildFlightplanWithProcedures() {
                 baseFlightplan = before.concat(approachEntries).concat(after);
                 console.log('[RebuildFlightplan] Added', approachEntries.length, 'approach waypoints');
             }
+
+            // Missed Approach Waypoints separat speichern (für separate Linie)
+            missedApproachWaypoints = separated.missed.map(function(wp) {
+                return {
+                    lat: parseFloat(wp.Latitude || wp.latitude),
+                    lng: parseFloat(wp.Longitude || wp.longitude),
+                    name: wp.Identifier || wp.identifier || wp.Name || wp.name || 'MISSED',
+                    altitude: wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0
+                };
+            }).filter(function(wp) {
+                return wp.lat && wp.lng && !isNaN(wp.lat) && !isNaN(wp.lng);
+            });
+            console.log('[RebuildFlightplan] Stored', missedApproachWaypoints.length, 'missed approach waypoints');
+        } else {
+            missedApproachWaypoints = [];
         }
     }
 
@@ -24130,7 +24498,7 @@ async function rebuildFlightplanWithProcedures() {
             var thresholdWaypoint = {
                 lat: rwyData.thresholdLat,
                 lng: rwyData.thresholdLon,
-                name: 'RWY' + actualRunway,
+                name: 'RW' + actualRunway,
                 altitude: rwyData.elevation || 0,
                 atbl: '',
                 waypointType: 'ARR VISUAL',
@@ -24159,6 +24527,9 @@ async function rebuildFlightplanWithProcedures() {
         console.log('[RebuildFlightplan] Drawing alternate route immediately');
         await drawAlternateRoute();
     }
+
+    // Draw missed approach line if available
+    drawMissedApproachLine();
 
     // Re-render the flightplan (no deferred alternate needed)
     window.pendingAlternateRouteDraw = false;
@@ -24304,9 +24675,9 @@ function setWaypoints(flightplanData) {
       if (MAP_DEBUG) console.log('[RWY_DEBUG] Using server endpoint:', departureRunwayData.endLat, departureRunwayData.endLon);
 
       var depRwyName = departureRunwayData.runway || departureRunwayData.identifier || 'RWY';
-      if (!depRwyName.toUpperCase().startsWith('RW')) {
-        depRwyName = 'RW' + depRwyName;
-      }
+      // Entferne RW oder RWY Präfix und füge einheitlich RW hinzu
+      depRwyName = depRwyName.replace(/^RWY?/i, '');
+      depRwyName = 'RW' + depRwyName;
 
       // WICHTIG: Entferne existierende Runway-Duplikate aus dem Flightplan
       // (z.B. RW18 aus SID-Waypoints, wenn wir gleich RW18 als Threshold setzen)
@@ -24346,10 +24717,9 @@ function setWaypoints(flightplanData) {
     if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
       // Runway-Name aus den Daten extrahieren (z.B. "RW08L" oder "08L")
       var arrRwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
-      // Sicherstellen dass es mit RW beginnt
-      if (!arrRwyName.toUpperCase().startsWith('RW')) {
-        arrRwyName = 'RW' + arrRwyName;
-      }
+      // Entferne RW oder RWY Präfix und füge einheitlich RW hinzu
+      arrRwyName = arrRwyName.replace(/^RWY?/i, '');
+      arrRwyName = 'RW' + arrRwyName;
 
       // WICHTIG: Entferne existierende Arrival-Runway-Duplikate aus dem Flightplan
       // (z.B. RW08L aus STAR/Approach-Waypoints)
@@ -24528,11 +24898,10 @@ function setWaypoints(flightplanData) {
   // Runway END Metadaten hinzufügen (falls vorhanden)
   if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
     var rwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
-    if (rwyName.toUpperCase().indexOf('RW') === 0) {
-      rwyName = rwyName.substring(2);
-    }
+    // Entferne RW oder RWY Präfix und füge einheitlich RW hinzu
+    rwyName = rwyName.replace(/^RWY?/i, '');
     waypointsData.push({
-      name: 'RWY' + rwyName,
+      name: 'RW' + rwyName,
       type: 'RWY',
       altitude: arrivalRunwayData.elevation || 0,
       atbl: '',
@@ -24543,7 +24912,7 @@ function setWaypoints(flightplanData) {
       runwayNumber: rwyName,
       runwayDesignator: ''
     });
-    MAP_DEBUG && console.log('[setWaypoints] Added RWY metadata for:', 'RWY' + rwyName);
+    MAP_DEBUG && console.log('[setWaypoints] Added RW metadata for:', 'RW' + rwyName);
   }
 
   // Legacy-Arrays aus waypointsData synchronisieren (für Kompatibilität)
@@ -24575,13 +24944,12 @@ function setWaypoints(flightplanData) {
     var bulkFlightplan = flightplan.slice(); // Kopie erstellen
     if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
       var rwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
-      if (rwyName.toUpperCase().indexOf('RW') === 0) {
-        rwyName = rwyName.substring(2);
-      }
+      // Entferne RW oder RWY Präfix und füge einheitlich RW hinzu
+      rwyName = rwyName.replace(/^RWY?/i, '');
       bulkFlightplan.push({
         lat: arrivalRunwayData.endLat,
         lng: arrivalRunwayData.endLon,
-        name: 'RWY' + rwyName,
+        name: 'RW' + rwyName,
         waypointType: 'RWY',
         altitude: arrivalRunwayData.elevation || 0
       });
@@ -24690,14 +25058,24 @@ function setWaypoints(flightplanData) {
   // Typ 'RWY' statt 'ARR' damit er Marker bekommt und im Navlog als Runway angezeigt wird
   if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
     var rwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
-    // Normalisiere: Entferne 'RW' Prefix falls vorhanden
-    if (rwyName.toUpperCase().indexOf('RW') === 0) {
-      rwyName = rwyName.substring(2);
-    }
+    // Entferne RW oder RWY Präfix und füge einheitlich RW hinzu
+    rwyName = rwyName.replace(/^RWY?/i, '');
+    var normalizedRwyName = 'RW' + rwyName;
+
+    // WICHTIG: Entferne existierenden Runway-Waypoint mit gleichem Namen (Threshold → END Ersetzung)
+    // Dies verhindert dass RW13L 2x erscheint (einmal als Threshold, einmal als END)
+    flightplanForAnimation = flightplanForAnimation.filter(function(wp) {
+      if (wp.name === normalizedRwyName) {
+        MAP_DEBUG && console.log('[setWaypoints] Removing duplicate runway waypoint:', wp.name, 'at', wp.lat, wp.lng);
+        return false;
+      }
+      return true;
+    });
+
     flightplanForAnimation.push({
       lat: arrivalRunwayData.endLat,
       lng: arrivalRunwayData.endLon,
-      name: 'RWY' + rwyName,
+      name: normalizedRwyName,
       waypointType: 'RWY',
       altitude: arrivalRunwayData.elevation || 0
     });
@@ -24712,6 +25090,12 @@ function setWaypoints(flightplanData) {
     try {
       drawLines();
       MAP_DEBUG && console.log('[AnimRoute] Waypoint list and polylines updated via drawLines()');
+
+      // Draw missed approach line if waypoints are available
+      if (typeof drawMissedApproachLine === 'function') {
+        drawMissedApproachLine();
+        MAP_DEBUG && console.log('[AnimRoute] Missed approach line drawn');
+      }
     } catch (e) {
       console.error('[AnimRoute] Error updating waypoint list:', e);
     }
@@ -25422,14 +25806,18 @@ function buildNavlogFlightplanPayload() {
   // Add arrival runway as last waypoint for Navlog (if available)
   if (arrivalRunwayData && arrivalRunwayData.endLat && arrivalRunwayData.endLon) {
     var rwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
-    // Only add if not already present
+    // Entferne RW oder RWY Präfix und füge einheitlich RW hinzu
+    rwyName = rwyName.replace(/^RWY?/i, '');
+    var normalizedRwyName = 'RW' + rwyName;
+    // Only add if not already present (compare normalized names)
     var lastWp = waypoints.length > 0 ? waypoints[waypoints.length - 1] : null;
-    if (!lastWp || lastWp.name !== rwyName) {
+    var lastWpNorm = lastWp ? (lastWp.name || '').replace(/^RWY?/i, '') : '';
+    if (!lastWp || lastWpNorm !== rwyName) {
       waypoints.push({
         lat: arrivalRunwayData.endLat,
         lng: arrivalRunwayData.endLon,
         altitude: arrivalRunwayData.elevation || 0,
-        name: rwyName,
+        name: normalizedRwyName,
         waypointType: 'ARR',
         atcWaypointType: 'Runway',
         sourceAtcWaypointType: 'Runway',
