@@ -856,9 +856,19 @@ function restoreMapState() {
 
     if (MAP_DEBUG) console.log('[MapState] Restoring state:', state);
 
-    // Karten-Position und Zoom wiederherstellen
+    // Karten-Position und Zoom wiederherstellen - nur wenn anders als aktuell
     if (state.mapCenter && state.zoomLevel && map) {
-      map.setView(state.mapCenter, state.zoomLevel, { animate: false });
+      var currentCenter = map.getCenter();
+      var currentZoom = map.getZoom();
+      var samePosition = Math.abs(currentCenter.lat - state.mapCenter[0]) < 0.0001 &&
+                         Math.abs(currentCenter.lng - state.mapCenter[1]) < 0.0001 &&
+                         currentZoom === state.zoomLevel;
+      if (!samePosition) {
+        map.setView(state.mapCenter, state.zoomLevel, { animate: false });
+        if (MAP_DEBUG) console.log('[MapState] View updated to saved position');
+      } else {
+        if (MAP_DEBUG) console.log('[MapState] Position already correct, skipping setView');
+      }
     }
 
     // Follow-Modus wiederherstellen
@@ -2608,9 +2618,15 @@ function showFlightplanPanel() {
     overlayList.style.display = "";
     overlayList.style.visibility = "visible";
   }
+  // Only show overlayListSum if we have at least 2 waypoints
+  var waypointCount = flightplan ? flightplan.length : 0;
   if (overlayListSum) {
-    overlayListSum.style.display = "";
-    overlayListSum.style.visibility = "visible";
+    if (waypointCount >= 2) {
+      overlayListSum.style.display = "";
+      overlayListSum.style.visibility = "visible";
+    } else {
+      overlayListSum.style.display = "none";
+    }
   }
 
   wpListOn = true;
@@ -3143,6 +3159,11 @@ function cleanupAllLayers() {
   Object.keys(layerRegistry).forEach(function(name) {
     var layer = layerRegistry[name];
     if (layer) {
+      // WICHTIG: Base Layers NICHT entfernen - die sollen immer auf der Map bleiben
+      if (typeof baseMaps !== 'undefined' && baseMaps[name]) {
+        if (MAP_DEBUG) console.log('[Map] Skipping base layer in cleanup:', name);
+        return; // Skip base layers
+      }
       if (map && map.hasLayer(layer)) {
         map.removeLayer(layer);
       }
@@ -11550,6 +11571,12 @@ function createLayersFromConfig(config) {
 
       baseMaps[layerConfig.name] = layer;
       layerRegistry[layerConfig.name] = layer;
+
+      // If this layer has default: true, use it as the default base layer
+      if (layerConfig.default === true) {
+        defaultBaseLayer = layerConfig.name;
+        if (MAP_DEBUG) console.log('[Map] Default base layer set from layer config:', layerConfig.name);
+      }
     });
   }
 
@@ -11892,6 +11919,43 @@ function initializeMapWithLayers(layers) {
 
   var openAipWasActive = false;
 
+  // Function to set the active base layer and update LayerControl UI
+  function setBaseLayerSelection(layerName) {
+    if (!map) {
+      return;
+    }
+
+    var targetLayer = baseMaps[layerName];
+    if (!targetLayer) {
+      console.warn('[Map] setBaseLayerSelection: Layer not found:', layerName);
+      return;
+    }
+
+    // Remove all other base layers and add the target
+    for (var name in baseMaps) {
+      if (baseMaps[name] !== targetLayer && map.hasLayer(baseMaps[name])) {
+        map.removeLayer(baseMaps[name]);
+      }
+    }
+    if (!map.hasLayer(targetLayer)) {
+      map.addLayer(targetLayer);
+    }
+
+    // Update LayerControl radio buttons
+    if (LayerControl && LayerControl._form && typeof LayerControl._getLayer === 'function') {
+      var inputs = LayerControl._form.getElementsByTagName('input');
+      for (var i = 0; i < inputs.length; i++) {
+        var input = inputs[i];
+        if (input.type !== 'radio' || input.name !== 'leaflet-base-layers') continue;
+        var layerObj = LayerControl._getLayer(input.layerId);
+        if (layerObj && !layerObj.overlay) {
+          input.checked = (layerObj.layer === targetLayer);
+        }
+      }
+    }
+    console.log('[Map] Base layer set to:', layerName);
+  }
+
   function setOpenAipSelection(enableMainLayer) {
     if (!map) {
       return;
@@ -11940,20 +12004,7 @@ function initializeMapWithLayers(layers) {
   }
   // Get configured base layer or fall back to first
   var initialBaseLayer = baseMaps[defaultBaseLayer] || firstBaseLayer;
-
-  // Progressive Tile Loading: Low-resolution background layer
-  // Lädt schnell niedrig aufgelöste Tiles als Platzhalter während die hochauflösenden laden
-  var lowResBackgroundLayer = L.tileLayer('{{OPENAIP_PROXY}}/api/tiles/osm/{z}/{x}/{y}.png'.replace('{{OPENAIP_PROXY}}', window.location.origin), {
-    maxZoom: 8,           // Maximale Auflösung begrenzt - lädt schneller
-    maxNativeZoom: 8,     // Nie höher als Zoom 8 anfragen
-    minZoom: 0,
-    opacity: 1,
-    crossOrigin: 'anonymous',
-    className: 'low-res-background-tiles',
-    updateWhenIdle: false,  // Sofort laden
-    updateWhenZooming: true, // Auch beim Zoomen laden
-    keepBuffer: 4
-  });
+  console.log('[Map] Default base layer:', defaultBaseLayer, '- Found:', !!baseMaps[defaultBaseLayer], '- Using:', initialBaseLayer ? 'OK' : 'FALLBACK');
 
   // Coherent GT (MSFS) performance optimizations
   // SVG renderer is kept for correct polyline rendering (Canvas causes zoom artifacts)
@@ -11969,7 +12020,7 @@ function initializeMapWithLayers(layers) {
     maxZoom: 18,                                            // Consistent max zoom across all base layers
     zoom: mapSettings.defaultZoom,                          // Default-Zoom aus Config
     edgeBufferTiles: useCoherentGTOptimizations ? 4 : 3,  // Increased buffer to reduce gray tiles during zoom
-    layers: [lowResBackgroundLayer, initialBaseLayer], // Low-res background + main base layer
+    layers: [initialBaseLayer], // Base layer from config - UI will be synced after LayerControl creation
     bounds: maxExtent,
     // Wie WebEye: Keine Begrenzung, freies Pannen um die Welt
     worldCopyJump: true,                                   // Nahtloses Pannen um die Welt (wie WebEye)
@@ -12035,12 +12086,23 @@ function initializeMapWithLayers(layers) {
   }, { passive: true, capture: false });
 
   // Activate default overlays from config
+  // WICHTIG: OpenAIP wird verzögert geladen damit Base Layer zuerst lädt
+  var pendingOpenAipLayer = null;
   Object.keys(defaultOverlays).forEach(function(groupName) {
     var layerName = defaultOverlays[groupName];
 
     // Special handling for Online Pilots - skip here, handled separately below
     if (groupName === 'Online Pilots') {
       if (MAP_DEBUG) console.log('[Map] Skipping Online Pilots in default overlays init - handled separately');
+      return;
+    }
+
+    // OpenAIP verzögert laden - Base Layer soll zuerst laden
+    if (groupName === 'OpenAip') {
+      if (groupedOverlays[groupName] && groupedOverlays[groupName][layerName]) {
+        pendingOpenAipLayer = groupedOverlays[groupName][layerName];
+        console.log('[Map] OpenAIP layer deferred - will load after base layer');
+      }
       return;
     }
 
@@ -12053,7 +12115,30 @@ function initializeMapWithLayers(layers) {
 
   // Fallback for overlays not in config (backward compatibility)
   if (!defaultOverlays['OpenAip'] && openAip) {
-    openAip.addTo(map);
+    pendingOpenAipLayer = openAip;
+    console.log('[Map] OpenAIP layer (fallback) deferred - will load after base layer');
+  }
+
+  // OpenAIP Layer verzögert laden - warte bis Base Layer erste Tiles geladen hat
+  if (pendingOpenAipLayer) {
+    var baseLayerLoadHandler = function() {
+      console.log('[Map] Base layer loaded - now adding OpenAIP layer');
+      pendingOpenAipLayer.addTo(map);
+      // Event Listener entfernen
+      initialBaseLayer.off('load', baseLayerLoadHandler);
+    };
+
+    // Warte auf Base Layer 'load' Event
+    initialBaseLayer.on('load', baseLayerLoadHandler);
+
+    // Fallback: Nach 2 Sekunden trotzdem laden falls 'load' nicht feuert
+    setTimeout(function() {
+      if (!map.hasLayer(pendingOpenAipLayer)) {
+        console.log('[Map] Base layer timeout - adding OpenAIP layer now');
+        pendingOpenAipLayer.addTo(map);
+        initialBaseLayer.off('load', baseLayerLoadHandler);
+      }
+    }, 2000);
   }
   if (!defaultOverlays['Aircraft'] && aircraft) {
     aircraft.addTo(map);
@@ -12757,8 +12842,17 @@ function initializeMapWithLayers(layers) {
         document.getElementById("overlay").style.visibility = "visible";
         document.getElementById("overlayList").style.display = "";
         document.getElementById("overlayList").style.visibility = "visible";
-        document.getElementById("overlayListSum").style.display = "";
-        document.getElementById("overlayListSum").style.visibility = "visible";
+        // Only show overlayListSum if we have at least 2 waypoints
+        var wpCountCheck = flightplan ? flightplan.length : 0;
+        var overlayListSumEl = document.getElementById("overlayListSum");
+        if (overlayListSumEl) {
+          if (wpCountCheck >= 2) {
+            overlayListSumEl.style.display = "";
+            overlayListSumEl.style.visibility = "visible";
+          } else {
+            overlayListSumEl.style.display = "none";
+          }
+        }
         wpListMinimized = false;
         var wpMinBtn = document.getElementById("wpListMinimize");
         if (wpMinBtn) wpMinBtn.innerHTML = "_";
@@ -13918,32 +14012,24 @@ function updateWaypointList(waypointLayers, coordinatesArray) {
       // Build distance string
       var distanceStr = parseFloat(segmentDistance).toFixed(0) + 'nm';
 
-      // Build info row with new styling
+      // Build info row with new styling - no separators, CSS grid handles spacing
       infoRowHtml = '<div class="fp-wp-info">' +
         '<span class="fp-wp-bearing">' + bearingStr + DEGREE_SYMBOL + '</span>' +
-        '<span class="fp-wp-separator">·</span>' +
-        '<span class="fp-wp-distance">' + distanceStr + '</span>';
-
-      if (altitudeStr) {
-        infoRowHtml += '<span class="fp-wp-separator">·</span>' +
-          '<span class="fp-wp-altitude">' + altitudeStr + '</span>' +
-          constraintBadge;
-      }
-
-      infoRowHtml += '</div>';
+        '<span class="fp-wp-distance">' + distanceStr + '</span>' +
+        '<span class="fp-wp-altitude">' + (altitudeStr ? altitudeStr + constraintBadge : '&nbsp;') + '</span>' +
+        '</div>';
     }
 
-    // Build complete list item with new enhanced styling
+    // Build complete list item with new enhanced styling - single row grid layout
     overlayListHtml.push(
       '<li class="fp-waypoint target" id="' + originalIndex + '" data-layer-id="' + layer.options.myId + '"' + navFreqAttr + '>' +
         '<div class="fp-wp-row">' +
           '<span class="fp-wp-icon ' + iconInfo.iconClass + '">' + (iconInfo.iconSvg || iconInfo.iconText || '') + '</span>' +
           '<span class="fp-wp-ident">' + escapeHtml(layer.options.name || '') + '</span>' +
-          freqHtml +
-          airwayHtml +
+          '<span class="fp-wp-extra">' + freqHtml + airwayHtml + '</span>' +
+          infoRowHtml +
           '<button class="waypoint-delete-btn" data-waypoint-id="' + layer.options.myId + '" title="Delete waypoint">&times;</button>' +
         '</div>' +
-        infoRowHtml +
       '</li>'
     );
   });
@@ -15193,6 +15279,25 @@ function drawLines() {
     if (MAP_DEBUG) console.log('[Map] Fallback LayerControl created');
   }
 
+  // Sync the base layer radio button AND ensure layer is on map
+  if (LayerControl && LayerControl._form && typeof LayerControl._getLayer === 'function') {
+    var inputs = LayerControl._form.getElementsByTagName('input');
+    for (var i = 0; i < inputs.length; i++) {
+      var input = inputs[i];
+      if (input.type !== 'radio' || input.name !== 'leaflet-base-layers') continue;
+      var layerObj = LayerControl._getLayer(input.layerId);
+      if (layerObj && !layerObj.overlay && layerObj.name === defaultBaseLayer) {
+        input.checked = true;
+        // Ensure layer is actually on the map
+        if (!map.hasLayer(layerObj.layer)) {
+          map.addLayer(layerObj.layer);
+        }
+        console.log('[Map] Base layer activated:', layerObj.name);
+        break;
+      }
+    }
+  }
+
   // FINAL FIX: Set Off layers and update UI after a delay to ensure all init is complete
   // This runs AFTER all layer add/remove events from initialization have settled
   setTimeout(function() {
@@ -15245,75 +15350,11 @@ function drawLines() {
     L.DomEvent.disableScrollPropagation(LayerControl._form);
   }
 
-  // Smooth base layer transition - keep old layer until new one is fully loaded
-  // This prevents gray/empty tiles from showing during layer switches
-  (function() {
-    var currentBaseLayer = null;
-    var pendingRemoval = null;
+  // Base layer change logging only - no transition logic needed, Leaflet handles it
+  map.on('baselayerchange', function(e) {
+    if (MAP_DEBUG) console.log('[Map] Base layer changed to:', e.name);
+  });
 
-    // Find the current active base layer
-    for (var name in baseMaps) {
-      if (map.hasLayer(baseMaps[name])) {
-        currentBaseLayer = baseMaps[name];
-        break;
-      }
-    }
-
-    map.on('baselayerchange', function(e) {
-      var newLayer = e.layer;
-      var oldLayer = currentBaseLayer;
-
-      if (MAP_DEBUG) console.log('[Map] Base layer change - new:', e.name, 'old:', oldLayer ? 'exists' : 'none');
-
-      // If there's a pending removal from a previous switch, cancel it
-      if (pendingRemoval) {
-        clearTimeout(pendingRemoval.timeout);
-        if (pendingRemoval.layer && map.hasLayer(pendingRemoval.layer)) {
-          map.removeLayer(pendingRemoval.layer);
-        }
-        pendingRemoval = null;
-      }
-
-      // If we have an old layer and it's different from the new one
-      if (oldLayer && oldLayer !== newLayer) {
-        // Re-add the old layer temporarily (Leaflet has already removed it)
-        if (!map.hasLayer(oldLayer)) {
-          map.addLayer(oldLayer);
-          // Make sure old layer is below the new one
-          oldLayer.setZIndex(0);
-          newLayer.setZIndex(1);
-        }
-
-        // Wait for new layer to load, then remove old layer
-        var removeOldLayer = function() {
-          if (MAP_DEBUG) console.log('[Map] New base layer loaded - removing old layer');
-          if (oldLayer && map.hasLayer(oldLayer)) {
-            map.removeLayer(oldLayer);
-          }
-          pendingRemoval = null;
-        };
-
-        // Listen for the 'load' event on the new layer
-        if (newLayer.once) {
-          newLayer.once('load', removeOldLayer);
-        }
-
-        // Fallback timeout in case 'load' event doesn't fire (e.g., cached tiles)
-        pendingRemoval = {
-          layer: oldLayer,
-          timeout: setTimeout(function() {
-            if (MAP_DEBUG) console.log('[Map] Base layer timeout - removing old layer');
-            removeOldLayer();
-          }, 3000) // 3 seconds max wait
-        };
-      }
-
-      // Update current base layer reference
-      currentBaseLayer = newLayer;
-    });
-
-    if (MAP_DEBUG) console.log('[Map] Smooth base layer transition enabled');
-  })();
 
   // Override _expand to prevent size changes when elevation profile is toggled
   (function() {
@@ -16624,6 +16665,7 @@ function mover() {
       startLineGroup: startLineGroup && map && map.hasLayer(startLineGroup),
       middleMarkers: middleMarkers && map && map.hasLayer(middleMarkers),
       liveTrackingPolyline: polyline && map && map.hasLayer(polyline),
+      alternateRoute: alternateRouteLayer && map && map.hasLayer(alternateRouteLayer),
       waypointMarkers: []
     };
 
@@ -16647,6 +16689,11 @@ function mover() {
     // Hide live tracking polyline (red flight path animation)
     if (flightpathLayersStateBeforeController.liveTrackingPolyline && polyline) {
       map.removeLayer(polyline);
+    }
+
+    // Hide alternate route
+    if (flightpathLayersStateBeforeController.alternateRoute && alternateRouteLayer) {
+      map.removeLayer(alternateRouteLayer);
     }
 
     // Hide waypoint markers
@@ -16836,6 +16883,16 @@ function mout() {
       map.addLayer(middleMarkers);
     }
 
+    // Restore live tracking polyline (red flight path)
+    if (flightpathLayersStateBeforeController.liveTrackingPolyline && polyline && map && !map.hasLayer(polyline)) {
+      map.addLayer(polyline);
+    }
+
+    // Restore alternate route
+    if (flightpathLayersStateBeforeController.alternateRoute && alternateRouteLayer && map && !map.hasLayer(alternateRouteLayer)) {
+      map.addLayer(alternateRouteLayer);
+    }
+
     // Restore waypoint markers
     var restoredCount = 0;
     if (flightpathLayersStateBeforeController.waypointMarkers && flightpathLayersStateBeforeController.waypointMarkers.length > 0) {
@@ -16848,7 +16905,36 @@ function mout() {
       }
     }
 
-    console.log('[Controller] Flight path restored - route lines and', restoredCount, 'waypoints');
+    console.log('[Controller] Flight path restored - route lines, alternate and', restoredCount, 'waypoints');
+
+    // Force polylines to redraw by calling _reset() and _update() on the SVG renderer
+    setTimeout(function() {
+      function forcePolylineRedraw(layerGroup) {
+        if (layerGroup && map.hasLayer(layerGroup)) {
+          layerGroup.eachLayer(function(layer) {
+            if (layer._reset) {
+              layer._reset();
+              if (layer._update) layer._update();
+            }
+          });
+        }
+      }
+
+      forcePolylineRedraw(pLineGroup);
+      forcePolylineRedraw(pLineGroupDEP);
+      forcePolylineRedraw(pLineGroupARR);
+
+      // Single polyline (live tracking)
+      if (polyline && map.hasLayer(polyline)) {
+        if (polyline._reset) {
+          polyline._reset();
+          if (polyline._update) polyline._update();
+        }
+      }
+
+      forcePolylineRedraw(alternateRouteLayer);
+      console.log('[Controller] Forced polyline redraw via _reset()');
+    }, 50);
   }
   flightpathLayersStateBeforeController = null; // Reset state
 
@@ -16885,6 +16971,12 @@ function hideFlightpathLayers() {
   if (polyline && map && map.hasLayer(polyline)) {
     map.removeLayer(polyline);
     console.log('[Controller] Removed live tracking polyline');
+  }
+
+  // Hide alternate route
+  if (alternateRouteLayer && map && map.hasLayer(alternateRouteLayer)) {
+    map.removeLayer(alternateRouteLayer);
+    console.log('[Controller] Removed alternate route');
   }
 
   // Hide ALL waypoint markers
@@ -17843,6 +17935,44 @@ function removeAllMarkersAndClearServer() {
   }
 }
 
+/**
+ * Deletes only procedure markers (DEP/ARR types) - keeps route markers
+ * Used during procedure changes to avoid full map reload
+ */
+function deleteProcedureMarkers() {
+  var removedCount = 0;
+  var markersToRemove = [];
+
+  // First collect markers to remove (don't modify while iterating)
+  $.each(map._layers, function (ml) {
+    var layer = map._layers[ml];
+    if (layer && layer.feature) {
+      var wpType = (layer.options && layer.options.waypointType) || '';
+      wpType = String(wpType).toUpperCase();
+      // Remove DEP and ARR procedure markers
+      if (wpType.indexOf('DEP') === 0 || wpType.indexOf('ARR') === 0 || wpType === 'RWY') {
+        markersToRemove.push(layer);
+      }
+    }
+  });
+
+  // Now remove them
+  markersToRemove.forEach(function(layer) {
+    map.removeLayer(layer);
+    removedCount++;
+  });
+
+  // Also remove from waypointsData array
+  if (waypointsData && waypointsData.length > 0) {
+    waypointsData = waypointsData.filter(function(wp) {
+      var wpType = (wp.waypointType || '').toUpperCase();
+      return wpType.indexOf('DEP') !== 0 && wpType.indexOf('ARR') !== 0 && wpType !== 'RWY';
+    });
+  }
+
+  console.log('[Map] Removed', removedCount, 'procedure markers (DEP/ARR/RWY)');
+}
+
 function deleteAllMarkers() {
   WpBlocked = false;
   deleted = true;
@@ -17998,8 +18128,8 @@ function loadPoints() {
     if (wpCount > 2) {
       toggle.enable();
       follow = false;
-      // Only fitBounds if NOT during flightplan animation (animation handles centering)
-      if (!window.flightplanAnimationInProgress) {
+      // Only fitBounds if NOT during flightplan animation and NOT during rebuild
+      if (!window.flightplanAnimationInProgress && !window.rebuildingFlightplan) {
         // Koordinaten aus waypointsData oder coordinates extrahieren
         var boundsSource = waypointsData.length > 0
           ? waypointsData.map(function(wp) { return [wp.lat, wp.lng]; })
@@ -18011,8 +18141,8 @@ function loadPoints() {
         }
       }
     } else {
-      // Only enable follow mode if NOT during flightplan animation
-      if (!window.flightplanAnimationInProgress) {
+      // Only enable follow mode if NOT during flightplan animation/rebuild
+      if (!window.flightplanAnimationInProgress && !window.rebuildingFlightplan) {
         toggle.disable();
         follow = true;
       }
@@ -18027,8 +18157,8 @@ function loadPoints() {
       if (map) {
         map.invalidateSize({ pan: false });
       }
-      // Re-center on aircraft if follow mode is active AND no animation running
-      if (follow && !window.flightplanAnimationInProgress && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
+      // Re-center on aircraft if follow mode is active AND no animation/rebuild running
+      if (follow && !window.flightplanAnimationInProgress && !window.rebuildingFlightplan && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
         map.setView(new L.LatLng(pos_lat, pos_lng));
       }
       // Update elevation profile sofort
@@ -18043,8 +18173,8 @@ function loadPoints() {
     validateWaypointArrays('loadPoints');
   } else {
     // No waypoints found - enable follow mode and center on aircraft
-    // BUT only if NOT during flightplan animation (flightplan restore will handle centering)
-    if (!window.flightplanAnimationInProgress) {
+    // BUT only if NOT during flightplan animation/rebuild (flightplan restore will handle centering)
+    if (!window.flightplanAnimationInProgress && !window.rebuildingFlightplan) {
       toggle.disable();
       follow = true;
 
@@ -18058,7 +18188,7 @@ function loadPoints() {
         if (MAP_DEBUG) console.log('[Map] No waypoints - aircraft centering deferred');
       }
     } else {
-      if (MAP_DEBUG) console.log('[Map] Skipping follow mode activation - flightplan animation in progress');
+      if (MAP_DEBUG) console.log('[Map] Skipping follow mode activation - flightplan animation/rebuild in progress');
     }
   }
 }
@@ -18299,9 +18429,16 @@ function createMiddleMarkers(line) {
 
     middleMarker.addTo(middleMarkers);
   }
-  $("#overlayListSum").append(
-    "<b>Total:</b >&nbsp;" + gesDist.toFixed(2) + " nm"
-  );
+  // Only show overlayListSum if we have at least 2 waypoints (1 segment)
+  var overlayListSumEl = document.getElementById("overlayListSum");
+  if (latlngs.length >= 2) {
+    $("#overlayListSum").append(
+      "<b>Total:</b >&nbsp;" + gesDist.toFixed(2) + " nm"
+    );
+    if (overlayListSumEl) overlayListSumEl.style.display = "";
+  } else {
+    if (overlayListSumEl) overlayListSumEl.style.display = "none";
+  }
 }
 
 function calculateDistance(lat1, lon1, lat2, lon2, unit) {
@@ -18328,27 +18465,63 @@ function minimizeWpList() {
   var overlayListSum = document.getElementById("overlayListSum");
   var minimizeBtn = document.getElementById("wpListMinimize");
 
+  // Alle Sections die beim Minimieren versteckt werden sollen
+  var fpSections = overlayEl ? overlayEl.querySelectorAll('.fp-section') : [];
+
   if (!wpListMinimized) {
-    // Minimieren
+    // Minimieren - nur Header und Footer zeigen
     if (overlayList) overlayList.style.display = "none";
-    if (overlayListSum) overlayListSum.style.display = "none";
+    fpSections.forEach(function(section) {
+      section.style.display = "none";
+    });
     if (overlayEl) {
       overlayEl.style.height = "auto";
       overlayEl.style.minHeight = "0";
       overlayEl.style.overflow = "visible";
       overlayEl.classList.add('minimized');
     }
+    // Footer (Summary) bleibt sichtbar wenn Waypoints vorhanden
+    var waypointCount = flightplan ? flightplan.length : 0;
+    if (overlayListSum && waypointCount >= 2) {
+      overlayListSum.style.display = "";
+    } else if (overlayListSum) {
+      overlayListSum.style.display = "none";
+    }
     if (minimizeBtn) minimizeBtn.innerHTML = "+";
     wpListMinimized = true;
   } else {
-    // Maximieren
+    // Maximieren - alles wieder zeigen
     if (overlayList) {
       overlayList.style.display = "";
       overlayList.style.visibility = "visible";
     }
+    fpSections.forEach(function(section) {
+      // DEP, ARR, ALT Sections nur zeigen wenn sie vorher sichtbar waren (haben style.display = 'block' im initFlightplanPanel)
+      var sectionId = section.id;
+      if (sectionId === 'fpDepartureSection' || sectionId === 'fpArrivalSection' || sectionId === 'fpAlternateSection') {
+        // Diese werden durch initFlightplanPanel auf 'block' gesetzt wenn Daten vorhanden
+        // Prüfe ob flightplanPanelState Daten hat
+        if (sectionId === 'fpDepartureSection' && flightplanPanelState && flightplanPanelState.departure && flightplanPanelState.departure.icao) {
+          section.style.display = "block";
+        } else if (sectionId === 'fpArrivalSection' && flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.icao) {
+          section.style.display = "block";
+        } else if (sectionId === 'fpAlternateSection' && flightplanPanelState && flightplanPanelState.alternate && flightplanPanelState.alternate.icao) {
+          section.style.display = "block";
+        }
+      } else {
+        // ROUTE und ACTIONS sections immer zeigen
+        section.style.display = "";
+      }
+    });
+    // Only show overlayListSum if we have at least 2 waypoints
+    var waypointCount = flightplan ? flightplan.length : 0;
     if (overlayListSum) {
-      overlayListSum.style.display = "";
-      overlayListSum.style.visibility = "visible";
+      if (waypointCount >= 2) {
+        overlayListSum.style.display = "";
+        overlayListSum.style.visibility = "visible";
+      } else {
+        overlayListSum.style.display = "none";
+      }
     }
     if (overlayEl) {
       overlayEl.style.height = "50vh";
@@ -19889,6 +20062,13 @@ function commitCurrentSelections() {
         selectedTransition: flightplanPanelState.departure.selectedTransition || ''
     };
 
+    // Initialisiere _lastCommittedSid für SID-Change-Detection in rebuildFlightplanWithProcedures
+    window._lastCommittedSid = {
+        sid: flightplanCommittedState.departure.selectedSid,
+        transition: flightplanCommittedState.departure.selectedTransition,
+        runway: flightplanCommittedState.departure.selectedRunway
+    };
+
     flightplanCommittedState.arrival = {
         icao: flightplanPanelState.arrival.icao || '',
         selectedRunway: flightplanPanelState.arrival.selectedRunway || '',
@@ -19913,6 +20093,11 @@ function commitCurrentSelections() {
  * Übernimmt Änderungen und baut Route neu
  */
 async function applyFlightplanChanges() {
+    // Prevent map panning during rebuild - save current view
+    var savedCenter = map.getCenter();
+    var savedZoom = map.getZoom();
+    window.rebuildingFlightplan = true;
+
     // DEBUG: Log state before commit
     console.log('[ApplyChanges] PanelState BEFORE commit:', {
         approach: flightplanPanelState.arrival.selectedApproach,
@@ -19945,7 +20130,14 @@ async function applyFlightplanChanges() {
     // Alternate-Route separat zeichnen (andere Farbe)
     console.log('[ApplyChanges] Step 4: Drawing alternate route...');
     await drawAlternateRoute();
-    console.log('[ApplyChanges] Step 5: Complete!');
+
+    // Restore map view to prevent unwanted panning
+    window.rebuildingFlightplan = false;
+    if (savedCenter && savedZoom) {
+        map.setView(savedCenter, savedZoom, { animate: false });
+        console.log('[ApplyChanges] Step 5: Restored map view');
+    }
+    console.log('[ApplyChanges] Complete!');
 }
 
 /**
@@ -21952,6 +22144,9 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
         return flightplanArray;
     }
 
+    // DEBUG: Zeige alle Felder des ersten Waypoints um Höhen-Feldnamen zu finden
+    console.log('[SID_DEBUG] API Response - first waypoint fields:', JSON.stringify(procedureData.Waypoints[0], null, 2));
+
     // WICHTIG: Waypoints sortieren bevor sie eingefügt werden
     var sortedWaypoints = sortProcedureWaypoints(procedureData.Waypoints);
     MAP_DEBUG && console.log('[SID_DEBUG] Sorted waypoints:', sortedWaypoints.map(function(wp) {
@@ -21999,13 +22194,22 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
             return;
         }
 
-        // Altitude aus Navigraph-Daten extrahieren (Altitude1 ist die primäre Höhe)
-        // Fallback auf Departure-Runway-Elevation für Runway-Waypoints
-        var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
+        // Altitude aus Navigraph-Daten extrahieren
+        // Navigraph API nutzt verschiedene Feldnamen je nach Version
+        var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude ||
+                       wp.AltitudeDescription?.altitude1 || wp.altitudeDescription?.altitude1 ||
+                       wp.Waypoint?.Altitude1 || 0;
+
+        // Auch AltDesc prüfen (Navigraph manchmal als separate Struktur)
+        if (altitude === 0 && wp.AltDesc) {
+            altitude = wp.AltDesc.Altitude1 || wp.AltDesc.altitude1 || wp.AltDesc.Altitude || 0;
+        }
+
         if (altitude === 0 && rwMatch && departureRunwayData && departureRunwayData.elevation) {
             altitude = departureRunwayData.elevation;
         }
-        var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || '';
+        var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || wp.AltDesc?.AltitudeConstraint || '';
+        console.log('[SID_DEBUG] ' + name + ' altitude=' + altitude + ' | wp keys:', Object.keys(wp).join(','));
 
         sidEntries.push({
             lat: parseFloat(lat),
@@ -24306,23 +24510,49 @@ async function rebuildFlightplanWithProcedures() {
     // Clear all preview layers since we're now showing the committed route
     clearAllPreviews();
 
+    // Prüfe ob SID sich geändert hat (wenn nicht, behalten wir die alten SID-Waypoints mit OFP-Höhen)
+    var sidChanged = !window._lastCommittedSid ||
+        window._lastCommittedSid.sid !== depState.selectedSid ||
+        window._lastCommittedSid.transition !== depState.selectedTransition ||
+        window._lastCommittedSid.runway !== depState.selectedRunway;
+
+    // Speichere aktuelle SID-Werte für nächsten Vergleich
+    window._lastCommittedSid = {
+        sid: depState.selectedSid,
+        transition: depState.selectedTransition,
+        runway: depState.selectedRunway
+    };
+
+    console.log('[RebuildFlightplan] SID changed:', sidChanged, '| Current:', depState.selectedSid);
+
     // Start with base flightplan - remove old procedure waypoints
-    // Filter out waypoints that were added by procedures (have waypointType starting with DEP or ARR)
+    // WICHTIG: Wenn SID nicht geändert wurde, DEP-Waypoints behalten (OFP-Höhen!)
     var baseFlightplan = flightplan.filter(function(wp) {
         var wpType = (wp.waypointType || '').toUpperCase();
-        // Keep waypoints that are NOT procedure waypoints
-        // Procedure waypoints have types like "DEP MASO1E", "ARR KOPA3V", etc.
-        var isDep = wpType.indexOf('DEP ') === 0;
-        var isArr = wpType.indexOf('ARR ') === 0;
-        // Also filter out pure "ARR" type waypoints that were injected
+
+        // DEP-Waypoints: Nur entfernen wenn SID sich geändert hat
+        var isDep = wpType.indexOf('DEP') === 0 || wpType === 'DEP';
+        if (isDep && !sidChanged) {
+            return true; // SID nicht geändert → DEP-Waypoints behalten
+        }
+
+        // ARR-Waypoints: Immer entfernen (werden neu geladen)
+        var isArr = wpType.indexOf('ARR') === 0 || wpType === 'ARR';
         var isPureArr = wpType === 'ARR' && (wp.sourceAtcWaypointType === 'STAR' || wp.sourceAtcWaypointType === 'Approach');
+
         return !isDep && !isArr && !isPureArr;
     });
 
     console.log('[RebuildFlightplan] Base flightplan:', baseFlightplan.length, 'waypoints (from', flightplan.length, ')');
 
-    // 1. Inject SID waypoints if selected (or Visual Departure)
-    if (depState.icao && depState.selectedRunway) {
+    // 1. Inject SID waypoints if selected (or Visual Departure) - NUR wenn SID geändert wurde
+    // ABER: Wenn keine DEP-Waypoints im baseFlightplan sind, trotzdem laden (erster Rebuild)
+    var hasExistingDepWaypoints = baseFlightplan.some(function(wp) {
+        return (wp.waypointType || '').toUpperCase().indexOf('DEP') === 0;
+    });
+    var needsSidInjection = sidChanged || !hasExistingDepWaypoints;
+
+    if (depState.icao && depState.selectedRunway && needsSidInjection) {
         if (isVisualRunway(depState.selectedRunway)) {
             // Visual Departure: Füge 3nm Punkt am Anfang hinzu
             console.log('[RebuildFlightplan] 1. Injecting Visual Departure:', depState.selectedRunway);
@@ -24519,8 +24749,10 @@ async function rebuildFlightplanWithProcedures() {
     // Reset fingerprint to force re-render
     currentFlightplanFingerprint = null;
 
-    // Clear existing markers and redraw
-    deleteAllMarkers();
+    // Clear existing polylines and ONLY procedure markers (keep enroute waypoints)
+    clearAllPolylineLayers();
+    deleteProcedureMarkers();
+    console.log('[RebuildFlightplan] Cleared old polylines and procedure markers');
 
     // Draw alternate route IMMEDIATELY (not deferred)
     if (flightplanCommittedState.alternate && flightplanCommittedState.alternate.icao) {
@@ -24531,8 +24763,9 @@ async function rebuildFlightplanWithProcedures() {
     // Draw missed approach line if available
     drawMissedApproachLine();
 
-    // Re-render the flightplan (no deferred alternate needed)
+    // Re-render the flightplan WITHOUT animation (faster for changes)
     window.pendingAlternateRouteDraw = false;
+    window.skipFlightplanAnimation = true;  // Skip animation, use bulk mode
     scheduleFlightplanRender(flightplan);
 }
 
@@ -24900,8 +25133,18 @@ function setWaypoints(flightplanData) {
     var rwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
     // Entferne RW oder RWY Präfix und füge einheitlich RW hinzu
     rwyName = rwyName.replace(/^RWY?/i, '');
-    waypointsData.push({
-      name: 'RW' + rwyName,
+    var normalizedRwyName = 'RW' + rwyName;
+
+    // WICHTIG: Prüfe ob RW13L bereits in waypointsData existiert (aus Approach/ARR)
+    var rwyExists = waypointsData.some(function(wp) {
+      return wp.name === normalizedRwyName;
+    });
+
+    if (rwyExists) {
+      MAP_DEBUG && console.log('[setWaypoints] Runway already in waypointsData, skipping:', normalizedRwyName);
+    } else {
+      waypointsData.push({
+        name: normalizedRwyName,
       type: 'RWY',
       altitude: arrivalRunwayData.elevation || 0,
       atbl: '',
@@ -24911,8 +25154,9 @@ function setWaypoints(flightplanData) {
       airway: '',
       runwayNumber: rwyName,
       runwayDesignator: ''
-    });
-    MAP_DEBUG && console.log('[setWaypoints] Added RW metadata for:', 'RW' + rwyName);
+      });
+      MAP_DEBUG && console.log('[setWaypoints] Added RW metadata for:', normalizedRwyName);
+    }
   }
 
   // Legacy-Arrays aus waypointsData synchronisieren (für Kompatibilität)
@@ -24930,11 +25174,13 @@ function setWaypoints(flightplanData) {
 
   // v1.47: Zentrierung entfernt - passiert jetzt in executeFlightplanPath() VOR scheduleFlightplanRender()
 
-  // Bulk-loading for large flightplans - skip animation for speed
+  // Bulk-loading for large flightplans or when explicitly requested (e.g., during apply changes)
   // Lower threshold for Coherent GT (MSFS) due to slower rendering
   var bulkThreshold = window.isCoherentGT ? 30 : 50;
-  if (flightplan.length > bulkThreshold) {
-    if (MAP_DEBUG) console.log('[Map] Large flightplan detected (', flightplan.length, 'waypoints) - using bulk loading');
+  var forceBulkMode = window.skipFlightplanAnimation;
+  window.skipFlightplanAnimation = false; // Reset flag
+  if (flightplan.length > bulkThreshold || forceBulkMode) {
+    if (MAP_DEBUG) console.log('[Map] Using bulk loading -', forceBulkMode ? 'forced (apply changes)' : 'large flightplan (' + flightplan.length + ' waypoints)');
 
     // Add all waypoints at once without animation
     // arrivalRunwayData aus Cache ist bereits geladen, daher zuerst prüfen
@@ -25011,8 +25257,8 @@ function setWaypoints(flightplanData) {
       updateElevationProfile()
         .then(function(elevationResult) {
           console.log('[Map] Elevation profile ready:', elevationResult);
-          // Center map on route
-          if (flightplan.length > 1 && elevationResult.panelVisible) {
+          // Center map on route (but not during rebuild - preserve user's view)
+          if (flightplan.length > 1 && elevationResult.panelVisible && !window.rebuildingFlightplan) {
             var flightplanCoords = flightplan.map(function(entry) {
               return L.latLng(entry.lat, entry.lng);
             });

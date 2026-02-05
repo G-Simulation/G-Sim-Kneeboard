@@ -77,29 +77,9 @@ only screen and (min-device-pixel-ratio : 2) {
     background-color: #a8d4e6;
 }
 
-/* Leaflet Tile Pane - gleiche Hintergrundfarbe für nahtlosen Look */
+/* Leaflet Tile Pane - Hintergrundfarbe falls Tiles fehlen */
 .leaflet-tile-pane {
     background-color: #a8d4e6;
-}
-
-/* Progressive Tile Loading - Low-res Background immer unten */
-.low-res-background-tiles {
-    z-index: 1 !important;
-}
-
-/* Sanftes Einblenden der hochauflösenden Tiles */
-.leaflet-tile {
-    transition: opacity 0.15s ease-in-out;
-}
-
-/* Tiles die noch laden - unsichtbar */
-.leaflet-tile:not(.leaflet-tile-loaded) {
-    opacity: 0 !important;
-}
-
-/* Geladene Tiles - voll sichtbar mit sanftem Übergang */
-.leaflet-tile.leaflet-tile-loaded {
-    opacity: 1 !important;
 }
 
 .currentAirplane .airplane-icon {
@@ -1116,6 +1096,7 @@ h4 {
     border-top: 1px solid rgba(0, 0, 0, 0.2);
     padding: 0.5vh;
     background-color: white;
+    color: var(--dark);
 }
 
 #controllerListSum:empty {
@@ -4106,7 +4087,6 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     display: flex;
     flex-direction: column;
     min-height: 60px;
-    max-height: 35vh;
 }
 
 .fp-route .fp-section-header {
@@ -4155,12 +4135,16 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     border-left: 3px solid var(--dark);
 }
 
-/* Waypoint Row (Ident + Airway) - Full Width */
+/* Waypoint Row - Single line grid layout */
 .fp-wp-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 3vw 3vw 4vw auto 2vw;
     align-items: center;
     gap: 6px;
     width: 100%;
+    padding-right: 20px;
+    padding-left: 40px;
+    text-align: center;
 }
 
 /* Waypoint Type Icons - SVG Style */
@@ -4184,7 +4168,12 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     font-weight: 700;
     font-size: 11px;
     color: var(--fontDark);
-    min-width: 50px;
+}
+
+/* Extra column (Freq + Airway wrapper) */
+.fp-wp-extra {
+    gap: 4px;
+    align-items: center;
 }
 
 /* Frequency Display */
@@ -4196,6 +4185,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     padding: 0 3px;
     border-radius: 2px;
     background-color: rgba(53, 121, 135, 0.1);
+    white-space: nowrap;
 }
 
 .fp-wp-freq:hover {
@@ -4204,13 +4194,13 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 /* Airway Display */
 .fp-wp-airway {
-    margin-left: auto;
     font-size: 9px;
     color: #888;
     font-style: italic;
     padding: 2px 6px;
     background-color: #f0f0f0;
     border-radius: 3px;
+    white-space: nowrap;
 }
 
 .fp-wp-airway.dct {
@@ -4220,28 +4210,23 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     background-color: #e8f4f8;
 }
 
-/* Waypoint Info Row (Bearing/Distance/Altitude) - Full width */
+/* Waypoint Info (Bearing/Distance/Altitude) - display:contents makes children direct grid items */
 .fp-wp-info {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 12px;
-    margin-top: 3px;
-    padding-left: 24px;
+    font-family: "Roboto Mono", monospace;
     font-size: 10px;
     color: #555;
 }
 
-.fp-wp-bearing,
-.fp-wp-distance,
-.fp-wp-altitude {
-    font-family: "Roboto Mono", monospace;
-    font-size: 10px;
-    min-width: 45px;
+span.fp-wp-bearing {
+    padding-right: 2vw;
 }
 
-.fp-wp-separator {
-    color: #ccc;
+span.fp-wp-distance {
+    padding-right: 2vw;
+}
+
+span.fp-wp-altitude {
+
 }
 
 /* Altitude Constraints - Compact */
@@ -4391,8 +4376,6 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 /* Delete Button on Waypoint */
 .fp-waypoint .waypoint-delete-btn {
     margin-left: auto;
-    opacity: 0;
-    transition: opacity 0.15s ease;
     position: absolute;
     right: 4px;
     top: 50%;

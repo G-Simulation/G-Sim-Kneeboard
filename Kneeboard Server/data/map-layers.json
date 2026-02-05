@@ -11,7 +11,7 @@
     "goAround": "#fdbd7a",
     "alternate": "#0e88bf"
   },
-  "defaultBaseLayer": "Streets",
+  "defaultBaseLayer": "ESRI Topo",
   "defaultOverlays": {
     "OpenAip": "On",
     "Aircraft": "On",
@@ -50,7 +50,39 @@
   },
   "baseLayers": [
     {
-      "name": "Streets",
+      "name": "ESRI Topo",
+      "type": "tileLayer",
+      "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+      "default": true,
+      "options": {
+        "attribution": "ESRI World Topo",
+        "maxZoom": 19,
+        "minZoom": 0,
+        "crossOrigin": "anonymous",
+        "keepBuffer": 4,
+        "updateWhenIdle": false,
+        "updateWhenZooming": true,
+        "maxNativeZoom": 19
+      }
+    },
+    {
+      "name": "CARTO",
+      "type": "tileLayer",
+      "url": "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      "options": {
+        "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OSM</a> &copy; <a href=\"https://carto.com/attributions\">CARTO</a>",
+        "subdomains": "abcd",
+        "maxZoom": 20,
+        "minZoom": 0,
+        "crossOrigin": "anonymous",
+        "keepBuffer": 4,
+        "updateWhenIdle": false,
+        "updateWhenZooming": true,
+        "maxNativeZoom": 20
+      }
+    },
+    {
+      "name": "OSM",
       "type": "tileLayer",
       "url": "{{OPENAIP_PROXY}}/api/tiles/osm/{z}/{x}/{y}.png",
       "options": {
