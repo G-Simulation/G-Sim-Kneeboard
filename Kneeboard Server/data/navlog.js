@@ -3933,26 +3933,34 @@ function btnZYClicked() {
 }
 
 // ============================================================================
-// JQUERY EVENT HANDLERS (iframe-safe)
+// TEXTAREA EVENT HANDLERS (iframe-safe)
 // ============================================================================
-if (typeof $ !== 'undefined') {
-	$('textarea').parent('td').on('click', function (e) {
-		var textarea = $(this).find('textarea:first-child');
-		textarea.focus();
-		setCaretToPos(textarea, -1);
-		if (typeof keyboardActive !== 'undefined' && keyboardActive === false) {
-			if (typeof Keyboard !== 'undefined' && Keyboard.open) {
-				Keyboard.open();
-			}
+(function() {
+	var textareas = document.querySelectorAll("textarea");
+	textareas.forEach(function(ta) {
+		var td = ta.parentNode;
+		if (td && td.tagName === "TD") {
+			td.addEventListener("click", function() {
+				var textarea = td.querySelector("textarea:first-child");
+				if (!textarea) return;
+				textarea.focus();
+				setCaretToPos(textarea, -1);
+				if (typeof keyboardActive !== 'undefined' && keyboardActive === false) {
+					if (typeof Keyboard !== 'undefined' && Keyboard.open) {
+						Keyboard.open();
+					}
+				}
+			});
+
+			td.addEventListener("dblclick", function() {
+				var textarea = td.querySelector("textarea:first-child");
+				if (!textarea) return;
+				textarea.focus();
+				textarea.select();
+			});
 		}
 	});
-
-	$('textarea').parent('td').on('dblclick', function () {
-		var textarea = $(this).find('textarea:first-child');
-		textarea.focus();
-		textarea.select();
-	});
-}
+})();
 
 function setSelectionRange(input, selectionStart, selectionEnd) {
 	if (input.setSelectionRange) {

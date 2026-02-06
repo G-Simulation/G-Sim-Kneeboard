@@ -136,10 +136,45 @@ function shouldLog(category) {
   return DEBUG_CONFIG[category_upper] || DEBUG_CONFIG[category] || false;
 }
 
-if (DISABLE_ALL_LOGS) {
+// In Coherent GT (MSFS Panel): Alle Logs deaktivieren für Performance
+// Im Browser: Logs nur wenn DEBUG_CONFIG aktiviert
+var _isCoherentGT = (typeof window.engine !== 'undefined' && typeof window.engine.trigger === 'function');
+if (DISABLE_ALL_LOGS || _isCoherentGT) {
+  var _originalConsoleError = console.error;
   console.log = function() {};
   console.warn = function() {};
   console.info = function() {};
+  // console.error bleibt aktiv für echte Fehler
+  console.error = _originalConsoleError;
+}
+
+// DOM-Element-Cache: Häufig verwendete Elemente einmal cachen statt wiederholt getElementById
+var DOM = {};
+function initDOMCache() {
+  DOM.controllerContainer = document.getElementById("controllerContainer");
+  DOM.overlay = document.getElementById("overlay");
+  DOM.overlayList = document.getElementById("overlayList");
+  DOM.overlayListSum = document.getElementById("overlayListSum");
+  DOM.elevationProfileSection = document.getElementById("elevationProfileSection");
+  DOM.controllerList = document.getElementById("controllerList");
+  DOM.metarContainer = document.getElementById("metarContainer");
+  DOM.banner = document.getElementById("banner");
+  DOM.overlay2 = document.getElementById("overlay2");
+  DOM.imageAirplane = document.getElementById("imageAirplane");
+  DOM.elevationCanvas = document.getElementById("elevationCanvas");
+  DOM.controllerListSum = document.getElementById("controllerListSum");
+  DOM.fpDepartureSection = document.getElementById("fpDepartureSection");
+  DOM.fpArrivalSection = document.getElementById("fpArrivalSection");
+  DOM.fpAlternateSection = document.getElementById("fpAlternateSection");
+  DOM.depSelectors = document.getElementById("depSelectors");
+  DOM.arrSelectors = document.getElementById("arrSelectors");
+  DOM.altSelectors = document.getElementById("altSelectors");
+  DOM.depIcao = document.getElementById("depIcao");
+  DOM.arrIcao = document.getElementById("arrIcao");
+  DOM.depName = document.getElementById("depName");
+  DOM.arrName = document.getElementById("arrName");
+  DOM.altIcao = document.getElementById("altIcao");
+  DOM.altName = document.getElementById("altName");
 }
 
 // Canvas-Renderer für bessere Performance bei vielen Polygonen (Offline-Zonen)
@@ -2604,10 +2639,10 @@ function setWaypointAsAlternate(lat, lng, icao, fullName) {
 // Zeigt die Departure Section im Flightplan Panel
 // Zeigt das Flightplan Panel an (falls noch nicht sichtbar)
 function showFlightplanPanel() {
-  var overlayEl = document.getElementById("overlay");
-  var overlayList = document.getElementById("overlayList");
-  var overlayListSum = document.getElementById("overlayListSum");
-  var banner = document.getElementById("banner");
+  var overlayEl = DOM.overlay;
+  var overlayList = DOM.overlayList;
+  var overlayListSum = DOM.overlayListSum;
+  var banner = DOM.banner;
 
   if (overlayEl) {
     overlayEl.style.display = "flex";
@@ -2633,7 +2668,7 @@ function showFlightplanPanel() {
   wpListMinimized = false;
   var wpMinBtn = document.getElementById("wpListMinimize");
   if (wpMinBtn) wpMinBtn.innerHTML = "_";
-  $(".leaflet-geosearch-bar").css("top", 72);
+  var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "72px";
 }
 
 function showDepartureSection(icao, name) {
@@ -5749,6 +5784,9 @@ function resetMapState() {
 }
 
 function initMapPage() {
+  // DOM-Referenzen einmalig cachen
+  initDOMCache();
+
   // Cleanup alte Cache-Versionen beim Start
   cleanupOldCacheVersions();
 
@@ -5947,15 +5985,12 @@ function initMapPage() {
 
   setTimeout(initKeyboardWatcher, 500);
 
-  // jQuery-Teil nur, wenn vorhanden
-  if (typeof $ === "function") {
-    $("#imageAirplane").css(
-      "transform",
-      "rotate(" + Math.round(-45) + "deg)  scale(" + aircraftScale + ")"
-    );
-    $("#imageAirplane").css("fill", colorLight);
-    $(".leaflet-geosearch-bar").css("top", 0);
+  var _imgAP = DOM.imageAirplane;
+  if (_imgAP) {
+    _imgAP.style.transform = "rotate(" + Math.round(-45) + "deg)  scale(" + aircraftScale + ")";
+    _imgAP.style.fill = colorLight;
   }
+  var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "0px";
 
   if (!mapDomListenersBound) {
     // Buttons/Eingabefelder nur, wenn sie da sind
@@ -6931,13 +6966,13 @@ var pilotSearchQuery = '';
 
 // Piloten im aktuellen Viewport listen (oder alle Favoriten wenn Filter aktiv)
 function listPilots() {
-  var list = document.getElementById("controllerList");
+  var list = DOM.controllerList;
   if (!list) return;
 
   var listUl = list.querySelector("ul");
   if (!listUl) return;
 
-  $(listUl).empty();
+  if (listUl) listUl.innerHTML = "";
 
   var bounds = map.getBounds();
   var pilotsToShow = [];
@@ -7158,31 +7193,33 @@ function listPilots() {
     });
   }
 
-  // Event-Listener für Stern-Buttons (verwendet ID statt Callsign)
-  $(listUl).off('click', '.favorite-star').on('click', '.favorite-star', function(e) {
-    e.stopPropagation();
-    var pilotId = $(this).data('id');
-    var network = $(this).data('network');
-    togglePilotFavorite(pilotId, network);
-  });
-
-  // Event-Listener für Piloten-Klick (zentrieren)
-  $(listUl).off('click', '.pilot-list-item').on('click', '.pilot-list-item', function(e) {
-    if ($(e.target).hasClass('favorite-star')) return;
-    // Offline-Piloten können nicht zentriert werden
-    var isOnline = $(this).data('online') === true || $(this).data('online') === 'true';
-    if (!isOnline) {
-      return; // Offline-Pilot - nichts tun
-    }
-    // Panel wieder öffnen wenn versteckt
-    showControllerPanel();
-    var key = $(this).data('key');
-    var marker = pilotsMarkersCache[key];
-    if (marker) {
-      map.setView(marker.getLatLng(), Math.max(map.getZoom(), 8));
-      marker.openPopup();
-    }
-  });
+  // Event-Delegation für Stern-Buttons und Piloten-Klick (nativ statt jQuery)
+  if (listUl && !listUl._pilotListenersBound) {
+    listUl._pilotListenersBound = true;
+    listUl.addEventListener('click', function(e) {
+      var star = e.target.closest('.favorite-star');
+      if (star) {
+        e.stopPropagation();
+        var pilotId = star.dataset.id;
+        var network = star.dataset.network;
+        togglePilotFavorite(pilotId, network);
+        return;
+      }
+      var item = e.target.closest('.pilot-list-item');
+      if (item) {
+        if (e.target.classList.contains('favorite-star')) return;
+        var isOnline = item.dataset.online === 'true';
+        if (!isOnline) return;
+        showControllerPanel();
+        var key = item.dataset.key;
+        var marker = pilotsMarkersCache[key];
+        if (marker) {
+          map.setView(marker.getLatLng(), Math.max(map.getZoom(), 8));
+          marker.openPopup();
+        }
+      }
+    });
+  }
 }
 
 var pilotsLastZoomLevel = -1;     // Last zoom level for icon scaling (for optimization)
@@ -12833,18 +12870,18 @@ function initializeMapWithLayers(layers) {
         var marker;
         deleted = false;
         wpListOn = true;
-        var overlayEl = document.getElementById("overlay");
+        var overlayEl = DOM.overlay;
         if (overlayEl) {
           overlayEl.style.display = "flex";
           overlayEl.style.visibility = "visible";
         }
-        document.getElementById("banner").style.visibility = "visible";
-        document.getElementById("overlay").style.visibility = "visible";
-        document.getElementById("overlayList").style.display = "";
-        document.getElementById("overlayList").style.visibility = "visible";
+        DOM.banner.style.visibility = "visible";
+        DOM.overlay.style.visibility = "visible";
+        DOM.overlayList.style.display = "";
+        DOM.overlayList.style.visibility = "visible";
         // Only show overlayListSum if we have at least 2 waypoints
         var wpCountCheck = flightplan ? flightplan.length : 0;
-        var overlayListSumEl = document.getElementById("overlayListSum");
+        var overlayListSumEl = DOM.overlayListSum;
         if (overlayListSumEl) {
           if (wpCountCheck >= 2) {
             overlayListSumEl.style.display = "";
@@ -12856,7 +12893,7 @@ function initializeMapWithLayers(layers) {
         wpListMinimized = false;
         var wpMinBtn = document.getElementById("wpListMinimize");
         if (wpMinBtn) wpMinBtn.innerHTML = "_";
-        $(".leaflet-geosearch-bar").css("top", 72);
+        var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "72px";
         var forcedName =
           isSynthetic && typeof e.setName === "string" ? e.setName : "";
         var forcedType =
@@ -13232,118 +13269,100 @@ function initializeMapWithLayers(layers) {
       }
     }, 50);
 
-    $(".marker-delete-button:visible").click(function () {
-      if (tempMarker && map && map.hasLayer(tempMarker)) {
-        map.removeLayer(tempMarker);
-      }
-      clearAllPolylineLayers();
-      resetCoordinateArrays();
-      $(tempMarker).parent("li").remove();
-      removeWaypointMetadata(tempMarker.options.myId);
-      var waypointLayers = getWaypointLayersSorted();
-      if (waypointLayers.length === 0) {
-        removeAllMarkersAndClearServer();  // Use new combined function
-      } else {
-        startLineGroup.clearLayers();
-        startlineShow = false;
-        normalizeWaypointNames();
-        reindexWaypointLayers();
-      }
-      localStorage.removeItem("targetMarker");
-      $(".target").css("color", "");
-      getMarkerId();
-      drawLines();
-      scheduleNavlogSync();
+    var _delBtns = document.querySelectorAll(".marker-delete-button");
+    _delBtns.forEach(function(btn) {
+      if (btn.offsetParent === null) return; // not visible
+      btn.addEventListener('click', function() {
+        if (tempMarker && map && map.hasLayer(tempMarker)) {
+          map.removeLayer(tempMarker);
+        }
+        clearAllPolylineLayers();
+        resetCoordinateArrays();
+        var _parentLi = tempMarker && tempMarker._icon ? tempMarker._icon.closest("li") : null;
+        if (_parentLi) _parentLi.remove();
+        removeWaypointMetadata(tempMarker.options.myId);
+        var waypointLayers = getWaypointLayersSorted();
+        if (waypointLayers.length === 0) {
+          removeAllMarkersAndClearServer();
+        } else {
+          startLineGroup.clearLayers();
+          startlineShow = false;
+          normalizeWaypointNames();
+          reindexWaypointLayers();
+        }
+        localStorage.removeItem("targetMarker");
+        document.querySelectorAll(".target").forEach(function(el) { el.style.color = ""; });
+        getMarkerId();
+        drawLines();
+        scheduleNavlogSync();
+      });
     });
   }
 
   function loadAltitude() {
-    var $input = $("#WPaltitudeInput");
-    if ($input.length > 0) {
-      // Always set the value from altitudes array, even if 0 or empty
+    var _altInput = document.getElementById("WPaltitudeInput");
+    if (_altInput) {
       var altValue = altitudes[activeWP];
       if (typeof altValue !== "undefined") {
-        $input.val(altValue);
+        _altInput.value = altValue;
       }
-      $input
-        .off("input.wpalt")
-        .on("input.wpalt", function () {
-          setWPaltitude2();
-        });
-      $input
-        .off("change.wpalt")
-        .on("change.wpalt", function () {
-          setWPaltitude2();
-        });
+      _altInput.oninput = function() { setWPaltitude2(); };
+      _altInput.onchange = function() { setWPaltitude2(); };
     }
   }
 
   function loadName() {
-    var $input = $("#WPnameInput");
-    if ($input.length > 0) {
+    var _nameInput = document.getElementById("WPnameInput");
+    if (_nameInput) {
       var nameValue = wpNames[activeWP];
       if (typeof nameValue !== "undefined" && nameValue !== "") {
-        $input.val(nameValue);
+        _nameInput.value = nameValue;
       }
 
-      $input
-        .off("focus.wpname")
-        .on("focus.wpname", function (e) {
-          id = e.id;
-          textstart = "";
-          textend = "";
-          document.getElementById("keyb").style.visibility = "visible";
-          Keyboard.open(this.value, (currentValue) => {
-            this.value = currentValue;
-          });
+      _nameInput.onfocus = function(e) {
+        id = e.id;
+        textstart = "";
+        textend = "";
+        document.getElementById("keyb").style.visibility = "visible";
+        var self = this;
+        Keyboard.open(this.value, function(currentValue) {
+          self.value = currentValue;
         });
+      };
 
-      $input
-        .off("click.wpname")
-        .on("click.wpname", function (e) {
-          document.getElementById("keyb").style.visibility = "visible";
-          Keyboard.open(this.value, (currentValue) => {
-            this.value = currentValue;
-          });
-          var text = this.value;
-          textstart = text.slice(0, this.selectionStart);
-          textend = text.slice(this.selectionEnd, this.value.length);
-          Keyboard.properties.value = textstart;
-          getCursorpos();
+      _nameInput.onclick = function(e) {
+        document.getElementById("keyb").style.visibility = "visible";
+        var self = this;
+        Keyboard.open(this.value, function(currentValue) {
+          self.value = currentValue;
         });
+        var text = this.value;
+        textstart = text.slice(0, this.selectionStart);
+        textend = text.slice(this.selectionEnd, this.value.length);
+        Keyboard.properties.value = textstart;
+        getCursorpos();
+      };
 
-      $input
-        .off("change.wpname")
-        .on("change.wpname", function (e) {
-          setWPname();
-        });
+      _nameInput.onchange = function() { setWPname(); };
+      _nameInput.oninput = function() { setWPname(); };
 
-      $input
-        .off("input.wpname")
-        .on("input.wpname", function (e) {
-          setWPname();
-        });
+      _nameInput.onblur = function() {
+        if (pendingFirstActivation) {
+          pendingFirstActivation = false;
+          activateNearestWaypoint();
+        }
+      };
 
-      $input
-        .off("blur.wpname")
-        .on("blur.wpname", function () {
-          if (pendingFirstActivation) {
-            pendingFirstActivation = false;
-            activateNearestWaypoint();
-          }
+      _nameInput.onselect = function() {
+        var self = this;
+        Keyboard.open(this.value, function(currentValue) {
+          self.value = currentValue;
         });
-
-      $input
-        .off("select.wpname")
-        .on("select.wpname", function (e) {
-          Keyboard.open(this.value, (currentValue) => {
-            this.value = currentValue;
-          });
-          var text = this.value;
-          textstart = text.slice(0, this.selectionStart);
-          textend = text.slice(this.selectionEnd, this.value.length);
-          Keyboard.properties.value = textstart;
-        });
+        var text = this.value;
+        textstart = text.slice(0, this.selectionStart);
+        textend = text.slice(this.selectionEnd, this.value.length);
+        Keyboard.properties.value = textstart;
+      };
     }
   }
 
@@ -13528,93 +13547,97 @@ function buildCoordinateArrays() {
  * @param {Array} waypointLayers - Array of waypoint layers
  */
 function setupWaypointEventHandlers(waypointLayers) {
-  $(".target").on("click", function (event) {
-    // Don't handle click if it's on the delete button
-    if ($(event.target).hasClass("waypoint-delete-btn")) {
-      return;
-    }
-    // Don't handle click if long press was just triggered
-    if (longPressTriggered) {
-      return;
-    }
-    // Use $(this).attr('id') instead of event.target.id to get the correct list item ID
-    const clickedId = $(this).attr('id');
+  var overlayList = DOM.overlayList;
+  var targets = document.querySelectorAll("#overlayList > ul > li.target");
 
-    if (startlineShow == false || targetMarker != clickedId) {
-      // Reset all waypoints to black first
-      $(".target").css("color", "");
-      // Then set clicked one to red
-      $(this).css("color", "red");
-
-      targetMarker = clickedId;
-      startlineShow = true;
-      limitStartlineDistance = false;  // Keine Begrenzung bei manueller Aktivierung
-      localStorage.setItem("targetMarker", clickedId);
-      secondclick = false;
-
-      if (!map.hasLayer(startLineGroup)) {
-        map.addLayer(startLineGroup);
+  // Click handler on each .target element
+  targets.forEach(function(targetEl) {
+    targetEl.addEventListener("click", function(event) {
+      if (event.target.classList.contains("waypoint-delete-btn")) {
+        return;
       }
-
-      // Redraw elevation profile to show aircraft position
-      if (elevationProfileVisible && cachedElevationData.groundElevations) {
-        redrawElevationCanvas();
+      if (longPressTriggered) {
+        return;
       }
+      var clickedId = targetEl.getAttribute("id");
 
-      $(".leaflet-geosearch-bar").css("top", 72);
-      markerFunction(clickedId);
-    } else {
-      $(this).css("color", "");
+      if (startlineShow == false || targetMarker != clickedId) {
+        document.querySelectorAll(".target").forEach(function(el) { el.style.color = ""; });
+        targetEl.style.color = "red";
 
-      if (map.hasLayer(startLineGroup)) {
-        map.removeLayer(startLineGroup);
+        targetMarker = clickedId;
+        startlineShow = true;
+        limitStartlineDistance = false;
+        localStorage.setItem("targetMarker", clickedId);
+        secondclick = false;
+
+        if (!map.hasLayer(startLineGroup)) {
+          map.addLayer(startLineGroup);
+        }
+
+        if (elevationProfileVisible && cachedElevationData.groundElevations) {
+          redrawElevationCanvas();
+        }
+
+        var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "72px";
+        markerFunction(clickedId);
+      } else {
+        targetEl.style.color = "";
+
+        if (map.hasLayer(startLineGroup)) {
+          map.removeLayer(startLineGroup);
+        }
+
+        startlineShow = false;
+        localStorage.setItem("targetMarker", -2);
+        var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "-2px";
+        targetMarker = -2;
+
+        if (elevationProfileVisible && cachedElevationData.groundElevations) {
+          redrawElevationCanvas();
+        }
+
+        if (ActiveMarker !== undefined) {
+          ActiveMarker.setIcon(createWaypointIcon(false));
+          ActiveMarker.dragging.disable();
+          ActiveMarker = undefined;
+        }
       }
-
-      startlineShow = false;
-      localStorage.setItem("targetMarker", -2);
-      $(".leaflet-geosearch-bar").css("top", -2);
-      targetMarker = -2;
-
-      // Redraw elevation profile to hide aircraft position
-      if (elevationProfileVisible && cachedElevationData.groundElevations) {
-        redrawElevationCanvas();
-      }
-
-      if (ActiveMarker !== undefined) {
-        ActiveMarker.setIcon(createWaypointIcon(false));
-        ActiveMarker.dragging.disable();
-        ActiveMarker = undefined;
-      }
-    }
-    //map.closePopup();
+    });
   });
-  // Add click handlers for delete buttons
-  $("#overlayList .waypoint-delete-btn").off("click").on("click", function (event) {
-    event.stopPropagation();
-    event.preventDefault();
-    var waypointId = $(this).attr("data-waypoint-id");
-    if (waypointId) {
-      removeWaypointById(waypointId);
-    }
-  });
+
+  // Delete button handler via delegation on overlayList
+  if (overlayList) {
+    overlayList.addEventListener("click", function(event) {
+      var deleteBtn = event.target.closest(".waypoint-delete-btn");
+      if (deleteBtn) {
+        event.stopPropagation();
+        event.preventDefault();
+        var waypointId = deleteBtn.getAttribute("data-waypoint-id");
+        if (waypointId) {
+          removeWaypointById(waypointId);
+        }
+      }
+    });
+  }
 
   // Long-press support to open waypoint popup (EFB compatibility - no right-click)
-  $("#overlayList > ul > li.target")
-    .off("contextmenu mousedown mouseup mouseleave touchstart touchend touchcancel touchmove")
-    .on("contextmenu", function (event) {
+  targets.forEach(function(targetEl) {
+    targetEl.addEventListener("contextmenu", function(event) {
       event.preventDefault();
-      // Right-click disabled for EFB compatibility - use long-press instead
-    })
-    .on("mousedown touchstart", function (event) {
-      // Don't trigger long press if clicking on delete button
-      if ($(event.target).hasClass("waypoint-delete-btn")) {
+    });
+
+    targetEl.addEventListener("mousedown", handleLongPressStart);
+    targetEl.addEventListener("touchstart", handleLongPressStart);
+
+    function handleLongPressStart(event) {
+      if (event.target.classList.contains("waypoint-delete-btn")) {
         return;
       }
 
-      var self = this;
       var clientX, clientY;
       if (event.type === "touchstart") {
-        var touch = event.originalEvent.touches[0];
+        var touch = event.touches[0];
         clientX = touch.clientX;
         clientY = touch.clientY;
       } else {
@@ -13623,37 +13646,31 @@ function setupWaypointEventHandlers(waypointLayers) {
       }
       longPressStartX = clientX;
       longPressStartY = clientY;
-      longPressTarget = self;
+      longPressTarget = targetEl;
 
       if (longPressTimer) {
         clearTimeout(longPressTimer);
       }
-      longPressTimer = setTimeout(function () {
-        // Mark that long press was triggered to prevent click event
+      longPressTimer = setTimeout(function() {
         longPressTriggered = true;
 
-        // Check if waypoint has frequency - show context menu if so
-        var navFrequency = self.getAttribute("data-navfrequency");
+        var navFrequency = targetEl.getAttribute("data-navfrequency");
         if (navFrequency) {
-          var wpName = self.getAttribute("data-wpname") || 'NAV';
-          var freqMode = self.getAttribute("data-navfrequencymode") || 'nav';
+          var wpName = targetEl.getAttribute("data-wpname") || 'NAV';
+          var freqMode = targetEl.getAttribute("data-navfrequencymode") || 'nav';
           if (MAP_DEBUG) console.log('[Frequency] Waypoint long press - showing context menu for:', wpName, navFrequency, 'mode:', freqMode);
           showFrequencyContextMenu(longPressStartX, longPressStartY, navFrequency, wpName, freqMode, true);
         }
 
-        // Find waypoint layer and open its popup (only if not already open)
-        var waypointId = self.getAttribute("data-layer-id");
+        var waypointId = targetEl.getAttribute("data-layer-id");
         if (waypointId) {
           var layer = getWaypointLayerById(waypointId);
           if (layer) {
-            // Only open if popup is not already open
             if (!layer.isPopupOpen || !layer.isPopupOpen()) {
-              // Center map on waypoint and open popup
               var latlng = layer.getLatLng ? layer.getLatLng() : layer._latlng;
               if (latlng) {
                 map.setView(latlng, Math.max(map.getZoom(), 11));
               }
-              // Open popup after a short delay
               setTimeout(function() {
                 if (typeof layer.openPopup === 'function') {
                   programmaticPopupTimestamp = Date.now();
@@ -13666,21 +13683,26 @@ function setupWaypointEventHandlers(waypointLayers) {
         longPressTimer = null;
         longPressTarget = null;
       }, longPressDelay);
-    })
-    .on("mouseup mouseleave touchend touchcancel", function (event) {
+    }
+
+    function handleLongPressEnd() {
       safeCleanupTimer('longPressTimer');
       longPressTarget = null;
-
-      // Clear the flag after a short delay to allow click event to be blocked
       if (longPressTriggered) {
         setTimeout(function() {
           longPressTriggered = false;
         }, 100);
       }
-    })
-    .on("touchmove", function (event) {
-      if (longPressTimer && event.originalEvent.touches.length > 0) {
-        var touch = event.originalEvent.touches[0];
+    }
+
+    targetEl.addEventListener("mouseup", handleLongPressEnd);
+    targetEl.addEventListener("mouseleave", handleLongPressEnd);
+    targetEl.addEventListener("touchend", handleLongPressEnd);
+    targetEl.addEventListener("touchcancel", handleLongPressEnd);
+
+    targetEl.addEventListener("touchmove", function(event) {
+      if (longPressTimer && event.touches.length > 0) {
+        var touch = event.touches[0];
         var dx = Math.abs(touch.clientX - longPressStartX);
         var dy = Math.abs(touch.clientY - longPressStartY);
         if (dx > longPressMoveThreshold || dy > longPressMoveThreshold) {
@@ -13689,6 +13711,7 @@ function setupWaypointEventHandlers(waypointLayers) {
         }
       }
     });
+  });
 
   if (
     pendingFirstActivation &&
@@ -13714,7 +13737,7 @@ function setupWaypointEventHandlers(waypointLayers) {
         startlineShow = true;
 
         // Restore visual state - color the active waypoint red
-        $(".target").css("color", "");
+        document.querySelectorAll(".target").forEach(function(el) { el.style.color = ""; });
         var activeWaypoint = document.getElementById(savedTarget.toString());
         if (activeWaypoint) {
           activeWaypoint.style.color = "red";
@@ -14054,7 +14077,7 @@ function updateWaypointList(waypointLayers, coordinatesArray) {
   var depEl = document.getElementById("dep");
   var arrEl = document.getElementById("arr");
   var depArrTable = document.getElementById("depArrTable");
-  var overlayEl = document.getElementById("overlay");
+  var overlayEl = DOM.overlay;
 
   // Determine values first
   var startText = wpNames[0] || "START";
@@ -14225,7 +14248,7 @@ function drawLines() {
     if (overlayListUl) {
       overlayListUl.innerHTML = '';
     }
-    $("#overlayListSum").empty();
+    var _ols = DOM.overlayListSum; if (_ols) _ols.innerHTML = "";
     headings = [];
     if (window.localStorage.getItem("altitudes")) {
       altitudes = JSON.parse(window.localStorage.getItem("altitudes"));
@@ -14358,7 +14381,7 @@ function drawLines() {
       normalizeWaypointNames();
       reindexWaypointLayers();
     }
-    $("#overlayList > ul > li.target").css("color", "");
+    document.querySelectorAll("#overlayList > ul > li.target").forEach(function(el) { el.style.color = ""; });
     localStorage.removeItem("targetMarker");
     getMarkerId();
     drawLines();
@@ -14387,7 +14410,7 @@ function drawLines() {
       if (map && map.hasLayer && map.hasLayer(startLineGroup)) {
         map.removeLayer(startLineGroup);
       }
-      $(".target").css("color", "");
+      document.querySelectorAll(".target").forEach(function(el) { el.style.color = ""; });
 
       // Redraw elevation profile to hide aircraft position
       if (elevationProfileVisible && cachedElevationData.groundElevations) {
@@ -14410,7 +14433,7 @@ function drawLines() {
       startlineShow = false;
       targetMarker = -1;
       localStorage.setItem("targetMarker", -1);
-      $(".target").css("color", "");
+      document.querySelectorAll(".target").forEach(function(el) { el.style.color = ""; });
       if (map && map.hasLayer && map.hasLayer(startLineGroup)) {
         map.removeLayer(startLineGroup);
       }
@@ -14444,7 +14467,7 @@ function drawLines() {
       startlineShow = false;
       targetMarker = -1;
       localStorage.setItem("targetMarker", -1);
-      $(".target").css("color", "");
+      document.querySelectorAll(".target").forEach(function(el) { el.style.color = ""; });
       if (map && map.hasLayer && map.hasLayer(startLineGroup)) {
         map.removeLayer(startLineGroup);
       }
@@ -14466,7 +14489,7 @@ function drawLines() {
 
     targetMarker = nearestIndex;  // Elevation Profile verwendet Array-Index
     localStorage.setItem("targetMarker", nearestIndex);
-    $(".target").css("color", "");
+    document.querySelectorAll(".target").forEach(function(el) { el.style.color = ""; });
 
     // Update waypoint list UI - highlight active waypoint in red
     var targetElement = document.querySelector("#overlayList > ul > li:nth-child(" + (nearestIndex + 1) + ")");
@@ -14561,7 +14584,7 @@ function drawLines() {
       }
 
       if (planeHeading != 0 && startlineShow == true) {
-        $("#overlay2").html(
+        DOM.overlay2.innerHTML =
           '<table class="overlay2Table" style="text-align: center;"><tr><td>IAS:&nbsp;' +
             vel +
             "kts  &nbsp;I&nbsp;&nbsp;HEAD:&nbsp;" +
@@ -14576,18 +14599,16 @@ function drawLines() {
             alt +
             "ft / " +
             alt1.toFixed(0) +
-            "ft</td></tr></table>"
-        );
+            "ft</td></tr></table>";
       } else {
-        $("#overlay2").html(
+        DOM.overlay2.innerHTML =
           '<table class="overlay2Table" style="text-align: center;"><tr><td>IAS:&nbsp;' +
             vel +
             "kts  &nbsp;I&nbsp;&nbsp;HEAD:&nbsp;" +
             heading.toFixed(0) +
             DEGREE_SYMBOL + "  I&nbsp;&nbsp;ALT:&nbsp;" +
             alt +
-            "ft</td></tr></table>"
-        );
+            "ft</td></tr></table>";
       }
 
       if (startlineShow == true && nwp1_lat !== undefined && nwp1_lng !== undefined) {
@@ -14887,15 +14908,15 @@ function drawLines() {
     }
     if (e.group.name === "Aircraft") {
       if (e.name === "On") {
-        var imgAirplane = document.getElementById("imageAirplane");
+        var imgAirplane = DOM.imageAirplane;
         imgAirplane.style.visibility = "visible";
         var pos = new L.LatLng(pos_lat, pos_lng);
         airplane.setLatLng(pos).update();
-        $("#imageAirplane").css(
-          "transform",
-          "rotate(" + Math.round(-45) + "deg)  scale(" + aircraftScale + ")"
-        );
-        $("#imageAirplane").css("fill", colorLight);
+        var _imgAP = DOM.imageAirplane;
+        if (_imgAP) {
+          _imgAP.style.transform = "rotate(" + Math.round(-45) + "deg)  scale(" + aircraftScale + ")";
+          _imgAP.style.fill = colorLight;
+        }
 
         if (map.hasLayer(flightpath)) {
           if (!map.hasLayer(polyline)) {
@@ -14914,7 +14935,7 @@ function drawLines() {
         }
       }
       if (e.name === "Off") {
-        var imgAirplane = document.getElementById("imageAirplane");
+        var imgAirplane = DOM.imageAirplane;
         imgAirplane.style.visibility = "hidden";
 
         if (map.hasLayer(polyline)) {
@@ -15158,9 +15179,9 @@ function drawLines() {
         panelState == "navaids" ||
         panelState == "reportingPoints"
       ) {
-        var controllerOverlay = document.getElementById("controllerContainer");
+        var controllerOverlay = DOM.controllerContainer;
         controllerOverlay.style.visibility = "hidden";
-        var list = document.getElementById("controllerList");
+        var list = DOM.controllerList;
         list.style.visibility = "hidden";
         panelState = "";
       }
@@ -15455,11 +15476,13 @@ function drawLines() {
   setOpenAipSelection(true);
 
   var firstStart = true;
-  $(".glass").on("click", () => {
-    if (firstStart == true) {
-      firstStart = false;
-    }
-    Keyboard.open();
+  document.querySelectorAll(".glass").forEach(function(el) {
+    el.addEventListener("click", function() {
+      if (firstStart == true) {
+        firstStart = false;
+      }
+      Keyboard.open();
+    });
   });
 
   toggle2 = L.easyButton({
@@ -15753,7 +15776,7 @@ function drawLines() {
         title: "AIRPORTS",
         onClick: function (control) {
           if (
-            document.getElementById("controllerContainer").style.visibility ==
+            DOM.controllerContainer.style.visibility ==
             "hidden"
           ) {
             // WICHTIG: mover() ZUERST aufrufen um alle Panels auszublenden
@@ -15788,7 +15811,7 @@ function drawLines() {
         title: "NAVAIDS",
         onClick: function (control) {
           if (
-            document.getElementById("controllerContainer").style.visibility ==
+            DOM.controllerContainer.style.visibility ==
             "visible"
           ) {
             mout();
@@ -16084,7 +16107,7 @@ function animateFlightplanRoute(flightplanData, onComplete) {
 }
 
 function hideMetarContainer() {
-  document.getElementById("metarContainer").style.display = "none";
+  DOM.metarContainer.style.display = "none";
   metarSearchExpandet = false;
   Keyboard.close();
 }
@@ -16092,9 +16115,9 @@ function hideMetarContainer() {
 var metarSearchExpandet = false;
 function myFunction() {
   if (metarSearchExpandet == false) {
-    document.getElementById("metarContainer").style.display = "flex";
+    DOM.metarContainer.style.display = "flex";
     metarSearchExpandet = true;
-    document.getElementById("metarContainer").style.top = "10%";
+    DOM.metarContainer.style.top = "10%";
 
     // Reset and re-attach keyboard bindings for METAR input fields
     setTimeout(function() {
@@ -16118,7 +16141,7 @@ function myFunction() {
       });
     }, 150);
   } else {
-    document.getElementById("metarContainer").style.display = "none";
+    DOM.metarContainer.style.display = "none";
     metarSearchExpandet = false;
     Keyboard.close();
   }
@@ -16445,7 +16468,7 @@ function metarSearch() {
 
   // Wenn kein g�ltiger ICAO-Code eingegeben wurde, Panel ausblenden
   if (!hasValidICAO && (e.length === 0 && e2.length === 0)) {
-    var metarContainer = document.getElementById("metarContainer");
+    var metarContainer = DOM.metarContainer;
     if (metarContainer && metarSearchExpandet) {
       if (MAP_DEBUG) console.log("[METAR] No valid ICAO codes, hiding panel");
       metarContainer.style.display = "none";
@@ -16588,9 +16611,9 @@ var flightpathLayersStateBeforeController = null; // Tracks flight path layers s
 
 function mover() {
   if (moverX == false) {
-    var controllerOverlay = document.getElementById("controllerContainer");
+    var controllerOverlay = DOM.controllerContainer;
     controllerOverlay.style.visibility = "visible";
-    var list = document.getElementById("controllerList");
+    var list = DOM.controllerList;
     list.style.visibility = "visible";
     moverX = true;
     window.moverX = true; // Expose to kneeboard.js for polling control
@@ -16729,8 +16752,8 @@ function mover() {
 // Versteckt nur das Panel, beendet NICHT den Controller-Modus
 // Panel kann durch Klick auf Flugzeug/Zone wieder geöffnet werden
 function hideControllerPanel() {
-  var controllerContainer = document.getElementById("controllerContainer");
-  var controllerList = document.getElementById("controllerList");
+  var controllerContainer = DOM.controllerContainer;
+  var controllerList = DOM.controllerList;
   if (controllerContainer) {
     controllerContainer.style.visibility = "hidden";
   }
@@ -16743,8 +16766,8 @@ function hideControllerPanel() {
 // Öffnet das Panel wieder wenn Controller-Modus aktiv ist
 function showControllerPanel() {
   if (!moverX) return; // Nur wenn Controller-Modus aktiv
-  var controllerContainer = document.getElementById("controllerContainer");
-  var controllerList = document.getElementById("controllerList");
+  var controllerContainer = DOM.controllerContainer;
+  var controllerList = DOM.controllerList;
   if (controllerContainer) {
     controllerContainer.style.visibility = "visible";
   }
@@ -16755,7 +16778,7 @@ function showControllerPanel() {
 
 // Prüft ob das Controller-Panel sichtbar ist
 function isControllerPanelVisible() {
-  var controllerContainer = document.getElementById("controllerContainer");
+  var controllerContainer = DOM.controllerContainer;
   return controllerContainer && controllerContainer.style.visibility !== "hidden";
 }
 
@@ -16763,11 +16786,11 @@ function mout() {
   toggle10.state("radio");
   toggle11.state("airports");
   panelState = "";
-  var controllerOverlay = document.getElementById("controllerContainer");
+  var controllerOverlay = DOM.controllerContainer;
   controllerOverlay.style.visibility = "hidden";
   moverX = false;
   window.moverX = false; // Expose to kneeboard.js for polling control
-  var list = document.getElementById("controllerList");
+  var list = DOM.controllerList;
   list.style.visibility = "hidden";
 
   // Hide control zones when panel is closed
@@ -17638,11 +17661,13 @@ function removeAllWaypointLayers() {
   var layersToRemove = [];
 
   // Erst alle zu löschenden Layers sammeln (nicht während Iteration löschen!)
-  $.each(map._layers, function (layerId, layer) {
+  var layerIds = Object.keys(map._layers);
+  for (var li = 0; li < layerIds.length; li++) {
+    var layer = map._layers[layerIds[li]];
     if (layer && layer.feature && layer.feature.mytype === "waypoint") {
       layersToRemove.push(layer);
     }
-  });
+  }
 
   // Dann alle gesammelten Layers entfernen
   layersToRemove.forEach(function(layer) {
@@ -17802,16 +17827,18 @@ function removeAllMarkersAndClearServer() {
   deleted = true;
 
   // Remove waypoint layers from map
-  $.each(map._layers, function (ml) {
+  var _layerIds = Object.keys(map._layers);
+  for (var _li = 0; _li < _layerIds.length; _li++) {
+    var _layer = map._layers[_layerIds[_li]];
     if (
-      map._layers[ml].feature &&
-      map._layers[ml].feature.mytype != "airport" &&
-      map._layers[ml].feature.mytype != "navaid" &&
-      map._layers[ml].feature.mytype != "reportingPoint"
+      _layer.feature &&
+      _layer.feature.mytype != "airport" &&
+      _layer.feature.mytype != "navaid" &&
+      _layer.feature.mytype != "reportingPoint"
     ) {
-      map.removeLayer(this);
+      map.removeLayer(_layer);
     }
-  });
+  }
 
   // Clear all cached waypoint data
   removeCachedItem("clickedPoints");
@@ -17944,17 +17971,18 @@ function deleteProcedureMarkers() {
   var markersToRemove = [];
 
   // First collect markers to remove (don't modify while iterating)
-  $.each(map._layers, function (ml) {
-    var layer = map._layers[ml];
-    if (layer && layer.feature) {
-      var wpType = (layer.options && layer.options.waypointType) || '';
+  var _layerIds = Object.keys(map._layers);
+  for (var _li = 0; _li < _layerIds.length; _li++) {
+    var _layer = map._layers[_layerIds[_li]];
+    if (_layer && _layer.feature) {
+      var wpType = (_layer.options && _layer.options.waypointType) || '';
       wpType = String(wpType).toUpperCase();
       // Remove DEP and ARR procedure markers
       if (wpType.indexOf('DEP') === 0 || wpType.indexOf('ARR') === 0 || wpType === 'RWY') {
-        markersToRemove.push(layer);
+        markersToRemove.push(_layer);
       }
     }
-  });
+  }
 
   // Now remove them
   markersToRemove.forEach(function(layer) {
@@ -17976,16 +18004,18 @@ function deleteProcedureMarkers() {
 function deleteAllMarkers() {
   WpBlocked = false;
   deleted = true;
-  $.each(map._layers, function (ml) {
+  var _layerIds2 = Object.keys(map._layers);
+  for (var _li2 = 0; _li2 < _layerIds2.length; _li2++) {
+    var _layer2 = map._layers[_layerIds2[_li2]];
     if (
-      map._layers[ml].feature &&
-      map._layers[ml].feature.mytype != "airport" &&
-      map._layers[ml].feature.mytype != "navaid" &&
-      map._layers[ml].feature.mytype != "reportingPoint"
+      _layer2.feature &&
+      _layer2.feature.mytype != "airport" &&
+      _layer2.feature.mytype != "navaid" &&
+      _layer2.feature.mytype != "reportingPoint"
     ) {
-      map.removeLayer(this);
+      map.removeLayer(_layer2);
     }
-  });
+  }
   // MIGRIERT: Versionierte Cache-Wrapper verwenden
   removeCachedItem("clickedPoints");
   removeCachedItem("altitudes");
@@ -18246,7 +18276,7 @@ function calcMiddleLatLng(map, latlng1, latlng2) {
 
 function createMiddleMarkers(line) {
   middleMarkers.clearLayers();
-  $("#overlayListSum").empty();
+  var _ols = DOM.overlayListSum; if (_ols) _ols.innerHTML = "";
   if (map && !map.hasLayer(middleMarkers)) {
     middleMarkers.addTo(map);
   }
@@ -18430,11 +18460,10 @@ function createMiddleMarkers(line) {
     middleMarker.addTo(middleMarkers);
   }
   // Only show overlayListSum if we have at least 2 waypoints (1 segment)
-  var overlayListSumEl = document.getElementById("overlayListSum");
+  var overlayListSumEl = DOM.overlayListSum;
   if (latlngs.length >= 2) {
-    $("#overlayListSum").append(
-      "<b>Total:</b >&nbsp;" + gesDist.toFixed(2) + " nm"
-    );
+    var _olsEl = DOM.overlayListSum;
+    if (_olsEl) _olsEl.insertAdjacentHTML("beforeend", "<b>Total:</b >&nbsp;" + gesDist.toFixed(2) + " nm");
     if (overlayListSumEl) overlayListSumEl.style.display = "";
   } else {
     if (overlayListSumEl) overlayListSumEl.style.display = "none";
@@ -18460,9 +18489,9 @@ var wpListMinimized = false;
 var controllerListMinimized = false;
 
 function minimizeWpList() {
-  var overlayEl = document.getElementById("overlay");
-  var overlayList = document.getElementById("overlayList");
-  var overlayListSum = document.getElementById("overlayListSum");
+  var overlayEl = DOM.overlay;
+  var overlayList = DOM.overlayList;
+  var overlayListSum = DOM.overlayListSum;
   var minimizeBtn = document.getElementById("wpListMinimize");
 
   // Alle Sections die beim Minimieren versteckt werden sollen
@@ -18534,9 +18563,9 @@ function minimizeWpList() {
 }
 
 function minimizeControllerList() {
-  var controllerContainer = document.getElementById("controllerContainer");
-  var controllerList = document.getElementById("controllerList");
-  var controllerListSum = document.getElementById("controllerListSum");
+  var controllerContainer = DOM.controllerContainer;
+  var controllerList = DOM.controllerList;
+  var controllerListSum = DOM.controllerListSum;
   var minimizeBtn = document.getElementById("controllerListMinimize");
 
   if (!controllerListMinimized) {
@@ -18575,15 +18604,15 @@ function minimizeControllerList() {
 
 function hideWpList() {
   wpListOn = false;
-  var overlayEl = document.getElementById("overlay");
+  var overlayEl = DOM.overlay;
   if (overlayEl) {
     overlayEl.style.display = "none";
     overlayEl.style.visibility = "hidden";
   }
   // Banner visibility now controlled by SimConnect status only
-  document.getElementById("overlay").style.visibility = "hidden";
-  document.getElementById("overlayList").style.visibility = "hidden";
-  $(".leaflet-geosearch-bar").css("top", 0);
+  DOM.overlay.style.visibility = "hidden";
+  DOM.overlayList.style.visibility = "hidden";
+  var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "0px";
 }
 
 function showWpList(force) {
@@ -18618,10 +18647,10 @@ function showWpList(force) {
 
   if (activeCount >= 1) {
     wpListOn = true;
-    var overlayEl = document.getElementById("overlay");
-    var bannerEl = document.getElementById("banner");
-    var containerEl = document.getElementById("overlay");
-    var listEl = document.getElementById("overlayList");
+    var overlayEl = DOM.overlay;
+    var bannerEl = DOM.banner;
+    var containerEl = DOM.overlay;
+    var listEl = DOM.overlayList;
 
     if (MAP_DEBUG) console.log('[Map] showWpList - Elements found:', {
       overlay: !!overlayEl,
@@ -18641,7 +18670,7 @@ function showWpList(force) {
       listEl.style.display = "";
       listEl.style.visibility = "visible";
     }
-    var footerEl = document.getElementById("overlayListSum");
+    var footerEl = DOM.overlayListSum;
     if (footerEl) {
       footerEl.style.display = "";
       footerEl.style.visibility = "visible";
@@ -18649,7 +18678,7 @@ function showWpList(force) {
     wpListMinimized = false;
     var wpMinBtn = document.getElementById("wpListMinimize");
     if (wpMinBtn) wpMinBtn.innerHTML = "_";
-    $(".leaflet-geosearch-bar").css("top", 72);
+    var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "72px";
 
     if (MAP_DEBUG) console.log('[Map] Waypoint list shown - wpListOn:', wpListOn);
   } else {
@@ -18812,21 +18841,18 @@ function setPosition(lat, lng) {
 }
 
 function setRotation(deg) {
-  $("#imageAirplane").css(
-    "transform",
-    "rotate(" + Math.round(deg - 45) + "deg)  scale(" + aircraftScale + ")"
-  );
-  $("#imageAirplane").css("fill", colorLight);
+  var _imgAP = DOM.imageAirplane;
+  if (_imgAP) {
+    _imgAP.style.transform = "rotate(" + Math.round(deg - 45) + "deg)  scale(" + aircraftScale + ")";
+    _imgAP.style.fill = colorLight;
+  }
 }
 
 function setWind(direction, speed) {
-  $("i#arrow").css(
-    "transform",
-    "translate(-50%, -50%) rotate(" + Math.round(direction) + "deg) scale(calc(var(--iconScale) * 6.0))"
-  );
-  $("#windIndicator").text(
-    Math.round(direction) + "/" + Math.round(speed)
-  );
+  var _arrow = document.querySelector("i#arrow");
+  if (_arrow) _arrow.style.transform = "translate(-50%, -50%) rotate(" + Math.round(direction) + "deg) scale(calc(var(--iconScale) * 6.0))";
+  var _windInd = document.getElementById("windIndicator");
+  if (_windInd) _windInd.textContent = Math.round(direction) + "/" + Math.round(speed);
 }
 
 function getTeleportInputValue(elementId) {
@@ -26302,7 +26328,7 @@ function openControllerPopup(controllerInfo) {
 }
 
 function listControllers() {
-  var list = document.getElementById("controllerList");
+  var list = DOM.controllerList;
   if (!list) {
     return;
   }
@@ -26310,7 +26336,7 @@ function listControllers() {
   if (!listUl) {
     return;
   }
-  $(listUl).empty();
+  listUl.innerHTML = "";
   // Nur anzeigen wenn nicht minimiert
   if (!controllerListMinimized) {
     list.style.display = "inline-block";
@@ -26404,29 +26430,32 @@ function listControllers() {
   listUl.appendChild(fragment);
 
   // Hide "show more" button for VATSIM/IVAO controllers
-  var listSum = document.getElementById("controllerListSum");
+  var listSum = DOM.controllerListSum;
   if (listSum) {
     listSum.innerHTML = "";
     listSum.style.display = "none";
   }
 
-  // Add event handlers for new kneeboard-list-item structure
-  $(listUl).off("click", ".kneeboard-list-item");
-  $(listUl).on("click", ".kneeboard-list-item", function(e) {
-    var callsign = this.id;
-    var index = controllersInRange.findIndex((x) => x.callsign === callsign);
+  // Click handler via delegation on listUl
+  listUl.addEventListener("click", function(e) {
+    var item = e.target.closest(".kneeboard-list-item");
+    if (!item) return;
+
+    var callsign = item.id;
+    var index = controllersInRange.findIndex(function(x) { return x.callsign === callsign; });
 
     // Remove active class from all items and remove ATIS
-    $(listUl).find(".kneeboard-list-item").removeClass("active");
-    $(listUl).find(".atis-info").remove();
+    var allItems = listUl.querySelectorAll(".kneeboard-list-item");
+    allItems.forEach(function(el) { el.classList.remove("active"); });
+    var allAtis = listUl.querySelectorAll(".atis-info");
+    allAtis.forEach(function(el) { el.parentNode.removeChild(el); });
 
     if (lastSelected != callsign && callsign != "UNICOM") {
-      // Mark this item as active
-      $(this).addClass("active");
+      item.classList.add("active");
 
       selected = true;
       lastSelected = callsign;
-      lastSelectedElement = this;
+      lastSelectedElement = item;
 
       if (index != -1) {
         var controllerInfo = controllersInRange[index];
@@ -26436,7 +26465,7 @@ function listControllers() {
 
         if (hasAtis) {
           var normalizedLines = Array.isArray(atisLines) ? atisLines : [atisLines];
-          normalizedLines.forEach(function (element) {
+          normalizedLines.forEach(function(element) {
             if (element) {
               atisString += element + "<br>";
             }
@@ -26444,19 +26473,13 @@ function listControllers() {
         }
 
         if (atisString) {
-          // Add ATIS using new structure
-          var atisHtml = '<div class="atis-info">' + atisString + '</div>';
-          $(this).append(atisHtml);
+          item.insertAdjacentHTML("beforeend", '<div class="atis-info">' + atisString + '</div>');
         } else if (vatsim) {
-          // Only show "no ATIS" message for VATSIM
-          var atisHtml = '<div class="atis-info">Keine ATIS-Daten verfügbar</div>';
-          $(this).append(atisHtml);
+          item.insertAdjacentHTML("beforeend", '<div class="atis-info">Keine ATIS-Daten verfügbar</div>');
         }
 
-        // Zur Controller-Position pannen und Popup öffnen
         if (controllerInfo.lat && controllerInfo.lng) {
           map.panTo([controllerInfo.lat, controllerInfo.lng]);
-          // Suche und öffne Popup für diese Control Zone
           openControllerPopup(controllerInfo);
         }
       }
@@ -26466,7 +26489,6 @@ function listControllers() {
         controllerInterval = null;
       }
     } else if (callsign != "UNICOM") {
-      // Toggle off - remove ATIS
       selected = false;
       lastSelected = -1;
       lastSelectedElement = null;
@@ -26475,15 +26497,16 @@ function listControllers() {
     }
   });
 
-  // Context menu handler for frequency setting (right-click)
-  $(listUl).off("contextmenu", ".kneeboard-list-item");
-  $(listUl).on("contextmenu", ".kneeboard-list-item", function(e) {
+  // Context menu handler for frequency setting (right-click) via delegation
+  listUl.addEventListener("contextmenu", function(e) {
+    var item = e.target.closest(".kneeboard-list-item");
+    if (!item) return;
+
     e.preventDefault();
     e.stopPropagation();
 
-    var $item = $(this);
-    var frequency = $item.data('frequency');
-    var callsign = this.id;
+    var frequency = item.getAttribute("data-frequency");
+    var callsign = item.id;
 
     if (!frequency) {
       console.warn('[Frequency Menu] No frequency data on element');
@@ -26677,7 +26700,7 @@ var reportingPointsCounter = 10;
 var stationListClickAttached = false;
 
 function calculateOptimalListCount() {
-  var list = document.getElementById("controllerList");
+  var list = DOM.controllerList;
   if (!list) return 10;
 
   var containerHeight = list.clientHeight;
@@ -27092,11 +27115,11 @@ function getNavaidTypeLabel(typeId) {
 }
 
 function listNavaids() {
-  var list = document.getElementById("controllerList");
+  var list = DOM.controllerList;
   var listRoot =
     document.getElementById("controllerListUl") ||
     (list ? list.querySelector("ul") : null);
-  var listSum = document.getElementById("controllerListSum");
+  var listSum = DOM.controllerListSum;
   if (!list || !listRoot) {
     return;
   }
@@ -27556,12 +27579,12 @@ function renderAirportsLayer(featureCollection) {
       airportElevation = "";
       airportElevation += elevation + "&apos;";
       if (feature.properties.runways) {
-        $.each(feature.properties.runways, function (runway) {
+        for (var _ri = 0; _ri < feature.properties.runways.length; _ri++) {
           runwayLabels +=
-            String(feature.properties.runways[runway].designator) +
+            String(feature.properties.runways[_ri].designator) +
             "&nbsp;" +
             "<br>";
-        });
+        }
       }
       const airportPopup = L.popup({
         closeOnClick: false,

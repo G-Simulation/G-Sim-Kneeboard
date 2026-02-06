@@ -49,60 +49,58 @@ var saveVal; // Debounce timer für saveValues
 			console.warn("[Formulas] Container element not found, aborting init.");
 			return;
 		}
-		if (typeof $ !== "function") {
-			console.error("[Formulas] jQuery missing, cannot bind inputs.");
-			return;
-		}
-		const $formulas = $(formulasContainer);
+		// Textarea parent TD click - open keyboard
+		var textareaTds = formulasContainer.querySelectorAll("textarea");
+		textareaTds.forEach(function(ta) {
+			var td = ta.parentNode;
+			if (td && td.tagName === "TD") {
+				td.addEventListener("click", function() {
+					var textarea = td.querySelector("textarea:first-child");
+					if (!textarea) return;
+					textarea.focus();
+					setCaretToPos(textarea, -1);
+					window.Keyboard.open(textarea.value, function(currentValue) {
+						textarea.value = currentValue;
+						var inputEvt;
+						try {
+							inputEvt = new InputEvent('input', { bubbles: true, data: currentValue, inputType: 'insertText' });
+						} catch (err) {
+							inputEvt = new Event('input', { bubbles: true });
+						}
+						textarea.dispatchEvent(inputEvt);
+					}, textarea);
+				});
 
-		$formulas.find('textarea').parent('td').on('click', function () {
-			var textarea = $(this).find('textarea:first-child');
-			if (!textarea.length) {
-				return;
+				td.addEventListener("dblclick", function() {
+					var textarea = td.querySelector("textarea:first-child");
+					if (!textarea) return;
+					textarea.focus();
+					textarea.select();
+					window.Keyboard.open(textarea.value, function(currentValue) {
+						textarea.value = currentValue;
+						var inputEvt;
+						try {
+							inputEvt = new InputEvent('input', { bubbles: true, data: currentValue, inputType: 'insertText' });
+						} catch (err) {
+							inputEvt = new Event('input', { bubbles: true });
+						}
+						textarea.dispatchEvent(inputEvt);
+					}, textarea);
+				});
 			}
-			var el = textarea.get(0);
-			textarea.focus();
-			setCaretToPos(textarea, -1);
-			window.Keyboard.open(el.value, function (currentValue) {
-				el.value = currentValue;
-				var inputEvt;
-				try {
-					inputEvt = new InputEvent('input', { bubbles: true, data: currentValue, inputType: 'insertText' });
-				} catch (err) {
-					inputEvt = new Event('input', { bubbles: true });
-				}
-				el.dispatchEvent(inputEvt);
-			}, el);
 		});
 
-		$formulas.find('textarea').parent('td').on('dblclick', function () {
-			var textarea = $(this).find('textarea:first-child');
-			if (!textarea.length) {
-				return;
-			}
-			var el = textarea.get(0);
-			textarea.focus();
-			textarea.select();
-			window.Keyboard.open(el.value, function (currentValue) {
-				el.value = currentValue;
-				var inputEvt;
-				try {
-					inputEvt = new InputEvent('input', { bubbles: true, data: currentValue, inputType: 'insertText' });
-				} catch (err) {
-					inputEvt = new Event('input', { bubbles: true });
-				}
-				el.dispatchEvent(inputEvt);
-			}, el);
-		});
-
-		$formulas.find('input, textarea').on('input', function () {
-			id2 = this.id; // merkt sich das aktive Feld
-			calculate();
-		});
-
-		$formulas.find('input, textarea').on('change', function () {
-			id2 = this.id;
-			calculate();
+		// Input/change handlers for all inputs and textareas
+		var inputFields = formulasContainer.querySelectorAll("input, textarea");
+		inputFields.forEach(function(field) {
+			field.addEventListener("input", function() {
+				id2 = this.id;
+				calculate();
+			});
+			field.addEventListener("change", function() {
+				id2 = this.id;
+				calculate();
+			});
 		});
 	};
 

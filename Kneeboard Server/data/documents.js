@@ -1095,7 +1095,8 @@ function getDocumentsList(skipInitialLoad) {
                 });
 
                 // UI leeren
-                $('#docList > ul').empty();
+                var _docListUl = document.querySelector('#docList > ul');
+                if (_docListUl) _docListUl.innerHTML = "";
                 var folderId = 0;
                 var lastFolder = "";
 
@@ -1120,7 +1121,7 @@ function getDocumentsList(skipInitialLoad) {
                         if (lastFolder !== folderName) {
                             var isClosed = foldersClosed.includes(folderName);
                             var folderStateClass = isClosed ? 'closed' : 'open';
-                            $('#docList > ul').append(
+                            if (_docListUl) _docListUl.insertAdjacentHTML("beforeend",
                                 '<div id="folder_' + folderId + '" class="folder-header folder ' + folderStateClass + '" data-folder="' + folderName + '">' +
                                 folderName +
                                 '</div>'
@@ -1131,7 +1132,7 @@ function getDocumentsList(skipInitialLoad) {
 
                         // Datei-Eintrag
                         if (!foldersClosed.includes(folderName)) {
-                            $('#docList > ul').append(
+                            if (_docListUl) _docListUl.insertAdjacentHTML("beforeend",
                                 '<li id="' + docId + '" class="kneeboard-list-item target folder-item" data-folder="' + folderName + '">' +
                                 '<i class="kneeboard-list-item-icon"></i>' +
                                 '<div class="kneeboard-list-item-content">' +
@@ -1142,7 +1143,7 @@ function getDocumentsList(skipInitialLoad) {
                         }
                     } else {
                         // Kein Ordner, nur Dateiname
-				$('#docList > ul').append(
+				if (_docListUl) _docListUl.insertAdjacentHTML("beforeend",
 							'<li id="' + docId + '" class="kneeboard-list-item target">' +
 							'<i class="kneeboard-list-item-icon"></i>' +
 							'<div class="kneeboard-list-item-content">' +
@@ -1160,39 +1161,45 @@ function getDocumentsList(skipInitialLoad) {
 				updateDocumentsOverlayVisibility();
 
 				// Klick-Handler
-				$('.target').on("click", function (event) {
-					event.preventDefault();
-					$('.target').css('color', 'black');
-					$('.folder').css('color', 'black');
+				document.querySelectorAll(".target").forEach(function(el) {
+					el.addEventListener("click", function(event) {
+						event.preventDefault();
+						document.querySelectorAll(".target").forEach(function(t) { t.style.color = "black"; });
+						document.querySelectorAll(".folder").forEach(function(f) { f.style.color = "black"; });
 
-                    $(this).css('color', 'red');
+						el.style.color = "red";
 
-                    var docNumber = parseInt(this.id, 10);
-                    if (!isNaN(docNumber)) {
-                        loadDocumentByIndex(docNumber - 1);
-                    }
-                });
+						var docNumber = parseInt(el.id, 10);
+						if (!isNaN(docNumber)) {
+							loadDocumentByIndex(docNumber - 1);
+						}
+					});
+				});
 
                 // Folder-Header Click Handler - Toggle Open/Closed
-                $('.folder-header').off('click').on("click", function (event) {
-                    event.preventDefault();
-                    var folderLabel = $(this).attr('data-folder') || $(this).text().trim();
-                    if (!folderLabel) {
-                        return;
-                    }
+                document.querySelectorAll(".folder-header").forEach(function(fh) {
+                    fh.addEventListener("click", function(event) {
+                        event.preventDefault();
+                        var folderLabel = fh.getAttribute("data-folder") || fh.textContent.trim();
+                        if (!folderLabel) {
+                            return;
+                        }
 
-                    // Toggle folder state
-                    if (!foldersClosed.includes(folderLabel)) {
-                        foldersClosed.push(folderLabel);
-                        $(this).removeClass('open').addClass('closed');
-                    }
-                    else {
-                        foldersClosed = foldersClosed.filter(item => item !== folderLabel);
-                        $(this).removeClass('closed').addClass('open');
-                    }
+                        // Toggle folder state
+                        if (!foldersClosed.includes(folderLabel)) {
+                            foldersClosed.push(folderLabel);
+                            fh.classList.remove("open");
+                            fh.classList.add("closed");
+                        }
+                        else {
+                            foldersClosed = foldersClosed.filter(function(item) { return item !== folderLabel; });
+                            fh.classList.remove("closed");
+                            fh.classList.add("open");
+                        }
 
-                    localStorage.setItem("foldersClosed", JSON.stringify(foldersClosed));
-                    getDocumentsList(true);
+                        localStorage.setItem("foldersClosed", JSON.stringify(foldersClosed));
+                        getDocumentsList(true);
+                    });
                 });
 				if (skipInitialLoad) {
                     if (autoOpenFirstDocumentPending) {
@@ -1356,8 +1363,8 @@ function maybeRefreshDocumentsList(forceImmediate) {
 }
 
 	function setListItem() {
-		$('.target').css('color', 'black');
-		$('.folder').css('color', 'black');
+		document.querySelectorAll(".target").forEach(function(el) { el.style.color = "black"; });
+		document.querySelectorAll(".folder").forEach(function(el) { el.style.color = "black"; });
 		if (document.getElementById(myState.currentDoc + 1)) {
 			var ul = document.getElementById(myState.currentDoc + 1);
 			ul.style.color = "red";
@@ -1401,12 +1408,14 @@ function maybeRefreshDocumentsList(forceImmediate) {
 
 		loadDocumentByIndex(storedDocIndex, storedPage);
 
-		$("ul.menu li a").click(function () {
-			var tabclicked = $(this).attr("href");
-			//alert(tabclicked);
+		document.querySelectorAll("ul.menu li a").forEach(function(a) {
+			a.addEventListener("click", function() {
+				var tabclicked = a.getAttribute("href");
+			});
 		});
 
-		$("ul.menu li:first-child a").click();
+		var firstMenuLink = document.querySelector("ul.menu li:first-child a");
+		if (firstMenuLink) firstMenuLink.click();
 	}
 	// Toolbar functions
 	function changePort() {
