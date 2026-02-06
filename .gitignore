@@ -311,6 +311,12 @@ MigrationBackup/
 # Fody
 FodyWeavers.xsd
 
+# Navigraph database files (too large for GitHub)
+*.s3db
+
+# OpenAIP cache
+Kneeboard Server/cache/
+
 # Kneeboard Server specific ignores
 Kneeboard Server/bin/x64/Debug/Kneeboard Server.exe
 Kneeboard Server/bin/x64/Debug/Kneeboard Server.exe.CodeAnalysisLog.xml
