@@ -9,11 +9,11 @@ namespace Kneeboard_Server
         private const string PackageName = "gsimulations-kneeboard";
 
         /// <summary>
-        /// Gibt den Quellpfad des EFB-Pakets im Installationsverzeichnis zurück.
+        /// Gibt den Quellpfad des Kneeboard-Pakets im Installationsverzeichnis zurück.
         /// </summary>
         public static string GetSourcePath()
         {
-            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "EFB", PackageName);
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Kneeboard", PackageName);
         }
 
         /// <summary>
@@ -86,7 +86,7 @@ namespace Kneeboard_Server
         }
 
         /// <summary>
-        /// Kopiert das EFB-Paket in den Community-Ordner.
+        /// Kopiert das Kneeboard-Paket in den Community-Ordner.
         /// </summary>
         public static void DeployPanel(string communityPath, IProgress<string> progress)
         {
@@ -95,7 +95,7 @@ namespace Kneeboard_Server
 
             if (!Directory.Exists(sourcePath))
                 throw new DirectoryNotFoundException(
-                    $"EFB source not found: {sourcePath}");
+                    $"Kneeboard source not found: {sourcePath}");
 
             if (!Directory.Exists(communityPath))
                 throw new DirectoryNotFoundException(

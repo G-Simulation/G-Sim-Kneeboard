@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.IO.Compression;
+using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -54,16 +55,21 @@ namespace Kneeboard_Server
             Timeout = TimeSpan.FromSeconds(15)
         };
 
-        // Source-Verzeichnis (bin\x64\Debug -> Projekt-Root)
-        private static readonly string SOURCE_DIR = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\.."));
+        // Source-Verzeichnis: Statische Daten (data\) liegen neben der exe
+        private static readonly string SOURCE_DIR = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+
+        // Cache-Verzeichnis: %LOCALAPPDATA% statt ProgramData (Schreibrechte ohne Admin)
+        private static readonly string CACHE_BASE_DIR = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Gsimulations", "Kneeboard Server", "cache");
 
         // OpenAIP Cache Configuration
-        private static readonly string CACHE_DIR = Path.Combine(SOURCE_DIR, "cache", "openaip");
+        private static readonly string CACHE_DIR = Path.Combine(CACHE_BASE_DIR, "openaip");
         private static readonly TimeSpan CACHE_TTL = TimeSpan.FromDays(7);
         private static readonly object _cacheLock = new object();
 
         // FIR Boundaries - Permanente lokale Speicherung mit 7-Tage Auto-Update
-        private static readonly string BOUNDARIES_CACHE_DIR = Path.Combine(SOURCE_DIR, "cache", "boundaries");
+        private static readonly string BOUNDARIES_CACHE_DIR = Path.Combine(CACHE_BASE_DIR, "boundaries");
         private static readonly string BOUNDARIES_DATA_DIR = Path.Combine(SOURCE_DIR, "data", "boundaries");
         private static readonly TimeSpan BOUNDARIES_CACHE_TTL = TimeSpan.FromDays(7); // 7 Tage statt 24h
         private static string _cachedVatsimBoundaries = null;
@@ -91,11 +97,11 @@ namespace Kneeboard_Server
         private static DateTime _preprocessedIvaoBoundariesTime = DateTime.MinValue;
 
         // Pilot Favorites Storage
-        private static readonly string FAVORITES_FILE = Path.Combine(SOURCE_DIR, "cache", "pilot_favorites.json");
+        private static readonly string FAVORITES_FILE = Path.Combine(CACHE_BASE_DIR, "pilot_favorites.json");
         private static readonly object _favoritesLock = new object();
 
         // Baselayer Tile Cache Configuration
-        private static readonly string BASELAYER_CACHE_DIR = Path.Combine(SOURCE_DIR, "cache", "tiles");
+        private static readonly string BASELAYER_CACHE_DIR = Path.Combine(CACHE_BASE_DIR, "tiles");
         private static readonly TimeSpan BASELAYER_CACHE_TTL = TimeSpan.FromDays(30); // 30 Tage Cache für Baselayer
         private static readonly object _baselayerCacheLock = new object();
 
@@ -430,6 +436,7 @@ namespace Kneeboard_Server
             try
             {
                 _server?.Dispose();
+                DisposeSrtmCache();
             }
             catch (Exception ex)
             {
@@ -704,7 +711,7 @@ namespace Kneeboard_Server
         // Elevation cache - stores elevation values by rounded coordinates
         private static readonly Dictionary<string, double> _elevationCache = new Dictionary<string, double>();
         private static readonly object _elevationCacheLock = new object();
-        private static readonly string _elevationCacheDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "elevation");
+        private static readonly string _elevationCacheDir = Path.Combine(CACHE_BASE_DIR, "elevation");
         private static DateTime _lastElevationApiCall = DateTime.MinValue;
         private static readonly TimeSpan _elevationApiMinInterval = TimeSpan.FromMilliseconds(500);
 
@@ -779,7 +786,14 @@ namespace Kneeboard_Server
         }
 
         // SRTM elevation data support
-        private static readonly string _srtmDataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "srtm");
+        private static readonly string _srtmDataDir = Path.Combine(CACHE_BASE_DIR, "srtm");
+
+        // MemoryMappedFile-Cache: Tile einmal öffnen, für alle weiteren Reads im RAM halten
+        private static readonly Dictionary<string, (MemoryMappedFile mmf, MemoryMappedViewAccessor accessor, int samples)> _srtmTileCache
+            = new Dictionary<string, (MemoryMappedFile, MemoryMappedViewAccessor, int)>();
+        private static readonly object _srtmTileCacheLock = new object();
+        // Merke Tiles, die nicht existieren (404 bei Download = Ozean)
+        private static readonly HashSet<string> _srtmMissingTiles = new HashSet<string>();
 
         public static int GetSrtmFileCount()
         {
@@ -795,67 +809,152 @@ namespace Kneeboard_Server
             }
         }
 
+        /// <summary>
+        /// Gibt den MemoryMappedViewAccessor und samples-Zahl für ein SRTM-Tile zurück.
+        /// Cached: erstes Öffnen ~1ms, alle weiteren Zugriffe ~0.001ms.
+        /// </summary>
+        private static (MemoryMappedViewAccessor accessor, int samples)? GetSrtmTileAccessor(string fileName, string filePath)
+        {
+            lock (_srtmTileCacheLock)
+            {
+                if (_srtmTileCache.TryGetValue(fileName, out var cached))
+                    return (cached.accessor, cached.samples);
+
+                if (_srtmMissingTiles.Contains(fileName))
+                    return null;
+            }
+
+            // Außerhalb des Locks: Datei prüfen und öffnen
+            if (!File.Exists(filePath))
+            {
+                lock (_srtmTileCacheLock) { _srtmMissingTiles.Add(fileName); }
+                return null;
+            }
+
+            var fileInfo = new FileInfo(filePath);
+            int samples;
+            if (fileInfo.Length == 1201 * 1201 * 2)
+                samples = 1201; // SRTM3
+            else if (fileInfo.Length == 3601 * 3601 * 2)
+                samples = 3601; // SRTM1
+            else
+                return null;
+
+            try
+            {
+                var mmf = MemoryMappedFile.CreateFromFile(filePath, FileMode.Open, null, 0, MemoryMappedFileAccess.Read);
+                var accessor = mmf.CreateViewAccessor(0, fileInfo.Length, MemoryMappedFileAccess.Read);
+
+                lock (_srtmTileCacheLock)
+                {
+                    // Double-check nach Lock
+                    if (!_srtmTileCache.ContainsKey(fileName))
+                    {
+                        _srtmTileCache[fileName] = (mmf, accessor, samples);
+                    }
+                    else
+                    {
+                        accessor.Dispose();
+                        mmf.Dispose();
+                        var existing = _srtmTileCache[fileName];
+                        return (existing.accessor, existing.samples);
+                    }
+                }
+                return (accessor, samples);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Liest einen Big-Endian Int16-Wert vom MemoryMappedViewAccessor.
+        /// </summary>
+        private static short ReadBigEndianInt16(MemoryMappedViewAccessor accessor, long offset)
+        {
+            byte b0 = accessor.ReadByte(offset);
+            byte b1 = accessor.ReadByte(offset + 1);
+            return (short)((b0 << 8) | b1);
+        }
+
         public static double? GetSrtmElevation(double lat, double lon)
         {
             try
             {
-                // SRTM file naming: N50E007.hgt for 50°N, 7°E
                 int latInt = (int)Math.Floor(lat);
                 int lonInt = (int)Math.Floor(lon);
 
                 string latPrefix = lat >= 0 ? "N" : "S";
                 string lonPrefix = lon >= 0 ? "E" : "W";
-
                 string fileName = $"{latPrefix}{Math.Abs(latInt):D2}{lonPrefix}{Math.Abs(lonInt):D3}.hgt";
                 string filePath = Path.Combine(_srtmDataDir, fileName);
 
-                if (!File.Exists(filePath))
-                    return null;
+                var tile = GetSrtmTileAccessor(fileName, filePath);
+                if (tile == null) return null;
 
-                // SRTM3 (3 arc-second): 1201 x 1201 samples per tile
-                // SRTM1 (1 arc-second): 3601 x 3601 samples per tile
-                var fileInfo = new FileInfo(filePath);
-                int samples;
-                if (fileInfo.Length == 1201 * 1201 * 2) // SRTM3
-                    samples = 1201;
-                else if (fileInfo.Length == 3601 * 3601 * 2) // SRTM1
-                    samples = 3601;
-                else
-                    return null; // Unknown format
+                var accessor = tile.Value.accessor;
+                int samples = tile.Value.samples;
 
-                // Calculate position within tile
+                // Bilineare Interpolation für glatteres Höhenprofil
                 double latFrac = lat - latInt;
                 double lonFrac = lon - lonInt;
 
-                // Row increases from bottom to top (south to north)
-                int row = (int)((1 - latFrac) * (samples - 1));
-                int col = (int)(lonFrac * (samples - 1));
+                double rowExact = (1 - latFrac) * (samples - 1);
+                double colExact = lonFrac * (samples - 1);
 
-                // Clamp to valid range
-                row = Math.Max(0, Math.Min(samples - 1, row));
-                col = Math.Max(0, Math.Min(samples - 1, col));
+                int row0 = Math.Min((int)rowExact, samples - 2);
+                int col0 = Math.Min((int)colExact, samples - 2);
+                int row1 = row0 + 1;
+                int col1 = col0 + 1;
 
-                // Read elevation value (big-endian 16-bit signed integer)
-                long offset = (row * samples + col) * 2;
-                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                double rowFrac = rowExact - row0;
+                double colFrac = colExact - col0;
+
+                // 4 Nachbarpunkte lesen
+                short e00 = ReadBigEndianInt16(accessor, ((long)row0 * samples + col0) * 2);
+                short e01 = ReadBigEndianInt16(accessor, ((long)row0 * samples + col1) * 2);
+                short e10 = ReadBigEndianInt16(accessor, ((long)row1 * samples + col0) * 2);
+                short e11 = ReadBigEndianInt16(accessor, ((long)row1 * samples + col1) * 2);
+
+                // Void-Werte prüfen
+                if (e00 == -32768 || e01 == -32768 || e10 == -32768 || e11 == -32768)
                 {
-                    fs.Seek(offset, SeekOrigin.Begin);
-                    byte[] buffer = new byte[2];
-                    fs.Read(buffer, 0, 2);
-
-                    // Big-endian to little-endian
-                    short elevation = (short)((buffer[0] << 8) | buffer[1]);
-
-                    // SRTM void value is -32768
-                    if (elevation == -32768)
-                        return null;
-
-                    return elevation;
+                    // Fallback: nearest-neighbor wenn ein Nachbar void ist
+                    int row = Math.Max(0, Math.Min(samples - 1, (int)Math.Round(rowExact)));
+                    int col = Math.Max(0, Math.Min(samples - 1, (int)Math.Round(colExact)));
+                    short elev = ReadBigEndianInt16(accessor, ((long)row * samples + col) * 2);
+                    return elev == -32768 ? (double?)null : elev;
                 }
+
+                // Bilineare Interpolation
+                double elevation = e00 * (1 - rowFrac) * (1 - colFrac)
+                                 + e01 * (1 - rowFrac) * colFrac
+                                 + e10 * rowFrac * (1 - colFrac)
+                                 + e11 * rowFrac * colFrac;
+
+                return Math.Round(elevation, 1);
             }
             catch
             {
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Räumt die MemoryMappedFile-Caches auf (bei Server-Stop aufrufen).
+        /// </summary>
+        public static void DisposeSrtmCache()
+        {
+            lock (_srtmTileCacheLock)
+            {
+                foreach (var tile in _srtmTileCache.Values)
+                {
+                    try { tile.accessor.Dispose(); } catch { }
+                    try { tile.mmf.Dispose(); } catch { }
+                }
+                _srtmTileCache.Clear();
+                _srtmMissingTiles.Clear();
             }
         }
 
@@ -876,12 +975,22 @@ namespace Kneeboard_Server
 
         private static CancellationTokenSource _srtmDownloadCts;
 
+        // Dedizierter HttpClient für SRTM-Downloads: Connection Pooling + HTTP Keep-Alive
+        private static readonly HttpClient _srtmHttpClient = new HttpClient(new HttpClientHandler
+        {
+            MaxConnectionsPerServer = 30,
+            AutomaticDecompression = System.Net.DecompressionMethods.None // Wir decomprimieren selbst (GZip-Dateien, nicht HTTP-Kompression)
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(60)
+        };
+
         public static void CancelSrtmDownload()
         {
             _srtmDownloadCts?.Cancel();
         }
 
-        public static void DownloadSrtmRegion(string regionName, IProgress<string> progress)
+        public static async Task DownloadSrtmRegionAsync(string regionName, IProgress<string> progress)
         {
             if (!SrtmRegions.TryGetValue(regionName, out var region))
             {
@@ -889,15 +998,10 @@ namespace Kneeboard_Server
             }
 
             _srtmDownloadCts = new CancellationTokenSource();
-            DownloadSrtmArea(region.minLat, region.maxLat, region.minLon, region.maxLon, progress, _srtmDownloadCts.Token);
+            await DownloadSrtmAreaAsync(region.minLat, region.maxLat, region.minLon, region.maxLon, progress, _srtmDownloadCts.Token);
         }
 
-        public static void DownloadSrtmEurope(IProgress<string> progress)
-        {
-            DownloadSrtmRegion("Europe", progress);
-        }
-
-        public static void DownloadSrtmArea(int minLat, int maxLat, int minLon, int maxLon, IProgress<string> progress, CancellationToken cancellationToken = default)
+        public static async Task DownloadSrtmAreaAsync(int minLat, int maxLat, int minLon, int maxLon, IProgress<string> progress, CancellationToken cancellationToken = default)
         {
             if (!Directory.Exists(_srtmDataDir))
                 Directory.CreateDirectory(_srtmDataDir);
@@ -921,34 +1025,25 @@ namespace Kneeboard_Server
             int downloadedTiles = 0;
             int skippedTiles = 0;
             int errorTiles = 0;
-            object lockObj = new object();
+            long totalBytesDownloaded = 0;
+            var startTime = DateTime.Now;
 
-            // Parallel download with 10 concurrent connections
-            var parallelOptions = new ParallelOptions
-            {
-                MaxDegreeOfParallelism = 10,
-                CancellationToken = cancellationToken
-            };
+            // Semaphore für parallele Downloads (20 gleichzeitig, Connection Pooling via HttpClient)
+            var semaphore = new SemaphoreSlim(20);
 
-            try
+            var tasks = tiles.Select(async tile =>
             {
-                Parallel.ForEach(tiles, parallelOptions, tile =>
+                cancellationToken.ThrowIfCancellationRequested();
+                await semaphore.WaitAsync(cancellationToken);
+                try
                 {
-                    if (cancellationToken.IsCancellationRequested)
-                        return;
-
-                    int current;
-                    lock (lockObj)
-                    {
-                        processedTiles++;
-                        current = processedTiles;
-                    }
+                    int current = Interlocked.Increment(ref processedTiles);
 
                     // Skip if already exists
                     if (File.Exists(tile.filePath))
                     {
-                        lock (lockObj) { skippedTiles++; }
-                        progress?.Report($"{current}/{totalTiles} ({downloadedTiles} new, {skippedTiles} exist)");
+                        Interlocked.Increment(ref skippedTiles);
+                        ReportSrtmProgress(progress, current, totalTiles, downloadedTiles, skippedTiles, totalBytesDownloaded, startTime);
                         return;
                     }
 
@@ -957,42 +1052,56 @@ namespace Kneeboard_Server
                         string latPrefix = tile.lat >= 0 ? "N" : "S";
                         string url = $"https://elevation-tiles-prod.s3.amazonaws.com/skadi/{latPrefix}{Math.Abs(tile.lat):D2}/{tile.fileName}.gz";
 
-                        using (var client = new System.Net.WebClient())
+                        using (var response = await _srtmHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
                         {
-                            string tempFile = tile.filePath + $".{System.Threading.Thread.CurrentThread.ManagedThreadId}.gz";
-                            client.DownloadFile(url, tempFile);
+                            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                            {
+                                // 404 = tile doesn't exist (water/ocean)
+                                Interlocked.Increment(ref skippedTiles);
+                                return;
+                            }
+                            response.EnsureSuccessStatusCode();
 
-                            if (File.Exists(tempFile) && new FileInfo(tempFile).Length > 0)
+                            // Streaming: direkt vom HTTP-Stream dekomprimieren → Datei schreiben (kein temp-File)
+                            using (var httpStream = await response.Content.ReadAsStreamAsync())
+                            using (var gzipStream = new System.IO.Compression.GZipStream(httpStream, System.IO.Compression.CompressionMode.Decompress))
+                            using (var outputStream = new FileStream(tile.filePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
                             {
-                                using (var compressedStream = new FileStream(tempFile, FileMode.Open))
-                                using (var gzipStream = new System.IO.Compression.GZipStream(compressedStream, System.IO.Compression.CompressionMode.Decompress))
-                                using (var outputStream = new FileStream(tile.filePath, FileMode.Create))
-                                {
-                                    gzipStream.CopyTo(outputStream);
-                                }
-                                File.Delete(tempFile);
-                                lock (lockObj) { downloadedTiles++; }
+                                await gzipStream.CopyToAsync(outputStream);
                             }
-                            else
-                            {
-                                if (File.Exists(tempFile)) File.Delete(tempFile);
-                                lock (lockObj) { skippedTiles++; }
-                            }
+
+                            long fileSize = new FileInfo(tile.filePath).Length;
+                            Interlocked.Add(ref totalBytesDownloaded, fileSize);
+                            Interlocked.Increment(ref downloadedTiles);
                         }
                     }
-                    catch (System.Net.WebException ex) when (ex.Response is System.Net.HttpWebResponse resp && resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    catch (HttpRequestException ex) when (ex.Message.Contains("404"))
                     {
-                        // 404 = tile doesn't exist (water/ocean)
-                        lock (lockObj) { skippedTiles++; }
+                        Interlocked.Increment(ref skippedTiles);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"[SRTM] Error downloading {tile.fileName}: {ex.Message}");
-                        lock (lockObj) { errorTiles++; }
+                        Interlocked.Increment(ref errorTiles);
+                        // Unvollständige Datei löschen
+                        try { if (File.Exists(tile.filePath)) File.Delete(tile.filePath); } catch { }
                     }
 
-                    progress?.Report($"{current}/{totalTiles} ({downloadedTiles} new, {skippedTiles} exist)");
-                });
+                    ReportSrtmProgress(progress, current, totalTiles, downloadedTiles, skippedTiles, totalBytesDownloaded, startTime);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }).ToArray();
+
+            try
+            {
+                await Task.WhenAll(tasks);
             }
             catch (OperationCanceledException)
             {
@@ -1000,7 +1109,17 @@ namespace Kneeboard_Server
                 throw;
             }
 
-            progress?.Report($"Done: {downloadedTiles} new, {skippedTiles} exist, {errorTiles} errors");
+            double totalMB = totalBytesDownloaded / (1024.0 * 1024.0);
+            progress?.Report($"Done: {downloadedTiles} new, {skippedTiles} exist, {errorTiles} errors ({totalMB:F1} MB)");
+        }
+
+        private static void ReportSrtmProgress(IProgress<string> progress, int current, int total,
+            int downloaded, int skipped, long totalBytes, DateTime startTime)
+        {
+            double elapsedSec = (DateTime.Now - startTime).TotalSeconds;
+            double mbDownloaded = totalBytes / (1024.0 * 1024.0);
+            string speedInfo = elapsedSec > 1 ? $" - {mbDownloaded / elapsedSec:F1} MB/s" : "";
+            progress?.Report($"{current}/{total} ({downloaded} new, {skipped} exist, {mbDownloaded:F0} MB{speedInfo})");
         }
 
         private async Task HandleElevationProxy(IHttpContext ctx)
@@ -5993,8 +6112,8 @@ namespace Kneeboard_Server
         private static Dictionary<string, string> _iataToIcaoIndex = null;
         private static readonly object _airportIndexLock = new object();
         private static bool _airportIndexLoading = false;
-        private static readonly string GLOBAL_AIRPORTS_CACHE = Path.Combine(SOURCE_DIR, "cache", "global_airports.json");
-        private static readonly string IATA_ICAO_CACHE = Path.Combine(SOURCE_DIR, "cache", "iata_icao_mapping.json");
+        private static readonly string GLOBAL_AIRPORTS_CACHE = Path.Combine(CACHE_BASE_DIR, "global_airports.json");
+        private static readonly string IATA_ICAO_CACHE = Path.Combine(CACHE_BASE_DIR, "iata_icao_mapping.json");
 
         /// <summary>
         /// Starts loading the global airport index in the background.
@@ -6025,20 +6144,30 @@ namespace Kneeboard_Server
 
             try
             {
+                Logging.KneeboardLogger.Server($"[OpenAIP] Cache path: {GLOBAL_AIRPORTS_CACHE}");
+
                 // Try to load from cache first
                 if (File.Exists(GLOBAL_AIRPORTS_CACHE))
                 {
                     var fileInfo = new FileInfo(GLOBAL_AIRPORTS_CACHE);
-                    if (DateTime.Now - fileInfo.LastWriteTime < TimeSpan.FromDays(30))
+                    var cacheAge = DateTime.Now - fileInfo.LastWriteTime;
+                    Logging.KneeboardLogger.Server($"[OpenAIP] Cache found, age: {cacheAge.TotalDays:F1} days, size: {fileInfo.Length} bytes");
+
+                    if (cacheAge < TimeSpan.FromDays(30))
                     {
                         try
                         {
                             var cachedJson = File.ReadAllText(GLOBAL_AIRPORTS_CACHE);
-                            var cached = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, dynamic>>(cachedJson);
+                            var cached = Newtonsoft.Json.Linq.JObject.Parse(cachedJson);
                             var tempIndex = new Dictionary<string, (double lat, double lng, string name)>();
-                            foreach (var kvp in cached)
+                            foreach (var prop in cached.Properties())
                             {
-                                tempIndex[kvp.Key] = ((double)kvp.Value.lat, (double)kvp.Value.lng, (string)kvp.Value.name);
+                                var entry = prop.Value;
+                                tempIndex[prop.Name] = (
+                                    entry.Value<double>("lat"),
+                                    entry.Value<double>("lng"),
+                                    entry.Value<string>("name") ?? ""
+                                );
                             }
                             _globalAirportIndex = tempIndex;
 
@@ -6049,11 +6178,11 @@ namespace Kneeboard_Server
                                 {
                                     var iataJson = File.ReadAllText(IATA_ICAO_CACHE);
                                     _iataToIcaoIndex = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, string>>(iataJson);
-                                    Console.WriteLine($"[OpenAIP] Loaded {_iataToIcaoIndex.Count} IATA->ICAO mappings from cache");
+                                    Logging.KneeboardLogger.Server($"[OpenAIP] Loaded {_iataToIcaoIndex.Count} IATA->ICAO mappings from cache");
                                 }
                                 catch (Exception iataEx)
                                 {
-                                    Console.WriteLine($"[OpenAIP] IATA cache read error: {iataEx.Message}");
+                                    Logging.KneeboardLogger.Error("OpenAIP", $"IATA cache read error: {iataEx.Message}");
                                     _iataToIcaoIndex = new Dictionary<string, string>();
                                 }
                             }
@@ -6062,19 +6191,27 @@ namespace Kneeboard_Server
                                 _iataToIcaoIndex = new Dictionary<string, string>();
                             }
 
-                            Console.WriteLine($"[OpenAIP] Loaded {_globalAirportIndex.Count} airports from cache");
+                            Logging.KneeboardLogger.Server($"[OpenAIP] Loaded {_globalAirportIndex.Count} airports from cache");
                             _kneeboardServer?.SetStatusText($"Status: {_globalAirportIndex.Count} airports loaded. Server is running...");
                             return;
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[OpenAIP] Cache read error: {ex.Message}");
+                            Logging.KneeboardLogger.Error("OpenAIP", $"Cache read error: {ex.Message}\n{ex.StackTrace}");
                         }
                     }
+                    else
+                    {
+                        Logging.KneeboardLogger.Server($"[OpenAIP] Cache expired ({cacheAge.TotalDays:F0} days old), reloading from API");
+                    }
+                }
+                else
+                {
+                    Logging.KneeboardLogger.Server("[OpenAIP] No cache file found, loading from API");
                 }
 
                 // Load ALL airports from OpenAIP API (paginated)
-                Console.WriteLine("[OpenAIP] Loading global airport database...");
+                Logging.KneeboardLogger.Server("[OpenAIP] Loading global airport database from API...");
                 _kneeboardServer?.SetStatusText("Status: Loading airports from OpenAIP...");
                 var allAirports = new Dictionary<string, (double lat, double lng, string name)>();
                 var iataMapping = new Dictionary<string, string>(); // IATA -> ICAO mapping
@@ -6103,7 +6240,7 @@ namespace Kneeboard_Server
                             if (page == 1 && data.totalPages != null)
                             {
                                 totalPages = (int)data.totalPages;
-                                Console.WriteLine($"[OpenAIP] Total pages: {totalPages}");
+                                Logging.KneeboardLogger.Server($"[OpenAIP] Total pages: {totalPages}");
                             }
 
                             if (data.items != null)
@@ -6128,13 +6265,13 @@ namespace Kneeboard_Server
                                 }
                             }
 
-                            Console.WriteLine($"[OpenAIP] Page {page}/{totalPages} - Airports with ICAO: {allAirports.Count}");
+                            Logging.KneeboardLogger.Server($"[OpenAIP] Page {page}/{totalPages} - Airports with ICAO: {allAirports.Count}");
                             _kneeboardServer?.SetStatusText($"Status: Loading airports... {page}/{totalPages} ({allAirports.Count} ICAO)");
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[OpenAIP] Error loading page {page}: {ex.Message}");
+                        Logging.KneeboardLogger.Error("OpenAIP", $"Error loading page {page}: {ex.Message}");
                         break;
                     }
 
@@ -6147,7 +6284,7 @@ namespace Kneeboard_Server
 
                 _globalAirportIndex = allAirports;
                 _iataToIcaoIndex = iataMapping;
-                Console.WriteLine($"[OpenAIP] Loaded {_globalAirportIndex.Count} airports with ICAO codes, {_iataToIcaoIndex.Count} IATA mappings");
+                Logging.KneeboardLogger.Server($"[OpenAIP] Loaded {_globalAirportIndex.Count} airports with ICAO codes, {_iataToIcaoIndex.Count} IATA mappings");
                 _kneeboardServer?.SetStatusText($"Status: {_globalAirportIndex.Count} airports loaded. Server is running...");
 
                 // Save to cache
@@ -6168,11 +6305,11 @@ namespace Kneeboard_Server
 
                         // Save IATA->ICAO mapping cache
                         File.WriteAllText(IATA_ICAO_CACHE, Newtonsoft.Json.JsonConvert.SerializeObject(iataMapping));
-                        Console.WriteLine($"[OpenAIP] Saved airport cache and {iataMapping.Count} IATA mappings");
+                        Logging.KneeboardLogger.Server($"[OpenAIP] Saved airport cache ({allAirports.Count} airports) and {iataMapping.Count} IATA mappings to {GLOBAL_AIRPORTS_CACHE}");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[OpenAIP] Cache save error: {ex.Message}");
+                        Logging.KneeboardLogger.Error("OpenAIP", $"Cache save error: {ex.Message}\n{ex.StackTrace}");
                     }
                 }
             }

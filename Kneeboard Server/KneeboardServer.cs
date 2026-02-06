@@ -1005,20 +1005,7 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.firstStart = false;
                 Properties.Settings.Default.firstAutoStart = true;
                 Properties.Settings.Default.firstSimbriefAsk = true;
-                Properties.Settings.Default.lastDonationShown = DateTime.Now;
                 Properties.Settings.Default.Save();
-            }
-            else
-            {
-                // Spenden-Dialog 1x pro Tag anzeigen (beim ersten Start des Tages)
-                DateTime lastShown = Properties.Settings.Default.lastDonationShown;
-                if (lastShown == DateTime.MinValue || lastShown.Date < DateTime.Now.Date)
-                {
-                    var spendenForm = new SpendenForm();
-                    spendenForm.ShowDialog(this);
-                    Properties.Settings.Default.lastDonationShown = DateTime.Now;
-                    Properties.Settings.Default.Save();
-                }
             }
 
             //delete hover color
@@ -1112,7 +1099,7 @@ namespace Kneeboard_Server
 
         /// <summary>
         /// Zeigt beim ersten Start einen kombinierten Setup-Dialog.
-        /// Enthält: EFB Panel Installation, Autostart, SimBrief-Integration.
+        /// Enthält: Kneeboard Panel Installation, Autostart, SimBrief-Integration.
         /// </summary>
         private void ShowFirstStartWizard()
         {
@@ -1209,7 +1196,7 @@ namespace Kneeboard_Server
                     form.Controls.Add(simbriefGroupBox);
                     yPos += 55;
 
-                    // ── 3. EFB Panel Installation ──
+                    // ── 3. Kneeboard Panel Installation ──
                     var panelCheckboxes = new System.Collections.Generic.List<System.Windows.Forms.CheckBox>();
                     System.Windows.Forms.CheckBox manualCb = null;
                     System.Windows.Forms.TextBox manualPathBox = null;
@@ -1218,7 +1205,7 @@ namespace Kneeboard_Server
                     {
                         var panelGroupBox = new System.Windows.Forms.GroupBox
                         {
-                            Text = "EFB Panel Installation",
+                            Text = "Kneeboard Panel Installation",
                             Location = new Point(12, yPos),
                             ForeColor = SystemColors.Highlight,
                             Font = new Font("Segoe UI", 8.25F)
@@ -1347,7 +1334,7 @@ namespace Kneeboard_Server
                             StartBackgroundSimbriefSync();
                         }
 
-                        // EFB Panel deployen
+                        // Kneeboard Panel deployen
                         if (hasSource)
                         {
                             int deployed = 0;
@@ -1361,7 +1348,7 @@ namespace Kneeboard_Server
                                     PanelDeploymentService.DeployPanel(path, null);
                                     lastPath = path;
                                     deployed++;
-                                    Console.WriteLine($"[KneeboardServer] Deployed EFB panel to {path}");
+                                    Console.WriteLine($"[KneeboardServer] Deployed Kneeboard panel to {path}");
                                 }
                             }
 
@@ -1371,7 +1358,7 @@ namespace Kneeboard_Server
                                 PanelDeploymentService.DeployPanel(path, null);
                                 lastPath = path;
                                 deployed++;
-                                Console.WriteLine($"[KneeboardServer] Deployed EFB panel to {path}");
+                                Console.WriteLine($"[KneeboardServer] Deployed Kneeboard panel to {path}");
                             }
 
                             if (lastPath != null)
@@ -1581,8 +1568,17 @@ namespace Kneeboard_Server
 
         private void KneeboardServer_Load(object sender, EventArgs e)
         {
-            // Direkt das Quellverzeichnis verwenden (bin\x64\Debug -> Projekt-Root)
-            folderpath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\.."));
+            // Pfad ermitteln: installierte Version hat data\ direkt neben der exe,
+            // Entwicklungsmodus geht von bin\x64\Debug 3 Ebenen hoch zum Projekt-Root
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+            if (Directory.Exists(Path.Combine(baseDir, "data")))
+            {
+                folderpath = baseDir;
+            }
+            else
+            {
+                folderpath = Path.GetFullPath(Path.Combine(baseDir, @"..\..\.."));
+            }
             Console.WriteLine($"[Server] Data directory: {folderpath}\\data");
 
             KneeboardLogger.Initialize(consoleOutput: true, fileOutput: true, minLevel: KneeboardLogger.Level.DEBUG);
@@ -1621,6 +1617,17 @@ namespace Kneeboard_Server
             serverRun = true;
             UpdateStatusBar();
             UpdateFileList();
+
+            // Spenden-Dialog 1x pro Tag anzeigen
+            DateTime lastShown = Properties.Settings.Default.lastDonationShown;
+            Console.WriteLine($"[Spenden] lastDonationShown={lastShown}, today={DateTime.Now.Date}, show={lastShown == DateTime.MinValue || lastShown.Date < DateTime.Now.Date}");
+            if (lastShown == DateTime.MinValue || lastShown.Date < DateTime.Now.Date)
+            {
+                var spendenForm = new SpendenForm();
+                spendenForm.ShowDialog(this);
+                Properties.Settings.Default.lastDonationShown = DateTime.Now;
+                Properties.Settings.Default.Save();
+            }
         }
 
         private void Close_Click(object sender, EventArgs e)

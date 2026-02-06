@@ -2,35 +2,126 @@ name: Build and Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    paths:
+      - 'Kneeboard Server/Properties/AssemblyInfo.cs'
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-    - name: Extract version from tag
+    - name: Extract version from AssemblyInfo.cs
       id: get_version
       shell: pwsh
       run: |
-        $version = "${{ github.ref_name }}" -replace '^v', ''
-        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
-        echo "Extracted version: $version"
+        $content = Get-Content "Kneeboard Server/Properties/AssemblyInfo.cs" -Raw
+        if ($content -match 'AssemblyVersion\("(\d+\.\d+\.\d+)\.\d+"\)') {
+          $version = $Matches[1]
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          echo "Extracted version: $version"
+        } else {
+          echo "ERROR: Could not extract version from AssemblyInfo.cs"
+          exit 1
+        }
+
+    - name: Check if release already exists
+      id: check_release
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $tag = "v$version"
+        $exists = git tag -l $tag
+        if ($exists) {
+          echo "Release $tag already exists, skipping"
+          echo "EXISTS=true" >> $env:GITHUB_OUTPUT
+        } else {
+          echo "Release $tag does not exist, proceeding"
+          echo "EXISTS=false" >> $env:GITHUB_OUTPUT
+        }
+
+    - name: Sync panel versions
+      if: steps.check_release.outputs.EXISTS == 'false'
+      shell: pwsh
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+
+        # Update MSFS Package manifest (built package)
+        $manifest = "Kneeboard/Packages/gsimulations-kneeboard/manifest.json"
+        if (Test-Path $manifest) {
+          $json = Get-Content $manifest -Raw | ConvertFrom-Json
+          $json.package_version = $version
+          $json | ConvertTo-Json -Depth 10 | Set-Content $manifest -NoNewline
+          echo "Updated $manifest to $version"
+        }
+
+        # Update MSFS PackageDefinitions manifest (template)
+        $defManifest = "Kneeboard/PackageDefinitions/gsimulations-kneeboard/ContentInfo/manifest.json"
+        if (Test-Path $defManifest) {
+          $json = Get-Content $defManifest -Raw | ConvertFrom-Json
+          $json.package_version = $version
+          $json | ConvertTo-Json -Depth 10 | Set-Content $defManifest -NoNewline
+          echo "Updated $defManifest to $version"
+        }
+
+        # Update npm package.json
+        $pkgJson = "Kneeboard/PackageSources/vendor/Kneeboard/package.json"
+        if (Test-Path $pkgJson) {
+          $json = Get-Content $pkgJson -Raw | ConvertFrom-Json
+          $json.version = $version
+          $json | ConvertTo-Json -Depth 10 | Set-Content $pkgJson -NoNewline
+          echo "Updated $pkgJson to $version"
+        }
+
+    - name: Update README version
+      if: steps.check_release.outputs.EXISTS == 'false'
+      shell: pwsh
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $readme = Get-Content "README.md" -Raw
+        $readme = $readme -replace 'Aktuelle Version: [\d\.]+', "Aktuelle Version: $version"
+        Set-Content "README.md" $readme -NoNewline
+        echo "Updated README to version $version"
+
+    - name: Commit version updates
+      if: steps.check_release.outputs.EXISTS == 'false'
+      shell: pwsh
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add README.md
+        git add "Kneeboard/Packages/gsimulations-kneeboard/manifest.json"
+        git add "Kneeboard/PackageDefinitions/gsimulations-kneeboard/ContentInfo/manifest.json"
+        git add "Kneeboard/PackageSources/vendor/Kneeboard/package.json"
+        git commit -m "Sync version to ${{ steps.get_version.outputs.VERSION }}" || echo "No changes to commit"
+        git push origin HEAD:main
+
+    - name: Create git tag
+      if: steps.check_release.outputs.EXISTS == 'false'
+      shell: pwsh
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $tag = "v$version"
+        git tag $tag
+        git push origin $tag
 
     - name: Prepare Setup files and create ZIP
-      id: setup_files
+      if: steps.check_release.outputs.EXISTS == 'false'
       shell: pwsh
       run: |
         $version = "${{ steps.get_version.outputs.VERSION }}"
         $setupDir = "Kneeboard Server Setup/Debug"
-        $zipName = "KneeboardServer-v$version-Setup.zip"
+        $zipName = "Kneeboard-v$version-Setup.zip"
 
         if (-not (Test-Path "$setupDir/Kneeboard Server.msi")) {
           echo "ERROR: MSI file not found!"
@@ -42,66 +133,43 @@ jobs:
           exit 1
         }
 
-        # Create ZIP with both installer files
         Compress-Archive -Path "$setupDir/Kneeboard Server.msi", "$setupDir/setup.exe" -DestinationPath $zipName
         echo "ZIP file created: $zipName"
 
     - name: Generate update XML
+      if: steps.check_release.outputs.EXISTS == 'false'
       shell: pwsh
       run: |
         $version = "${{ steps.get_version.outputs.VERSION }}"
         $repo = "${{ github.repository }}"
-        $downloadUrl = "https://github.com/$repo/releases/download/v$version/KneeboardServer-v$version-Setup.zip"
+        $downloadUrl = "https://github.com/$repo/releases/download/v$version/Kneeboard-v$version-Setup.zip"
         $changelogUrl = "https://github.com/$repo/releases/tag/v$version"
         $xml = "<?xml version=`"1.0`" encoding=`"UTF-8`"?>`n<item>`n    <version>$version</version>`n    <url>$downloadUrl</url>`n    <changelog>$changelogUrl</changelog>`n    <mandatory>false</mandatory>`n    <executable>Kneeboard Server.msi</executable>`n</item>"
         Set-Content "Kneeboard_version.xml" $xml
         echo "Generated update XML for version $version"
 
     - name: Delete existing release if exists
+      if: steps.check_release.outputs.EXISTS == 'false'
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        $tag = "${{ github.ref_name }}"
+        $tag = "v${{ steps.get_version.outputs.VERSION }}"
         $repo = "${{ github.repository }}"
-
-        # Try to delete existing release, ignore errors if not found
         gh release delete $tag --repo $repo --yes 2>$null
         exit 0
 
     - name: Create GitHub Release
+      if: steps.check_release.outputs.EXISTS == 'false'
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         $version = "${{ steps.get_version.outputs.VERSION }}"
-        $tag = "${{ github.ref_name }}"
+        $tag = "v$version"
 
         gh release create $tag `
-          "KneeboardServer-v$version-Setup.zip" `
+          "Kneeboard-v$version-Setup.zip" `
           "Kneeboard_version.xml" `
-          --title "Kneeboard Server v$version" `
+          --title "Kneeboard v$version" `
           --generate-notes
-
-    - name: Update README with new version
-      shell: pwsh
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        $version = "${{ steps.get_version.outputs.VERSION }}"
-
-        # Read README
-        $readme = Get-Content "README.md" -Raw
-
-        # Replace version line
-        $readme = $readme -replace 'Aktuelle Version: [\d\.]+', "Aktuelle Version: $version"
-
-        # Write back
-        Set-Content "README.md" $readme -NoNewline
-
-        # Commit and push
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add README.md
-        git commit -m "Update README version to $version" || echo "No changes to commit"
-        git push origin HEAD:main

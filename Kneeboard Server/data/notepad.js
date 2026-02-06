@@ -46,13 +46,13 @@
     const SVG_NS = 'http://www.w3.org/2000/svg';
 
     // Maximum distance between points before interpolation kicks in
-    // Lower value = smoother curves but more points (important for EFB where events are sparse)
+    // Lower value = smoother curves but more points (important for Kneeboard where events are sparse)
     const MAX_POINT_DISTANCE = 3;
     // Minimum distance to add a new point (avoid duplicates)
     const MIN_POINT_DISTANCE = 0.5;
 
     // Chaikin corner-cutting algorithm for post-stroke smoothing
-    // This smooths angular paths caused by sparse pointer events in EFB browsers
+    // This smooths angular paths caused by sparse pointer events in Kneeboard browsers
     function chaikinSmooth(points, iterations) {
         if (!points || points.length < 3) return points;
 
@@ -609,7 +609,7 @@
             return;
         }
         // Convert fast path to smooth path for final rendering
-        // Apply Chaikin smoothing to reduce angular appearance in EFB browsers
+        // Apply Chaikin smoothing to reduce angular appearance in Kneeboard browsers
         if (currentStrokeElement && currentStrokeElement.tagName === 'path') {
             let points = scaleStrokePoints(currentStroke);
             if (points.length > 2) {

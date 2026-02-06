@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+using Kneeboard_Server.Logging;
 using Kneeboard_Server.Properties;
 
 namespace Kneeboard_Server.Navigraph
@@ -19,12 +20,43 @@ namespace Kneeboard_Server.Navigraph
         private const string NAVDATA_API = "https://api.navigraph.com/v1/navdata";
         private const string PACKAGES_ENDPOINT = NAVDATA_API + "/packages";
 
-        // Paths - Source-Verzeichnis (bin\x64\Debug -> Projekt-Root)
-        private static readonly string NAVIGRAPH_FOLDER = Path.Combine(
-            Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..")),
-            "Navigraph");
+        // Navigraph-Ordner: neben der exe (installiert) ODER im Quellverzeichnis (dev)
+        private static readonly string NAVIGRAPH_FOLDER = FindNavigraphFolder();
         private static readonly string BUNDLED_DB = "ng_jeppesen_fwdfd_2403.s3db";
         private static readonly string DOWNLOADED_DB = "ng_jeppesen_current.s3db";
+
+        private static string FindNavigraphFolder()
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            KneeboardLogger.Navigraph($"BaseDirectory: {baseDir}");
+
+            // 1. Installiert: Navigraph-Ordner neben der exe
+            var installedPath = Path.Combine(baseDir, "Navigraph");
+            KneeboardLogger.Navigraph($"Check installed path: {installedPath} exists={Directory.Exists(installedPath)}");
+            if (Directory.Exists(installedPath))
+            {
+                var files = Directory.GetFiles(installedPath, "*.s3db");
+                KneeboardLogger.Navigraph($"Found {files.Length} s3db files: {string.Join(", ", files.Select(Path.GetFileName))}");
+                return installedPath;
+            }
+
+            // 2. Entwicklung: bin\x64\Debug -> Projekt-Root
+            var devPath = Path.Combine(
+                Path.GetFullPath(Path.Combine(baseDir, @"..\..\..")),
+                "Navigraph");
+            KneeboardLogger.Navigraph($"Check dev path: {devPath} exists={Directory.Exists(devPath)}");
+            if (Directory.Exists(devPath))
+            {
+                var files = Directory.GetFiles(devPath, "*.s3db");
+                KneeboardLogger.Navigraph($"Found {files.Length} s3db files: {string.Join(", ", files.Select(Path.GetFileName))}");
+                return devPath;
+            }
+
+            // 3. Fallback: neben der exe anlegen
+            KneeboardLogger.NavigraphError($"Kein Navigraph-Ordner gefunden! Erstelle: {installedPath}");
+            Directory.CreateDirectory(installedPath);
+            return installedPath;
+        }
 
         // Services
         private readonly NavigraphAuthService _authService;
@@ -92,7 +124,7 @@ namespace Kneeboard_Server.Navigraph
         {
             try
             {
-                // First check if a downloaded database exists and is valid
+                // First check if a downloaded database exists and is valid (in writable LOCALAPPDATA)
                 var downloadedPath = Path.Combine(NAVIGRAPH_FOLDER, DOWNLOADED_DB);
                 var savedCycle = Settings.Default.values;
 
@@ -176,7 +208,7 @@ namespace Kneeboard_Server.Navigraph
 
                 Log($"Navigraph: Verfügbarer AIRAC Cycle: {package.Cycle}");
 
-                // Check if we already have this cycle
+                // Check if we already have this cycle (in writable LOCALAPPDATA)
                 var downloadedPath = Path.Combine(NAVIGRAPH_FOLDER, DOWNLOADED_DB);
                 var savedCycle = Settings.Default.values; // Use existing setting for cycle info
 
@@ -801,7 +833,7 @@ namespace Kneeboard_Server.Navigraph
         {
             if (_dbService == null) return new List<ProcedureLeg>();
             var (legs, _) = _dbService.GetProcedureLegsWithDebug(icao, procedureId, ProcedureType.Approach);
-            Console.WriteLine($"[NavigraphData] TestGetProcedureLegs DIAG: Got {legs.Count} legs");
+            KneeboardLogger.NavigraphDebug($"[NavigraphData] TestGetProcedureLegs DIAG: Got {legs.Count} legs");
             return legs;
         }
 
@@ -866,7 +898,7 @@ namespace Kneeboard_Server.Navigraph
             if (legs.Count == 0) return legs;
             if (string.IsNullOrEmpty(transition) && string.IsNullOrEmpty(runway)) return legs;
 
-            Console.WriteLine($"[Navigraph] FilterBySpecificTransition: filtering {legs.Count} legs for transition '{transition ?? "null"}', runway '{runway ?? "null"}' ({procType})");
+            KneeboardLogger.NavigraphDebug($"[Navigraph] FilterBySpecificTransition: filtering {legs.Count} legs for transition '{transition ?? "null"}', runway '{runway ?? "null"}' ({procType})");
 
             // Group legs by route_type and transition_identifier
             var legGroups = legs.GroupBy(leg => new { 
@@ -874,10 +906,10 @@ namespace Kneeboard_Server.Navigraph
                 TransitionId = leg.TransitionIdentifier ?? "" 
             }).ToList();
 
-            Console.WriteLine($"[Navigraph] Found {legGroups.Count()} leg groups:");
+            KneeboardLogger.NavigraphDebug($"[Navigraph] Found {legGroups.Count()} leg groups:");
             foreach (var group in legGroups)
             {
-                Console.WriteLine($"  - RouteType: {group.Key.RouteType}, TransitionId: '{group.Key.TransitionId}', Count: {group.Count()}");
+                KneeboardLogger.NavigraphDebug($"  - RouteType: {group.Key.RouteType}, TransitionId: '{group.Key.TransitionId}', Count: {group.Count()}");
             }
 
             var filteredLegs = new List<ProcedureLeg>();
@@ -892,12 +924,12 @@ namespace Kneeboard_Server.Navigraph
                     if (routeType == "5")
                     {
                         filteredLegs.AddRange(group);
-                        Console.WriteLine($"  -> Including Common Route legs (RouteType 5)");
+                        KneeboardLogger.NavigraphDebug($"  -> Including Common Route legs (RouteType 5)");
                     }
                     else if (routeType == "6" && transitionId == transition)
                     {
                         filteredLegs.AddRange(group);
-                        Console.WriteLine($"  -> Including Enroute Transition legs (RouteType 6, TransitionId '{transitionId}')");
+                        KneeboardLogger.NavigraphDebug($"  -> Including Enroute Transition legs (RouteType 6, TransitionId '{transitionId}')");
                     }
                     else if (routeType == "4")
                     {
@@ -909,11 +941,11 @@ namespace Kneeboard_Server.Navigraph
                             if (!hasRunwayTransition)
                             {
                                 filteredLegs.AddRange(group);
-                                Console.WriteLine($"  -> Including first Runway Transition legs (RouteType 4, TransitionId '{transitionId}') - no runway specified");
+                                KneeboardLogger.NavigraphDebug($"  -> Including first Runway Transition legs (RouteType 4, TransitionId '{transitionId}') - no runway specified");
                             }
                             else
                             {
-                                Console.WriteLine($"  -> Skipping additional Runway Transition (RouteType 4, TransitionId '{transitionId}') - already have one");
+                                KneeboardLogger.NavigraphDebug($"  -> Skipping additional Runway Transition (RouteType 4, TransitionId '{transitionId}') - already have one");
                             }
                         }
                         else
@@ -930,11 +962,11 @@ namespace Kneeboard_Server.Navigraph
                             if (matchesRunway)
                             {
                                 filteredLegs.AddRange(group);
-                                Console.WriteLine($"  -> Including matching Runway Transition legs (RouteType 4, TransitionId '{transitionId}', matches runway '{runway}')");
+                                KneeboardLogger.NavigraphDebug($"  -> Including matching Runway Transition legs (RouteType 4, TransitionId '{transitionId}', matches runway '{runway}')");
                             }
                             else
                             {
-                                Console.WriteLine($"  -> Skipping non-matching Runway Transition (RouteType 4, TransitionId '{transitionId}', expected runway '{runway}')");
+                                KneeboardLogger.NavigraphDebug($"  -> Skipping non-matching Runway Transition (RouteType 4, TransitionId '{transitionId}', expected runway '{runway}')");
                             }
                         }
                     }
@@ -950,12 +982,12 @@ namespace Kneeboard_Server.Navigraph
                     if (routeType == "2" || routeType == "5")
                     {
                         filteredLegs.AddRange(group);
-                        Console.WriteLine($"  -> Including Common Route legs (RouteType {routeType})");
+                        KneeboardLogger.NavigraphDebug($"  -> Including Common Route legs (RouteType {routeType})");
                     }
                     else if ((routeType == "1" || routeType == "4") && transitionId == transition)
                     {
                         filteredLegs.AddRange(group);
-                        Console.WriteLine($"  -> Including Enroute Transition legs (RouteType {routeType}, TransitionId '{transitionId}')");
+                        KneeboardLogger.NavigraphDebug($"  -> Including Enroute Transition legs (RouteType {routeType}, TransitionId '{transitionId}')");
                     }
                     else if (routeType == "3" || routeType == "6")
                     {
@@ -967,11 +999,11 @@ namespace Kneeboard_Server.Navigraph
                             if (!hasRunwayTransition)
                             {
                                 filteredLegs.AddRange(group);
-                                Console.WriteLine($"  -> Including first Runway Transition legs (RouteType {routeType}, TransitionId '{transitionId}') - no runway specified");
+                                KneeboardLogger.NavigraphDebug($"  -> Including first Runway Transition legs (RouteType {routeType}, TransitionId '{transitionId}') - no runway specified");
                             }
                             else
                             {
-                                Console.WriteLine($"  -> Skipping additional Runway Transition (RouteType {routeType}, TransitionId '{transitionId}') - already have one");
+                                KneeboardLogger.NavigraphDebug($"  -> Skipping additional Runway Transition (RouteType {routeType}, TransitionId '{transitionId}') - already have one");
                             }
                         }
                         else
@@ -988,18 +1020,18 @@ namespace Kneeboard_Server.Navigraph
                             if (matchesRunway)
                             {
                                 filteredLegs.AddRange(group);
-                                Console.WriteLine($"  -> Including matching Runway Transition legs (RouteType {routeType}, TransitionId '{transitionId}', matches runway '{runway}')");
+                                KneeboardLogger.NavigraphDebug($"  -> Including matching Runway Transition legs (RouteType {routeType}, TransitionId '{transitionId}', matches runway '{runway}')");
                             }
                             else
                             {
-                                Console.WriteLine($"  -> Skipping non-matching Runway Transition (RouteType {routeType}, TransitionId '{transitionId}', expected runway '{runway}')");
+                                KneeboardLogger.NavigraphDebug($"  -> Skipping non-matching Runway Transition (RouteType {routeType}, TransitionId '{transitionId}', expected runway '{runway}')");
                             }
                         }
                     }
                 }
             }
 
-            Console.WriteLine($"[Navigraph] FilterBySpecificTransition: filtered from {legs.Count} to {filteredLegs.Count} legs");
+            KneeboardLogger.NavigraphDebug($"[Navigraph] FilterBySpecificTransition: filtered from {legs.Count} to {filteredLegs.Count} legs");
 
             return SortProcedureLegs(filteredLegs, procType);
         }
@@ -1009,7 +1041,7 @@ namespace Kneeboard_Server.Navigraph
         /// </summary>
         private void Log(string message)
         {
-            Console.WriteLine(message);
+            KneeboardLogger.Navigraph(message);
             OnLog?.Invoke(this, message);
         }
     }

@@ -147,7 +147,7 @@ namespace Kneeboard_Server
         }
 
         /// <summary>
-        /// Prüft ob das EFB-Panel im Community-Ordner installiert ist und liest die Version.
+        /// Prüft ob das Kneeboard-Panel im Community-Ordner installiert ist und liest die Version.
         /// </summary>
         public static PackageInfo GetInstalledPackageInfo(string communityPath)
         {

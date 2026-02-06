@@ -189,16 +189,118 @@
   <ItemGroup>
     <None Include="App.config" />
     <None Include="app.manifest" />
-    <!-- Copy secrets.config to output if it exists (contains API keys, not in git) -->
-    <None Include="secrets.config" Condition="Exists('secrets.config')">
+    <!-- secrets.config enthält API-Keys, ist nicht in git. Wird als Content eingebunden,
+         damit die .vdproj ContentFiles-Ausgabegruppe sie in den Installer aufnimmt. -->
+    <Content Include="secrets.config" Condition="Exists('secrets.config')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\ICON_TOOLBAR_KNEEBOARD1.png" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Navigraph DB und data folder werden direkt aus dem Quellverzeichnis geladen, nicht kopiert -->
+    <!-- Data-Verzeichnis: HTML, JS, CSS und Assets für den HTTP-Server.
+         Explizite Einträge nötig, damit die .vdproj ContentFiles-Ausgabegruppe
+         sie im Installer aufnimmt (old-style .csproj, Wildcards werden von .vdproj ignoriert). -->
+    <!-- Root-Dateien -->
+    <Content Include="data\kneeboard.html"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\kneeboard.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\kneeboard.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\kneeboard.ico"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\map.html"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\map.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\map.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\documents.html"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\documents.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\documents.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\navlog.html"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\navlog.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\navlog.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\formulas.html"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\formulas.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\formulas.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\notepad.html"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\notepad.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\notepad.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\logger.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\debug-config.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\js-polyfills.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\cssgg-svg.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\ofp-mapping-config.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\map-layers.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\aircraft.svg"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\Logo.jpg"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <!-- boundaries -->
+    <Content Include="data\boundaries\ivao_boundaries_geojson.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\boundaries\vatsim_boundaries.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\boundaries\vatsim_tracon_boundaries.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <!-- Fonts -->
+    <Content Include="data\Fonts\Roboto-Light.ttf"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <!-- leaflet -->
+    <Content Include="data\leaflet\airplane.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\easy-button.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\easy-button.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\geosearch.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\geosearch.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\jquery.min.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet-hash.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet-src.esm.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet-src.esm.js.map"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet-src.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet-src.js.map"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet.edgebuffer.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet.groupedlayercontrol.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet.groupedlayercontrol.min.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet.groupedlayercontrol.min.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet.groupedlayercontrol.min.js.map"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet.js.map"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet.markercluster.js.map"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\leaflet.nauticscale.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\MarkerCluster.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\markercluster.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <!-- leaflet\images -->
+    <Content Include="data\leaflet\images\arrow.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\images\layers-2x.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\images\layers.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\images\marker-icon-2x.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\images\marker-icon.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\images\marker-shadow.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <!-- leaflet\plugins -->
+    <Content Include="data\leaflet\plugins\fullscreen.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\fullscreen@2x.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\L.Control.MousePosition.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\L.Control.MousePosition.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\L.Map.SmoothWheelZoom.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\leaflet-easyPrint.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\leaflet-ruler.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\leaflet-ruler.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\leaflet-velocity.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\leaflet-velocity.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\leaflet-windbarb.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\leaflet.fullscreen.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\Leaflet.fullscreen.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\leaflet.hotline.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\Leaflet.PolylineMeasure.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\Leaflet.PolylineMeasure.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\leaflet.rotatedMarker.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\Leaflet.SmoothMarkerBouncing.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\Leaflet.SmoothMarkerBouncing.min.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\SmoothWheelZoom.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\Leaflet-openweathermap\leaflet-openweathermap.css"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\leaflet\plugins\Leaflet-openweathermap\leaflet-openweathermap.js"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <!-- manuals -->
+    <Content Include="data\manuals\G-Simulations Kneeboard - Navigation Log Anleitung.pdf"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\manuals\G-Simulations Kneeboard - Navigation Log Guide.pdf"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\manuals\Kneeboard_Manual_DE.html"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\manuals\Kneeboard_Manual_DE.pdf"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\manuals\Kneeboard_Manual_EN.html"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="data\manuals\Kneeboard_Manual_EN.pdf"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <!-- Navigraph bundled database (Fallback bis Nutzer sich einloggt) -->
+    <Content Include="Navigraph\ng_jeppesen_fwdfd_2403.s3db"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <!-- SQLite native interop DLL - wird vom Installer in x64\ Unterordner installiert -->
+    <Content Include="x64\SQLite.Interop.dll"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\add-file1.png" />
@@ -243,15 +345,15 @@
     <None Include="Resources\add-document.png" />
     <None Include="Resources\refresh-86.png" />
   </ItemGroup>
-  <!-- EFB Panel Package - Content Items für MSI + xcopy für Debug -->
+  <!-- Kneeboard Panel Package - Content Items für MSI + xcopy für Debug -->
   <ItemGroup>
-    <Content Include="..\EFB\Packages\gsimulations-kneeboard\**\*.*">
-      <Link>EFB\gsimulations-kneeboard\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\**\*.*">
+      <Link>Kneeboard\gsimulations-kneeboard\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <Target Name="CopyEfbFiles" AfterTargets="Build">
-    <Exec Command="xcopy &quot;$(ProjectDir)..\EFB\Packages\gsimulations-kneeboard&quot; &quot;$(TargetDir)EFB\gsimulations-kneeboard\&quot; /E /Y /I /Q" />
+  <Target Name="CopyKneeboardFiles" AfterTargets="Build">
+    <Exec Command="xcopy &quot;$(ProjectDir)..\Kneeboard\Packages\gsimulations-kneeboard&quot; &quot;$(TargetDir)Kneeboard\gsimulations-kneeboard\&quot; /E /Y /I /Q" />
   </Target>
   <ItemGroup>
     <Reference Include="Microsoft.CSharp" />
@@ -346,5 +448,5 @@
     </PackageReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <!-- PostBuildEvent entfernt - Navigraph DB wird direkt aus Quellverzeichnis geladen -->
+  <!-- Navigraph DB wird vom Nutzer via Navigraph-Login ins Installationsverzeichnis heruntergeladen -->
 </Project>

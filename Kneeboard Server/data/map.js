@@ -2463,7 +2463,7 @@ function executeFlightplanPath(data) {
   }
 })();
 
-// Long-press handling for EFB compatibility (no right-click support)
+// Long-press handling for Kneeboard compatibility (no right-click support)
 var longPressTimer = null;
 var longPressDelay = 500; // 500ms for long press
 var longPressTarget = null;
@@ -11269,7 +11269,7 @@ function setControlZoneFrequency(frequency, callsign, comIndex, isActive) {
   var message = 'setFrequency:' + JSON.stringify(payload);
   if (CZ_DEBUG) console.log('[ControlZones] Setting COM' + comIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyMHz + ' MHz (' + callsign + ')');
 
-  // Send to MSFS EFB
+  // Send to MSFS Kneeboard
   if (typeof postMessageToBridge === 'function') {
     postMessageToBridge(message);
   } else {
@@ -12786,7 +12786,7 @@ function initializeMapWithLayers(layers) {
       L.DomEvent.preventDefault(e.originalEvent);
     }
 
-    // Only process synthetic events from long-press, ignore real right-clicks (EFB compatibility)
+    // Only process synthetic events from long-press, ignore real right-clicks (Kneeboard compatibility)
     var isSynthetic = e && e.synthetic === true;
     if (!isSynthetic) {
       skipNextMapClick = false;  // Defensive reset
@@ -13142,7 +13142,7 @@ function initializeMapWithLayers(layers) {
     }
   });
 
-  // Long-press handler for map (EFB compatibility - adds waypoints)
+  // Long-press handler for map (Kneeboard compatibility - adds waypoints)
   var mapLongPressTimer = null;
   var mapLongPressLatLng = null;
 
@@ -13624,7 +13624,7 @@ function setupWaypointEventHandlers(waypointLayers) {
     });
   }
 
-  // Long-press support to open waypoint popup (EFB compatibility - no right-click)
+  // Long-press support to open waypoint popup (Kneeboard compatibility - no right-click)
   targets.forEach(function(targetEl) {
     targetEl.addEventListener("contextmenu", function(event) {
       event.preventDefault();
@@ -19064,7 +19064,7 @@ function teleport(lat, lng) {
     };
 
     console.log('[Teleport] Sending teleport command:', data);
-    // Send teleport directly to EFB
+    // Send teleport directly to Kneeboard
     postMessageToBridge('map:' + JSON.stringify(data));
 
     // Cleanup
@@ -25686,7 +25686,7 @@ function hideFrequencyContextMenu() {
 }
 
 /**
- * Sets COM frequency via MSFS EFB bridge
+ * Sets COM frequency via MSFS Kneeboard bridge
  * @param {number} comIndex - 1 for COM1, 2 for COM2
  * @param {boolean} isActive - true for Active, false for Standby
  */
@@ -25720,7 +25720,7 @@ function setComFrequency(comIndex, isActive) {
 
   if (FREQ_DEBUG) console.log('[Frequency Menu] Setting COM' + comIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyMHz + ' MHz');
 
-  // Send to MSFS EFB
+  // Send to MSFS Kneeboard
   postMessageToBridge(message);
 
   // Hide menu
@@ -26563,7 +26563,7 @@ function listControllers() {
     });
   }
 
-  // Long-press handler for touch AND mouse devices (EFB + desktop compatibility)
+  // Long-press handler for touch AND mouse devices (Kneeboard + desktop compatibility)
   // Using native addEventListener instead of jQuery delegation for MSFS Coherent GT compatibility
   var listItems = listUl.querySelectorAll('.kneeboard-list-item');
   if (FREQ_DEBUG) console.log('[Frequency Menu] Found ' + listItems.length + ' list items for long-press handlers');
@@ -28623,7 +28623,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       config.handle.addEventListener('mousedown', startMouseResize);
     }
 
-    // Touch events for EFB
+    // Touch events for Kneeboard
     config.handle.addEventListener('touchstart', startTouchResize, { passive: false });
 
     // Continue with mouseup handler for elevation profile double-click detection

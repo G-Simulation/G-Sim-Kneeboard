@@ -1,29 +1,76 @@
-# G-Sim Kneeboard Server
+# G-Sim Kneeboard
 
-HTTP Server für das G-Sim Kneeboard Add-on für Microsoft Flight Simulator 2020/2024.
+Interaktives Kneeboard Add-on für Microsoft Flight Simulator 2020/2024 mit lokalem HTTP-Server.
 
 ## Beschreibung
 
-Der Kneeboard Server ist eine Windows-Anwendung, die einen lokalen HTTP-Server auf Port 815 bereitstellt. Er versorgt das Kneeboard EFB Add-on mit Kartendaten, Flughafeninformationen, Waypoints und Simbrief-Flugplänen.
+G-Sim Kneeboard besteht aus zwei Komponenten:
+
+- **Kneeboard Server** - Eine Windows-Anwendung, die einen lokalen HTTP-Server auf Port 815 bereitstellt. Er versorgt das Kneeboard Add-on mit Kartendaten, Flughafeninformationen, Waypoints und Simbrief-Flugplänen.
+- **Kneeboard Panel** - Eine Toolbar- und EFB-Anwendung (Electronic Flight Bag) für MSFS, die ein interaktives Kneeboard im Simulator anzeigt und Echtzeit-Flugdaten überträgt.
 
 ### Features
 
-- **HTTP Server** auf `localhost:815`
-- **Flughafen-Datenbank** mit weltweiten Flughäfen
-- **Waypoint-Verwaltung** für Navigation
-- **Simbrief-Integration** für Flugplanung
-- **SID/STAR Procedure-Daten** für detaillierte Flugpfad-Darstellung
-- **Echtzeit-Kommunikation** mit MSFS via SimConnect
-- **Karten-Visualisierung** für das Kneeboard
-- **Singleton-Anwendung** (nur eine Instanz gleichzeitig)
+**Server:**
+- HTTP Server auf `localhost:815`
+- Flughafen-Datenbank mit weltweiten Flughäfen
+- Waypoint-Verwaltung für Navigation
+- Simbrief-Integration für Flugplanung
+- SID/STAR Procedure-Daten für detaillierte Flugpfad-Darstellung
+- Echtzeit-Kommunikation mit MSFS via SimConnect
+- Karten-Visualisierung
+- Singleton-Anwendung (nur eine Instanz gleichzeitig)
+
+**Panel:**
+- Kompatibel mit MSFS 2020 und MSFS 2024
+- Verfügbar als Toolbar-Panel und EFB-App (MSFS 2024)
+- Echtzeit-Übertragung von Flugzeugdaten:
+  - Position (Latitude/Longitude)
+  - Höhe (Altitude)
+  - Kurs (Heading)
+  - Geschwindigkeit (Airspeed)
+  - Windrichtung und -geschwindigkeit
+- Teleport-Funktion über die Karte
+- Automatische Reconnection bei Verbindungsabbruch
+
+## Systemanforderungen
+
+- Windows 10/11
+- .NET Framework 4.8
+- Administrator-Rechte (wird automatisch angefordert)
+- Microsoft Flight Simulator 2020 oder 2024
+
+## Installation
+
+### Option 1: Installer verwenden
+
+1. Führe das Setup aus `Kneeboard Server Setup\Debug` oder `Release` aus
+2. Der Server wird beim Start automatisch mit Admin-Rechten gestartet
+
+### Option 2: Von Source kompilieren
+
+1. Öffne `Kneeboard Server.sln` in Visual Studio 2017 oder neuer
+2. Build Configuration: `Debug` oder `Release`
+3. Platform: `x64` empfohlen
+4. Build Solution
+
+## Verwendung
+
+1. Starte den Kneeboard Server
+2. Die Anwendung läuft im Hintergrund
+3. Der HTTP-Server ist unter `http://localhost:815` erreichbar
+4. Starte MSFS und das Kneeboard Add-on
+5. Das Kneeboard verbindet sich automatisch mit dem Server
 
 ## SID/STAR Navdata Integration
 
 Der Kneeboard Server kann detaillierte SID/STAR-Waypoints in der Karte darstellen. Die Waypoints werden farblich unterschieden:
 
-- **Grün**: Departure/SID-Waypoints
-- **Blau**: Enroute-Waypoints
-- **Gelb**: Arrival/STAR-Waypoints
+- **Rot**: SID/Departure-Waypoints
+- **Lila**: Route/Enroute-Waypoints
+- **Grün**: Arrival/STAR-Waypoints
+- **Orange**: Approach-Waypoints
+- **Blau**: Alternate-Waypoints
 
 ### Navdata-Datenbank erstellen
 
@@ -61,62 +108,78 @@ Ohne erstellte Navdata-Datenbank werden die vereinfachten Waypoints aus dem SimB
 | `GET /api/procedures/stars/{icao}` | Liste aller STARs eines Flughafens |
 | `GET /api/procedures/procedure/{icao}/{name}?type=sid\|star` | Details einer Procedure |
 
-## Systemanforderungen
+## Kneeboard Panel Entwicklung
 
-- Windows 10/11
-- .NET Framework 4.8
-- Administrator-Rechte (wird automatisch angefordert)
-- Microsoft Flight Simulator 2020 oder 2024
+### Build-Befehle
 
-## Installation
+```bash
+cd Kneeboard/PackageSources/vendor/Kneeboard
+npm install
+npm run build
+```
 
-### Option 1: Installer verwenden
+| Befehl | Beschreibung |
+|--------|--------------|
+| `npm run build` | Projekt einmalig bauen |
+| `npm run watch` | Watch-Mode für Entwicklung |
+| `npm run rebuild` | Dist löschen und neu bauen |
+| `npm run clean` | Dist und node_modules löschen |
 
-1. Führe das Setup aus `Kneeboard Server Setup\Debug` oder `Release` aus
-2. Der Server wird beim Start automatisch mit Admin-Rechten gestartet
+### Panel-Konfiguration
 
-### Option 2: Von Source kompilieren
+Die `.env` Datei im Kneeboard-Ordner ermöglicht folgende Einstellungen:
 
-1. Öffne `Kneeboard Server.sln` in Visual Studio 2017 oder neuer
-2. Build Configuration: `Debug` oder `Release`
-3. Platform: `x64` empfohlen
-4. Build Solution
-
-## Verwendung
-
-1. Starte den Kneeboard Server
-2. Die Anwendung läuft im Hintergrund
-3. Der HTTP-Server ist unter `http://localhost:815` erreichbar
-4. Starte MSFS und das Kneeboard EFB Add-on
-5. Das Kneeboard verbindet sich automatisch mit dem Server
+- `APP_ID` - App-Identifier (Standard: `Kneeboard`)
+- `APP_VIEW_CLASS` - CSS-Klasse der View (Standard: `GsimKneeboard`)
+- `API_PROXY_URL` - URL des Kneeboard-Servers (Standard: `http://localhost:815`)
+- `TYPECHECKING` - TypeScript-Prüfung aktivieren (`true`/`false`)
+- `SOURCE_MAPS` - Source Maps generieren (`true`/`false`)
+- `MINIFY` - Output minimieren (`true`/`false`)
 
 ## Projektstruktur
 
 ```
-Kneeboard Server/
-├── Kneeboard Server/          # Hauptanwendung
-│   ├── Program.cs              # Entry Point
-│   ├── KneeboardServer.cs      # Server-Logik
-│   ├── SimpleHTTPServer.cs     # HTTP Server
-│   ├── Airports.cs             # Flughafen-Datenbank
-│   ├── Waypoints.cs            # Waypoint-Verwaltung
-│   ├── Simbrief.cs             # Simbrief-Integration
-│   └── bin/                    # Kompilierte Binaries
-└── Kneeboard Server Setup/     # Installer-Projekt
-    ├── Debug/                  # Debug Installer
-    └── Release/                # Release Installer
+G-Sim Kneeboard/
+├── Kneeboard Server/              # Server-Anwendung
+│   ├── Program.cs                  # Entry Point
+│   ├── KneeboardServer.cs         # Server-Logik
+│   ├── SimpleHTTPServer.cs        # HTTP Server
+│   ├── Airports.cs                # Flughafen-Datenbank
+│   ├── Waypoints.cs               # Waypoint-Verwaltung
+│   ├── Simbrief.cs                # Simbrief-Integration
+│   ├── PanelDeploymentService.cs  # Panel-Installation
+│   ├── MsfsPathDetector.cs        # MSFS-Pfad-Erkennung
+│   └── data/                      # Web-Frontend (HTML/JS/CSS)
+├── Kneeboard Server Setup/        # Installer-Projekt
+├── Kneeboard/                     # MSFS Panel Add-on
+│   ├── PackageDefinitions/         # MSFS Package-Definition
+│   ├── Packages/                   # Gebautes Package
+│   └── PackageSources/
+│       ├── efb_api/                # EFB API TypeScript-Definitionen
+│       └── vendor/
+│           └── Kneeboard/          # Panel Source Code (TypeScript/TSX)
+└── Kneeboard Server.sln
 ```
 
 ## Technologie-Stack
 
+**Server:**
 - C# / .NET Framework 4.8
 - Windows Forms
-- HTTP Server (Port 815)
+- EmbedIO HTTP Server (Port 815)
+- SimConnect
 - JSON für Datenaustausch
+
+**Panel:**
+- TypeScript / TSX
+- @microsoft/msfs-sdk
+- EFB API
+- esbuild
+- SASS
 
 ## Entwicklung
 
-### Build-Konfigurationen
+### Server Build-Konfigurationen
 
 - **Debug|x64**: Entwicklung mit Debug-Symbolen
 - **Release|x64**: Optimierte Production-Version
@@ -126,6 +189,8 @@ Kneeboard Server/
 - Visual Studio 2017 oder neuer
 - .NET Framework 4.8 SDK
 - Windows SDK
+- Node.js (für Panel-Entwicklung)
+- MSFS SDK (für Panel-Entwicklung)
 
 ## Port
 

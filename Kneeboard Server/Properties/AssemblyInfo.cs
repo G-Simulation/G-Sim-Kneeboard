@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("G-Simulations")]
 [assembly: AssemblyProduct("Kneeboard Server")]
-[assembly: AssemblyCopyright("Copyright © 2021-2025 G-Simulations")]
+[assembly: AssemblyCopyright("Copyright © 2021-2026 G-Simulations")]
 [assembly: AssemblyTrademark("G-Sim")]
 [assembly: AssemblyCulture("")]
 

@@ -1041,7 +1041,7 @@ h4 {
 #overlay {
     position: absolute;
     min-width: 15vw;
-    max-width: 35vw;
+    max-width: 40vw;
     max-height: 79vh;
     min-height: 17vh;
     right: 10px;
@@ -1116,7 +1116,7 @@ h4 {
 #controllerContainer {
     position: absolute;
     min-width: 15vw;
-    max-width: 35vw;
+    max-width: 40vw;
     max-height: 79vh;
     min-height: 17vh;
     left: 10px;

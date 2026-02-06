@@ -1579,7 +1579,7 @@ function maybeRefreshDocumentsList(forceImmediate) {
 			// Mouse events
 			config.handle.addEventListener('mousedown', startMouseResize);
 
-			// Touch events for EFB
+			// Touch events for Kneeboard
 			config.handle.addEventListener('touchstart', startTouchResize, { passive: false });
 		}
 

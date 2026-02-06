@@ -66,6 +66,7 @@ namespace Kneeboard_Server
             this.cacheGroupBox.SuspendLayout();
             this.navigraphGroupBox.SuspendLayout();
             this.elevationGroupBox.SuspendLayout();
+            this.supportLink = new System.Windows.Forms.LinkLabel();
             this.panelGroupBox.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -440,19 +441,34 @@ namespace Kneeboard_Server
             this.installPanelButton.Text = "Install Panel";
             this.installPanelButton.UseVisualStyleBackColor = true;
             this.installPanelButton.Click += new System.EventHandler(this.InstallPanelButton_Click);
-            // 
+            //
+            // supportLink
+            //
+            this.supportLink.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
+            this.supportLink.Font = new System.Drawing.Font("Segoe UI", 8.25F);
+            this.supportLink.Location = new System.Drawing.Point(12, 668);
+            this.supportLink.Name = "supportLink";
+            this.supportLink.Size = new System.Drawing.Size(230, 16);
+            this.supportLink.TabIndex = 57;
+            this.supportLink.TabStop = true;
+            this.supportLink.Text = "♥ Support this project";
+            this.supportLink.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.supportLink.LinkColor = System.Drawing.SystemColors.Highlight;
+            this.supportLink.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.SupportLink_LinkClicked);
+            //
             // InformationForm
-            // 
+            //
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Window;
-            this.ClientSize = new System.Drawing.Size(254, 676);
+            this.ClientSize = new System.Drawing.Size(254, 695);
             this.Controls.Add(this.elevationGroupBox);
             this.Controls.Add(this.panelGroupBox);
             this.Controls.Add(this.navigraphGroupBox);
             this.Controls.Add(this.cacheGroupBox);
             this.Controls.Add(this.idsGroupBox);
             this.Controls.Add(this.startupGroupBox);
+            this.Controls.Add(this.supportLink);
             this.Controls.Add(this.linkLabel1);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.Version);
@@ -513,5 +529,6 @@ namespace Kneeboard_Server
         private System.Windows.Forms.Label panelStatusLabel;
         private System.Windows.Forms.Label panelPathLabel;
         private System.Windows.Forms.Button installPanelButton;
+        private System.Windows.Forms.LinkLabel supportLink;
     }
 }

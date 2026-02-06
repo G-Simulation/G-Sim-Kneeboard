@@ -60,7 +60,7 @@ window.isCoherentGT = (function() {
       navigator.userAgent.indexOf('CoherentGT') !== -1) {
     return true;
   }
-  // Check if running as iframe in MSFS EFB (parent has KneeboardApiProxyUrl)
+  // Check if running as iframe in MSFS Kneeboard (parent has KneeboardApiProxyUrl)
   try {
     if (window.parent && window.parent !== window &&
         window.parent.KneeboardApiProxyUrl !== undefined) {

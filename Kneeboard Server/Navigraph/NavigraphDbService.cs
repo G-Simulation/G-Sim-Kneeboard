@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using CoordinateSharp;
 using CoordinateSharp.Magnetic;
+using Kneeboard_Server.Logging;
 
 namespace Kneeboard_Server.Navigraph
 {
@@ -34,7 +35,7 @@ namespace Kneeboard_Server.Navigraph
             {
                 if (!File.Exists(_databasePath))
                 {
-                    Console.WriteLine($"Navigraph DB: Datei nicht gefunden: {_databasePath}");
+                    KneeboardLogger.NavigraphError($"Datei nicht gefunden: {_databasePath}");
                     return;
                 }
 
@@ -42,7 +43,7 @@ namespace Kneeboard_Server.Navigraph
                 _connection = new SQLiteConnection(connectionString);
                 _connection.Open();
 
-                Console.WriteLine($"Navigraph DB: Verbunden mit {Path.GetFileName(_databasePath)}");
+                KneeboardLogger.Navigraph($"DB verbunden mit {Path.GetFileName(_databasePath)}");
 
                 // Debug: Log table schemas for SID/STAR/IAP tables
                 LogTableSchema("tbl_pd_sids");
@@ -52,7 +53,7 @@ namespace Kneeboard_Server.Navigraph
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Verbindungsfehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Verbindungsfehler: {ex.Message}\n{ex.StackTrace}");
             }
         }
 
@@ -66,19 +67,19 @@ namespace Kneeboard_Server.Navigraph
                 using (var cmd = new SQLiteCommand(_connection))
                 {
                     cmd.CommandText = $"PRAGMA table_info({tableName})";
-                    Console.WriteLine($"[Navigraph DB] Schema for {tableName}:");
+                    KneeboardLogger.NavigraphDebug($"Schema for {tableName}:");
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
                         {
-                            Console.WriteLine($"  - {reader["name"]}");
+                            KneeboardLogger.NavigraphDebug($"  - {reader["name"]}");
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph DB] Error reading schema for {tableName}: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Error reading schema for {tableName}: {ex.Message}");
             }
         }
 
@@ -144,7 +145,7 @@ namespace Kneeboard_Server.Navigraph
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Airport Query Fehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Airport Query Fehler: {ex.Message}");
             }
 
             return null;
@@ -164,12 +165,12 @@ namespace Kneeboard_Server.Navigraph
                 var magnetic = new Magnetic(coord, DataModel.WMM2020);
                 // Get declination from magnetic field elements
                 var declination = magnetic.MagneticFieldElements.Declination;
-                Console.WriteLine($"[WMM] Lat={latitude:F4}, Lon={longitude:F4} => Declination={declination:F2}°");
+                KneeboardLogger.NavigraphDebug($"[WMM] Lat={latitude:F4}, Lon={longitude:F4} => Declination={declination:F2}°");
                 return declination;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[WMM] Error calculating declination: {ex.Message}");
+                KneeboardLogger.NavigraphError($"WMM declination error: {ex.Message}");
                 return 0;
             }
         }
@@ -221,7 +222,7 @@ namespace Kneeboard_Server.Navigraph
                             {
                                 // TRUE bearing available from database
                                 trueHeading = trueHeadingFromDb.Value;
-                                Console.WriteLine($"[Runway] {identifier}: Using TRUE bearing from DB: {trueHeading:F1}°");
+                                KneeboardLogger.NavigraphDebug($"[Runway] {identifier}: Using TRUE bearing from DB: {trueHeading:F1}°");
                             }
                             else
                             {
@@ -232,7 +233,7 @@ namespace Kneeboard_Server.Navigraph
                                 // Normalize to 0-360
                                 if (trueHeading < 0) trueHeading += 360;
                                 if (trueHeading >= 360) trueHeading -= 360;
-                                Console.WriteLine($"[Runway] {identifier}: Calculated TRUE: {magHeading:F1}° - {declination:F1}° = {trueHeading:F1}°");
+                                KneeboardLogger.NavigraphDebug($"[Runway] {identifier}: Calculated TRUE: {magHeading:F1}° - {declination:F1}° = {trueHeading:F1}°");
                             }
 
                             var runway = new RunwayInfo
@@ -258,7 +259,7 @@ namespace Kneeboard_Server.Navigraph
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Runway Query Fehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Runway Query Fehler: {ex.Message}");
             }
 
             return runways;
@@ -271,7 +272,7 @@ namespace Kneeboard_Server.Navigraph
         {
             if (!IsConnected)
             {
-                Console.WriteLine($"[Runway Debug] Not connected to database");
+                KneeboardLogger.NavigraphDebug($"[Runway Debug] Not connected to database");
                 return null;
             }
 
@@ -283,13 +284,13 @@ namespace Kneeboard_Server.Navigraph
                     normalizedId = "RW" + normalizedId;
                 }
 
-                Console.WriteLine($"[Runway Debug] GetRunway({icao}, {runwayId}) - normalized: {normalizedId}");
+                KneeboardLogger.NavigraphDebug($"[Runway Debug] GetRunway({icao}, {runwayId}) - normalized: {normalizedId}");
 
                 var runways = GetRunways(icao);
-                Console.WriteLine($"[Runway Debug] Found {runways.Count} runways at {icao}");
+                KneeboardLogger.NavigraphDebug($"[Runway Debug] Found {runways.Count} runways at {icao}");
                 foreach (var rwy in runways)
                 {
-                    Console.WriteLine($"[Runway Debug]   - Runway: {rwy.Identifier}");
+                    KneeboardLogger.NavigraphDebug($"[Runway Debug]   - Runway: {rwy.Identifier}");
                 }
 
                 var trimmedRunwayId = (runwayId ?? "").Trim();
@@ -299,25 +300,25 @@ namespace Kneeboard_Server.Navigraph
                     var identifier = (rwy.Identifier ?? "").Trim();
                     if (identifier.Equals(normalizedId, StringComparison.OrdinalIgnoreCase))
                     {
-                        Console.WriteLine($"[Runway Debug] Found exact match: {identifier}");
+                        KneeboardLogger.NavigraphDebug($"[Runway Debug] Found exact match: {identifier}");
                         return rwy;
                     }
                     if (identifier.Equals(trimmedRunwayId, StringComparison.OrdinalIgnoreCase))
                     {
-                        Console.WriteLine($"[Runway Debug] Found match (original format): {identifier}");
+                        KneeboardLogger.NavigraphDebug($"[Runway Debug] Found match (original format): {identifier}");
                         return rwy;
                     }
                 }
 
                 var idWithoutRW = normalizedId.Replace("RW", "").Trim();
-                Console.WriteLine($"[Runway Debug] Trying partial match without RW: {idWithoutRW}");
+                KneeboardLogger.NavigraphDebug($"[Runway Debug] Trying partial match without RW: {idWithoutRW}");
                 foreach (var rwy in runways)
                 {
                     var identifier = (rwy.Identifier ?? "").Trim();
                     var rwyIdWithoutRW = identifier.ToUpperInvariant().Replace("RW", "").Trim();
                     if (rwyIdWithoutRW.Equals(idWithoutRW, StringComparison.OrdinalIgnoreCase))
                     {
-                        Console.WriteLine($"[Runway Debug] Found partial match: {identifier}");
+                        KneeboardLogger.NavigraphDebug($"[Runway Debug] Found partial match: {identifier}");
                         return rwy;
                     }
                 }
@@ -327,17 +328,17 @@ namespace Kneeboard_Server.Navigraph
                     var identifier = (rwy.Identifier ?? "").Trim();
                     if (!string.IsNullOrEmpty(idWithoutRW) && identifier.ToUpperInvariant().Contains(idWithoutRW))
                     {
-                        Console.WriteLine($"[Runway Debug] Found contains match: {identifier}");
+                        KneeboardLogger.NavigraphDebug($"[Runway Debug] Found contains match: {identifier}");
                         return rwy;
                     }
                 }
 
                 // KEIN Fallback - wenn keine Übereinstimmung, null zurückgeben
-                Console.WriteLine($"[Runway Debug] No matching runway found for {icao} {runwayId} - returning null");
+                KneeboardLogger.NavigraphDebug($"[Runway Debug] No matching runway found for {icao} {runwayId} - returning null");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Runway Debug] Runway Query Error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Runway Query Error: {ex.Message}");
             }
 
             return null;
@@ -390,16 +391,16 @@ namespace Kneeboard_Server.Navigraph
 
             // Log all available runways at this airport
             var allRunways = GetRunways(icao);
-            Console.WriteLine($"[Runway Debug] All runways at {icao}: {string.Join(", ", allRunways.Select(r => r.Identifier))}");
-            Console.WriteLine($"[Runway Debug] Requested runway: {runway.Identifier} at ({runway.ThresholdLat:F6}, {runway.ThresholdLon:F6})");
+            KneeboardLogger.NavigraphDebug($"[Runway Debug] All runways at {icao}: {string.Join(", ", allRunways.Select(r => r.Identifier))}");
+            KneeboardLogger.NavigraphDebug($"[Runway Debug] Requested runway: {runway.Identifier} at ({runway.ThresholdLat:F6}, {runway.ThresholdLon:F6})");
 
             // Get opposite runway ID
             var oppositeId = GetOppositeRunwayId(runway.Identifier);
-            Console.WriteLine($"[Runway Debug] Calculated opposite runway of {runway.Identifier} is {oppositeId}");
+            KneeboardLogger.NavigraphDebug($"[Runway Debug] Calculated opposite runway of {runway.Identifier} is {oppositeId}");
 
             // ALWAYS calculate end from heading/length for reliability
             runway.CalculateEndCoordinates();
-            Console.WriteLine($"[Runway Debug] Calculated end from heading {runway.Heading}° and length {runway.Length}ft: ({runway.EndLat:F6}, {runway.EndLon:F6})");
+            KneeboardLogger.NavigraphDebug($"[Runway Debug] Calculated end from heading {runway.Heading}° and length {runway.Length}ft: ({runway.EndLat:F6}, {runway.EndLon:F6})");
 
             return runway;
         }
@@ -452,7 +453,7 @@ namespace Kneeboard_Server.Navigraph
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: ILS Query Fehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"ILS Query Fehler: {ex.Message}");
             }
 
             return ilsList;
@@ -497,7 +498,7 @@ namespace Kneeboard_Server.Navigraph
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Frequency Query Fehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Frequency Query Fehler: {ex.Message}");
             }
 
             return frequencies;
@@ -579,16 +580,16 @@ namespace Kneeboard_Server.Navigraph
                             // Debug: Log first 10 entries
                             if (count <= 10)
                             {
-                                Console.WriteLine($"[Navigraph DB] {type} Row {count}: ID={proc.Identifier}, RouteType={proc.RouteType}, Transition={proc.TransitionIdentifier}, Runway={proc.Runway}, IsRunwayTransition={isRunwayTransition}");
+                                KneeboardLogger.NavigraphDebug($"[Navigraph DB] {type} Row {count}: ID={proc.Identifier}, RouteType={proc.RouteType}, Transition={proc.TransitionIdentifier}, Runway={proc.Runway}, IsRunwayTransition={isRunwayTransition}");
                             }
                         }
-                        Console.WriteLine($"[Navigraph DB] {type} Query returned {count} rows for {icao}");
+                        KneeboardLogger.NavigraphDebug($"[Navigraph DB] {type} Query returned {count} rows for {icao}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Procedure Query Fehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Procedure Query Fehler: {ex.Message}");
             }
 
             return procedures;
@@ -672,7 +673,7 @@ namespace Kneeboard_Server.Navigraph
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Approach Query Fehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Approach Query Fehler: {ex.Message}");
             }
 
             return approaches;
@@ -905,17 +906,17 @@ namespace Kneeboard_Server.Navigraph
                             }
                             catch (Exception rowEx)
                             {
-                                Console.WriteLine($"[Navigraph DB] ERROR row {rowCount}: {rowEx.Message}");
+                                KneeboardLogger.NavigraphError($"Row {rowCount}: {rowEx.Message}");
                             }
                         }
                     }
 
-                    Console.WriteLine($"[Navigraph DB] GetProcedureLegs FIX_V4: {icao}/{procedureId} -> {rowCount} rows, {legs.Count} kept");
+                    KneeboardLogger.NavigraphDebug($"[Navigraph DB] GetProcedureLegs FIX_V4: {icao}/{procedureId} -> {rowCount} rows, {legs.Count} kept");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Procedure Legs Query Fehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Procedure Legs Query Fehler: {ex.Message}");
             }
 
             // Ergänze Koordinaten für Runway-Waypoints die lat=0/lon=0 haben
@@ -930,11 +931,11 @@ namespace Kneeboard_Server.Navigraph
                     {
                         leg.Latitude = rwyInfo.ThresholdLat;
                         leg.Longitude = rwyInfo.ThresholdLon;
-                        Console.WriteLine($"[Navigraph DB] Enriched RW waypoint {leg.WaypointIdentifier} with coordinates: ({leg.Latitude:F6}, {leg.Longitude:F6})");
+                        KneeboardLogger.NavigraphDebug($"[Navigraph DB] Enriched RW waypoint {leg.WaypointIdentifier} with coordinates: ({leg.Latitude:F6}, {leg.Longitude:F6})");
                     }
                     else
                     {
-                        Console.WriteLine($"[Navigraph DB] WARNING: Could not find runway {rwyIdent} at {icao} for waypoint {leg.WaypointIdentifier}");
+                        KneeboardLogger.Warn("Navigraph", $"Could not find runway {rwyIdent} at {icao} for waypoint {leg.WaypointIdentifier}");
                     }
                 }
             }
@@ -1141,7 +1142,7 @@ namespace Kneeboard_Server.Navigraph
                     cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
                     cmd.Parameters.AddWithValue("@proc", procedureId);
 
-                    Console.WriteLine($"[TEST] Executing exact GetProcedureLegs query for {icao}/{procedureId}");
+                    KneeboardLogger.NavigraphDebug($"[TEST] Executing exact GetProcedureLegs query for {icao}/{procedureId}");
 
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -1153,15 +1154,15 @@ namespace Kneeboard_Server.Navigraph
                                 leg[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
                             }
                             legs.Add(leg);
-                            Console.WriteLine($"[TEST] Row: seqno={leg["seqno"]} wp={leg["waypoint_identifier"]} route={leg["route_type"]}");
+                            KneeboardLogger.NavigraphDebug($"[TEST] Row: seqno={leg["seqno"]} wp={leg["waypoint_identifier"]} route={leg["route_type"]}");
                         }
                     }
-                    Console.WriteLine($"[TEST] Total rows: {legs.Count}");
+                    KneeboardLogger.NavigraphDebug($"[TEST] Total rows: {legs.Count}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[TEST] Error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Test Error: {ex.Message}");
             }
 
             return legs;
@@ -1206,7 +1207,7 @@ namespace Kneeboard_Server.Navigraph
                     cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
                     cmd.Parameters.AddWithValue("@proc", procedureId);
 
-                    Console.WriteLine($"Navigraph DB: Querying raw approach legs for {icao}/{procedureId}");
+                    KneeboardLogger.NavigraphDebug($"Navigraph DB: Querying raw approach legs for {icao}/{procedureId}");
 
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -1222,13 +1223,13 @@ namespace Kneeboard_Server.Navigraph
                             legs.Add(leg);
                         }
                     }
-                    Console.WriteLine($"Navigraph DB: Found {legs.Count} raw approach legs");
+                    KneeboardLogger.NavigraphDebug($"Navigraph DB: Found {legs.Count} raw approach legs");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Raw Approach Legs Query Error: {ex.Message}");
-                Console.WriteLine($"Navigraph DB: Stack: {ex.StackTrace}");
+                KneeboardLogger.NavigraphError($"Raw Approach Legs Query Error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Stack: {ex.StackTrace}");
             }
 
             return legs;
@@ -1319,7 +1320,7 @@ namespace Kneeboard_Server.Navigraph
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Waypoint Query Fehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Waypoint Query Fehler: {ex.Message}");
             }
 
             return null;
@@ -1412,7 +1413,7 @@ namespace Kneeboard_Server.Navigraph
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Navaid Query Fehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Navaid Query Fehler: {ex.Message}");
             }
 
             return navaids;
@@ -1494,7 +1495,7 @@ namespace Kneeboard_Server.Navigraph
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Navaid Query Fehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Navaid Query Fehler: {ex.Message}");
             }
 
             return null;
@@ -1570,7 +1571,7 @@ namespace Kneeboard_Server.Navigraph
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Navigraph DB: Airway Query Fehler: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Airway Query Fehler: {ex.Message}");
             }
 
             return null;

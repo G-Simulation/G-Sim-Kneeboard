@@ -324,13 +324,20 @@ namespace Kneeboard_Server
                 navigraphLoginButton.Enabled = false;
                 navigraphLoginButton.Text = "Starting...";
 
+                // Capture log messages to show actual API error
+                string lastLogMessage = null;
+                EventHandler<string> logHandler = (s2, msg) => lastLogMessage = msg;
+                _navigraphAuth.OnLog += logHandler;
+
                 var deviceCode = await _navigraphAuth.StartDeviceAuthFlowAsync();
+
+                _navigraphAuth.OnLog -= logHandler;
 
                 if (deviceCode == null)
                 {
                     MessageBox.Show(
                         "Navigraph-Authentifizierung konnte nicht gestartet werden.\n\n" +
-                        "Bitte prüfe deine Internetverbindung und versuche es erneut.",
+                        (lastLogMessage ?? "Bitte prüfe deine Internetverbindung und versuche es erneut."),
                         "Navigraph", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
@@ -518,7 +525,7 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.Save();
 
                 UpdatePanelStatus();
-                MessageBox.Show("EFB Panel successfully installed!", "MSFS Panel",
+                MessageBox.Show("Kneeboard Panel successfully installed!", "MSFS Panel",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -682,7 +689,7 @@ namespace Kneeboard_Server
                         elevationStatusLabel.Text = status;
                 });
 
-                await Task.Run(() => SimpleHTTPServer.DownloadSrtmRegion(regionName, progress));
+                await SimpleHTTPServer.DownloadSrtmRegionAsync(regionName, progress);
 
                 UpdateSrtmStatus();
                 MessageBox.Show("SRTM data download complete!", "Success",
@@ -711,6 +718,12 @@ namespace Kneeboard_Server
         }
 
         #endregion
+
+        private void SupportLink_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            var spendenForm = new SpendenForm();
+            spendenForm.ShowDialog(this);
+        }
 
     }
 }
