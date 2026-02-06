@@ -11496,14 +11496,17 @@ var _vatsimControllersReady = false;
 var _vatsimTransceiversReady = false;
 var _vatsimControllerData = null;
 var _vatsimDataFetching = false;  // Idempotenz-Flag: verhindert parallele Polls
+var _vatsimFetchGeneration = 0;   // Generation-Counter: invalidiert alte Callbacks bei Netzwerk-Wechsel
 
 function getVatsimData() {
-  // Idempotenz: Skip wenn bereits ein Fetch läuft
+  // Idempotenz: Skip wenn bereits ein Fetch läuft (gilt nur für Timer-basierte Polls)
   if (_vatsimDataFetching) {
     console.log('[Controller] Skipping getVatsimData - already fetching');
     return;
   }
   _vatsimDataFetching = true;
+  _vatsimFetchGeneration++;
+  var gen = _vatsimFetchGeneration;
 
   if (controllerInterval) {
     clearInterval(controllerInterval);
@@ -11519,10 +11522,10 @@ function getVatsimData() {
     _vatsimControllerData = null;
 
     // Lade beide parallel, aber verarbeite erst wenn BEIDE fertig sind
-    getTransceivers(); // Transceivers ZUERST starten (werden für Koordinaten benötigt)
-    getControllers();
+    getTransceivers(gen); // Transceivers ZUERST starten (werden für Koordinaten benötigt)
+    getControllers(gen);
   } else {
-    getIVAO();
+    getIVAO(gen);
   }
 }
 
@@ -14909,7 +14912,7 @@ function drawLines() {
     if (e.group.name === "Aircraft") {
       if (e.name === "On") {
         var imgAirplane = DOM.imageAirplane;
-        imgAirplane.style.visibility = "visible";
+        if (imgAirplane) imgAirplane.style.visibility = "visible";
         var pos = new L.LatLng(pos_lat, pos_lng);
         airplane.setLatLng(pos).update();
         var _imgAP = DOM.imageAirplane;
@@ -16494,12 +16497,25 @@ var controllerDataCache = {
   TTL: 8000 // 8 Sekunden (unter dem 10s Polling-Intervall)
 };
 
-function postRequest(endpoint, onSuccess) {
+function postRequest(endpoint, onSuccess, onError) {
   var xhr = new XMLHttpRequest();
   xhr.open("POST", endpoint, true);
+  xhr.timeout = 15000; // 15s Timeout
   xhr.onreadystatechange = function () {
-    if (xhr.readyState !== XMLHttpRequest.DONE || !xhr.responseText) return;
-    onSuccess(xhr.responseText);
+    if (xhr.readyState !== XMLHttpRequest.DONE) return;
+    if (xhr.status === 200 && xhr.responseText) {
+      onSuccess(xhr.responseText);
+    } else if (onError) {
+      onError(new Error('HTTP ' + xhr.status + ' for ' + endpoint));
+    }
+  };
+  xhr.ontimeout = function() {
+    console.warn('[Network] Timeout for ' + endpoint);
+    if (onError) onError(new Error('Timeout for ' + endpoint));
+  };
+  xhr.onerror = function() {
+    console.warn('[Network] Error for ' + endpoint);
+    if (onError) onError(new Error('Network error for ' + endpoint));
   };
   xhr.send("foobar");
 }
@@ -16508,7 +16524,7 @@ function postRequest(endpoint, onSuccess) {
  * OPTIMIERUNG: Gecachte Version von synchronizeControllers
  * Shared zwischen fetchVatsimPilots() und getControllers()
  */
-function getCachedControllerData(callback) {
+function getCachedControllerData(callback, errorCallback) {
   var now = Date.now();
   if (controllerDataCache.response && (now - controllerDataCache.timestamp) < controllerDataCache.TTL) {
     callback(controllerDataCache.response);
@@ -16519,38 +16535,66 @@ function getCachedControllerData(callback) {
     controllerDataCache.response = response;
     controllerDataCache.timestamp = Date.now();
     callback(response);
+  }, function(err) {
+    console.warn('[Controller] synchronizeControllers failed:', err.message);
+    if (errorCallback) errorCallback(err);
   });
 }
 
 var _vatsimDataChanged = false;
 var _lastVatsimControllersHash = null;
 
-function getControllers() {
+function getControllers(gen) {
   getCachedControllerData(function (response) {
-    var data = JSON.parse(response);
-    _vatsimControllerData = data;
+    // Stale Response verwerfen (Netzwerk wurde zwischenzeitlich gewechselt)
+    if (gen !== _vatsimFetchGeneration) return;
+    try {
+      var data = JSON.parse(response);
+      _vatsimControllerData = data;
 
-    // OPTIMIERUNG: Nur CONTROLLER-Daten vergleichen, nicht den ganzen Response!
-    // Piloten-Positionen ändern sich ständig, aber Controller bleiben meist gleich
-    var controllersHash = JSON.stringify(data.controllers || []);
+      // OPTIMIERUNG: Nur CONTROLLER-Daten vergleichen, nicht den ganzen Response!
+      // Piloten-Positionen ändern sich ständig, aber Controller bleiben meist gleich
+      var controllersHash = JSON.stringify(data.controllers || []);
 
-    if (_lastVatsimControllersHash !== controllersHash) {
-      _lastVatsimControllersHash = controllersHash;
-      _vatsimDataChanged = true;
-    } else {
-      _vatsimDataChanged = false;
+      if (_lastVatsimControllersHash !== controllersHash) {
+        _lastVatsimControllersHash = controllersHash;
+        _vatsimDataChanged = true;
+      } else {
+        _vatsimDataChanged = false;
+      }
+
+      _vatsimControllersReady = true;
+      _tryProcessVatsimData();
+    } catch (e) {
+      console.warn('[Controller] getControllers parse error:', e.message);
+      _vatsimDataFetching = false;
+      startVatsimPolling();
     }
-
-    _vatsimControllersReady = true;
-    _tryProcessVatsimData();
+  }, function(err) {
+    if (gen !== _vatsimFetchGeneration) return;
+    console.warn('[Controller] getControllers failed:', err.message);
+    _vatsimDataFetching = false;
+    startVatsimPolling();
   });
 }
 
-function getTransceivers() {
+function getTransceivers(gen) {
   postRequest("synchronizeTransceivers", function (response) {
-    transceivers = JSON.parse(response);
-    _vatsimTransceiversReady = true;
-    _tryProcessVatsimData();
+    if (gen !== _vatsimFetchGeneration) return;
+    try {
+      transceivers = JSON.parse(response);
+      _vatsimTransceiversReady = true;
+      _tryProcessVatsimData();
+    } catch (e) {
+      console.warn('[Controller] getTransceivers parse error:', e.message);
+      _vatsimDataFetching = false;
+      startVatsimPolling();
+    }
+  }, function(err) {
+    if (gen !== _vatsimFetchGeneration) return;
+    console.warn('[Controller] getTransceivers failed:', err.message);
+    _vatsimDataFetching = false;
+    startVatsimPolling();
   });
 }
 
@@ -16580,21 +16624,29 @@ function _tryProcessVatsimData() {
 
 var _lastIvaoControllersHash = null;
 
-function getIVAO() {
+function getIVAO(gen) {
   postRequest("synchronizeIVAO", function (response) {
-    // Idempotenz-Flag zurücksetzen - IVAO Fetch ist abgeschlossen
+    if (gen !== _vatsimFetchGeneration) return;
     _vatsimDataFetching = false;
+    try {
+      var data = JSON.parse(response);
 
-    var data = JSON.parse(response);
+      // OPTIMIERUNG: Nur ATC-Daten vergleichen, nicht Piloten!
+      var atcsHash = JSON.stringify(data.clients.atcs || []);
 
-    // OPTIMIERUNG: Nur ATC-Daten vergleichen, nicht Piloten!
-    var atcsHash = JSON.stringify(data.clients.atcs || []);
-
-    if (_lastIvaoControllersHash !== atcsHash) {
-      _lastIvaoControllersHash = atcsHash;
-      filterIVAO(data.clients.atcs);
+      if (_lastIvaoControllersHash !== atcsHash) {
+        _lastIvaoControllersHash = atcsHash;
+        filterIVAO(data.clients.atcs);
+      }
+      startVatsimPolling();
+    } catch (e) {
+      console.warn('[Controller] getIVAO parse error:', e.message);
+      startVatsimPolling();
     }
-    // Polling weiterlaufen lassen
+  }, function(err) {
+    if (gen !== _vatsimFetchGeneration) return;
+    console.warn('[Controller] getIVAO failed:', err.message);
+    _vatsimDataFetching = false;
     startVatsimPolling();
   });
 }
@@ -16783,6 +16835,10 @@ function isControllerPanelVisible() {
 }
 
 function mout() {
+  // Polling und Fetches stoppen wenn Panel geschlossen wird
+  stopVatsimPolling();
+  _vatsimDataFetching = false;
+
   toggle10.state("radio");
   toggle11.state("airports");
   panelState = "";
@@ -16930,34 +16986,17 @@ function mout() {
 
     console.log('[Controller] Flight path restored - route lines, alternate and', restoredCount, 'waypoints');
 
-    // Force polylines to redraw by calling _reset() and _update() on the SVG renderer
+    // Force map to re-render all layers by invalidating size and triggering a micro-pan
     setTimeout(function() {
-      function forcePolylineRedraw(layerGroup) {
-        if (layerGroup && map.hasLayer(layerGroup)) {
-          layerGroup.eachLayer(function(layer) {
-            if (layer._reset) {
-              layer._reset();
-              if (layer._update) layer._update();
-            }
-          });
-        }
+      if (map) {
+        map.invalidateSize();
+        // Micro-pan trick: verschiebe 1px und sofort zurück um SVG/Canvas Renderer zu erzwingen
+        var center = map.getCenter();
+        map.panBy([1, 0], { animate: false });
+        map.panBy([-1, 0], { animate: false });
+        console.log('[Controller] Forced map re-render via invalidateSize + panBy');
       }
-
-      forcePolylineRedraw(pLineGroup);
-      forcePolylineRedraw(pLineGroupDEP);
-      forcePolylineRedraw(pLineGroupARR);
-
-      // Single polyline (live tracking)
-      if (polyline && map.hasLayer(polyline)) {
-        if (polyline._reset) {
-          polyline._reset();
-          if (polyline._update) polyline._update();
-        }
-      }
-
-      forcePolylineRedraw(alternateRouteLayer);
-      console.log('[Controller] Forced polyline redraw via _reset()');
-    }, 50);
+    }, 100);
   }
   flightpathLayersStateBeforeController = null; // Reset state
 
@@ -17027,8 +17066,13 @@ function hideFlightpathLayers() {
 function openControllerPanel(network) {
   mover();
 
-  // FORCE hide all flightpath layers
-  hideFlightpathLayers();
+  // Vorherige Fetches invalidieren (ermöglicht sofortigen Netzwerk-Wechsel)
+  // Generation-Counter in getVatsimData() sorgt dafür, dass alte Callbacks verworfen werden
+  stopVatsimPolling();
+  _vatsimDataFetching = false;
+  // Hashes zurücksetzen damit Daten nach Panel-Schließen/Öffnen neu geladen werden
+  _lastVatsimControllersHash = null;
+  _lastIvaoControllersHash = null;
 
   lastIvao = "";
   lastVatsim = "";
@@ -17450,8 +17494,6 @@ function bboxIntersectsBounds(bbox, bounds) {
 var lastControllers = [];
 
 function checkInRange(_controllersWithCoordArray) {
-  var _CurrentPosLat = lastLat;
-  var _CurrentPosLng = lastLng;
   controllersInRange = [];
 
   // Get active controller prefixes (controllers with active zones)
@@ -26436,85 +26478,90 @@ function listControllers() {
     listSum.style.display = "none";
   }
 
-  // Click handler via delegation on listUl
-  listUl.addEventListener("click", function(e) {
-    var item = e.target.closest(".kneeboard-list-item");
-    if (!item) return;
+  // Delegation-Handler NUR EINMAL auf listUl registrieren (verhindert Listener-Leak)
+  if (!listUl._controllerHandlersAttached) {
+    listUl._controllerHandlersAttached = true;
 
-    var callsign = item.id;
-    var index = controllersInRange.findIndex(function(x) { return x.callsign === callsign; });
+    // Click handler via delegation on listUl
+    listUl.addEventListener("click", function(e) {
+      var item = e.target.closest(".kneeboard-list-item");
+      if (!item) return;
 
-    // Remove active class from all items and remove ATIS
-    var allItems = listUl.querySelectorAll(".kneeboard-list-item");
-    allItems.forEach(function(el) { el.classList.remove("active"); });
-    var allAtis = listUl.querySelectorAll(".atis-info");
-    allAtis.forEach(function(el) { el.parentNode.removeChild(el); });
+      var callsign = item.id;
+      var index = controllersInRange.findIndex(function(x) { return x.callsign === callsign; });
 
-    if (lastSelected != callsign && callsign != "UNICOM") {
-      item.classList.add("active");
+      // Remove active class from all items and remove ATIS
+      var allItems = listUl.querySelectorAll(".kneeboard-list-item");
+      allItems.forEach(function(el) { el.classList.remove("active"); });
+      var allAtis = listUl.querySelectorAll(".atis-info");
+      allAtis.forEach(function(el) { el.parentNode.removeChild(el); });
 
-      selected = true;
-      lastSelected = callsign;
-      lastSelectedElement = item;
+      if (lastSelected != callsign && callsign != "UNICOM") {
+        item.classList.add("active");
 
-      if (index != -1) {
-        var controllerInfo = controllersInRange[index];
-        var atisLines = controllerInfo.text_atis;
-        var hasAtis = atisLines && atisLines !== -1;
-        var atisString = "";
+        selected = true;
+        lastSelected = callsign;
+        lastSelectedElement = item;
 
-        if (hasAtis) {
-          var normalizedLines = Array.isArray(atisLines) ? atisLines : [atisLines];
-          normalizedLines.forEach(function(element) {
-            if (element) {
-              atisString += element + "<br>";
-            }
-          });
+        if (index != -1) {
+          var controllerInfo = controllersInRange[index];
+          var atisLines = controllerInfo.text_atis;
+          var hasAtis = atisLines && atisLines !== -1;
+          var atisString = "";
+
+          if (hasAtis) {
+            var normalizedLines = Array.isArray(atisLines) ? atisLines : [atisLines];
+            normalizedLines.forEach(function(element) {
+              if (element) {
+                atisString += element + "<br>";
+              }
+            });
+          }
+
+          if (atisString) {
+            item.insertAdjacentHTML("beforeend", '<div class="atis-info">' + atisString + '</div>');
+          } else if (vatsim) {
+            item.insertAdjacentHTML("beforeend", '<div class="atis-info">Keine ATIS-Daten verfügbar</div>');
+          }
+
+          if (controllerInfo.lat && controllerInfo.lng) {
+            map.panTo([controllerInfo.lat, controllerInfo.lng]);
+            openControllerPopup(controllerInfo);
+          }
         }
 
-        if (atisString) {
-          item.insertAdjacentHTML("beforeend", '<div class="atis-info">' + atisString + '</div>');
-        } else if (vatsim) {
-          item.insertAdjacentHTML("beforeend", '<div class="atis-info">Keine ATIS-Daten verfügbar</div>');
+        if (controllerInterval) {
+          clearInterval(controllerInterval);
+          controllerInterval = null;
         }
+      } else if (callsign != "UNICOM") {
+        selected = false;
+        lastSelected = -1;
+        lastSelectedElement = null;
 
-        if (controllerInfo.lat && controllerInfo.lng) {
-          map.panTo([controllerInfo.lat, controllerInfo.lng]);
-          openControllerPopup(controllerInfo);
-        }
+        startVatsimPolling();
+      }
+    });
+
+    // Context menu handler for frequency setting (right-click) via delegation
+    listUl.addEventListener("contextmenu", function(e) {
+      var item = e.target.closest(".kneeboard-list-item");
+      if (!item) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      var frequency = item.getAttribute("data-frequency");
+      var callsign = item.id;
+
+      if (!frequency) {
+        console.warn('[Frequency Menu] No frequency data on element');
+        return;
       }
 
-      if (controllerInterval) {
-        clearInterval(controllerInterval);
-        controllerInterval = null;
-      }
-    } else if (callsign != "UNICOM") {
-      selected = false;
-      lastSelected = -1;
-      lastSelectedElement = null;
-
-      startVatsimPolling();
-    }
-  });
-
-  // Context menu handler for frequency setting (right-click) via delegation
-  listUl.addEventListener("contextmenu", function(e) {
-    var item = e.target.closest(".kneeboard-list-item");
-    if (!item) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    var frequency = item.getAttribute("data-frequency");
-    var callsign = item.id;
-
-    if (!frequency) {
-      console.warn('[Frequency Menu] No frequency data on element');
-      return;
-    }
-
-    showFrequencyContextMenu(e.pageX, e.pageY, frequency, callsign);
-  });
+      showFrequencyContextMenu(e.pageX, e.pageY, frequency, callsign);
+    });
+  }
 
   // Long-press handler for touch AND mouse devices (EFB + desktop compatibility)
   // Using native addEventListener instead of jQuery delegation for MSFS Coherent GT compatibility
@@ -26615,83 +26662,6 @@ function listControllers() {
     }, true); // Use capture phase to intercept before other handlers
   });
 
-  var stations = document.getElementsByClassName("station");
-  var frequency = "";
-  for (var i = 0; i < stations.length; i++) {
-    stations[i].addEventListener(
-      "mousedown",
-      function (e) {
-        e.preventDefault();
-      },
-      false
-    );
-    stations[i].addEventListener("click", function (e) {
-      for (var i = 0; i < stations.length; i++) {
-        stations[i].style.color = "";
-      }
-      var index = controllersInRange.findIndex((x2) => x2.callsign === this.id);
-      if (lastSelected != this.id && this.id != "UNICOM") {
-        if (lastSelected != -1) {
-          var index2 = controllersInRange.findIndex(
-            (x3) => x3.callsign === lastSelected
-          );
-          lastSelectedElement.innerHTML =
-            controllersInRange[index2].callsign +
-            " -&nbsp" +
-            controllersInRange[index2].frequency;
-        }
-        selected = true;
-        lastSelected = this.id;
-        lastSelectedElement = this;
-        if (index != -1) {
-          var controllerInfo = controllersInRange[index];
-          var atisLines = controllerInfo.text_atis;
-          var hasAtis = atisLines && atisLines !== -1;
-          var atisString = "";
-          if (hasAtis) {
-            var normalizedLines = Array.isArray(atisLines)
-              ? atisLines
-              : [atisLines];
-            normalizedLines.forEach(function (element) {
-              if (element) {
-                atisString += element + "<br>";
-              }
-            });
-          }
-          if (atisString) {
-            var innerText =
-              controllerInfo.callsign +
-              " -&nbsp" +
-              controllerInfo.frequency +
-              '<br><p class="atisText"><i>' +
-              atisString +
-              "</i></p>";
-            this.innerHTML = innerText;
-          } else {
-            var fallbackText =
-              controllerInfo.callsign +
-              " -&nbsp" +
-              controllerInfo.frequency +
-              '<br><p class="atisText"><i>Keine ATIS-Daten verfügbar</i></p>';
-            this.innerHTML = fallbackText;
-          }
-        }
-        if (controllerInterval) {
-          clearInterval(controllerInterval);
-          controllerInterval = null;
-        }
-      } else if (this.id != "UNICOM") {
-        var innerText =
-          controllersInRange[index].callsign +
-          " -&nbsp" +
-          controllersInRange[index].frequency;
-        this.innerHTML = innerText;
-        selected = false;
-        lastSelected = -1;
-        startVatsimPolling();
-      }
-    });
-  }
 }
 
 var navaidsCounter = 10;
