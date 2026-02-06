@@ -442,5 +442,16 @@ namespace Kneeboard_Server.Properties {
                 this["useSrtmElevation"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        public global::System.DateTime lastDonationShown {
+            get {
+                return ((global::System.DateTime)(this["lastDonationShown"]));
+            }
+            set {
+                this["lastDonationShown"] = value;
+            }
+        }
     }
 }

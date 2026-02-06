@@ -69,6 +69,9 @@ namespace Kneeboard_Server
             // Load Navigraph status
             UpdateNavigraphStatus();
 
+            // Load MSFS Panel status
+            UpdatePanelStatus();
+
             // Load SRTM settings
             useSrtmCheckbox.Checked = Properties.Settings.Default.useSrtmElevation;
             UpdateSrtmStatus();
@@ -323,6 +326,15 @@ namespace Kneeboard_Server
 
                 var deviceCode = await _navigraphAuth.StartDeviceAuthFlowAsync();
 
+                if (deviceCode == null)
+                {
+                    MessageBox.Show(
+                        "Navigraph-Authentifizierung konnte nicht gestartet werden.\n\n" +
+                        "Bitte prüfe deine Internetverbindung und versuche es erneut.",
+                        "Navigraph", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
                 // Show verification dialog
                 string message = $"Please go to:\n\n{deviceCode.VerificationUri}\n\n" +
                     $"And enter code: {deviceCode.UserCode}\n\n" +
@@ -389,6 +401,180 @@ namespace Kneeboard_Server
             {
                 navigraphLoginButton.Enabled = true;
                 UpdateNavigraphStatus();
+            }
+        }
+
+        #endregion
+
+        #region MSFS Panel Deployment
+
+        private void UpdatePanelStatus()
+        {
+            try
+            {
+                if (!PanelDeploymentService.SourceExists())
+                {
+                    panelStatusLabel.Text = "Source missing";
+                    panelStatusLabel.ForeColor = Color.Red;
+                    panelPathLabel.Text = "";
+                    installPanelButton.Enabled = false;
+                    return;
+                }
+
+                var installations = MsfsPathDetector.DetectMsfsInstallations();
+
+                if (installations.Count == 0)
+                {
+                    panelStatusLabel.Text = "MSFS not found";
+                    panelStatusLabel.ForeColor = Color.Gray;
+                    panelPathLabel.Text = "Use button to select manually";
+                    installPanelButton.Text = "Install Panel (Browse...)";
+                    installPanelButton.Enabled = true;
+                    return;
+                }
+
+                // Use first detected installation (or saved path)
+                var install = installations[0];
+                var info = MsfsPathDetector.GetInstalledPackageInfo(install.CommunityPath);
+
+                if (info.IsInstalled)
+                {
+                    if (PanelDeploymentService.NeedsUpdate(install.CommunityPath))
+                    {
+                        panelStatusLabel.Text = $"Update available (v{info.Version})";
+                        panelStatusLabel.ForeColor = Color.Orange;
+                        installPanelButton.Text = "Update Panel";
+                    }
+                    else
+                    {
+                        panelStatusLabel.Text = $"Installed (v{info.Version})";
+                        panelStatusLabel.ForeColor = Color.Green;
+                        installPanelButton.Text = "Reinstall Panel";
+                    }
+                }
+                else
+                {
+                    panelStatusLabel.Text = "Not installed";
+                    panelStatusLabel.ForeColor = Color.Gray;
+                    installPanelButton.Text = "Install Panel";
+                }
+
+                panelPathLabel.Text = $"{install.Version} {install.Variant}: {install.CommunityPath}";
+                installPanelButton.Enabled = true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Panel UI] Status error: {ex.Message}");
+                panelStatusLabel.Text = "Error";
+                panelStatusLabel.ForeColor = Color.Red;
+            }
+        }
+
+        private async void InstallPanelButton_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                var installations = MsfsPathDetector.DetectMsfsInstallations();
+                string communityPath;
+
+                if (installations.Count == 0)
+                {
+                    // No MSFS detected → let user browse
+                    communityPath = MsfsPathDetector.BrowseForCommunityFolder();
+                    if (string.IsNullOrEmpty(communityPath))
+                        return;
+                }
+                else if (installations.Count == 1)
+                {
+                    communityPath = installations[0].CommunityPath;
+                }
+                else
+                {
+                    // Multiple installations → let user pick
+                    var items = installations.Select(i => $"{i.Version} ({i.Variant}): {i.CommunityPath}").ToArray();
+                    string selected = ShowSelectionDialog("Select MSFS Installation", items);
+                    if (selected == null) return;
+                    int idx = Array.IndexOf(items, selected);
+                    communityPath = installations[idx].CommunityPath;
+                }
+
+                installPanelButton.Enabled = false;
+                installPanelButton.Text = "Installing...";
+                panelStatusLabel.Text = "Deploying...";
+                panelStatusLabel.ForeColor = Color.Orange;
+
+                var progress = new Progress<string>(status =>
+                {
+                    if (InvokeRequired)
+                        Invoke(new Action(() => panelStatusLabel.Text = status));
+                    else
+                        panelStatusLabel.Text = status;
+                });
+
+                await Task.Run(() => PanelDeploymentService.DeployPanel(communityPath, progress));
+
+                // Save the path
+                Properties.Settings.Default.communityFolderPath = communityPath;
+                Properties.Settings.Default.Save();
+
+                UpdatePanelStatus();
+                MessageBox.Show("EFB Panel successfully installed!", "MSFS Panel",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Panel UI] Install error: {ex.Message}");
+                MessageBox.Show($"Installation failed: {ex.Message}", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                UpdatePanelStatus();
+            }
+            finally
+            {
+                installPanelButton.Enabled = true;
+            }
+        }
+
+        private string ShowSelectionDialog(string title, string[] items)
+        {
+            using (var form = new Form())
+            {
+                form.Text = title;
+                form.Size = new Size(450, 180);
+                form.StartPosition = FormStartPosition.CenterParent;
+                form.FormBorderStyle = FormBorderStyle.FixedDialog;
+                form.MaximizeBox = false;
+                form.MinimizeBox = false;
+
+                var combo = new System.Windows.Forms.ComboBox
+                {
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    Location = new Point(12, 20),
+                    Size = new Size(410, 21)
+                };
+                combo.Items.AddRange(items);
+                combo.SelectedIndex = 0;
+
+                var okButton = new System.Windows.Forms.Button
+                {
+                    Text = "OK",
+                    DialogResult = DialogResult.OK,
+                    Location = new Point(266, 60),
+                    Size = new Size(75, 23)
+                };
+
+                var cancelButton = new System.Windows.Forms.Button
+                {
+                    Text = "Cancel",
+                    DialogResult = DialogResult.Cancel,
+                    Location = new Point(347, 60),
+                    Size = new Size(75, 23)
+                };
+
+                form.Controls.AddRange(new Control[] { combo, okButton, cancelButton });
+                form.AcceptButton = okButton;
+                form.CancelButton = cancelButton;
+
+                return form.ShowDialog(this) == DialogResult.OK ? combo.SelectedItem?.ToString() : null;
             }
         }
 

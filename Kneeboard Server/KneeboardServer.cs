@@ -995,6 +995,32 @@ namespace Kneeboard_Server
                 simConnectManager = null;
             }
 
+            // First-start: combined setup wizard (Panel, Autostart, SimBrief)
+            bool isFirstStart = Properties.Settings.Default.firstStart
+                             || !Properties.Settings.Default.firstAutoStart
+                             || !Properties.Settings.Default.firstSimbriefAsk;
+            if (isFirstStart)
+            {
+                ShowFirstStartWizard();
+                Properties.Settings.Default.firstStart = false;
+                Properties.Settings.Default.firstAutoStart = true;
+                Properties.Settings.Default.firstSimbriefAsk = true;
+                Properties.Settings.Default.lastDonationShown = DateTime.Now;
+                Properties.Settings.Default.Save();
+            }
+            else
+            {
+                // Spenden-Dialog 1x pro Tag anzeigen (beim ersten Start des Tages)
+                DateTime lastShown = Properties.Settings.Default.lastDonationShown;
+                if (lastShown == DateTime.MinValue || lastShown.Date < DateTime.Now.Date)
+                {
+                    var spendenForm = new SpendenForm();
+                    spendenForm.ShowDialog(this);
+                    Properties.Settings.Default.lastDonationShown = DateTime.Now;
+                    Properties.Settings.Default.Save();
+                }
+            }
+
             //delete hover color
             loadButton.FlatAppearance.MouseOverBackColor = System.Drawing.Color.Transparent;
             addFileButton.FlatAppearance.MouseOverBackColor = System.Drawing.Color.Transparent;
@@ -1020,6 +1046,12 @@ namespace Kneeboard_Server
 
         private void AutoUpdaterOnCheckForUpdateEvent(UpdateInfoEventArgs args)
         {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => AutoUpdaterOnCheckForUpdateEvent(args)));
+                return;
+            }
+
             if (args.Error == null)
             {
                 if (args.IsUpdateAvailable)
@@ -1075,6 +1107,286 @@ namespace Kneeboard_Server
             else
             {
                 statusBox.Text = text;
+            }
+        }
+
+        /// <summary>
+        /// Zeigt beim ersten Start einen kombinierten Setup-Dialog.
+        /// Enthält: EFB Panel Installation, Autostart, SimBrief-Integration.
+        /// </summary>
+        private void ShowFirstStartWizard()
+        {
+            try
+            {
+                var installations = MsfsPathDetector.DetectMsfsInstallations();
+                bool hasSource = PanelDeploymentService.SourceExists();
+
+                using (var form = new Form())
+                {
+                    form.Text = "Kneeboard Server Setup";
+                    form.StartPosition = FormStartPosition.CenterScreen;
+                    form.FormBorderStyle = FormBorderStyle.None;
+                    form.BackColor = SystemColors.Window;
+                    form.Paint += (s, ev) =>
+                    {
+                        ControlPaint.DrawBorder(ev.Graphics, form.ClientRectangle,
+                            SystemColors.Highlight, ButtonBorderStyle.Solid);
+                    };
+
+                    int yPos = 8;
+
+                    // ── Titel ──
+                    var titleLabel = new System.Windows.Forms.Label
+                    {
+                        Text = "Kneeboard Server Setup",
+                        Location = new Point(12, yPos),
+                        Size = new Size(440, 28),
+                        Font = new Font("Segoe UI", 14.25F, FontStyle.Bold),
+                        ForeColor = SystemColors.Highlight
+                    };
+                    form.Controls.Add(titleLabel);
+                    yPos += 30;
+
+                    var welcomeLabel = new System.Windows.Forms.Label
+                    {
+                        Text = "Willkommen! Bitte konfiguriere die folgenden Einstellungen:",
+                        Location = new Point(12, yPos),
+                        Size = new Size(440, 18),
+                        Font = new Font("Segoe UI", 8.25F),
+                        ForeColor = SystemColors.ControlDarkDark
+                    };
+                    form.Controls.Add(welcomeLabel);
+                    yPos += 28;
+
+                    // ── 1. Autostart ──
+                    var autostartGroupBox = new System.Windows.Forms.GroupBox
+                    {
+                        Text = "Autostart",
+                        Location = new Point(12, yPos),
+                        Size = new Size(446, 45),
+                        ForeColor = SystemColors.Highlight,
+                        Font = new Font("Segoe UI", 8.25F)
+                    };
+                    var autostartCb = new System.Windows.Forms.CheckBox
+                    {
+                        Text = "Kneeboard Server mit MSFS automatisch starten",
+                        Location = new Point(10, 18),
+                        Size = new Size(420, 20),
+                        Checked = true,
+                        Font = new Font("Segoe UI", 8.5F),
+                        ForeColor = SystemColors.ControlText
+                    };
+                    autostartGroupBox.Controls.Add(autostartCb);
+                    form.Controls.Add(autostartGroupBox);
+                    yPos += 52;
+
+                    // ── 2. SimBrief ──
+                    var simbriefGroupBox = new System.Windows.Forms.GroupBox
+                    {
+                        Text = "SimBrief",
+                        Location = new Point(12, yPos),
+                        Size = new Size(446, 48),
+                        ForeColor = SystemColors.Highlight,
+                        Font = new Font("Segoe UI", 8.25F)
+                    };
+                    var simbriefLabel = new System.Windows.Forms.Label
+                    {
+                        Text = "Pilot ID / Username:",
+                        Location = new Point(10, 20),
+                        Size = new Size(120, 18),
+                        Font = new Font("Segoe UI", 8.5F),
+                        ForeColor = SystemColors.ControlText
+                    };
+                    var simbriefInput = new System.Windows.Forms.TextBox
+                    {
+                        Location = new Point(135, 17),
+                        Size = new Size(300, 22),
+                        Font = new Font("Segoe UI", 8.5F),
+                        Text = Properties.Settings.Default.simbriefId ?? ""
+                    };
+                    simbriefGroupBox.Controls.Add(simbriefLabel);
+                    simbriefGroupBox.Controls.Add(simbriefInput);
+                    form.Controls.Add(simbriefGroupBox);
+                    yPos += 55;
+
+                    // ── 3. EFB Panel Installation ──
+                    var panelCheckboxes = new System.Collections.Generic.List<System.Windows.Forms.CheckBox>();
+                    System.Windows.Forms.CheckBox manualCb = null;
+                    System.Windows.Forms.TextBox manualPathBox = null;
+
+                    if (hasSource)
+                    {
+                        var panelGroupBox = new System.Windows.Forms.GroupBox
+                        {
+                            Text = "EFB Panel Installation",
+                            Location = new Point(12, yPos),
+                            ForeColor = SystemColors.Highlight,
+                            Font = new Font("Segoe UI", 8.25F)
+                        };
+
+                        int innerY = 18;
+
+                        foreach (var inst in installations)
+                        {
+                            var info = MsfsPathDetector.GetInstalledPackageInfo(inst.CommunityPath);
+                            string status = info.IsInstalled ? $" [v{info.Version} installiert]" : "";
+
+                            var cb = new System.Windows.Forms.CheckBox
+                            {
+                                Text = $"{inst.Version} ({inst.Variant}){status}",
+                                Tag = inst.CommunityPath,
+                                Location = new Point(10, innerY),
+                                Size = new Size(420, 20),
+                                Checked = !info.IsInstalled,
+                                Font = new Font("Segoe UI", 8.5F),
+                                ForeColor = SystemColors.ControlText
+                            };
+                            panelCheckboxes.Add(cb);
+                            panelGroupBox.Controls.Add(cb);
+
+                            var pathLabel = new System.Windows.Forms.Label
+                            {
+                                Text = inst.CommunityPath,
+                                Location = new Point(26, innerY + 19),
+                                Size = new Size(410, 14),
+                                Font = new Font("Segoe UI", 7F),
+                                ForeColor = SystemColors.ControlDarkDark
+                            };
+                            panelGroupBox.Controls.Add(pathLabel);
+                            innerY += 36;
+                        }
+
+                        // Manuell-Option
+                        manualCb = new System.Windows.Forms.CheckBox
+                        {
+                            Text = "Anderer Pfad:",
+                            Location = new Point(10, innerY),
+                            Size = new Size(100, 20),
+                            Checked = false,
+                            Font = new Font("Segoe UI", 8.5F),
+                            ForeColor = SystemColors.ControlText
+                        };
+                        panelGroupBox.Controls.Add(manualCb);
+
+                        manualPathBox = new System.Windows.Forms.TextBox
+                        {
+                            Location = new Point(115, innerY),
+                            Size = new Size(270, 22),
+                            Enabled = false
+                        };
+                        panelGroupBox.Controls.Add(manualPathBox);
+
+                        var browseButton = new System.Windows.Forms.Button
+                        {
+                            Text = "...",
+                            Location = new Point(390, innerY - 1),
+                            Size = new Size(35, 24),
+                            FlatStyle = FlatStyle.Flat,
+                            ForeColor = SystemColors.Highlight,
+                            Enabled = false
+                        };
+                        browseButton.Click += (s, ev) =>
+                        {
+                            using (var fbd = new FolderBrowserDialog())
+                            {
+                                fbd.Description = "MSFS Community-Ordner auswählen";
+                                if (fbd.ShowDialog() == DialogResult.OK)
+                                    manualPathBox.Text = fbd.SelectedPath;
+                            }
+                        };
+                        panelGroupBox.Controls.Add(browseButton);
+
+                        manualCb.CheckedChanged += (s, ev) =>
+                        {
+                            manualPathBox.Enabled = manualCb.Checked;
+                            browseButton.Enabled = manualCb.Checked;
+                        };
+
+                        innerY += 30;
+                        panelGroupBox.Size = new Size(446, innerY + 5);
+                        form.Controls.Add(panelGroupBox);
+                        yPos += innerY + 12;
+                    }
+
+                    // ── Buttons ──
+                    yPos += 5;
+                    var okButton = new System.Windows.Forms.Button
+                    {
+                        Text = "OK",
+                        DialogResult = DialogResult.OK,
+                        Location = new Point(290, yPos),
+                        Size = new Size(80, 28),
+                        FlatStyle = FlatStyle.Flat,
+                        ForeColor = SystemColors.Highlight
+                    };
+                    var cancelButton = new System.Windows.Forms.Button
+                    {
+                        Text = "Überspringen",
+                        DialogResult = DialogResult.Cancel,
+                        Location = new Point(378, yPos),
+                        Size = new Size(80, 28),
+                        FlatStyle = FlatStyle.Flat,
+                        ForeColor = SystemColors.ControlDarkDark
+                    };
+                    form.Controls.Add(okButton);
+                    form.Controls.Add(cancelButton);
+                    form.AcceptButton = okButton;
+                    form.CancelButton = cancelButton;
+                    form.ClientSize = new Size(470, yPos + 42);
+
+                    if (form.ShowDialog(this) == DialogResult.OK)
+                    {
+                        // Autostart speichern
+                        Properties.Settings.Default.simStart = autostartCb.Checked;
+
+                        // SimBrief speichern
+                        string simbriefId = simbriefInput.Text.Trim();
+                        if (!string.IsNullOrEmpty(simbriefId))
+                        {
+                            Properties.Settings.Default.simbriefId = simbriefId;
+                            StartBackgroundSimbriefSync();
+                        }
+
+                        // EFB Panel deployen
+                        if (hasSource)
+                        {
+                            int deployed = 0;
+                            string lastPath = null;
+
+                            foreach (var cb in panelCheckboxes)
+                            {
+                                if (cb.Checked)
+                                {
+                                    string path = (string)cb.Tag;
+                                    PanelDeploymentService.DeployPanel(path, null);
+                                    lastPath = path;
+                                    deployed++;
+                                    Console.WriteLine($"[KneeboardServer] Deployed EFB panel to {path}");
+                                }
+                            }
+
+                            if (manualCb != null && manualCb.Checked && !string.IsNullOrEmpty(manualPathBox.Text))
+                            {
+                                string path = manualPathBox.Text.Trim();
+                                PanelDeploymentService.DeployPanel(path, null);
+                                lastPath = path;
+                                deployed++;
+                                Console.WriteLine($"[KneeboardServer] Deployed EFB panel to {path}");
+                            }
+
+                            if (lastPath != null)
+                            {
+                                Properties.Settings.Default.communityFolderPath = lastPath;
+                            }
+                        }
+
+                        Properties.Settings.Default.Save();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[KneeboardServer] First-start wizard error: {ex.Message}");
             }
         }
 
@@ -1281,45 +1593,7 @@ namespace Kneeboard_Server
             LoadDocumentState();
             EnsureDefaultManualsExist();
 
-            if (Properties.Settings.Default.firstAutoStart == false)
-            {
-                DialogResult autostartQuestion = MessageBox.Show("Do you want to start the Kneeboard Server automatically with the Microsoft Flight Simulator 2020/2024??", "Start with MSFS?", MessageBoxButtons.YesNoCancel);
-                if (autostartQuestion == DialogResult.Yes)
-                {
-                    Properties.Settings.Default.simStart = true;
-                    Properties.Settings.Default.firstAutoStart = true;
-                    Properties.Settings.Default.Save();
-                }
-                else
-                {
-                    Properties.Settings.Default.simStart = false;
-                    Properties.Settings.Default.firstAutoStart = true;
-                    Properties.Settings.Default.Save();
-                }
-            }
-
-            if (Properties.Settings.Default.firstSimbriefAsk == false)
-            {
-                DialogResult simbriefQuestion = MessageBox.Show("Do you want to enter your Simbrief Pilot ID or Username now?\n\nYou can find your Pilot ID at: simbrief.com -> Account Settings -> Pilot ID\nAlternatively, you can use your Simbrief username.", "Simbrief Integration", MessageBoxButtons.YesNo);
-                if (simbriefQuestion == DialogResult.Yes)
-                {
-                    EnterFilename simbriefDialog = new EnterFilename();
-                    simbriefDialog.Text = "Enter Simbrief Pilot ID or Username";
-                    simbriefDialog.textBox1.Text = "";
-
-                    if (simbriefDialog.ShowDialog(this) == DialogResult.OK)
-                    {
-                        if (!string.IsNullOrWhiteSpace(simbriefDialog.textBox1.Text))
-                        {
-                            Properties.Settings.Default.simbriefId = simbriefDialog.textBox1.Text.Trim();
-                            // Restart background sync with new ID
-                            StartBackgroundSimbriefSync();
-                        }
-                    }
-                }
-                Properties.Settings.Default.firstSimbriefAsk = true;
-                Properties.Settings.Default.Save();
-            }
+            // Autostart und SimBrief werden jetzt im First-Start Wizard abgefragt
 
 
 

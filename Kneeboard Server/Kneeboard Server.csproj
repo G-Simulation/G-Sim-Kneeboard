@@ -115,6 +115,8 @@
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="MsfsPathDetector.cs" />
+    <Compile Include="PanelDeploymentService.cs" />
     <Compile Include="Simbrief.cs" />
     <Compile Include="Airports.cs" />
     <Compile Include="Navigraph\NavigraphModels.cs" />
@@ -128,6 +130,12 @@
     </Compile>
     <Compile Include="EnterFilename.Designer.cs">
       <DependentUpon>EnterFilename.cs</DependentUpon>
+    </Compile>
+    <Compile Include="SpendenForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SpendenForm.Designer.cs">
+      <DependentUpon>SpendenForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Waypoints.cs" />
     <Compile Include="InformationForm.cs">
@@ -165,6 +173,9 @@
       <DependentUpon>Resources.resx</DependentUpon>
       <DesignTime>True</DesignTime>
     </Compile>
+    <EmbeddedResource Include="SpendenForm.resx">
+      <DependentUpon>SpendenForm.cs</DependentUpon>
+    </EmbeddedResource>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
@@ -232,6 +243,16 @@
     <None Include="Resources\add-document.png" />
     <None Include="Resources\refresh-86.png" />
   </ItemGroup>
+  <!-- EFB Panel Package - Content Items für MSI + xcopy für Debug -->
+  <ItemGroup>
+    <Content Include="..\EFB\Packages\gsimulations-kneeboard\**\*.*">
+      <Link>EFB\gsimulations-kneeboard\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <Target Name="CopyEfbFiles" AfterTargets="Build">
+    <Exec Command="xcopy &quot;$(ProjectDir)..\EFB\Packages\gsimulations-kneeboard&quot; &quot;$(TargetDir)EFB\gsimulations-kneeboard\&quot; /E /Y /I /Q" />
+  </Target>
   <ItemGroup>
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="Microsoft.FlightSimulator.SimConnect">
