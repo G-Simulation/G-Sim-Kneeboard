@@ -202,9 +202,12 @@ Aktuelle Version: 2.0.0
 
 ## Lizenz
 
-MIT License - Copyright (c) 2021-2025 G-Simulations / Patrick Moses
+- **Source Code:** [GNU General Public License v3.0 (GPLv3)](https://www.gnu.org/licenses/gpl-3.0.html)
+- **Grafische Assets:** [Creative Commons BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)
 
-Siehe [LICENSE](LICENSE) für Details.
+Copyright (c) 2021-2026 G-Simulations / Patrick Moses
+
+Siehe [LICENSE](LICENSE) für Details und Drittanbieter-Lizenzen.
 
 ## Autor
 
@@ -213,6 +216,7 @@ Website: https://www.gsimulations.com
 
 ## Hinweise
 
+- **Diese Software dient ausschließlich zur Verwendung mit dem Microsoft Flight Simulator 2020/2024. Sie darf NICHT für reale Luftfahrt oder Navigation verwendet werden.**
 - Die Anwendung benötigt Admin-Rechte für Netzwerk-Zugriff
 - Es kann nur eine Instanz gleichzeitig laufen
 - Firewall-Ausnahme wird beim ersten Start abgefragt

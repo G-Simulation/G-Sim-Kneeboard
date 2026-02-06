@@ -82,6 +82,14 @@ namespace Kneeboard_Server
                 srtmRegionComboBox.Items.Add(region.Value.description);
             }
             srtmRegionComboBox.SelectedIndex = 0; // Default to Europe
+
+            // Load serial number
+            string serial = Properties.Settings.Default.serialNumber;
+            if (!string.IsNullOrEmpty(serial))
+            {
+                serialNumberInput.Text = serial;
+            }
+            UpdateSerialStatus();
         }
 
         private void InformationForm_Load(object sender, EventArgs e)
@@ -725,5 +733,79 @@ namespace Kneeboard_Server
             spendenForm.ShowDialog(this);
         }
 
+        #region Serial Number
+
+        private void SerialNumberInput_TextChanged(object sender, EventArgs e)
+        {
+            Properties.Settings.Default.serialNumber = serialNumberInput.Text.Trim();
+            Properties.Settings.Default.Save();
+            UpdateSerialStatus();
+        }
+
+        private void UpdateSerialStatus()
+        {
+            string serial = serialNumberInput.Text.Trim();
+            if (string.IsNullOrEmpty(serial))
+            {
+                serialStatusLabel.Text = "";
+                serialStatusLabel.ForeColor = System.Drawing.Color.Gray;
+            }
+            else if (IsSerialValid(serial))
+            {
+                serialStatusLabel.Text = "Gültig";
+                serialStatusLabel.ForeColor = System.Drawing.Color.Green;
+            }
+            else
+            {
+                serialStatusLabel.Text = "Ungültig";
+                serialStatusLabel.ForeColor = System.Drawing.Color.Red;
+            }
+        }
+
+        public static bool IsSerialValid(string serial)
+        {
+            if (string.IsNullOrEmpty(serial))
+                return false;
+
+            serial = serial.Trim().ToUpperInvariant();
+
+            // Format: GSIM-XXXX-XXXX-XXXX
+            if (serial.Length != 19)
+                return false;
+
+            if (!serial.StartsWith("GSIM-"))
+                return false;
+
+            string[] parts = serial.Split('-');
+            if (parts.Length != 4)
+                return false;
+
+            // parts[0] = "GSIM", parts[1] = 4 hex, parts[2] = 4 hex, parts[3] = 4 hex (checksum)
+            string payload = parts[1] + parts[2]; // 8 hex chars
+            string checkPart = parts[3];           // 4 hex chars
+
+            if (payload.Length != 8 || checkPart.Length != 4)
+                return false;
+
+            // Validate hex characters
+            foreach (char c in payload + checkPart)
+            {
+                if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')))
+                    return false;
+            }
+
+            // Calculate checksum
+            int sum = 0;
+            foreach (char c in payload)
+            {
+                sum += (int)c;
+            }
+            int checksum = (sum * 31) % 0xFFFF;
+            string expectedCheck = checksum.ToString("X4");
+
+            return checkPart == expectedCheck;
+        }
+
+        #endregion
     }
 }

@@ -37,6 +37,7 @@ namespace Kneeboard_Server
             this.donateLink = new System.Windows.Forms.LinkLabel();
             this.footerLabel = new System.Windows.Forms.Label();
             this.footerEmailLabel = new System.Windows.Forms.LinkLabel();
+            this.closeBigButton = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.qrPictureBox)).BeginInit();
             this.SuspendLayout();
             //
@@ -135,12 +136,27 @@ namespace Kneeboard_Server
             this.footerEmailLabel.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.footerEmailLabel.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.FooterEmailLabel_LinkClicked);
             //
+            // closeBigButton
+            //
+            this.closeBigButton.BackColor = System.Drawing.SystemColors.Window;
+            this.closeBigButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.closeBigButton.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold);
+            this.closeBigButton.ForeColor = System.Drawing.SystemColors.Highlight;
+            this.closeBigButton.Location = new System.Drawing.Point(108, 392);
+            this.closeBigButton.Name = "closeBigButton";
+            this.closeBigButton.Size = new System.Drawing.Size(120, 30);
+            this.closeBigButton.TabIndex = 32;
+            this.closeBigButton.Text = "Schließen";
+            this.closeBigButton.UseVisualStyleBackColor = false;
+            this.closeBigButton.Click += new System.EventHandler(this.CloseButton_Click);
+            //
             // SpendenForm
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Window;
-            this.ClientSize = new System.Drawing.Size(335, 392);
+            this.ClientSize = new System.Drawing.Size(335, 435);
+            this.Controls.Add(this.closeBigButton);
             this.Controls.Add(this.footerEmailLabel);
             this.Controls.Add(this.footerLabel);
             this.Controls.Add(this.donateLink);
@@ -170,5 +186,6 @@ namespace Kneeboard_Server
         private System.Windows.Forms.LinkLabel donateLink;
         private System.Windows.Forms.Label footerLabel;
         private System.Windows.Forms.LinkLabel footerEmailLabel;
+        private System.Windows.Forms.Button closeBigButton;
     }
 }

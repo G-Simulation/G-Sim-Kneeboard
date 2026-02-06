@@ -1,42 +1,134 @@
-MIT License
+G-Sim Kneeboard - License
 
-Copyright (c) 2021-2025 G-Simulations / Patrick Moses
+Copyright (c) 2021-2026 G-Simulations / Patrick Moses
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+================================================================================
+IMPORTANT DISCLAIMER / WICHTIGER HINWEIS
+================================================================================
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This software is designed exclusively for use with Microsoft Flight Simulator
+2020/2024. It is a simulation tool and must NOT be used for real-world aviation,
+navigation, or any other real-world application. The data provided by this
+software (charts, waypoints, frequencies, procedures, etc.) is not verified for
+accuracy and must never be relied upon for actual flight operations.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Diese Software ist ausschließlich für die Verwendung mit dem Microsoft Flight
+Simulator 2020/2024 bestimmt. Sie ist ein Simulationswerkzeug und darf NICHT
+für reale Luftfahrt, Navigation oder andere reale Anwendungen verwendet werden.
+Die von dieser Software bereitgestellten Daten (Karten, Waypoints, Frequenzen,
+Prozeduren usw.) sind nicht auf Richtigkeit geprüft und dürfen niemals für
+tatsächliche Flugoperationen herangezogen werden.
 
----
+================================================================================
+SOURCE CODE LICENSE - GNU General Public License v3.0
+================================================================================
 
-This software includes the following third-party components:
+All original source code in this project is licensed under the
+GNU General Public License v3.0 (GPLv3).
 
-## SimpleHTTPServer
-- Source: https://aksakalli.github.io/2014/02/24/simple-http-server-with-csparp.html
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+================================================================================
+GRAPHICAL ASSETS LICENSE - Creative Commons BY-NC 4.0
+================================================================================
+
+All original graphical assets (icons, images, UI graphics) in this project are
+licensed under the Creative Commons Attribution-NonCommercial 4.0 International
+License (CC BY-NC 4.0).
+
+You are free to:
+- Share: copy and redistribute the material in any medium or format
+- Adapt: remix, transform, and build upon the material
+
+Under the following terms:
+- Attribution: You must give appropriate credit to G-Simulations.
+- NonCommercial: You may not use the material for commercial purposes.
+
+Full license text: https://creativecommons.org/licenses/by-nc/4.0/legalcode
+
+================================================================================
+THIRD-PARTY COMPONENTS
+================================================================================
+
+This software includes the following third-party components, each under their
+own respective licenses:
+
+## EmbedIO
 - License: MIT
-- Copyright (c) 2016 Can Güney Aksakalli
-
-## PdfiumViewer / PDFium
-- License: Apache 2.0
-- PDFium is copyright The Chromium Authors
+- Source: https://github.com/unosquare/embedio
+- Copyright (c) Unosquare Labs
 
 ## Newtonsoft.Json
 - License: MIT
+- Source: https://github.com/JamesNK/Newtonsoft.Json
 - Copyright (c) James Newton-King
+
+## PdfiumViewer / PDFium
+- License: Apache 2.0
+- Source: https://github.com/nickvdyck/pdfium-binaries
+- PDFium is copyright The Chromium Authors
 
 ## AutoUpdater.NET
 - License: MIT
-- Copyright (c) Suspended Blogs
+- Source: https://github.com/ravibpatel/AutoUpdater.NET
+- Copyright (c) Ravi Patel
+
+## System.Data.SQLite
+- License: Public Domain
+- Source: https://system.data.sqlite.org
+
+## CoordinateSharp
+- License: AGPL-3.0 (compatible with GPLv3 per Section 13)
+- Source: https://github.com/Tronald/CoordinateSharp
+- Copyright (c) Signature Group, LLC
+
+## CoordinateSharp.Magnetic
+- License: AGPL-3.0 (compatible with GPLv3 per Section 13)
+- Source: https://github.com/Tronald/CoordinateSharp
+- Copyright (c) Signature Group, LLC
+
+## SimpleHTTPServer (original basis, heavily modified)
+- License: MIT
+- Source: https://aksakalli.github.io/2014/02/24/simple-http-server-with-csparp.html
+- Copyright (c) 2016 Can Güney Aksakalli
+
+## Microsoft Flight Simulator SimConnect
+- License: Proprietary (Microsoft MSFS SDK EULA)
+- Distributed as a system library under the GPLv3 System Library Exception
+- SimConnect is part of Microsoft Flight Simulator and is required for
+  add-on functionality. It is not included in this source distribution;
+  users must obtain it through the MSFS SDK.
+
+## @microsoft/msfs-sdk
+- License: MIT
+- Copyright (c) Microsoft Corporation
+
+## @efb/efb-api
+- License: MIT
+- EFB API TypeScript definitions for MSFS 2024
+
+## esbuild
+- License: MIT
+- Source: https://github.com/evanw/esbuild
+- Copyright (c) Evan Wallace
+
+## TypeScript
+- License: Apache 2.0
+- Source: https://github.com/microsoft/TypeScript
+- Copyright (c) Microsoft Corporation
+
+## Sass
+- License: MIT
+- Source: https://github.com/sass/dart-sass
+- Copyright (c) Google Inc.

@@ -1611,23 +1611,27 @@ namespace Kneeboard_Server
                 notifyIcon.ShowBalloonTip(1000);
             }
 
-            myServer = new SimpleHTTPServer(folderpath + @"\data", Convert.ToInt32(port), this);
-            Console.WriteLine("Server is running on this port: " + myServer.Port.ToString());
-            statusBox.BackColor = SystemColors.MenuHighlight;
-            serverRun = true;
-            UpdateStatusBar();
-            UpdateFileList();
+            // DEBUG: Timestamp zurücksetzen zum Testen - ENTFERNEN VOR RELEASE!
+            Properties.Settings.Default.lastDonationShown = DateTime.MinValue;
+            Properties.Settings.Default.Save();
 
-            // Spenden-Dialog 1x pro Tag anzeigen
+            // Spenden-Dialog 1x pro Tag anzeigen (wenn keine gültige Seriennummer)
+            bool serialValid = InformationForm.IsSerialValid(Properties.Settings.Default.serialNumber);
             DateTime lastShown = Properties.Settings.Default.lastDonationShown;
-            Console.WriteLine($"[Spenden] lastDonationShown={lastShown}, today={DateTime.Now.Date}, show={lastShown == DateTime.MinValue || lastShown.Date < DateTime.Now.Date}");
-            if (lastShown == DateTime.MinValue || lastShown.Date < DateTime.Now.Date)
+            if (!serialValid && (lastShown == DateTime.MinValue || lastShown.Date < DateTime.Now.Date))
             {
                 var spendenForm = new SpendenForm();
                 spendenForm.ShowDialog(this);
                 Properties.Settings.Default.lastDonationShown = DateTime.Now;
                 Properties.Settings.Default.Save();
             }
+
+            myServer = new SimpleHTTPServer(folderpath + @"\data", Convert.ToInt32(port), this);
+            Console.WriteLine("Server is running on this port: " + myServer.Port.ToString());
+            statusBox.BackColor = SystemColors.MenuHighlight;
+            serverRun = true;
+            UpdateStatusBar();
+            UpdateFileList();
         }
 
         private void Close_Click(object sender, EventArgs e)

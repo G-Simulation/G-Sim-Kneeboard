@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 // Attribute gesteuert. Ändern Sie diese Attributwerte, um die Informationen zu ändern,
 // die einer Assembly zugeordnet sind.
 [assembly: AssemblyTitle("Kneeboard Server")]
-[assembly: AssemblyDescription("Add on for Microsoft Flightsimulator 2020/2024")]
+[assembly: AssemblyDescription("G-Sim Kneeboard - Add-on for Microsoft Flight Simulator 2020/2024")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("G-Simulations")]
 [assembly: AssemblyProduct("Kneeboard Server")]

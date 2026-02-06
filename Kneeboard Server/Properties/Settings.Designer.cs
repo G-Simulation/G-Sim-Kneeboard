@@ -453,5 +453,17 @@ namespace Kneeboard_Server.Properties {
                 this["lastDonationShown"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string serialNumber {
+            get {
+                return ((string)(this["serialNumber"]));
+            }
+            set {
+                this["serialNumber"] = value;
+            }
+        }
     }
 }

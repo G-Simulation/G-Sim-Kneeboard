@@ -442,11 +442,55 @@ namespace Kneeboard_Server
             this.installPanelButton.UseVisualStyleBackColor = true;
             this.installPanelButton.Click += new System.EventHandler(this.InstallPanelButton_Click);
             //
+            // serialGroupBox
+            //
+            this.serialGroupBox.Controls.Add(this.serialNumberLabel);
+            this.serialGroupBox.Controls.Add(this.serialNumberInput);
+            this.serialGroupBox.Controls.Add(this.serialStatusLabel);
+            this.serialGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
+            this.serialGroupBox.Location = new System.Drawing.Point(12, 638);
+            this.serialGroupBox.Name = "serialGroupBox";
+            this.serialGroupBox.Size = new System.Drawing.Size(230, 70);
+            this.serialGroupBox.TabIndex = 58;
+            this.serialGroupBox.TabStop = false;
+            this.serialGroupBox.Text = "Seriennummer";
+            //
+            // serialNumberLabel
+            //
+            this.serialNumberLabel.AutoSize = true;
+            this.serialNumberLabel.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.serialNumberLabel.Location = new System.Drawing.Point(7, 18);
+            this.serialNumberLabel.Name = "serialNumberLabel";
+            this.serialNumberLabel.Size = new System.Drawing.Size(78, 13);
+            this.serialNumberLabel.TabIndex = 0;
+            this.serialNumberLabel.Text = "Seriennummer:";
+            //
+            // serialNumberInput
+            //
+            this.serialNumberInput.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.serialNumberInput.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.serialNumberInput.Location = new System.Drawing.Point(10, 35);
+            this.serialNumberInput.Name = "serialNumberInput";
+            this.serialNumberInput.Size = new System.Drawing.Size(210, 20);
+            this.serialNumberInput.TabIndex = 1;
+            this.serialNumberInput.TextChanged += new System.EventHandler(this.SerialNumberInput_TextChanged);
+            //
+            // serialStatusLabel
+            //
+            this.serialStatusLabel.AutoSize = true;
+            this.serialStatusLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold);
+            this.serialStatusLabel.ForeColor = System.Drawing.Color.Gray;
+            this.serialStatusLabel.Location = new System.Drawing.Point(92, 18);
+            this.serialStatusLabel.Name = "serialStatusLabel";
+            this.serialStatusLabel.Size = new System.Drawing.Size(0, 13);
+            this.serialStatusLabel.TabIndex = 2;
+            //
             // supportLink
             //
             this.supportLink.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
             this.supportLink.Font = new System.Drawing.Font("Segoe UI", 8.25F);
-            this.supportLink.Location = new System.Drawing.Point(12, 668);
+            this.supportLink.Location = new System.Drawing.Point(12, 743);
             this.supportLink.Name = "supportLink";
             this.supportLink.Size = new System.Drawing.Size(230, 16);
             this.supportLink.TabIndex = 57;
@@ -461,7 +505,8 @@ namespace Kneeboard_Server
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Window;
-            this.ClientSize = new System.Drawing.Size(254, 695);
+            this.ClientSize = new System.Drawing.Size(254, 770);
+            this.Controls.Add(this.serialGroupBox);
             this.Controls.Add(this.elevationGroupBox);
             this.Controls.Add(this.panelGroupBox);
             this.Controls.Add(this.navigraphGroupBox);
@@ -491,6 +536,8 @@ namespace Kneeboard_Server
             this.elevationGroupBox.PerformLayout();
             this.panelGroupBox.ResumeLayout(false);
             this.panelGroupBox.PerformLayout();
+            this.serialGroupBox.ResumeLayout(false);
+            this.serialGroupBox.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -530,5 +577,9 @@ namespace Kneeboard_Server
         private System.Windows.Forms.Label panelPathLabel;
         private System.Windows.Forms.Button installPanelButton;
         private System.Windows.Forms.LinkLabel supportLink;
+        private System.Windows.Forms.GroupBox serialGroupBox;
+        private System.Windows.Forms.Label serialNumberLabel;
+        private System.Windows.Forms.TextBox serialNumberInput;
+        private System.Windows.Forms.Label serialStatusLabel;
     }
 }
