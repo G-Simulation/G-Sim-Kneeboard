@@ -1040,8 +1040,8 @@ h4 {
 
 #overlay {
     position: absolute;
-    min-width: 15vw;
-    max-width: 40vw;
+    width: 35vw;
+    max-width: 45vw;
     max-height: 79vh;
     min-height: 17vh;
     right: 10px;
@@ -1115,8 +1115,8 @@ h4 {
 
 #controllerContainer {
     position: absolute;
-    min-width: 15vw;
-    max-width: 40vw;
+    width: 35vw;
+    max-width: 45vw;
     max-height: 79vh;
     min-height: 17vh;
     left: 10px;
@@ -3763,6 +3763,22 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.5));
 }
 
+/* Callsign-Label für Favoriten-Piloten */
+.pilot-callsign-label {
+    background: rgba(30, 41, 59, 0.85) !important;
+    border: 1px solid rgba(251, 191, 36, 0.5) !important;
+    color: #fbbf24 !important;
+    font-size: 10px !important;
+    font-weight: bold !important;
+    padding: 1px 4px !important;
+    border-radius: 3px !important;
+    white-space: nowrap !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important;
+}
+.pilot-callsign-label::before {
+    border-right-color: rgba(30, 41, 59, 0.85) !important;
+}
+
 /* ==========================================
    Panel Mode Toggle (Zonen/Piloten)
    ========================================== */
@@ -3845,6 +3861,21 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 .pilot-list-item .kneeboard-list-title {
     flex: 1;
+    padding-right: 1vw;
+}
+
+.pilot-name-label {
+    font-size: 10px;
+    color: #9ca3af;
+    font-weight: normal;
+    margin-left: 4px;
+}
+
+.pilot-id-label {
+    font-size: 10px;
+    color: #6b7280;
+    font-weight: normal;
+    margin-left: 2px;
 }
 
 .pilot-list-item .kneeboard-list-subtitle {

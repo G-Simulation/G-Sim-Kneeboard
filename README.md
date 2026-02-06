@@ -219,6 +219,12 @@ Vielen Dank für deine Unterstützung!
 
 [![PayPal Spenden](https://img.shields.io/badge/PayPal-Spenden-blue?logo=paypal)](https://www.paypal.com/donate/?hosted_button_id=AJAFN6YQACS3S)
 
+## Unterstützer
+
+Vielen Dank an die folgenden Unterstützer des Projekts:
+
+- [Crew Kingfisher VA](https://crew-kingfisher-va.de/)
+
 ## Autor
 
 Moses / Gsimulations

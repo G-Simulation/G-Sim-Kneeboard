@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+using Kneeboard_Server.Logging;
 using Kneeboard_Server.Properties;
 
 namespace Kneeboard_Server.Navigraph
@@ -1025,7 +1026,9 @@ namespace Kneeboard_Server.Navigraph
         /// </summary>
         private void Log(string message)
         {
-            Console.WriteLine(message);
+            // Strip "Navigraph: " prefix if present since KneeboardLogger adds its own module tag
+            string logMsg = message.StartsWith("Navigraph: ") ? message.Substring(11) : message;
+            KneeboardLogger.Navigraph(logMsg);
             OnLog?.Invoke(this, message);
         }
     }

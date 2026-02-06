@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using Kneeboard_Server.Logging;
 using Newtonsoft.Json.Linq;
 
 namespace Kneeboard_Server
@@ -102,7 +103,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[MsfsDetect] Error reading {cfgPath}: {ex.Message}");
+                KneeboardLogger.Error("MsfsDetect", $"Error reading {cfgPath}: {ex.Message}");
             }
         }
 
@@ -172,7 +173,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[MsfsDetect] Error reading manifest: {ex.Message}");
+                KneeboardLogger.Error("MsfsDetect", $"Error reading manifest: {ex.Message}");
                 // Ordner existiert aber manifest ist kaputt → trotzdem als installiert melden
                 info.IsInstalled = Directory.Exists(packagePath);
                 info.Version = "unknown";

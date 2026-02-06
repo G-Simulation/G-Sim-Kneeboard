@@ -39,14 +39,14 @@ var saveVal; // Debounce timer für saveValues
 			document.documentElement.style.setProperty('--dark', colorDark);
 			document.documentElement.style.setProperty('--fontLight', fontColorLight);
 			document.documentElement.style.setProperty('--fontDark', fontColorDark);
-			FORMULAS_DEBUG && console.log("🎨 Farben aus Cache übernommen:", colorLight, colorDark);
+			formulasLogger.debug("Farben aus Cache übernommen:", colorLight, colorDark);
 		}
 
 		window.addEventListener("message", handleIncomingMessage);
 
 		const formulasContainer = document.getElementById("Formulas");
 		if (!formulasContainer) {
-			console.warn("[Formulas] Container element not found, aborting init.");
+			formulasLogger.warn("Container element not found, aborting init.");
 			return;
 		}
 		// Textarea parent TD click - open keyboard
@@ -513,6 +513,6 @@ var saveVal; // Debounce timer für saveValues
 			localStorage.setItem("colorDark", colorDark);
 			localStorage.setItem("fontColorLight", fontColorLight);
 			localStorage.setItem("fontColorDark", fontColorDark);
-			FORMULAS_DEBUG && console.log("💾 Farben aktualisiert & gespeichert:", colorLight, colorDark, fontColorLight, fontColorDark);
+			formulasLogger.debug("Farben aktualisiert & gespeichert:", colorLight, colorDark, fontColorLight, fontColorDark);
 		}
 	}	

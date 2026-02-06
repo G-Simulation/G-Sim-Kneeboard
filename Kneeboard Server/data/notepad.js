@@ -158,7 +158,7 @@
 
         surface = document.getElementById('note');
         if (!surface) {
-            console.error('Notepad: drawing surface #note not found.');
+            notepadLogger.error('Drawing surface #note not found.');
             return;
         }
 
@@ -815,7 +815,7 @@
             };
             localStorage.setItem(DRAWING_STORAGE_KEY, JSON.stringify(payload));
         } catch (error) {
-            console.warn('Notepad: Unable to save drawing.', error);
+            notepadLogger.warn('Unable to save drawing.', error);
         }
     }
 
@@ -833,7 +833,7 @@
                 return parsed.map(stroke => normalizeStroke(stroke, surfaceWidth || MIN_SURFACE_RENDER_SIZE, surfaceHeight || MIN_SURFACE_RENDER_SIZE));
             }
         } catch (error) {
-            console.warn('Notepad: Unable to load drawing.', error);
+            notepadLogger.warn('Unable to load drawing.', error);
         }
         return [];
     }

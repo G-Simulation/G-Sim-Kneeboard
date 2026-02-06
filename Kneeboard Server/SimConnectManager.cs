@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Kneeboard_Server.Logging;
 using Microsoft.FlightSimulator.SimConnect;
 
 namespace Kneeboard_Server
@@ -118,16 +119,16 @@ namespace Kneeboard_Server
                 if (!isConnected)
                 {
                     reconnectAttempts++;
-                    Console.WriteLine($"[SimConnect] Connection attempt #{reconnectAttempts}...");
+                    KneeboardLogger.SimConnectDebug($"Connection attempt #{reconnectAttempts}...");
                     try
                     {
                         Connect();
-                        Console.WriteLine($"[SimConnect] Connected successfully after {reconnectAttempts} attempt(s)");
+                        KneeboardLogger.SimConnect($"Connected successfully after {reconnectAttempts} attempt(s)");
                         reconnectAttempts = 0;
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[SimConnect] Connection attempt #{reconnectAttempts} failed: {ex.Message}");
+                        KneeboardLogger.SimConnectError($"Connection attempt #{reconnectAttempts} failed: {ex.Message}");
                     }
                 }
                 Thread.Sleep(5000); // Retry every 5 seconds
@@ -149,11 +150,11 @@ namespace Kneeboard_Server
                     simConnect.OnRecvSimobjectData += OnRecvSimobjectData;
                     // Note: OnRecvFacilityData not used - Little Navmap DB is primary source
 
-                    Console.WriteLine("[SimConnect] Connecting to MSFS...");
+                    KneeboardLogger.SimConnectDebug("Connecting to MSFS...");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[SimConnect] Connect failed: {ex.Message}");
+                    KneeboardLogger.SimConnectError($"Connect failed: {ex.Message}");
                     simConnect = null;
                     throw;
                 }
@@ -162,7 +163,7 @@ namespace Kneeboard_Server
 
         private void OnRecvOpen(SimConnect sender, SIMCONNECT_RECV_OPEN data)
         {
-            Console.WriteLine("[SimConnect] Connected to " + data.szApplicationName);
+            KneeboardLogger.SimConnect("Connected to " + data.szApplicationName);
             isConnected = true;
             ConnectionStatusChanged?.Invoke(true);
             SetupDataDefinitions();
@@ -233,7 +234,7 @@ namespace Kneeboard_Server
             simConnect.MapClientEventToSimEvent(EVENTS.ADF2_RADIO_SET, "ADF2_SET");
             simConnect.MapClientEventToSimEvent(EVENTS.ADF2_RADIO_SWAP, "ADF2_RADIO_SWAP");
 
-            Console.WriteLine("[SimConnect] Data subscription configured (1 Hz)");
+            KneeboardLogger.SimConnect("Data subscription configured (1 Hz)");
         }
 
         // Public Command Methods
@@ -273,7 +274,7 @@ namespace Kneeboard_Server
                 // Wenn kein Heading angegeben, aktuelles behalten
                 double targetHdg = heading ?? currentHdg;
 
-                Console.WriteLine($"[SimConnect] Teleport request: {lat:F6}, {lng:F6}, Alt={targetAlt:F0}ft, Hdg={targetHdg:F0}°");
+                KneeboardLogger.SimConnectDebug($"Teleport request: {lat:F6}, {lng:F6}, Alt={targetAlt:F0}ft, Hdg={targetHdg:F0}°");
 
                 // 1. SLEW MODE aktivieren (verhindert Fallen/Physik)
                 simConnect.TransmitClientEvent(
@@ -282,7 +283,7 @@ namespace Kneeboard_Server
                     0,
                     NOTIFICATION_GROUPS.GROUP0,
                     SIMCONNECT_EVENT_FLAG.GROUPID_IS_PRIORITY);
-                Console.WriteLine("[SimConnect] SLEW_ON sent");
+                KneeboardLogger.SimConnectDebug("SLEW_ON sent");
 
                 // 2. Warte kurz damit SLEW aktiv wird
                 await System.Threading.Tasks.Task.Delay(100);
@@ -290,7 +291,7 @@ namespace Kneeboard_Server
                 // Null-Check nach dem Delay (Verbindung könnte unterbrochen worden sein)
                 if (simConnect == null)
                 {
-                    Console.WriteLine("[SimConnect] Connection lost during teleport - aborting");
+                    KneeboardLogger.Warn("SimConnect", "Connection lost during teleport - aborting");
                     return;
                 }
 
@@ -305,7 +306,7 @@ namespace Kneeboard_Server
                         Altitude = targetAlt,
                         Heading = targetHdg
                     });
-                Console.WriteLine($"[SimConnect] Position set: {lat:F6}, {lng:F6}, Alt={targetAlt:F0}ft, Hdg={targetHdg:F0}°");
+                KneeboardLogger.SimConnectDebug($"Position set: {lat:F6}, {lng:F6}, Alt={targetAlt:F0}ft, Hdg={targetHdg:F0}°");
 
                 // 4. Warte damit Position übernommen wird
                 await System.Threading.Tasks.Task.Delay(500);
@@ -313,7 +314,7 @@ namespace Kneeboard_Server
                 // Null-Check nach dem Delay
                 if (simConnect == null)
                 {
-                    Console.WriteLine("[SimConnect] Connection lost during teleport - skipping SLEW_OFF");
+                    KneeboardLogger.Warn("SimConnect", "Connection lost during teleport - skipping SLEW_OFF");
                     return;
                 }
 
@@ -324,15 +325,15 @@ namespace Kneeboard_Server
                     0,
                     NOTIFICATION_GROUPS.GROUP0,
                     SIMCONNECT_EVENT_FLAG.GROUPID_IS_PRIORITY);
-                Console.WriteLine("[SimConnect] SLEW_OFF sent");
+                KneeboardLogger.SimConnectDebug("SLEW_OFF sent");
             }
             catch (ObjectDisposedException)
             {
-                Console.WriteLine("[SimConnect] Teleport aborted - connection was closed");
+                KneeboardLogger.SimConnectError("Teleport aborted - connection was closed");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimConnect] Teleport error: {ex.Message}");
+                KneeboardLogger.Error("SimConnect", ex);
             }
         }
 
@@ -389,7 +390,7 @@ namespace Kneeboard_Server
                         swapEvent = EVENTS.ADF2_RADIO_SWAP;
                         break;
                     default:
-                        Console.WriteLine($"[SimConnect] Unknown radio: {radio}");
+                        KneeboardLogger.SimConnectError($"Unknown radio: {radio}");
                         return;
                 }
 
@@ -414,15 +415,15 @@ namespace Kneeboard_Server
                         SIMCONNECT_EVENT_FLAG.DEFAULT);
                 }
 
-                Console.WriteLine($"[SimConnect] Set {radio} to {frequencyHz} Hz");
+                KneeboardLogger.SimConnectDebug($"Set {radio} to {frequencyHz} Hz");
             }
             catch (ObjectDisposedException)
             {
-                Console.WriteLine("[SimConnect] SetRadioFrequency aborted - connection was closed");
+                KneeboardLogger.SimConnectError("SetRadioFrequency aborted - connection was closed");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimConnect] SetRadioFrequency error: {ex.Message}");
+                KneeboardLogger.Error("SimConnect", ex);
             }
         }
 
@@ -441,13 +442,13 @@ namespace Kneeboard_Server
 
         private void OnRecvQuit(SimConnect sender, SIMCONNECT_RECV data)
         {
-            Console.WriteLine("[SimConnect] Simulator closed");
+            KneeboardLogger.SimConnect("Simulator closed");
             Disconnect();
         }
 
         private void OnRecvException(SimConnect sender, SIMCONNECT_RECV_EXCEPTION data)
         {
-            Console.WriteLine($"[SimConnect] Exception: {(SIMCONNECT_EXCEPTION)data.dwException}");
+            KneeboardLogger.SimConnectError($"Exception: {(SIMCONNECT_EXCEPTION)data.dwException}");
         }
 
         private void Disconnect()
@@ -467,7 +468,7 @@ namespace Kneeboard_Server
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[SimConnect] Handler removal warning: {ex.Message}");
+                        KneeboardLogger.Warn("SimConnect", $"Handler removal warning: {ex.Message}");
                     }
 
                     simConnect.Dispose();
@@ -498,7 +499,7 @@ namespace Kneeboard_Server
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[SimConnect] Message handling error: {ex.Message}");
+                            KneeboardLogger.SimConnectError($"Message handling error: {ex.Message}");
                         }
                     }
                 }

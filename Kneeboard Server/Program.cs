@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
+using Kneeboard_Server.Logging;
 
 namespace Kneeboard_Server
 {
@@ -15,7 +16,7 @@ namespace Kneeboard_Server
         [STAThread]
         static void Main(string[] args)
         {
-            Console.WriteLine("!!! KNEEBOARD SERVER - NEW CODE VERSION ACTIVE (SEQNO FIX) - " + DateTime.Now.ToString() + " !!!");
+            KneeboardLogger.Startup("KNEEBOARD SERVER - NEW CODE VERSION ACTIVE (SEQNO FIX) - " + DateTime.Now.ToString());
             // Check database contents
             if (args.Length >= 1 && args[0] == "--check-db")
             {
@@ -57,18 +58,19 @@ namespace Kneeboard_Server
         /// </summary>
         private static void CheckDatabase()
         {
+            KneeboardLogger.Initialize(consoleOutput: true, fileOutput: true, minLevel: KneeboardLogger.Level.DEBUG);
+
             string dbPath = System.IO.Path.Combine(
                 System.IO.Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
                 "data", "msfs_navdata.sqlite");
 
-            Console.WriteLine("=== Navdata Database Check ===");
-            Console.WriteLine($"Database: {dbPath}");
-            Console.WriteLine($"Exists: {System.IO.File.Exists(dbPath)}");
-            Console.WriteLine();
+            KneeboardLogger.Info("Database", "=== Navdata Database Check ===");
+            KneeboardLogger.Debug("Database", $"Database: {dbPath}");
+            KneeboardLogger.Debug("Database", $"Exists: {System.IO.File.Exists(dbPath)}");
 
             if (!System.IO.File.Exists(dbPath))
             {
-                Console.WriteLine("ERROR: Database not found!");
+                KneeboardLogger.Error("Database", "Database not found!");
                 return;
             }
 
@@ -79,7 +81,7 @@ namespace Kneeboard_Server
                     conn.Open();
 
                     // List all tables first
-                    Console.WriteLine("=== ALL TABLES IN DATABASE ===");
+                    KneeboardLogger.Info("Database", "=== ALL TABLES IN DATABASE ===");
                     using (var cmd = new System.Data.SQLite.SQLiteCommand(
                         "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name", conn))
                     {
@@ -87,14 +89,13 @@ namespace Kneeboard_Server
                         {
                             while (reader.Read())
                             {
-                                Console.WriteLine($"  {reader["name"]}");
+                                KneeboardLogger.Debug("Database", $"  {reader["name"]}");
                             }
                         }
                     }
-                    Console.WriteLine();
 
                     // Count tables
-                    Console.WriteLine("=== TABLE COUNTS ===");
+                    KneeboardLogger.Info("Database", "=== TABLE COUNTS ===");
                     string[] tables = { "airport", "runway", "sid", "star", "approach", "transition", "procedure_leg", "waypoint", "vor", "ndb" };
                     foreach (var table in tables)
                     {
@@ -103,17 +104,17 @@ namespace Kneeboard_Server
                             using (var cmd = new System.Data.SQLite.SQLiteCommand($"SELECT COUNT(*) FROM {table}", conn))
                             {
                                 var count = cmd.ExecuteScalar();
-                                Console.WriteLine($"  {table}: {count}");
+                                KneeboardLogger.Debug("Database", $"  {table}: {count}");
                             }
                         }
                         catch
                         {
-                            Console.WriteLine($"  {table}: (table not found)");
+                            KneeboardLogger.Debug("Database", $"  {table}: (table not found)");
                         }
                     }
 
                     // Sample waypoints
-                    Console.WriteLine("\n=== SAMPLE WAYPOINTS (first 10) ===");
+                    KneeboardLogger.Info("Database", "=== SAMPLE WAYPOINTS (first 10) ===");
                     using (var cmd = new System.Data.SQLite.SQLiteCommand(
                         "SELECT ident, region, latitude, longitude FROM waypoint LIMIT 10", conn))
                     {
@@ -121,13 +122,13 @@ namespace Kneeboard_Server
                         {
                             while (reader.Read())
                             {
-                                Console.WriteLine($"  {reader["ident"],-7} {reader["region"],-4} lat={reader["latitude"],-12} lon={reader["longitude"]}");
+                                KneeboardLogger.Debug("Database", $"  {reader["ident"],-7} {reader["region"],-4} lat={reader["latitude"],-12} lon={reader["longitude"]}");
                             }
                         }
                     }
 
                     // Sample VORs
-                    Console.WriteLine("\n=== SAMPLE VORs (first 10) ===");
+                    KneeboardLogger.Info("Database", "=== SAMPLE VORs (first 10) ===");
                     using (var cmd = new System.Data.SQLite.SQLiteCommand(
                         "SELECT ident, region, latitude, longitude, frequency FROM vor LIMIT 10", conn))
                     {
@@ -135,13 +136,13 @@ namespace Kneeboard_Server
                         {
                             while (reader.Read())
                             {
-                                Console.WriteLine($"  {reader["ident"],-7} {reader["region"],-4} lat={reader["latitude"],-12} lon={reader["longitude"],-12} freq={reader["frequency"]}");
+                                KneeboardLogger.Debug("Database", $"  {reader["ident"],-7} {reader["region"],-4} lat={reader["latitude"],-12} lon={reader["longitude"],-12} freq={reader["frequency"]}");
                             }
                         }
                     }
 
                     // Sample NDBs
-                    Console.WriteLine("\n=== SAMPLE NDBs (first 10) ===");
+                    KneeboardLogger.Info("Database", "=== SAMPLE NDBs (first 10) ===");
                     using (var cmd = new System.Data.SQLite.SQLiteCommand(
                         "SELECT ident, region, latitude, longitude, frequency FROM ndb LIMIT 10", conn))
                     {
@@ -149,13 +150,13 @@ namespace Kneeboard_Server
                         {
                             while (reader.Read())
                             {
-                                Console.WriteLine($"  {reader["ident"],-7} {reader["region"],-4} lat={reader["latitude"],-12} lon={reader["longitude"],-12} freq={reader["frequency"]}");
+                                KneeboardLogger.Debug("Database", $"  {reader["ident"],-7} {reader["region"],-4} lat={reader["latitude"],-12} lon={reader["longitude"],-12} freq={reader["frequency"]}");
                             }
                         }
                     }
 
                     // Show approach_leg table structure
-                    Console.WriteLine("\n=== APPROACH_LEG TABLE STRUCTURE ===");
+                    KneeboardLogger.Info("Database", "=== APPROACH_LEG TABLE STRUCTURE ===");
                     using (var cmd = new System.Data.SQLite.SQLiteCommand(
                         "PRAGMA table_info(approach_leg)", conn))
                     {
@@ -163,13 +164,13 @@ namespace Kneeboard_Server
                         {
                             while (reader.Read())
                             {
-                                Console.WriteLine($"  {reader["name"]} ({reader["type"]})");
+                                KneeboardLogger.Debug("Database", $"  {reader["name"]} ({reader["type"]})");
                             }
                         }
                     }
 
                     // Check approach legs with fix references
-                    Console.WriteLine("\n=== APPROACH LEGS WITH FIXES (first 20) ===");
+                    KneeboardLogger.Info("Database", "=== APPROACH LEGS WITH FIXES (first 20) ===");
                     using (var cmd = new System.Data.SQLite.SQLiteCommand(
                         @"SELECT al.fix_ident, al.fix_region, al.fix_type,
                                  w.latitude as wpt_lat, w.longitude as wpt_lon,
@@ -217,18 +218,18 @@ namespace Kneeboard_Server
 
                                 if (lat.HasValue)
                                 {
-                                    Console.WriteLine($"  fix={fixIdent,-7} [{source}] lat={lat:F6} lon={lon:F6}");
+                                    KneeboardLogger.Debug("Database", $"  fix={fixIdent,-7} [{source}] lat={lat:F6} lon={lon:F6}");
                                 }
                                 else
                                 {
-                                    Console.WriteLine($"  fix={fixIdent,-7} [NO NAVAID] type={fixType}");
+                                    KneeboardLogger.Debug("Database", $"  fix={fixIdent,-7} [NO NAVAID] type={fixType}");
                                 }
                             }
                         }
                     }
 
                     // Count how many approach legs have resolvable coordinates
-                    Console.WriteLine("\n=== COORDINATE RESOLUTION STATS ===");
+                    KneeboardLogger.Info("Database", "=== COORDINATE RESOLUTION STATS ===");
                     using (var cmd = new System.Data.SQLite.SQLiteCommand(
                         @"SELECT
                             COUNT(*) as total_legs,
@@ -245,17 +246,17 @@ namespace Kneeboard_Server
                         {
                             if (reader.Read())
                             {
-                                Console.WriteLine($"  Total approach legs: {reader["total_legs"]}");
-                                Console.WriteLine($"  Legs with fix_ident: {reader["legs_with_fix"]}");
-                                Console.WriteLine($"  Matched to waypoint: {reader["matched_waypoint"]}");
-                                Console.WriteLine($"  Matched to VOR: {reader["matched_vor"]}");
-                                Console.WriteLine($"  Matched to NDB: {reader["matched_ndb"]}");
+                                KneeboardLogger.Info("Database", $"  Total approach legs: {reader["total_legs"]}");
+                                KneeboardLogger.Info("Database", $"  Legs with fix_ident: {reader["legs_with_fix"]}");
+                                KneeboardLogger.Info("Database", $"  Matched to waypoint: {reader["matched_waypoint"]}");
+                                KneeboardLogger.Info("Database", $"  Matched to VOR: {reader["matched_vor"]}");
+                                KneeboardLogger.Info("Database", $"  Matched to NDB: {reader["matched_ndb"]}");
                             }
                         }
                     }
 
                     // Show sample raw approach legs
-                    Console.WriteLine("\n=== SAMPLE APPROACH LEGS (first 10) ===");
+                    KneeboardLogger.Info("Database", "=== SAMPLE APPROACH LEGS (first 10) ===");
                     using (var cmd = new System.Data.SQLite.SQLiteCommand(
                         "SELECT * FROM approach_leg LIMIT 10", conn))
                     {
@@ -268,18 +269,17 @@ namespace Kneeboard_Server
                                 {
                                     cols.Add($"{reader.GetName(i)}={reader[i]}");
                                 }
-                                Console.WriteLine($"  {string.Join(", ", cols)}");
+                                KneeboardLogger.Debug("Database", $"  {string.Join(", ", cols)}");
                             }
                         }
                     }
 
-                    Console.WriteLine("\n=== DONE ===");
+                    KneeboardLogger.Info("Database", "=== DONE ===");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR: {ex.Message}");
-                Console.WriteLine(ex.StackTrace);
+                KneeboardLogger.Error("Database", ex);
             }
         }
 

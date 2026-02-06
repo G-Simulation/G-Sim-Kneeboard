@@ -13,6 +13,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Kneeboard_Server.Logging;
 using Kneeboard_Server.Navigraph;
 using static Kneeboard_Server.Kneeboard_Server;
 using EmbedIO;
@@ -172,51 +173,51 @@ namespace Kneeboard_Server
                     _navigraphData = new NavigraphDataService(_navigraphAuth);
 
                     // Load bundled database immediately (synchronous)
-                    Console.WriteLine("[Navigraph] Loading bundled database...");
+                    KneeboardLogger.Navigraph("Loading bundled database...");
                     _navigraphData.LoadBundledDatabase();
 
                     // Enrich any persisted flightplan now that Navigraph is available
-                    Console.WriteLine($"[Navigraph] Checking if flightplan needs enrichment (length: {Kneeboard_Server.flightplan?.Length ?? 0})");
+                    KneeboardLogger.NavigraphDebug($"Checking if flightplan needs enrichment (length: {Kneeboard_Server.flightplan?.Length ?? 0})");
                     bool needsEnrichment = Kneeboard_Server.FlightplanNeedsEnrichment(Kneeboard_Server.flightplan);
-                    Console.WriteLine($"[Navigraph] FlightplanNeedsEnrichment result: {needsEnrichment}");
+                    KneeboardLogger.NavigraphDebug($"FlightplanNeedsEnrichment result: {needsEnrichment}");
                     
                     if (needsEnrichment)
                     {
-                        Console.WriteLine("[Navigraph] Enriching persisted flightplan with procedures...");
+                        KneeboardLogger.Navigraph("Enriching persisted flightplan with procedures...");
                         try
                         {
                             var enrichedFlightplan = Kneeboard_Server.EnrichFlightplanWithProceduresAsync(Kneeboard_Server.flightplan).GetAwaiter().GetResult();
-                            Console.WriteLine($"[Navigraph] Enrichment returned, length: {enrichedFlightplan?.Length ?? 0}");
+                            KneeboardLogger.NavigraphDebug($"Enrichment returned, length: {enrichedFlightplan?.Length ?? 0}");
                             
                             bool stillNeedsEnrichment = Kneeboard_Server.FlightplanNeedsEnrichment(enrichedFlightplan);
-                            Console.WriteLine($"[Navigraph] Enriched flightplan still needs enrichment: {stillNeedsEnrichment}");
+                            KneeboardLogger.NavigraphDebug($"Enriched flightplan still needs enrichment: {stillNeedsEnrichment}");
                             
                             if (!stillNeedsEnrichment)
                             {
                                 Kneeboard_Server.flightplan = enrichedFlightplan;
                                 Kneeboard_Server.SaveFlightplanDataToSettings();
-                                Console.WriteLine("[Navigraph] Persisted flightplan enriched and saved");
+                                KneeboardLogger.Navigraph("Persisted flightplan enriched and saved");
                             }
                             else
                             {
-                                Console.WriteLine("[Navigraph] Enrichment completed but no procedure waypoints found");
+                                KneeboardLogger.Warn("Navigraph", "Enrichment completed but no procedure waypoints found");
                             }
                         }
                         catch (Exception enrichEx)
                         {
-                            Console.WriteLine($"[Navigraph] Flightplan enrichment failed: {enrichEx.Message}");
-                            Console.WriteLine($"[Navigraph] Stack: {enrichEx.StackTrace}");
+                            KneeboardLogger.NavigraphError($"Flightplan enrichment failed: {enrichEx.Message}");
+                            KneeboardLogger.NavigraphError(enrichEx);
                         }
                     }
                     else if (!string.IsNullOrEmpty(Kneeboard_Server.flightplan))
                     {
-                        Console.WriteLine("[Navigraph] Persisted flightplan already has procedure waypoints");
+                        KneeboardLogger.NavigraphDebug("Persisted flightplan already has procedure waypoints");
                     }
 
                     // If already authenticated, check for updates asynchronously
                     if (_navigraphAuth.IsAuthenticated)
                     {
-                        Console.WriteLine("[Navigraph] User already authenticated, checking for navdata updates...");
+                        KneeboardLogger.Navigraph("User already authenticated, checking for navdata updates...");
                         Task.Run(async () =>
                         {
                             try
@@ -225,7 +226,7 @@ namespace Kneeboard_Server
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine($"[Navigraph] Update check failed: {ex.Message}");
+                                KneeboardLogger.NavigraphError($"Update check failed: {ex.Message}");
                             }
                         });
                     }
@@ -380,13 +381,13 @@ namespace Kneeboard_Server
                 // Check for empty filename
                 if (string.IsNullOrEmpty(fileName))
                 {
-                    Console.WriteLine("[FindFile] Empty filename, returning null");
+                    KneeboardLogger.ServerDebug("Empty filename, returning null");
                     return null;
                 }
 
                 if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
                 {
-                    Console.WriteLine($"[FindFile] Directory not found: {directory}");
+                    KneeboardLogger.ServerDebug($"Directory not found: {directory}");
                     return null;
                 }
 
@@ -402,7 +403,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[FindFile] Exception: {ex.Message}");
+                KneeboardLogger.ServerError($"FindFile exception: {ex.Message}");
             }
 
             return null;
@@ -440,13 +441,13 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error stopping server: {ex.Message}");
+                KneeboardLogger.ServerError($"Error stopping server: {ex.Message}");
             }
         }
 
         private WebServer CreateWebServer()
         {
-            Console.WriteLine($"[EmbedIO] Creating WebServer on port {_port} with root: {_rootDirectory}");
+            KneeboardLogger.Server($"Creating WebServer on port {_port} with root: {_rootDirectory}");
 
             // Listen on all interfaces (requires admin or netsh urlacl)
             var server = new WebServer(o => o
@@ -455,7 +456,7 @@ namespace Kneeboard_Server
                 .WithCors()
                 .WithModule(new ActionModule("/", HttpVerbs.Any, ProcessRequestAsync));
 
-            Console.WriteLine($"[EmbedIO] Server listening on http://*:{_port}/");
+            KneeboardLogger.Server($"Server listening on http://*:{_port}/");
 
             // Note: Static files are handled in ProcessRequestAsync
             // No need for separate StaticFolder module
@@ -472,8 +473,8 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to start HTTP server: {ex.Message}");
-                Console.WriteLine("Try running as Administrator or use a different port.");
+                KneeboardLogger.ServerError($"Failed to start HTTP server: {ex.Message}");
+                KneeboardLogger.ServerError("Try running as Administrator or use a different port.");
             }
         }
 
@@ -485,7 +486,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error sending response: {ex.Message}");
+                KneeboardLogger.ServerError($"Error sending response: {ex.Message}");
             }
         }
 
@@ -497,7 +498,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error sending JSON response: {ex.Message}");
+                KneeboardLogger.ServerError($"Error sending JSON response: {ex.Message}");
             }
         }
 
@@ -544,7 +545,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Procedure API] Error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Procedure error: {ex.Message}");
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\"}}" );
             }
         }
@@ -595,7 +596,7 @@ namespace Kneeboard_Server
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[Procedure API] Navigraph error: {ex.Message}");
+                            KneeboardLogger.NavigraphError($"Procedure list error: {ex.Message}");
                         }
                     }
                 }
@@ -605,7 +606,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Procedure API] Error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Procedures list error: {ex.Message}");
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\"}}" );
             }
         }
@@ -633,7 +634,7 @@ namespace Kneeboard_Server
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Procedure API] Navigraph detail error: {ex.Message}");
+                    KneeboardLogger.NavigraphError($"Procedure detail error: {ex.Message}");
                 }
             }
 
@@ -1085,7 +1086,7 @@ namespace Kneeboard_Server
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[SRTM] Error downloading {tile.fileName}: {ex.Message}");
+                        KneeboardLogger.ElevationError($"Error downloading {tile.fileName}: {ex.Message}");
                         Interlocked.Increment(ref errorTiles);
                         // Unvollständige Datei löschen
                         try { if (File.Exists(tile.filePath)) File.Delete(tile.filePath); } catch { }
@@ -1143,7 +1144,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error reading elevation request body: {ex.Message}");
+                KneeboardLogger.ElevationError($"Error reading elevation request body: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 return;
             }
@@ -1157,7 +1158,7 @@ namespace Kneeboard_Server
 
                 if (locations == null || locations.Count == 0)
                 {
-                    Console.WriteLine($"[Elevation] ERROR: No locations in request. Body length: {requestBody.Length}");
+                    KneeboardLogger.ElevationError($"No locations in request. Body length: {requestBody.Length}");
                     ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                     var errorBuffer = Encoding.UTF8.GetBytes("{\"error\":\"No locations provided\"}");
                     ctx.Response.ContentType = "application/json";
@@ -1214,7 +1215,7 @@ namespace Kneeboard_Server
                 if (cacheMisses == 0)
                 {
                     // All from SRTM/cache - no API needed!
-                    Console.WriteLine($"[Elevation] All {cacheHits} locations local (SRTM: {srtmHits}, cache: {cacheHits - srtmHits})");
+                    KneeboardLogger.ElevationDebug($"All {cacheHits} locations local (SRTM: {srtmHits}, cache: {cacheHits - srtmHits})");
                     string payload = Newtonsoft.Json.JsonConvert.SerializeObject(new { results = allResults });
                     var buffer = Encoding.UTF8.GetBytes(payload);
                     ctx.Response.StatusCode = 200;
@@ -1224,7 +1225,7 @@ namespace Kneeboard_Server
                     return;
                 }
 
-                Console.WriteLine($"[Elevation] SRTM: {srtmHits}, Cache: {cacheHits - srtmHits}, API needed: {cacheMisses}");
+                KneeboardLogger.ElevationDebug($"SRTM: {srtmHits}, Cache: {cacheHits - srtmHits}, API needed: {cacheMisses}");
 
                 // Rate limiting: wait if last API call was too recent
                 var timeSinceLastCall = DateTime.Now - _lastElevationApiCall;
@@ -1305,7 +1306,7 @@ namespace Kneeboard_Server
                     }
                 }
 
-                Console.WriteLine($"[Elevation] Returning {allResults.Count} elevation results (SRTM: {srtmHits}, cache: {cacheHits - srtmHits}, API: {cacheMisses})");
+                KneeboardLogger.ElevationDebug($"Returning {allResults.Count} elevation results (SRTM: {srtmHits}, cache: {cacheHits - srtmHits}, API: {cacheMisses})");
 
                 // Return combined results
                 string resultPayload = Newtonsoft.Json.JsonConvert.SerializeObject(new { results = allResults });
@@ -1323,10 +1324,10 @@ namespace Kneeboard_Server
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
 
-                Console.WriteLine($"Elevation Proxy Error: {ex.Message}");
+                KneeboardLogger.ElevationError($"Elevation Proxy Error: {ex.Message}");
                 if (httpResponse != null)
                 {
-                    Console.WriteLine($"Upstream Status: {httpResponse.StatusCode}");
+                    KneeboardLogger.ElevationError($"Upstream Status: {httpResponse.StatusCode}");
                 }
 
                 string payload = "{\"error\":\"Unable to reach elevation service\"}";
@@ -1336,7 +1337,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Elevation Proxy Error: {ex.Message}");
+                KneeboardLogger.ElevationError($"Elevation Proxy Error: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 string payload = "{\"error\":\"Internal server error\"}";
                 var buffer = Encoding.UTF8.GetBytes(payload);
@@ -1392,11 +1393,11 @@ namespace Kneeboard_Server
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
 
-                Console.WriteLine($"DFS Proxy Error: {ex.Message}");
-                Console.WriteLine($"Requested URL: {targetUrl}");
+                KneeboardLogger.ProxyError($"DFS Proxy Error: {ex.Message}");
+                KneeboardLogger.ProxyDebug($"Requested URL: {targetUrl}");
                 if (httpResponse != null)
                 {
-                    Console.WriteLine($"Upstream Status: {httpResponse.StatusCode}");
+                    KneeboardLogger.ProxyError($"Upstream Status: {httpResponse.StatusCode}");
                 }
 
                 // Return empty PNG for failed tile requests
@@ -1453,8 +1454,8 @@ namespace Kneeboard_Server
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
 
-                Console.WriteLine($"OFM Proxy Error: {ex.Message}");
-                Console.WriteLine($"Requested URL: {targetUrl}");
+                KneeboardLogger.ProxyError($"OFM Proxy Error: {ex.Message}");
+                KneeboardLogger.ProxyDebug($"Requested URL: {targetUrl}");
 
                 // Return empty PNG for failed tile requests
                 ctx.Response.ContentType = "image/png";
@@ -1500,7 +1501,7 @@ namespace Kneeboard_Server
                             _vatsimBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
                         ctx.Response.Headers.Add("X-Cache", "DATA");
-                        Console.WriteLine("VATSIM Boundaries: loaded from data directory");
+                        KneeboardLogger.Boundaries("VATSIM loaded from data directory");
                         await ResponseJsonAsync(ctx, data);
                         return;
                     }
@@ -1520,7 +1521,7 @@ namespace Kneeboard_Server
                             _vatsimBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
                         ctx.Response.Headers.Add("X-Cache", "DISK");
-                        Console.WriteLine("VATSIM Boundaries: loaded from disk cache");
+                        KneeboardLogger.Boundaries("VATSIM loaded from disk cache");
                         await ResponseJsonAsync(ctx, diskData);
                         return;
                     }
@@ -1544,11 +1545,11 @@ namespace Kneeboard_Server
                     {
                         Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
                         File.WriteAllText(diskCachePath, boundaries);
-                        Console.WriteLine("VATSIM Boundaries: saved to disk cache");
+                        KneeboardLogger.Boundaries("VATSIM saved to disk cache");
                     }
                     catch (Exception cacheEx)
                     {
-                        Console.WriteLine($"VATSIM Boundaries: failed to save disk cache: {cacheEx.Message}");
+                        KneeboardLogger.BoundariesError($"VATSIM failed to save disk cache: {cacheEx.Message}");
                     }
 
                     ctx.Response.Headers.Add("X-Cache", "MISS");
@@ -1557,7 +1558,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"VATSIM Boundaries fetch error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"VATSIM Boundaries fetch error: {ex.Message}");
 
                 // Try to return cached data even if expired
                 string staleData = null;
@@ -1616,7 +1617,7 @@ namespace Kneeboard_Server
                             _vatsimTraconBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
                         ctx.Response.Headers.Add("X-Cache", "DATA");
-                        Console.WriteLine("VATSIM TRACON Boundaries: loaded from data directory");
+                        KneeboardLogger.Boundaries("VATSIM TRACON loaded from data directory");
                         await ResponseJsonAsync(ctx, data);
                         return;
                     }
@@ -1636,7 +1637,7 @@ namespace Kneeboard_Server
                             _vatsimTraconBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
                         ctx.Response.Headers.Add("X-Cache", "DISK");
-                        Console.WriteLine("VATSIM TRACON Boundaries: loaded from disk cache");
+                        KneeboardLogger.Boundaries("VATSIM TRACON loaded from disk cache");
                         await ResponseJsonAsync(ctx, diskData);
                         return;
                     }
@@ -1668,11 +1669,11 @@ namespace Kneeboard_Server
                     {
                         Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
                         File.WriteAllText(diskCachePath, boundaries);
-                        Console.WriteLine("VATSIM TRACON Boundaries: saved to disk cache");
+                        KneeboardLogger.Boundaries("VATSIM TRACON saved to disk cache");
                     }
                     catch (Exception cacheEx)
                     {
-                        Console.WriteLine($"VATSIM TRACON Boundaries: failed to save disk cache: {cacheEx.Message}");
+                        KneeboardLogger.BoundariesError($"VATSIM TRACON failed to save disk cache: {cacheEx.Message}");
                     }
 
                     ctx.Response.Headers.Add("X-Cache", "MISS");
@@ -1681,7 +1682,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"VATSIM TRACON Boundaries fetch error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"VATSIM TRACON Boundaries fetch error: {ex.Message}");
 
                 // Try to return cached data even if expired
                 string staleData = null;
@@ -1729,7 +1730,7 @@ namespace Kneeboard_Server
                             if (name != null && name.EndsWith(".geojson", StringComparison.OrdinalIgnoreCase))
                             {
                                 string url = (string)asset.browser_download_url;
-                                Console.WriteLine($"TRACON boundaries URL: {url}");
+                                KneeboardLogger.BoundariesDebug($"TRACON boundaries URL: {url}");
                                 return url;
                             }
                         }
@@ -1738,11 +1739,11 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error getting TRACON release URL: {ex.Message}");
+                KneeboardLogger.BoundariesError($"Error getting TRACON release URL: {ex.Message}");
             }
 
             // Fallback to known working version
-            Console.WriteLine("TRACON boundaries: using fallback URL v1.2.1");
+            KneeboardLogger.Warn("Boundaries", "TRACON boundaries: using fallback URL v1.2.1");
             return "https://github.com/vatsimnetwork/simaware-tracon-project/releases/download/v1.2.1/TRACONBoundaries.geojson";
         }
 
@@ -1760,7 +1761,7 @@ namespace Kneeboard_Server
                     Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
                     Directory.CreateDirectory(BOUNDARIES_DATA_DIR);
 
-                    Console.WriteLine("[Boundaries] Starting background update check...");
+                    KneeboardLogger.Boundaries("Starting background update check...");
 
                     // Check/update VATSIM FIR boundaries
                     UpdateBoundaryFile("vatsim_boundaries.json", () =>
@@ -1802,11 +1803,11 @@ namespace Kneeboard_Server
                         }
                     });
 
-                    Console.WriteLine("[Boundaries] Background update check completed");
+                    KneeboardLogger.Boundaries("Background update check completed");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Boundaries] Background update error: {ex.Message}");
+                    KneeboardLogger.BoundariesError($"Background update error: {ex.Message}");
                 }
             });
         }
@@ -1830,7 +1831,7 @@ namespace Kneeboard_Server
                     try
                     {
                         File.Copy(cachePath, filePath, true);
-                        Console.WriteLine($"[Boundaries] Migrated {fileName} from cache to data directory");
+                        KneeboardLogger.Boundaries($"Migrated {fileName} from cache to data directory");
                     }
                     catch { }
                 }
@@ -1838,7 +1839,7 @@ namespace Kneeboard_Server
                 if (!File.Exists(filePath))
                 {
                     needsUpdate = true;
-                    Console.WriteLine($"[Boundaries] {fileName}: file missing, downloading...");
+                    KneeboardLogger.Warn("Boundaries", $"{fileName}: file missing, downloading...");
                 }
             }
 
@@ -1849,11 +1850,11 @@ namespace Kneeboard_Server
                 if (age > BOUNDARIES_CACHE_TTL)
                 {
                     needsUpdate = true;
-                    Console.WriteLine($"[Boundaries] {fileName}: file is {age.TotalDays:F1} days old, updating...");
+                    KneeboardLogger.Boundaries($"{fileName}: file is {age.TotalDays:F1} days old, updating...");
                 }
                 else
                 {
-                    Console.WriteLine($"[Boundaries] {fileName}: up to date ({age.TotalDays:F1} days old)");
+                    KneeboardLogger.BoundariesDebug($"{fileName}: up to date ({age.TotalDays:F1} days old)");
 
                     // Pre-load into memory cache
                     try
@@ -1873,7 +1874,7 @@ namespace Kneeboard_Server
                     if (!string.IsNullOrEmpty(data))
                     {
                         File.WriteAllText(filePath, data);
-                        Console.WriteLine($"[Boundaries] {fileName}: downloaded and saved ({data.Length / 1024}KB)");
+                        KneeboardLogger.Boundaries($"{fileName}: downloaded and saved ({data.Length / 1024}KB)");
 
                         // Also save to cache dir for compatibility
                         try { File.WriteAllText(cachePath, data); } catch { }
@@ -1884,12 +1885,12 @@ namespace Kneeboard_Server
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Boundaries] {fileName}: download failed - {ex.Message}");
+                    KneeboardLogger.BoundariesError($"{fileName}: download failed - {ex.Message}");
 
                     // If download fails but old file exists, use it anyway
                     if (File.Exists(filePath))
                     {
-                        Console.WriteLine($"[Boundaries] {fileName}: using existing file despite age");
+                        KneeboardLogger.Warn("Boundaries", $"{fileName}: using existing file despite age");
                     }
                 }
             }
@@ -1955,7 +1956,7 @@ namespace Kneeboard_Server
                             _vatspyFirNamesCacheTime = fileInfo.LastWriteTime;
                         }
                         ctx.Response.Headers.Add("X-Cache", "DISK");
-                        Console.WriteLine("VATSpy FIR names: loaded from disk cache");
+                        KneeboardLogger.Boundaries("VATSpy FIR names loaded from disk cache");
                         await ResponseJsonAsync(ctx, diskData);
                         return;
                     }
@@ -2038,21 +2039,21 @@ namespace Kneeboard_Server
                     {
                         Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
                         File.WriteAllText(diskCachePath, jsonResult);
-                        Console.WriteLine($"VATSpy FIR names: saved to disk cache");
+                        KneeboardLogger.Boundaries("VATSpy FIR names saved to disk cache");
                     }
                     catch (Exception cacheEx)
                     {
-                        Console.WriteLine($"VATSpy FIR names: failed to save disk cache: {cacheEx.Message}");
+                        KneeboardLogger.BoundariesError($"VATSpy FIR names failed to save disk cache: {cacheEx.Message}");
                     }
 
-                    Console.WriteLine($"VATSpy FIR names loaded: {firNames.Count} entries");
+                    KneeboardLogger.Boundaries($"VATSpy FIR names loaded: {firNames.Count} entries");
                     ctx.Response.Headers.Add("X-Cache", "MISS");
                     await ResponseJsonAsync(ctx, jsonResult);
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"VATSpy FIR names fetch error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"VATSpy FIR names fetch error: {ex.Message}");
 
                 // Try to return cached data even if expired
                 string staleData = null;
@@ -2111,7 +2112,7 @@ namespace Kneeboard_Server
                             _ivaoBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
                         ctx.Response.Headers.Add("X-Cache", "DATA");
-                        Console.WriteLine("IVAO Boundaries: loaded from data directory");
+                        KneeboardLogger.Boundaries("IVAO loaded from data directory");
                         await ResponseJsonAsync(ctx, data);
                         return;
                     }
@@ -2131,7 +2132,7 @@ namespace Kneeboard_Server
                             _ivaoBoundariesCacheTime = fileInfo.LastWriteTime;
                         }
                         ctx.Response.Headers.Add("X-Cache", "DISK");
-                        Console.WriteLine("IVAO Boundaries: loaded from disk cache");
+                        KneeboardLogger.Boundaries("IVAO loaded from disk cache");
                         await ResponseJsonAsync(ctx, diskData);
                         return;
                     }
@@ -2170,11 +2171,11 @@ namespace Kneeboard_Server
                     {
                         Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
                         File.WriteAllText(diskCachePath, geoJsonContent);
-                        Console.WriteLine("IVAO Boundaries: saved to disk cache (GeoJSON format)");
+                        KneeboardLogger.Boundaries("IVAO saved to disk cache (GeoJSON format)");
                     }
                     catch (Exception cacheEx)
                     {
-                        Console.WriteLine($"IVAO Boundaries: failed to save disk cache: {cacheEx.Message}");
+                        KneeboardLogger.BoundariesError($"IVAO failed to save disk cache: {cacheEx.Message}");
                     }
 
                     ctx.Response.Headers.Add("X-Cache", "MISS");
@@ -2183,7 +2184,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"IVAO Boundaries fetch error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"IVAO Boundaries fetch error: {ex.Message}");
 
                 // Try to return cached data even if expired
                 string staleData = null;
@@ -2257,18 +2258,18 @@ namespace Kneeboard_Server
                             // Needs encoding
                             url = "https://www.littlenavmap.org/downloads/Airspace%20Boundaries/" + Uri.EscapeDataString(latestFile);
                         }
-                        Console.WriteLine($"IVAO boundaries URL: {url}");
+                        KneeboardLogger.BoundariesDebug($"IVAO boundaries URL: {url}");
                         return url;
                     }
                     else
                     {
-                        Console.WriteLine("No IVAO files found in directory listing");
+                        KneeboardLogger.Warn("Boundaries", "No IVAO files found in directory listing");
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error getting IVAO file list: {ex.Message}");
+                KneeboardLogger.BoundariesError($"Error getting IVAO file list: {ex.Message}");
             }
 
             return null;
@@ -2298,7 +2299,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error extracting IVAO ZIP: {ex.Message}");
+                KneeboardLogger.BoundariesError($"Error extracting IVAO ZIP: {ex.Message}");
             }
 
             return null;
@@ -2356,12 +2357,12 @@ namespace Kneeboard_Server
                     else if (c == ']' && depth == 1) break;
                 }
 
-                Console.WriteLine($"IVAO filter: {filteredItems.Count} items with valid geometry (minimized)");
+                KneeboardLogger.BoundariesDebug($"IVAO filter: {filteredItems.Count} items with valid geometry (minimized)");
                 return "[" + string.Join(",", filteredItems) + "]";
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"IVAO filter error: {ex.Message}, returning raw data");
+                KneeboardLogger.BoundariesError($"IVAO filter error: {ex.Message}, returning raw data");
                 return rawJson;
             }
         }
@@ -2569,7 +2570,7 @@ namespace Kneeboard_Server
                     else if (c == ']' && depth == 1) break;
                 }
 
-                Console.WriteLine($"IVAO -> GeoJSON: {features.Count} features converted");
+                KneeboardLogger.BoundariesDebug($"IVAO -> GeoJSON: {features.Count} features converted");
 
                 // Debug: Log some sample feature IDs for verification
                 if (features.Count > 0)
@@ -2579,14 +2580,14 @@ namespace Kneeboard_Server
                         int idEnd = f.IndexOf("\"", idStart);
                         return idStart > 5 && idEnd > idStart ? f.Substring(idStart, idEnd - idStart) : "?";
                     });
-                    Console.WriteLine($"IVAO Sample IDs: {string.Join(", ", sampleIds)}");
+                    KneeboardLogger.BoundariesDebug($"IVAO Sample IDs: {string.Join(", ", sampleIds)}");
                 }
 
                 return "{\"type\":\"FeatureCollection\",\"features\":[" + string.Join(",", features) + "]}";
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"IVAO GeoJSON conversion error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"IVAO GeoJSON conversion error: {ex.Message}");
                 return "{\"type\":\"FeatureCollection\",\"features\":[]}";
             }
         }
@@ -2779,11 +2780,11 @@ namespace Kneeboard_Server
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
 
-                Console.WriteLine($"Nominatim Proxy Error: {ex.Message}");
-                Console.WriteLine($"Requested URL: {targetUrl}");
+                KneeboardLogger.ProxyError($"Nominatim Proxy Error: {ex.Message}");
+                KneeboardLogger.ProxyDebug($"Requested URL: {targetUrl}");
                 if (httpResponse != null)
                 {
-                    Console.WriteLine($"Upstream Status: {httpResponse.StatusCode}");
+                    KneeboardLogger.ProxyError($"Upstream Status: {httpResponse.StatusCode}");
                 }
 
                 // Return JSON error instead of HTML from Nominatim
@@ -2838,7 +2839,7 @@ namespace Kneeboard_Server
             var gfsPart = path.Substring(idx + "/api/wind/".Length);
             var targetUrl = $"https://nomads.ncep.noaa.gov/dods/{gfsPart}{queryString}";
 
-            Console.WriteLine($"[Wind Proxy] Requesting: {targetUrl}");
+            KneeboardLogger.ProxyDebug($"Wind Proxy requesting: {targetUrl}");
 
             try
             {
@@ -2861,7 +2862,7 @@ namespace Kneeboard_Server
                         var redirectUrl = response.Headers.Location;
                         if (redirectUrl == null)
                         {
-                            Console.WriteLine($"[Wind Proxy] Redirect {statusCode} without Location header");
+                            KneeboardLogger.Warn("Proxy", $"Wind Proxy redirect {statusCode} without Location header");
                             break;
                         }
 
@@ -2872,7 +2873,7 @@ namespace Kneeboard_Server
                         }
 
                         currentUrl = redirectUrl.ToString();
-                        Console.WriteLine($"[Wind Proxy] Following {statusCode} redirect to: {currentUrl}");
+                        KneeboardLogger.ProxyDebug($"Wind Proxy following {statusCode} redirect to: {currentUrl}");
                         response.Dispose();
                         continue;
                     }
@@ -2880,7 +2881,7 @@ namespace Kneeboard_Server
                     break; // Not a redirect, use this response
                 }
 
-                Console.WriteLine($"[Wind Proxy] Final Response: {response.StatusCode}, ContentLength: {response.Content.Headers.ContentLength}");
+                KneeboardLogger.ProxyDebug($"Final Response: {response.StatusCode}, ContentLength: {response.Content.Headers.ContentLength}");
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -2895,7 +2896,7 @@ namespace Kneeboard_Server
                 }
                 else
                 {
-                    Console.WriteLine($"[Wind Proxy] Non-success status: {response.StatusCode}");
+                    KneeboardLogger.Proxy($"Non-success status: {response.StatusCode}");
                     ctx.Response.StatusCode = (int)response.StatusCode;
                     ctx.Response.ContentType = "text/plain";
                 }
@@ -2903,13 +2904,13 @@ namespace Kneeboard_Server
             catch (AggregateException ae)
             {
                 var innerEx = ae.InnerException ?? ae;
-                Console.WriteLine($"[Wind Proxy] Error: {innerEx.Message}");
+                KneeboardLogger.ProxyError($"Error: {innerEx.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                 ctx.Response.ContentType = "text/plain";
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Wind Proxy] Error: {ex.Message}");
+                KneeboardLogger.ProxyError($"Error: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                 ctx.Response.ContentType = "text/plain";
             }
@@ -2959,7 +2960,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimConnect API] Position request error: {ex.Message}");
+                KneeboardLogger.SimConnectError($"Position request error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, "{\"connected\":false,\"error\":\"Internal error\"}");
             }
@@ -2982,7 +2983,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimConnect API] Status request error: {ex.Message}");
+                KneeboardLogger.SimConnectError($"Status request error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, "{\"connected\":false}");
             }
@@ -3014,7 +3015,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimConnect API] Teleport error: {ex.Message}");
+                KneeboardLogger.SimConnectError($"Teleport error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 string errorJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { success = false, error = ex.Message });
                 await ResponseJsonAsync(ctx, errorJson);
@@ -3041,14 +3042,14 @@ namespace Kneeboard_Server
                 // Pause/Resume Events (PAUSE_ON, PAUSE_OFF, PAUSE_TOGGLE, SLEW_TOGGLE)
                 // sind alle in MSFS 2024 kaputt via SimConnect.
                 // Wir geben einfach success zurück ohne wirklich zu pausieren.
-                Console.WriteLine($"[SimConnect API] Pause request received (paused={paused}) - IGNORED (MSFS 2024 bug)");
+                KneeboardLogger.SimConnect($"Pause request received (paused={paused}) - IGNORED (MSFS 2024 bug)");
 
                 string responseJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { success = true, paused = paused });
                 await ResponseJsonAsync(ctx, responseJson);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimConnect API] Pause error: {ex.Message}");
+                KneeboardLogger.SimConnectError($"Pause error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 string errorJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { success = false, error = ex.Message });
                 await ResponseJsonAsync(ctx, errorJson);
@@ -3078,7 +3079,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimConnect API] Radio frequency error: {ex.Message}");
+                KneeboardLogger.SimConnectError($"Radio frequency error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 string errorJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { success = false, error = ex.Message });
                 await ResponseJsonAsync(ctx, errorJson);
@@ -3128,7 +3129,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Procedure API] SID list error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"SID list error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3173,7 +3174,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Procedure API] STAR list error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"STAR list error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3217,7 +3218,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Procedure API] Approach list error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Approach list error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3278,7 +3279,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Procedure API] Procedure detail error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Procedure detail error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3308,7 +3309,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Status error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Status error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3384,7 +3385,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Procedure API] SimBrief procedures error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"SimBrief procedures error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3404,7 +3405,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Procedure API] SimBrief SID error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"SimBrief SID error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3424,7 +3425,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Procedure API] SimBrief STAR error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"SimBrief STAR error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3475,7 +3476,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ILS API] Error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3538,7 +3539,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Runway error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Runway error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3592,7 +3593,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Runways error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Runways error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3685,7 +3686,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Airport error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Airport error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3739,7 +3740,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Waypoint error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Waypoint error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3795,7 +3796,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Navaid error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Navaid error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3807,11 +3808,11 @@ namespace Kneeboard_Server
         /// </summary>
         private async Task HandleSIDsRequest(IHttpContext ctx, string command)
         {
-            Console.WriteLine($"[Navigraph API] HandleSIDsRequest called with command: {command}");
+            KneeboardLogger.Navigraph($"HandleSIDsRequest called with command: {command}");
             try
             {
                 string icao = command.Replace("api/navigraph/sids/", "").Trim('/').ToUpperInvariant();
-                Console.WriteLine($"[Navigraph API] Getting SIDs for ICAO: {icao}");
+                KneeboardLogger.Navigraph($"Getting SIDs for ICAO: {icao}");
 
                 if (string.IsNullOrEmpty(icao))
                 {
@@ -3828,7 +3829,7 @@ namespace Kneeboard_Server
                 }
 
                 var sids = _navigraphData.GetSIDs(icao);
-                Console.WriteLine($"[Navigraph API] Retrieved {sids.Count} SIDs for {icao}");
+                KneeboardLogger.Navigraph($"Retrieved {sids.Count} SIDs for {icao}");
                 var response = sids.Select(s => new
                 {
                     Identifier = s.Identifier,
@@ -3838,12 +3839,12 @@ namespace Kneeboard_Server
                 }).ToList();
 
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                Console.WriteLine($"[Navigraph API] Sending SIDs response ({json.Length} bytes)");
+                KneeboardLogger.NavigraphDebug($"Sending SIDs response ({json.Length} bytes)");
                 await ResponseJsonAsync(ctx, json);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] SIDs error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"SIDs error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3887,7 +3888,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] STARs error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"STARs error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -3931,7 +3932,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Approaches error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Approaches error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -4010,7 +4011,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Procedure error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Procedure error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -4059,7 +4060,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Approach debug error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Approach debug error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -4109,7 +4110,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Approach test error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Approach test error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -4166,7 +4167,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Approach legs error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Approach legs error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -4223,7 +4224,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph API] Approach diag error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Approach diag error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -4343,7 +4344,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Log API] Error: {ex.Message}");
+                KneeboardLogger.APIError($"Error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
             }
@@ -4432,7 +4433,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Cache write error: {ex.Message}");
+                KneeboardLogger.CacheError($"Cache write error: {ex.Message}");
             }
         }
 
@@ -4488,15 +4489,15 @@ namespace Kneeboard_Server
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[Cache] Failed to delete file: {ex.Message}");
+                        KneeboardLogger.CacheError($"Failed to delete file: {ex.Message}");
                     }
                 }
 
-                Console.WriteLine($"Cache cleanup: freed {bytesFreed / 1024 / 1024}MB");
+                KneeboardLogger.Cache($"Cache cleanup: freed {bytesFreed / 1024 / 1024}MB");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Cache cleanup error: {ex.Message}");
+                KneeboardLogger.CacheError($"Cache cleanup error: {ex.Message}");
             }
         }
 
@@ -4510,7 +4511,7 @@ namespace Kneeboard_Server
                 if (Directory.Exists(CACHE_DIR))
                 {
                     Directory.Delete(CACHE_DIR, true);
-                    Console.WriteLine("OpenAIP cache cleared");
+                    KneeboardLogger.Cache("OpenAIP cache cleared");
                 }
             }
         }
@@ -4533,7 +4534,7 @@ namespace Kneeboard_Server
                 _preprocessedIvaoBoundariesTime = DateTime.MinValue;
                 _preprocessedVatsimBoundaries = null;
                 _preprocessedVatsimBoundariesTime = DateTime.MinValue;
-                Console.WriteLine("Boundaries memory cache cleared - will reload from disk on next request");
+                KneeboardLogger.Boundaries("Boundaries memory cache cleared - will reload from disk on next request");
             }
         }
 
@@ -4555,11 +4556,11 @@ namespace Kneeboard_Server
                 try
                 {
                     Directory.Delete(_elevationCacheDir, true);
-                    Console.WriteLine("Elevation cache cleared");
+                    KneeboardLogger.Cache("Elevation cache cleared");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error clearing elevation cache: {ex.Message}");
+                    KneeboardLogger.CacheError($"Error clearing elevation cache: {ex.Message}");
                 }
             }
         }
@@ -4749,11 +4750,11 @@ namespace Kneeboard_Server
                         bool military = IsMilitaryAircraft(callsign, aircraft);
                         bool santa = IsSantaFlight(callsign);
 
-                        // Spezial: SANTA+KFR bekommt Santa-Gesicht (Kategorie K)
+                        // Spezial: KFR im Callsign bekommt Eisvogel-Icon (Kategorie B)
                         string upperCs = callsign?.ToUpperInvariant() ?? "";
-                        if (upperCs.Contains("SANTA") && upperCs.Contains("KFR"))
+                        if (upperCs.Contains("KFR"))
                         {
-                            category = "K";  // Santa-Gesicht Icon
+                            category = "B";  // Bird/Kingfisher Icon
                         }
 
                         processedPilots.Add(new
@@ -4769,7 +4770,7 @@ namespace Kneeboard_Server
                             aircraft = aircraft,
                             departure = departure,
                             arrival = arrival,
-                            category = category,      // Vorberechnet! (K für SANT+KFR)
+                            category = category,      // Vorberechnet! (B für KFR)
                             military = military,      // Vorberechnet!
                             santa = santa             // Weihnachtsflug!
                         });
@@ -4790,7 +4791,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"VATSIM pilots error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"VATSIM pilots error: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                 // EmbedIO manages stream lifecycle
             }
@@ -4864,11 +4865,11 @@ namespace Kneeboard_Server
                         bool military = IsMilitaryAircraft(callsign, aircraft);
                         bool santa = IsSantaFlight(callsign);
 
-                        // Spezial: SANTA+KFR bekommt Santa-Gesicht (Kategorie K)
+                        // Spezial: KFR im Callsign bekommt Eisvogel-Icon (Kategorie B)
                         string upperCs = callsign?.ToUpperInvariant() ?? "";
-                        if (upperCs.Contains("SANTA") && upperCs.Contains("KFR"))
+                        if (upperCs.Contains("KFR"))
                         {
-                            category = "K";  // Santa-Gesicht Icon
+                            category = "B";  // Bird/Kingfisher Icon
                         }
 
                         processedPilots.Add(new
@@ -4884,7 +4885,7 @@ namespace Kneeboard_Server
                             aircraft = aircraft,
                             departure = departure,
                             arrival = arrival,
-                            category = category,      // Vorberechnet! (K für SANTA+KFR)
+                            category = category,      // Vorberechnet! (B für KFR)
                             military = military,      // Vorberechnet!
                             santa = santa             // Weihnachtsflug!
                         });
@@ -4905,7 +4906,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"IVAO pilots error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"IVAO pilots error: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                 // EmbedIO manages stream lifecycle
             }
@@ -5029,7 +5030,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"GeoJSON preprocessing error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"GeoJSON preprocessing error: {ex.Message}");
                 return geoJson; // Fallback auf Original
             }
         }
@@ -5244,13 +5245,13 @@ namespace Kneeboard_Server
                     _preprocessedVatsimBoundariesTime = DateTime.Now;
                 }
 
-                Console.WriteLine("VATSIM Boundaries: preprocessed with bounding boxes");
+                KneeboardLogger.Boundaries("VATSIM Boundaries: preprocessed with bounding boxes");
                 ctx.Response.Headers.Add("X-Cache", "PREPROCESSED");
                 await ResponseJsonAsync(ctx, preprocessed);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"VATSIM Boundaries preprocessing error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"VATSIM Boundaries preprocessing error: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                 // EmbedIO manages stream lifecycle
             }
@@ -5290,7 +5291,7 @@ namespace Kneeboard_Server
 
                 if (!string.IsNullOrEmpty(rawBoundaries))
                 {
-                    Console.WriteLine("VATSIM Offline FIR: generating from cached boundaries...");
+                    KneeboardLogger.Boundaries("VATSIM Offline FIR: generating from cached boundaries...");
                     string offlineFir = GenerateVatsimOfflineFirFromBoundaries(rawBoundaries);
 
                     // Cache für zukünftige Requests
@@ -5298,11 +5299,11 @@ namespace Kneeboard_Server
                     {
                         Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
                         File.WriteAllText(offlineFilePath, offlineFir);
-                        Console.WriteLine("VATSIM Offline FIR: saved to cache");
+                        KneeboardLogger.Boundaries("VATSIM Offline FIR: saved to cache");
                     }
                     catch (Exception cacheEx)
                     {
-                        Console.WriteLine($"VATSIM Offline FIR: could not save cache: {cacheEx.Message}");
+                        KneeboardLogger.Boundaries($"VATSIM Offline FIR: could not save cache: {cacheEx.Message}");
                     }
 
                     ctx.Response.Headers.Add("X-Cache", "GENERATED");
@@ -5311,12 +5312,12 @@ namespace Kneeboard_Server
                 }
 
                 // Letzter Fallback: leere FeatureCollection
-                Console.WriteLine("VATSIM Offline FIR: no source data available, returning empty collection");
+                KneeboardLogger.Boundaries("VATSIM Offline FIR: no source data available, returning empty collection");
                 await ResponseJsonAsync(ctx, "{\"type\":\"FeatureCollection\",\"features\":[]}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"VATSIM Offline FIR error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"VATSIM Offline FIR error: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 // EmbedIO manages stream lifecycle
             }
@@ -5403,11 +5404,11 @@ namespace Kneeboard_Server
                     searchPos = featureEnd;
                 }
 
-                Console.WriteLine($"VATSIM Offline FIR: extracted {features.Count} unique FIR zones");
+                KneeboardLogger.Boundaries($"VATSIM Offline FIR: extracted {features.Count} unique FIR zones");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"VATSIM Offline FIR generation error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"VATSIM Offline FIR generation error: {ex.Message}");
             }
 
             return "{\"type\":\"FeatureCollection\",\"features\":[" + string.Join(",", features) + "]}";
@@ -5466,7 +5467,7 @@ namespace Kneeboard_Server
                 string ivaoCachePath = Path.Combine(BOUNDARIES_CACHE_DIR, "ivao_boundaries_geojson.json");
                 if (File.Exists(ivaoCachePath))
                 {
-                    Console.WriteLine("IVAO Offline FIR: generating from cached boundaries...");
+                    KneeboardLogger.Boundaries("IVAO Offline FIR: generating from cached boundaries...");
                     string rawBoundaries = File.ReadAllText(ivaoCachePath);
                     string offlineFir = GenerateOfflineFirFromBoundaries(rawBoundaries);
 
@@ -5475,11 +5476,11 @@ namespace Kneeboard_Server
                     {
                         Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
                         File.WriteAllText(offlineFilePath, offlineFir);
-                        Console.WriteLine("IVAO Offline FIR: saved to cache");
+                        KneeboardLogger.Boundaries("IVAO Offline FIR: saved to cache");
                     }
                     catch (Exception cacheEx)
                     {
-                        Console.WriteLine($"IVAO Offline FIR: could not save cache: {cacheEx.Message}");
+                        KneeboardLogger.Boundaries($"IVAO Offline FIR: could not save cache: {cacheEx.Message}");
                     }
 
                     ctx.Response.Headers.Add("X-Cache", "GENERATED");
@@ -5488,12 +5489,12 @@ namespace Kneeboard_Server
                 }
 
                 // Letzter Fallback: leere FeatureCollection
-                Console.WriteLine("IVAO Offline FIR: no source data available, returning empty collection");
+                KneeboardLogger.Boundaries("IVAO Offline FIR: no source data available, returning empty collection");
                 await ResponseJsonAsync(ctx, "{\"type\":\"FeatureCollection\",\"features\":[]}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"IVAO Offline FIR error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"IVAO Offline FIR error: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 // EmbedIO manages stream lifecycle
             }
@@ -5566,11 +5567,11 @@ namespace Kneeboard_Server
                     searchPos = featureEnd;
                 }
 
-                Console.WriteLine($"IVAO Offline FIR: extracted {features.Count} unique FIR/CTR zones");
+                KneeboardLogger.Boundaries($"IVAO Offline FIR: extracted {features.Count} unique FIR/CTR zones");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"IVAO Offline FIR generation error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"IVAO Offline FIR generation error: {ex.Message}");
             }
 
             return "{\"type\":\"FeatureCollection\",\"features\":[" + string.Join(",", features) + "]}";
@@ -5690,13 +5691,13 @@ namespace Kneeboard_Server
                     _preprocessedIvaoBoundariesTime = DateTime.Now;
                 }
 
-                Console.WriteLine("IVAO Boundaries: preprocessed with bounding boxes");
+                KneeboardLogger.Boundaries("IVAO Boundaries: preprocessed with bounding boxes");
                 ctx.Response.Headers.Add("X-Cache", "PREPROCESSED");
                 await ResponseJsonAsync(ctx, preprocessed);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"IVAO Boundaries preprocessing error: {ex.Message}");
+                KneeboardLogger.BoundariesError($"IVAO Boundaries preprocessing error: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                 // EmbedIO manages stream lifecycle
             }
@@ -5734,7 +5735,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error loading favorites: {ex.Message}");
+                KneeboardLogger.Server($"Error loading favorites: {ex.Message}");
                 await ResponseJsonAsync(ctx, "{}");
             }
         }
@@ -5768,7 +5769,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error saving favorites: {ex.Message}");
+                KneeboardLogger.Server($"Error saving favorites: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 await ResponseJsonAsync(ctx, "{\"error\":\"" + ex.Message.Replace("\"", "\\\"") + "\"}");
             }
@@ -5806,7 +5807,7 @@ namespace Kneeboard_Server
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[OpenAIP ICAO] Cache read error: {ex.Message}");
+                            KneeboardLogger.APIError($"Cache read error: {ex.Message}");
                         }
                     }
                 }
@@ -5877,7 +5878,7 @@ namespace Kneeboard_Server
                 }
                 catch (Exception parseEx)
                 {
-                    Console.WriteLine($"[OpenAIP ICAO] Parse error: {parseEx.Message}");
+                    KneeboardLogger.APIError($"Parse error: {parseEx.Message}");
                 }
 
                 // If no exact match found
@@ -5903,7 +5904,7 @@ namespace Kneeboard_Server
                         }
                         catch (Exception cacheEx)
                         {
-                            Console.WriteLine($"[OpenAIP ICAO] Cache write error: {cacheEx.Message}");
+                            KneeboardLogger.APIError($"Cache write error: {cacheEx.Message}");
                         }
                     });
                 }
@@ -5917,7 +5918,7 @@ namespace Kneeboard_Server
             catch (WebException ex)
             {
                 var httpResponse = ex.Response as HttpWebResponse;
-                Console.WriteLine($"[OpenAIP ICAO] Error fetching {icaoCode}: {ex.Message}");
+                KneeboardLogger.API($"Error fetching {icaoCode}: {ex.Message}");
                 ctx.Response.StatusCode = httpResponse != null
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
@@ -5925,7 +5926,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[OpenAIP ICAO] Unexpected error: {ex.Message}");
+                KneeboardLogger.APIError($"Unexpected error: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icaoCode}\",\"found\":false}}");
             }
@@ -5968,7 +5969,7 @@ namespace Kneeboard_Server
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[OpenAIP Runway] Cache read error: {ex.Message}");
+                            KneeboardLogger.APIError($"Cache read error: {ex.Message}");
                         }
                     }
                 }
@@ -6024,7 +6025,7 @@ namespace Kneeboard_Server
 
                 if (matchedRunway == null)
                 {
-                    Console.WriteLine($"[OpenAIP Runway] Runway {runwayId} not found at {icao}");
+                    KneeboardLogger.API($"Runway {runwayId} not found at {icao}");
                     ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
                     await ResponseJsonAsync(ctx, $"{{\"error\":\"Runway {runwayId} not found at {icao}\"}}");
                     return;
@@ -6074,7 +6075,7 @@ namespace Kneeboard_Server
                     }
                     catch (Exception cacheEx)
                     {
-                        Console.WriteLine($"[OpenAIP Runway] Cache write error: {cacheEx.Message}");
+                        KneeboardLogger.APIError($"Cache write error: {cacheEx.Message}");
                     }
                 });
 
@@ -6087,7 +6088,7 @@ namespace Kneeboard_Server
             catch (WebException ex)
             {
                 var httpResponse = ex.Response as HttpWebResponse;
-                Console.WriteLine($"[OpenAIP Runway] Error fetching {icao}/{runwayId}: {ex.Message}");
+                KneeboardLogger.API($"Error fetching {icao}/{runwayId}: {ex.Message}");
                 ctx.Response.StatusCode = httpResponse != null
                     ? (int)httpResponse.StatusCode
                     : (int)HttpStatusCode.BadGateway;
@@ -6095,7 +6096,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[OpenAIP Runway] Unexpected error: {ex.Message}");
+                KneeboardLogger.APIError($"Unexpected error: {ex.Message}");
                 ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message.Replace("\"", "\\\"")}\",\"icao\":\"{icao}\",\"runway\":\"{runwayId}\",\"found\":false}}");
             }
@@ -6346,7 +6347,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] IATA-to-ICAO error: {ex.Message}");
+                KneeboardLogger.APIError($"IATA-to-ICAO error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, "{\"found\":false,\"error\":\"Internal error\"}");
             }
@@ -6376,7 +6377,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] IATA-ICAO-mapping error: {ex.Message}");
+                KneeboardLogger.APIError($"IATA-ICAO-mapping error: {ex.Message}");
                 ctx.Response.StatusCode = 500;
                 await ResponseJsonAsync(ctx, "{\"ready\":false,\"error\":\"Internal error\"}");
             }
@@ -6430,7 +6431,7 @@ namespace Kneeboard_Server
                                     _globalAirportIndex[icao] = (lat, lng, name);
                                 }
 
-                                Console.WriteLine($"[OpenAIP] Found {icao} via search: {name}");
+                                KneeboardLogger.API($"Found {icao} via search: {name}");
                                 return (lat, lng, name);
                             }
                         }
@@ -6439,7 +6440,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[OpenAIP] Search error for {icao}: {ex.Message}");
+                KneeboardLogger.API($"Search error for {icao}: {ex.Message}");
             }
 
             return null;
@@ -6594,7 +6595,7 @@ namespace Kneeboard_Server
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Cache read error: {ex.Message}");
+                    KneeboardLogger.CacheError($"Cache read error: {ex.Message}");
                     // Continue to fetch from upstream
                 }
             }
@@ -6683,14 +6684,14 @@ namespace Kneeboard_Server
                 }
                 catch (Exception logEx)
                 {
-                    Console.WriteLine($"[OpenAIP] Failed to write error log: {logEx.Message}");
+                    KneeboardLogger.APIError($"Failed to write error log: {logEx.Message}");
                 }
 
-                Console.WriteLine($"OpenAIP Proxy Error: {ex.Message}");
-                Console.WriteLine($"Requested URL: {builder.ToString()}");
+                KneeboardLogger.APIError($"OpenAIP Proxy Error: {ex.Message}");
+                KneeboardLogger.Server($"Requested URL: {builder.ToString()}");
                 if (httpResponse != null)
                 {
-                    Console.WriteLine($"Upstream Status: {httpResponse.StatusCode}");
+                    KneeboardLogger.Server($"Upstream Status: {httpResponse.StatusCode}");
                 }
 
                 string payload = "{\"error\":\"Unable to reach openAIP\"}";
@@ -6701,7 +6702,7 @@ namespace Kneeboard_Server
                         using (var reader = new StreamReader(httpResponse.GetResponseStream()))
                         {
                             payload = reader.ReadToEnd();
-                            Console.WriteLine($"Upstream Response: {payload}");
+                            KneeboardLogger.Server($"Upstream Response: {payload}");
                         }
                     }
                     catch
@@ -6790,7 +6791,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Baselayer Cache] Write error: {ex.Message}");
+                KneeboardLogger.CacheError($"Write error: {ex.Message}");
             }
         }
 
@@ -6997,31 +6998,31 @@ namespace Kneeboard_Server
                 try
                 {
                     string headCommand = ctx.Request.Url.AbsolutePath.Substring(1);
-                    Console.WriteLine($"[HEAD] Request for: {headCommand}");
+                    KneeboardLogger.ServerDebug($"Request for: {headCommand}");
 
                     // Replace forward slashes with backslashes for Windows path compatibility
                     headCommand = headCommand.Replace('/', '\\');
                     string headFilePath = Path.Combine(_rootDirectory, headCommand);
-                    Console.WriteLine($"[HEAD] Full path: {headFilePath}");
+                    KneeboardLogger.ServerDebug($"Full path: {headFilePath}");
 
                     // Case-insensitive file lookup
                     string actualFilePath = FindFileCaseInsensitive(headFilePath);
 
                     if (actualFilePath != null)
                     {
-                        Console.WriteLine($"[HEAD] File found: {actualFilePath}");
+                        KneeboardLogger.ServerDebug($"File found: {actualFilePath}");
                         response.StatusCode = (int)HttpStatusCode.OK;
                         response.ContentType = _mimeTypeMappings.TryGetValue(Path.GetExtension(actualFilePath), out string headMime) ? headMime : "application/octet-stream";
                     }
                     else
                     {
-                        Console.WriteLine($"[HEAD] File NOT found: {headCommand}");
+                        KneeboardLogger.ServerDebug($"File NOT found: {headCommand}");
                         response.StatusCode = (int)HttpStatusCode.NotFound;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[HEAD] Exception: {ex.Message}");
+                    KneeboardLogger.ServerError($"Exception: {ex.Message}");
                     response.StatusCode = (int)HttpStatusCode.NotFound;
                 }
                 return;
@@ -7030,7 +7031,7 @@ namespace Kneeboard_Server
             string command = ctx.Request.Url.AbsolutePath;
 
             command = command.Substring(1);
-            Console.WriteLine($"[HTTP] {ctx.Request.HttpMethod} /{command}");
+            KneeboardLogger.Server($"{ctx.Request.HttpMethod} /{command}");
 
             if (string.IsNullOrEmpty(command))
             {
@@ -7050,7 +7051,7 @@ namespace Kneeboard_Server
             else if (command == "setNavlogValues")
             {
                 string postedText = await GetPostedTextAsync(ctx);
-                Console.WriteLine($"[NavlogSync] Server received navlog POST, length: {postedText.Length}");
+                KneeboardLogger.Server($"Server received navlog POST, length: {postedText.Length}");
 
                 // Store the new values with timestamp
                 values = postedText;
@@ -7059,7 +7060,7 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.valuesTimestamp = valuesTimestamp;
                 Properties.Settings.Default.Save();
 
-                Console.WriteLine($"[NavlogSync] Server stored navlog data, new length: {values.Length}, timestamp: {valuesTimestamp}");
+                KneeboardLogger.Server($"Server stored navlog data, new length: {values.Length}, timestamp: {valuesTimestamp}");
                 await ResponseStringAsync(ctx, valuesTimestamp.ToString());
             }
             else if (command == "synchronizeFlightplan")
@@ -7079,7 +7080,7 @@ namespace Kneeboard_Server
             {
                 string navlogData = Properties.Settings.Default.values ?? "";
                 long timestamp = Properties.Settings.Default.valuesTimestamp;
-                Console.WriteLine($"[NavlogSync] Server sending navlog data, length: {navlogData.Length}, timestamp: {timestamp}");
+                KneeboardLogger.Server($"Server sending navlog data, length: {navlogData.Length}, timestamp: {timestamp}");
 
                 // Send data with timestamp as header
                 ctx.Response.Headers.Add("X-Navlog-Timestamp", timestamp.ToString());
@@ -7092,13 +7093,13 @@ namespace Kneeboard_Server
             }
             else if (command == "clearNavlogValues")
             {
-                Console.WriteLine("[NavlogSync] Server clearing navlog data");
+                KneeboardLogger.Server("Server clearing navlog data");
                 values = "";
                 valuesTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 Properties.Settings.Default.values = "";
                 Properties.Settings.Default.valuesTimestamp = valuesTimestamp;
                 Properties.Settings.Default.Save();
-                Console.WriteLine($"[NavlogSync] Server navlog data cleared, timestamp: {valuesTimestamp}");
+                KneeboardLogger.Server($"Server navlog data cleared, timestamp: {valuesTimestamp}");
                 await ResponseStringAsync(ctx, "OK");
             }
             else if (command == "getFlightplan")
@@ -7109,14 +7110,14 @@ namespace Kneeboard_Server
                     string enrichedFlightplan = Kneeboard_Server.flightplan;
                     if (Kneeboard_Server.FlightplanNeedsEnrichment(enrichedFlightplan))
                     {
-                        Console.WriteLine("[getFlightplan] Enriching flightplan with procedures on demand...");
+                        KneeboardLogger.Server("Enriching flightplan with procedures on demand...");
                         enrichedFlightplan = Kneeboard_Server.EnrichFlightplanWithProceduresAsync(enrichedFlightplan).GetAwaiter().GetResult();
                         // Update cached version if enrichment was successful
                         if (!Kneeboard_Server.FlightplanNeedsEnrichment(enrichedFlightplan))
                         {
                             Kneeboard_Server.flightplan = enrichedFlightplan;
                             Kneeboard_Server.SaveFlightplanDataToSettings();
-                            Console.WriteLine("[getFlightplan] Flightplan enriched and cached");
+                            KneeboardLogger.Server("Flightplan enriched and cached");
                         }
                     }
                     await ResponseStringAsync(ctx, enrichedFlightplan);
@@ -7140,7 +7141,7 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.values = "";
                 Properties.Settings.Default.valuesTimestamp = 0;
                 Properties.Settings.Default.Save();
-                Console.WriteLine("[NavlogSync] Navlog data and SimBrief cache cleared along with flight plan");
+                KneeboardLogger.Server("Navlog data and SimBrief cache cleared along with flight plan");
 
                 await ResponseStringAsync(ctx, "cleared");
             }
@@ -7157,7 +7158,7 @@ namespace Kneeboard_Server
 
                 // Check if server still has a flightplan from SimBrief
                 bool hasServerFlightplan = !string.IsNullOrEmpty(Kneeboard_Server.flightplan);
-                Console.WriteLine("[NavlogSync] Local navlog cleared, OFP hidden, SimBrief cache preserved: " + hasServerFlightplan);
+                KneeboardLogger.Server("Local navlog cleared, OFP hidden, SimBrief cache preserved: " + hasServerFlightplan);
 
                 await ResponseJsonAsync(ctx, $"{{\"cleared\":true,\"hasServerFlightplan\":{hasServerFlightplan.ToString().ToLower()}}}");
             }
@@ -7257,7 +7258,7 @@ namespace Kneeboard_Server
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"VATSIM sync error: {ex.Message}");
+                    KneeboardLogger.BoundariesError($"VATSIM sync error: {ex.Message}");
                     ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                     // EmbedIO manages stream lifecycle
                 }
@@ -7276,7 +7277,7 @@ namespace Kneeboard_Server
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"VATSIM transceivers sync error: {ex.Message}");
+                    KneeboardLogger.BoundariesError($"VATSIM transceivers sync error: {ex.Message}");
                     ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                     // EmbedIO manages stream lifecycle
                 }
@@ -7295,7 +7296,7 @@ namespace Kneeboard_Server
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"IVAO sync error: {ex.Message}");
+                    KneeboardLogger.BoundariesError($"IVAO sync error: {ex.Message}");
                     ctx.Response.StatusCode = (int)HttpStatusCode.BadGateway;
                     // EmbedIO manages stream lifecycle
                 }
@@ -7667,7 +7668,7 @@ namespace Kneeboard_Server
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error loading map layers: {ex.Message}");
+                    KneeboardLogger.ServerError($"Error loading map layers: {ex.Message}");
                     ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                     await ResponseJsonAsync(ctx, "{\"error\":\"Failed to load map layers\"}");
                 }
@@ -7687,7 +7688,7 @@ namespace Kneeboard_Server
                 string documentNameEncoded = parts[1];
                 string documentName = Uri.UnescapeDataString(documentNameEncoded);
 
-                Console.WriteLine("Dokument-Request: " + documentName);
+                KneeboardLogger.Server("Dokument-Request: " + documentName);
 
                 KneeboardFile fileEntry = null;
 
@@ -7780,7 +7781,7 @@ namespace Kneeboard_Server
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error serving file {filePath}: {ex.Message}");
+                        KneeboardLogger.Server($"Error serving file {filePath}: {ex.Message}");
                         ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                     }
                 }

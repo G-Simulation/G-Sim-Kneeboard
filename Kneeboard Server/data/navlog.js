@@ -7,8 +7,8 @@ var NAVLOG_DEBUG = (typeof DEBUG_CONFIG !== 'undefined' && DEBUG_CONFIG.NAVLOG) 
 
 // Zentraler Logger - nutzt KneeboardLogger falls verfügbar
 var navlogLogger = (typeof KneeboardLogger !== 'undefined')
-	? KneeboardLogger.createLogger('Navlog', { minLevel: NAVLOG_DEBUG ? 'DEBUG' : 'INFO' })
-	: { info: function(){}, warn: console.warn.bind(console), error: console.error.bind(console) };
+	? KneeboardLogger.createLogger('Navlog', { minLevel: 'DEBUG', debugConfigKey: 'NAVLOG' })
+	: { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
 
 // ============================================================================
 // GLOBAL VARIABLES
@@ -29,7 +29,7 @@ var cachedFlightplanData = null;
 var cachedFlightplanMeta = {};
 var cachedOfpData = null;  // OFP-Daten für Mapping bei DOM-Ready
 var ofpMappingInProgress = false;  // Flag: OFP-Mapping läuft - Server-Sync blockieren
-var flightplanLogPrefix = '[Navlog Flightplan]';
+var flightplanLogPrefix = '';
 var waypointFixedCountSettings = {
 	vfr: 5,
 	ifr: 5,
@@ -217,7 +217,7 @@ function parseMetarForWeatherLog(metar) {
 		result.turbulence = turbSeverity;
 
 	} catch (e) {
-		console.warn('[METAR Parser] Error parsing METAR:', e);
+		navlogLogger.error('METAR Parser - Error parsing METAR:', e);
 	}
 
 	return result;
@@ -310,7 +310,7 @@ function parseTafForWeatherLog(taf) {
 		}
 
 	} catch (e) {
-		console.warn('[TAF Parser] Error parsing TAF:', e);
+		navlogLogger.error('TAF Parser - Error parsing TAF:', e);
 	}
 
 	return result;
@@ -357,7 +357,7 @@ function getNavlogFixes(ofp) {
 function processOFPWithMapping(ofp, waypoints) {
 	// Prüfen ob Mapping-Konfiguration geladen ist
 	if (typeof OFP_NAVLOG_MAPPING === 'undefined') {
-		console.warn('[OFP Mapping] OFP_NAVLOG_MAPPING not defined - skipping mapping');
+		navlogLogger.warn('OFP Mapping - OFP_NAVLOG_MAPPING not defined - skipping mapping');
 		return {};
 	}
 
@@ -371,7 +371,7 @@ function processOFPWithMapping(ofp, waypoints) {
 				try {
 					computed[compKey] = OFP_COMPUTED_FIELDS[compKey](ofp, waypoints);
 				} catch (e) {
-					console.warn('[OFP Mapping] Error computing field', compKey, e);
+					navlogLogger.error('OFP Mapping - Error computing field', compKey, e);
 				}
 			}
 		}
@@ -426,7 +426,7 @@ function processOFPWithMapping(ofp, waypoints) {
 					value = OFP_PARSERS[config.parse](value, ofp);
 				}
 			} catch (e) {
-				console.warn('[OFP Mapping] Error parsing field', fieldId, e);
+				navlogLogger.error('OFP Mapping - Error parsing field', fieldId, e);
 				continue;
 			}
 		}
@@ -443,23 +443,21 @@ function processOFPWithMapping(ofp, waypoints) {
 		result[fieldId] = value;
 	}
 
-	NAVLOG_DEBUG && console.log('[OFP Mapping] Processed', Object.keys(result).length, 'fields');
-	NAVLOG_DEBUG && console.log('[OFP Mapping] Result keys:', Object.keys(result));
-	// Debug: Spezifische Felder loggen (nur wenn NAVLOG_DEBUG aktiv)
-	if (NAVLOG_DEBUG) {
-		if (result['Arrival-Star']) {
-			console.log('[OFP Mapping] Arrival-Star =', result['Arrival-Star']);
-		} else {
-			console.log('[OFP Mapping] Arrival-Star is EMPTY - checking ALL OFP paths...');
-			console.log('[OFP Mapping] - General.Star_name =', getNestedValue(ofp, 'General.Star_name'));
-			console.log('[OFP Mapping] - _computed.star =', computed['star']);
-		}
-		if (result['Weather-Log-Enr-Winds']) {
-			console.log('[OFP Mapping] Weather-Log-Enr-Winds =', result['Weather-Log-Enr-Winds'].substring(0, 100));
-		}
-		if (!result['Pilot_in_com']) {
-			console.log('[OFP Mapping] Pilot_in_com is EMPTY');
-		}
+	navlogLogger.debug('OFP Mapping - Processed', Object.keys(result).length, 'fields');
+	navlogLogger.debug('OFP Mapping - Result keys:', Object.keys(result));
+	// Debug: Spezifische Felder loggen
+	if (result['Arrival-Star']) {
+		navlogLogger.debug('OFP Mapping - Arrival-Star =', result['Arrival-Star']);
+	} else {
+		navlogLogger.debug('OFP Mapping - Arrival-Star is EMPTY - checking ALL OFP paths...');
+		navlogLogger.debug('OFP Mapping - General.Star_name =', getNestedValue(ofp, 'General.Star_name'));
+		navlogLogger.debug('OFP Mapping - _computed.star =', computed['star']);
+	}
+	if (result['Weather-Log-Enr-Winds']) {
+		navlogLogger.debug('OFP Mapping - Weather-Log-Enr-Winds =', result['Weather-Log-Enr-Winds'].substring(0, 100));
+	}
+	if (!result['Pilot_in_com']) {
+		navlogLogger.debug('OFP Mapping - Pilot_in_com is EMPTY');
 	}
 	return result;
 }
@@ -475,7 +473,7 @@ function applyMappedValuesToNavlog(mappedValues) {
 			count++;
 		}
 	}
-	NAVLOG_DEBUG && console.log('[OFP Mapping] Applied', count, 'values to NavLog fields');
+	navlogLogger.debug('OFP Mapping - Applied', count, 'values to NavLog fields');
 }
 
 /**
@@ -509,12 +507,12 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 	var fixes = getNavlogFixes(ofpData);
 	if (!fixes) return;
 
-	NAVLOG_DEBUG && console.log('[OFP Enrichment] Merging data from', fixes.length, 'fixes to', waypoints.length, 'waypoints');
+	navlogLogger.debug('OFP Enrichment - Merging data from', fixes.length, 'fixes to', waypoints.length, 'waypoints');
 
 	// DEBUG: Ersten Fix komplett ausgeben um alle verfügbaren Felder zu sehen
-	if (NAVLOG_DEBUG && fixes.length > 0) {
-		console.log('[OFP Enrichment] FIRST FIX ALL KEYS:', Object.keys(fixes[0]));
-		console.log('[OFP Enrichment] FIRST FIX DATA:', JSON.stringify(fixes[0], null, 2));
+	if (fixes.length > 0) {
+		navlogLogger.debug('OFP Enrichment - FIRST FIX ALL KEYS:', Object.keys(fixes[0]));
+		navlogLogger.debug('OFP Enrichment - FIRST FIX DATA:', JSON.stringify(fixes[0], null, 2));
 	}
 
 	// Map für schnelles Lookup nach Ident
@@ -624,8 +622,8 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 			}
 		}
 	}
-	NAVLOG_DEBUG && console.log('[OFP Enrichment] Matched', matchCount, 'of', waypoints.length, 'waypoints');
-	NAVLOG_DEBUG && noMatchList.length > 0 && console.log('[OFP Enrichment] No matches found for:', noMatchList.join(', '));
+	navlogLogger.debug('OFP Enrichment - Matched', matchCount, 'of', waypoints.length, 'waypoints');
+	if (noMatchList.length > 0) { navlogLogger.debug('OFP Enrichment - No matches found for:', noMatchList.join(', ')); }
 
 	// Für den ersten Waypoint (Abflughafen): Winddaten aus METAR extrahieren
 	if (waypoints.length > 0 && waypoints[0]) {
@@ -645,7 +643,7 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 					if (wind) {
 						firstWp.Wind_dir = wind.dir;
 						firstWp.Wind_spd = wind.spd;
-						NAVLOG_DEBUG && console.log('[OFP Enrichment] Departure airport', firstWpName, 'wind from METAR:', wind.dir + '/' + wind.spd + 'kt');
+						navlogLogger.debug('OFP Enrichment - Departure airport', firstWpName, 'wind from METAR:', wind.dir + '/' + wind.spd + 'kt');
 					}
 				}
 
@@ -659,14 +657,14 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 						var rampFuel = fuelData.Plan_ramp || fuelData.plan_ramp;
 						if (rampFuel) {
 							firstWp.Fuel_rem = rampFuel;
-							NAVLOG_DEBUG && console.log('[OFP Enrichment] Departure airport Fuel_rem set to Plan_ramp:', rampFuel);
+							navlogLogger.debug('OFP Enrichment - Departure airport Fuel_rem set to Plan_ramp:', rampFuel);
 						}
 					}
 					if (firstWp.Fuel_flow === undefined) {
 						var avgFlow = fuelData.Avg_fuel_flow || fuelData.avg_fuel_flow;
 						if (avgFlow) {
 							firstWp.Fuel_flow = avgFlow;
-							NAVLOG_DEBUG && console.log('[OFP Enrichment] Departure airport Fuel_flow set to Avg:', avgFlow);
+							navlogLogger.debug('OFP Enrichment - Departure airport Fuel_flow set to Avg:', avgFlow);
 						}
 					}
 				}
@@ -744,7 +742,7 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 						if (destWind) {
 							apWp.Wind_dir = destWind.dir;
 							apWp.Wind_spd = destWind.spd;
-							NAVLOG_DEBUG && console.log('[OFP Enrichment] Arrival airport', apWpName,
+							navlogLogger.debug('OFP Enrichment: Arrival airport', apWpName,
 								'wind from METAR:', destWind.dir + '/' + destWind.spd + 'kt');
 						}
 						// Temperature aus METAR
@@ -793,7 +791,7 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 						apWp.Mag_var = lastMagVar;
 					}
 				}
-				NAVLOG_DEBUG && console.log('[OFP Enrichment] Arrival enriched:', apWpName,
+				navlogLogger.debug('OFP Enrichment: Arrival enriched:', apWpName,
 					'Wind:', apWp.Wind_dir, '/', apWp.Wind_spd,
 					'Fuel_rem:', apWp.Fuel_rem, 'Alt:', apWp.altitude);
 
@@ -846,22 +844,22 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 						apWp.Mag_var = lastMagVar2;
 					}
 				}
-				NAVLOG_DEBUG && console.log('[OFP Enrichment] Approach enriched:', apWpName,
+				navlogLogger.debug('OFP Enrichment: Approach enriched:', apWpName,
 					'Wind:', apWp.Wind_dir, '/', apWp.Wind_spd,
 					'GS:', apWp.Groundspeed, 'ETE:', apWp.Ete);
 			}
 		}
 	}
 
-	// Debug: Ersten und zweiten Waypoint ausgeben (nur wenn NAVLOG_DEBUG)
-	if (NAVLOG_DEBUG && waypoints.length > 0 && waypoints[0]) {
-		console.log('[OFP Enrichment] ENRICHED WP[0] (Departure):', JSON.stringify({
+	// Debug: Ersten und zweiten Waypoint ausgeben
+	if (waypoints.length > 0 && waypoints[0]) {
+		navlogLogger.debug('OFP Enrichment - ENRICHED WP[0] (Departure):', JSON.stringify({
 			name: waypoints[0].name, Wind_dir: waypoints[0].Wind_dir, Wind_spd: waypoints[0].Wind_spd,
 			Fuel_rem: waypoints[0].Fuel_rem, altitude: waypoints[0].altitude
 		}));
 	}
-	if (NAVLOG_DEBUG && waypoints.length > 1 && waypoints[1]) {
-		console.log('[OFP Enrichment] ENRICHED WP[1]:', JSON.stringify({
+	if (waypoints.length > 1 && waypoints[1]) {
+		navlogLogger.debug('OFP Enrichment - ENRICHED WP[1]:', JSON.stringify({
 			name: waypoints[1].name, Groundspeed: waypoints[1].Groundspeed, altitude: waypoints[1].altitude
 		}));
 	}
@@ -965,8 +963,8 @@ function initWaypointTemplates() {
 
 function logVerbose() {
 	if (!NAVLOG_VERBOSE) return;
-	if (typeof console !== 'undefined' && console.log) {
-		console.log.apply(console, arguments);
+	if (navlogLogger && navlogLogger.debug) {
+		navlogLogger.debug.apply(navlogLogger, arguments);
 	}
 }
 
@@ -1003,7 +1001,7 @@ function ensureNavlogContainer() {
 // Called from kneeboard.js when showing cached tab - resets DOM cache
 // so that getCachedNavlogContainer() will re-query the DOM
 function resetNavlogDomCache() {
-	NAVLOG_DEBUG && console.log('[Navlog Debug] resetNavlogDomCache() called - clearing DOM cache');
+	navlogLogger.debug('resetNavlogDomCache() called - clearing DOM cache');
 	domCache.navlogContainer = null;
 	domCache.buttonElements = {};
 	domCache.waypointContainers = {};
@@ -1090,9 +1088,9 @@ function initNavlogPage() {
 			saveVal = setTimeout(saveValues, KEYDOWN_SAVE_DELAY_MS);
 		}, false);
 		navlogEventListenersInitialized = true;
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Event listeners registered (first time)');
+		navlogLogger.debug('Event listeners registered (first time)');
 	} else {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Event listeners already registered - skipping');
+		navlogLogger.debug('Event listeners already registered - skipping');
 	}
 
 	initNavlogSync();
@@ -1290,7 +1288,7 @@ function setupWaypointAutoExpand() {
 	// NEW: Apply any cached flightplan data now that DOM is ready
 	// This handles the timing issue where SimBrief sends data BEFORE the navlog tab is opened
 	if (cachedFlightplanData !== null || cachedOfpData !== null) {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] setupWaypointAutoExpand complete - applying cached flightplan data');
+		navlogLogger.debug('setupWaypointAutoExpand complete - applying cached flightplan data');
 		setTimeout(function() {
 			applyCachedFlightplanIfReady();
 		}, 50);
@@ -1330,25 +1328,25 @@ function ensureExactRowCount(targetFlightType, exactRowCount) {
 	// Get the waypoint table for the specified flight type
 	var waypointTableId = getWaypointTableIdForFlightType(targetFlightType);
 	if (!waypointTableId) {
-		NAVLOG_DEBUG && console.log('[ensureExactRowCount] No waypoint table ID for flight type:', targetFlightType);
+		navlogLogger.debug('ensureExactRowCount: No waypoint table ID for flight type:', targetFlightType);
 		return;
 	}
 
 	var navlogContainer = ensureNavlogContainer();
 	if (!navlogContainer) {
-		NAVLOG_DEBUG && console.log('[ensureExactRowCount] No navlog container found');
+		navlogLogger.debug('ensureExactRowCount: No navlog container found');
 		return;
 	}
 
 	var waypointTable = navlogContainer.querySelector('#' + waypointTableId);
 	if (!waypointTable) {
-		NAVLOG_DEBUG && console.log('[ensureExactRowCount] Waypoint table not found:', waypointTableId);
+		navlogLogger.debug('ensureExactRowCount: Waypoint table not found:', waypointTableId);
 		return;
 	}
 
 	var tbody = waypointTable.querySelector('tbody');
 	if (!tbody) {
-		NAVLOG_DEBUG && console.log('[ensureExactRowCount] No tbody found in waypoint table');
+		navlogLogger.debug('ensureExactRowCount: No tbody found in waypoint table');
 		return;
 	}
 
@@ -1385,7 +1383,7 @@ function ensureExactRowCount(targetFlightType, exactRowCount) {
 	}
 
 	if (templateRows.length === 0) {
-		NAVLOG_DEBUG && console.warn('[ensureExactRowCount] No template rows available for', targetFlightType);
+		navlogLogger.warn('No template rows available for', targetFlightType);
 		return;
 	}
 
@@ -1400,12 +1398,12 @@ function ensureExactRowCount(targetFlightType, exactRowCount) {
 
 	var groupSize = templateRows.length; // rows per waypoint
 	var currentVisibleGroups = Math.floor(visibleNonTemplateRows.length / groupSize);
-	NAVLOG_DEBUG && console.log('[ensureExactRowCount] Current visible groups:', currentVisibleGroups, ', Target:', exactRowCount, ', groupSize:', groupSize);
+	navlogLogger.debug('ensureExactRowCount: Current visible groups:', currentVisibleGroups, ', Target:', exactRowCount, ', groupSize:', groupSize);
 
 	var groupDiff = exactRowCount - currentVisibleGroups;
 
 	if (groupDiff > 0) {
-		NAVLOG_DEBUG && console.log('[ensureExactRowCount] Adding', groupDiff, 'groups');
+		navlogLogger.debug('ensureExactRowCount: Adding', groupDiff, 'groups');
 
 		// Find the first template row in the DOM (not from cache)
 		var firstDomTemplateRow = null;
@@ -1440,7 +1438,7 @@ function ensureExactRowCount(targetFlightType, exactRowCount) {
 		}
 	} else if (groupDiff < 0) {
 		var groupsToHide = Math.abs(groupDiff);
-		NAVLOG_DEBUG && console.log('[ensureExactRowCount] Hiding', groupsToHide, 'groups');
+		navlogLogger.debug('ensureExactRowCount: Hiding', groupsToHide, 'groups');
 
 		// recompute visible rows after templates (up to date)
 		visibleNonTemplateRows = [];
@@ -1464,17 +1462,17 @@ function ensureExactRowCount(targetFlightType, exactRowCount) {
 		}
 	}
 
-	NAVLOG_DEBUG && console.log('[ensureExactRowCount] Row adjustment complete. Final visible groups:', exactRowCount);
+	navlogLogger.debug('ensureExactRowCount: Row adjustment complete. Final visible groups:', exactRowCount);
 }
 
 function ensureCapacityForNavlogString(navlogString) {
 	if (!navlogString) {
-		NAVLOG_DEBUG && console.log('[ensureCapacity] No navlog string provided');
+		navlogLogger.debug('ensureCapacity: No navlog string provided');
 		return;
 	}
 
 	var values = navlogString.split('~');
-	NAVLOG_DEBUG && console.log('[ensureCapacity] Received', values.length, 'values for flight type:', values[0]);
+	navlogLogger.debug('ensureCapacity: Received', values.length, 'values for flight type:', values[0]);
 
 	// Get the current flight type from the navlog string
 	var incomingFlightType = values[0] || flightType;
@@ -1485,20 +1483,20 @@ function ensureCapacityForNavlogString(navlogString) {
 	var waypointTable = document.getElementById(tableId);
 
 	if (!waypointTable) {
-		NAVLOG_DEBUG && console.log('[ensureCapacity] No waypoint table found for', incomingFlightType, '(tried ID:', tableId + ')');
+		navlogLogger.debug('ensureCapacity: No waypoint table found for', incomingFlightType, '(tried ID:', tableId + ')');
 		return;
 	}
 
-	NAVLOG_DEBUG && console.log('[ensureCapacity] Found waypoint table:', tableId);
+	navlogLogger.debug('ensureCapacity: Found waypoint table:', tableId);
 
 	// Find template rows for this flight type
 	var templateRows = waypointTable.querySelectorAll('tr[data-waypoint-template="true"]');
 	if (templateRows.length === 0) {
-		NAVLOG_DEBUG && console.log('[ensureCapacity] No template rows found for', incomingFlightType);
+		navlogLogger.debug('ensureCapacity: No template rows found for', incomingFlightType);
 		return;
 	}
 
-	NAVLOG_DEBUG && console.log('[ensureCapacity] Found', templateRows.length, 'template rows for', incomingFlightType);
+	navlogLogger.debug('ensureCapacity: Found', templateRows.length, 'template rows for', incomingFlightType);
 
 	// Count current visible (non-template) waypoint rows
 	var allRows = waypointTable.querySelectorAll('tr');
@@ -1519,19 +1517,19 @@ function ensureCapacityForNavlogString(navlogString) {
 	var estimatedNeededRows = Math.ceil(values.length / fieldsPerWaypointGroup) * templateRows.length;
 	var rowsToAdd = Math.max(0, estimatedNeededRows - currentVisibleRows);
 
-	NAVLOG_DEBUG && console.log('[ensureCapacity] Current visible rows:', currentVisibleRows,
+	navlogLogger.debug('ensureCapacity: Current visible rows:', currentVisibleRows,
 	            ', Estimated needed:', estimatedNeededRows,
 	            ', Will add:', rowsToAdd);
 
 	// Add rows if needed (in groups matching template size)
 	if (rowsToAdd > 0) {
 		var groupsToAdd = Math.ceil(rowsToAdd / templateRows.length);
-		NAVLOG_DEBUG && console.log('[ensureCapacity] Adding', groupsToAdd, 'groups of', templateRows.length, 'rows');
+		navlogLogger.debug('ensureCapacity: Adding', groupsToAdd, 'groups of', templateRows.length, 'rows');
 
 		// Get the parent tbody of the template rows
 		var tbody = templateRows[0].parentNode;
 		if (!tbody) {
-			NAVLOG_DEBUG && console.log('[ensureCapacity] No parent tbody found for template rows');
+			navlogLogger.debug('ensureCapacity: No parent tbody found for template rows');
 			return;
 		}
 
@@ -1552,7 +1550,7 @@ function ensureCapacityForNavlogString(navlogString) {
 			}
 		}
 
-		NAVLOG_DEBUG && console.log('[ensureCapacity] Successfully added', groupsToAdd * templateRows.length, 'rows');
+		navlogLogger.debug('ensureCapacity: Successfully added', groupsToAdd * templateRows.length, 'rows');
 
 		// Make sure all rows are visible (hideExcess might have hidden them)
 		var allRows = tbody.querySelectorAll('tr');
@@ -1562,7 +1560,7 @@ function ensureCapacityForNavlogString(navlogString) {
 				allRows[r].style.display = '';
 			}
 		}
-		NAVLOG_DEBUG && console.log('[ensureCapacity] All rows made visible');
+		navlogLogger.debug('ensureCapacity: All rows made visible');
 	}
 }
 
@@ -1933,10 +1931,10 @@ function removeWaypointGroup(config, group, forceRemove) {
 	var minCheckpoints = hasFixedWaypointCount(config) ? Math.max(1, Math.floor(Number(config.fixedWaypointCount))) : 5;
 	var currentCheckpoints = getCurrentCheckpointCount(config);
 
-	NAVLOG_DEBUG && console.log('[removeGroup] ' + config.key + ' - currentCheckpoints: ' + currentCheckpoints + ', minCheckpoints: ' + minCheckpoints + ', forceRemove: ' + forceRemove);
+	navlogLogger.debug('removeGroup -' + config.key + ' - currentCheckpoints: ' + currentCheckpoints + ', minCheckpoints: ' + minCheckpoints + ', forceRemove: ' + forceRemove);
 
 	if (currentCheckpoints <= minCheckpoints) {
-		NAVLOG_DEBUG && console.log('[removeGroup] ABORT: Already at minimum checkpoints');
+		navlogLogger.debug('removeGroup: ABORT: Already at minimum checkpoints');
 		return;
 	}
 
@@ -2106,7 +2104,7 @@ function hideExcessWaypointGroups(config, desiredCount) {
 	var groupSize = getTemplateGroupSize(config);
 	var maxVisibleRows = (desiredCount - 1) * groupSize + 1;
 
-	NAVLOG_DEBUG && console.log('[hideExcess] ' + config.key + ' - desiredCount: ' + desiredCount + ', groupSize: ' + groupSize + ', maxVisibleRows: ' + maxVisibleRows + ', totalRows: ' + allRows.length);
+	navlogLogger.debug('hideExcess -' + config.key + ' - desiredCount: ' + desiredCount + ', groupSize: ' + groupSize + ', maxVisibleRows: ' + maxVisibleRows + ', totalRows: ' + allRows.length);
 
 	var hiddenCount = 0;
 	for (var i = maxVisibleRows; i < allRows.length; i++) {
@@ -2118,7 +2116,7 @@ function hideExcessWaypointGroups(config, desiredCount) {
 			textareas[j].value = '';
 		}
 	}
-	NAVLOG_DEBUG && console.log('[hideExcess] ' + config.key + ' - Hidden ' + hiddenCount + ' rows, visible: ' + (allRows.length - hiddenCount));
+	navlogLogger.debug('hideExcess -' + config.key + ' - Hidden ' + hiddenCount + ' rows, visible: ' + (allRows.length - hiddenCount));
 }
 
 function showAllWaypointGroups(config) {
@@ -2370,31 +2368,31 @@ function setNavlogFieldValueIfEmpty(id, value) {
 	// Prüfen ob Feld bereits einen Wert hat
 	var existing = getNavlogFieldValue(id);
 	if (existing && existing.trim() !== '') {
-		NAVLOG_DEBUG && console.log('[Navlog FieldSetter] PROTECTED - Field', id, 'already has value:', existing);
+		navlogLogger.debug('PROTECTED - Field', id, 'already has value:', existing);
 		return;
 	}
 	setNavlogFieldValue(id, value);
 }
 
 function setNavlogFieldValue(id, value) {
-	NAVLOG_DEBUG && console.log('[Navlog FieldSetter] setNavlogFieldValue called - id:', id, 'value:', value);
+	navlogLogger.debug('setNavlogFieldValue called - id:', id, 'value:', value);
 	if (!id) {
-		NAVLOG_DEBUG && console.log('[Navlog FieldSetter] ERROR: No id provided');
+		navlogLogger.debug('ERROR: No id provided');
 		return;
 	}
 	var element = document.getElementById(id);
 	if (!element) {
-		NAVLOG_DEBUG && console.log('[Navlog FieldSetter] ERROR: Element not found for id:', id);
+		navlogLogger.debug('ERROR: Element not found for id:', id);
 		return;
 	}
-	NAVLOG_DEBUG && console.log('[Navlog FieldSetter] Element found, type:', element.tagName, 'current value:', element.value);
+	navlogLogger.debug('Element found, type:', element.tagName, 'current value:', element.value);
 	if (value === null || value === undefined) {
 		element.value = '';
-		NAVLOG_DEBUG && console.log('[Navlog FieldSetter] Set to empty string (value was null/undefined)');
+		navlogLogger.debug('Set to empty string (value was null/undefined)');
 		return;
 	}
 	element.value = String(value);
-	NAVLOG_DEBUG && console.log('[Navlog FieldSetter] ✅ Value set successfully to:', element.value);
+	navlogLogger.debug('✅ Value set successfully to:', element.value);
 }
 
 function formatHeadingValue(value) {
@@ -2866,22 +2864,22 @@ function populateZyWaypointRows(config, points, metrics, meta) {
 // STATIC & DYNAMIC DATA MANAGEMENT
 // ============================================================================
 function populateFlightplanSummaryFields(points, metrics, meta) {
-	NAVLOG_DEBUG && console.log('[Navlog Summary] ====== populateFlightplanSummaryFields CALLED ======');
-	NAVLOG_DEBUG && console.log('[Navlog Summary] points:', Array.isArray(points) ? points.length + ' waypoints' : 'NOT ARRAY');
-	NAVLOG_DEBUG && console.log('[Navlog Summary] meta:', meta);
-	NAVLOG_DEBUG && console.log('[Navlog Summary] meta keys:', meta ? Object.keys(meta) : 'NULL');
+	navlogLogger.debug('====== populateFlightplanSummaryFields CALLED ======');
+	navlogLogger.debug('points:', Array.isArray(points) ? points.length + ' waypoints' : 'NOT ARRAY');
+	navlogLogger.debug('meta:', meta);
+	navlogLogger.debug('meta keys:', meta ? Object.keys(meta) : 'NULL');
 
 	var summaryMeta = (meta && typeof meta === 'object') ? meta : {};
-	NAVLOG_DEBUG && console.log('[Navlog Summary] summaryMeta after processing:', summaryMeta);
-	NAVLOG_DEBUG && console.log('[Navlog Summary] OFP fields to set:');
-	NAVLOG_DEBUG && console.log('[Navlog Summary]   - callsign:', summaryMeta.callsign);
-	NAVLOG_DEBUG && console.log('[Navlog Summary]   - aircraftType:', summaryMeta.aircraftType);
-	NAVLOG_DEBUG && console.log('[Navlog Summary]   - aircraftEquip:', summaryMeta.aircraftEquip);
-	NAVLOG_DEBUG && console.log('[Navlog Summary]   - departureTime:', summaryMeta.departureTime);
-	NAVLOG_DEBUG && console.log('[Navlog Summary]   - alternateAirport:', summaryMeta.alternateAirport);
-	NAVLOG_DEBUG && console.log('[Fuel Summary] enduranceHours:', summaryMeta.enduranceHours);
-	NAVLOG_DEBUG && console.log('[Fuel Summary] enduranceMinutes:', summaryMeta.enduranceMinutes);
-	NAVLOG_DEBUG && console.log('[Fuel Summary] avgFuelFlow:', summaryMeta.avgFuelFlow);
+	navlogLogger.debug('summaryMeta after processing:', summaryMeta);
+	navlogLogger.debug('OFP fields to set:');
+	navlogLogger.debug('  - callsign:', summaryMeta.callsign);
+	navlogLogger.debug('  - aircraftType:', summaryMeta.aircraftType);
+	navlogLogger.debug('  - aircraftEquip:', summaryMeta.aircraftEquip);
+	navlogLogger.debug('  - departureTime:', summaryMeta.departureTime);
+	navlogLogger.debug('  - alternateAirport:', summaryMeta.alternateAirport);
+	navlogLogger.debug('Fuel Summary: enduranceHours:', summaryMeta.enduranceHours);
+	navlogLogger.debug('Fuel Summary: enduranceMinutes:', summaryMeta.enduranceMinutes);
+	navlogLogger.debug('Fuel Summary: avgFuelFlow:', summaryMeta.avgFuelFlow);
 
 	var departure = Array.isArray(points) && points.length ? points[0] : null;
 	var destination = Array.isArray(points) && points.length ? points[points.length - 1] : null;
@@ -3017,7 +3015,7 @@ function populateFlightplanSummaryFields(points, metrics, meta) {
 	// The OFP mapping provides proper "Ceiling / Visibility / Precipitation" format.
 	// ========================================
 
-	NAVLOG_DEBUG && console.log('[Navlog Summary] ====== populateFlightplanSummaryFields COMPLETE ======');
+	navlogLogger.debug('====== populateFlightplanSummaryFields COMPLETE ======');
 }
 
 // ============================================================================
@@ -3078,64 +3076,63 @@ function applyCachedFlightplanIfReady() {
 			var storedMeta = sessionStorage.getItem('kneeboard_cachedFlightplanMeta');
 			var storedOfp = sessionStorage.getItem('kneeboard_cachedOfpData');
 			if (storedWaypoints || storedOfp) {
-				NAVLOG_DEBUG && console.log('[Navlog] Restoring cache from sessionStorage after page reload');
+				navlogLogger.debug('Restoring cache from sessionStorage after page reload');
 				if (storedWaypoints) cachedFlightplanData = JSON.parse(storedWaypoints);
 				if (storedMeta) cachedFlightplanMeta = JSON.parse(storedMeta);
 				if (storedOfp) cachedOfpData = JSON.parse(storedOfp);
 			}
 		} catch (e) {
-			console.warn('[Navlog] Failed to restore from sessionStorage:', e);
+			navlogLogger.error('Failed to restore from sessionStorage:', e);
 		}
 	}
 
-	NAVLOG_DEBUG && console.log('[Navlog Debug] applyCachedFlightplanIfReady() called - user opened Navlog tab');
-	NAVLOG_DEBUG && console.log('[Navlog Debug] cachedFlightplanData:', cachedFlightplanData ? ('Array[' + cachedFlightplanData.length + ']') : 'NULL');
-	NAVLOG_DEBUG && console.log('[Navlog Debug] cachedFlightplanMeta:', cachedFlightplanMeta);
-	NAVLOG_DEBUG && console.log('[Navlog Debug] cachedOfpData:', cachedOfpData ? 'exists' : 'NULL');
+	navlogLogger.debug('applyCachedFlightplanIfReady() called - user opened Navlog tab');
+	navlogLogger.debug('cachedFlightplanData:', cachedFlightplanData ? ('Array[' + cachedFlightplanData.length + ']') : 'NULL');
+	navlogLogger.debug('cachedFlightplanMeta:', cachedFlightplanMeta);
+	navlogLogger.debug('cachedOfpData:', cachedOfpData ? 'exists' : 'NULL');
 
 	// Check if DOM is ready
 	var navRoot = ensureNavlogContainer();
 	if (!navRoot) {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] applyCachedFlightplanIfReady - navlog container not ready yet');
+		navlogLogger.debug('applyCachedFlightplanIfReady - navlog container not ready yet');
 		return;
 	}
 
 	// OFP-Mapping ausführen wenn DOM jetzt ready ist und OFP-Daten gecacht sind
 	if (cachedOfpData && typeof OFP_NAVLOG_MAPPING !== 'undefined' && typeof processOFPWithMapping === 'function') {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Applying OFP mapping now that DOM is ready...');
+		navlogLogger.debug('Applying OFP mapping now that DOM is ready...');
 		var mappedValues = processOFPWithMapping(cachedOfpData, cachedFlightplanData || []);
 		applyMappedValuesToNavlog(mappedValues);
-		NAVLOG_DEBUG && console.log('[Navlog Debug] OFP mapping applied successfully');
+		navlogLogger.debug('OFP mapping applied successfully');
 
 		// KRITISCH: Nach OFP-Mapping sofort zum Server pushen
 		// Das überschreibt alte Server-Daten mit den neuen OFP-Werten
 		if (typeof saveValuesImmediate === 'function') {
-			NAVLOG_DEBUG && console.log('[Navlog Debug] Forcing server push after OFP mapping...');
+			navlogLogger.debug('Forcing server push after OFP mapping...');
 			saveValuesImmediate();
 		}
 	}
 
 	if (cachedFlightplanData === null) {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] No cached flightplan data - skipping');
+		navlogLogger.debug('No cached flightplan data - skipping');
 		return;
 	}
-	NAVLOG_DEBUG && console.log('[Navlog Debug] Applying cached flightplan data...');
+	navlogLogger.debug('Applying cached flightplan data...');
 	var result = applyFlightplanToNavlog(cachedFlightplanData);
 	if (result) {
-		NAVLOG_DEBUG && console.log('[Navlog] Cached flightplan applied successfully (' + cachedFlightplanData.length + ' waypoints)');
+		navlogLogger.debug('Cached flightplan applied successfully (' + cachedFlightplanData.length + ' waypoints)');
 	} else {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] applyFlightplanToNavlog returned false');
+		navlogLogger.debug('applyFlightplanToNavlog returned false');
 	}
 }
 
 function logFlightplanInfo(message, extra) {
-	if (!NAVLOG_DEBUG) return;
 	try {
 		var parts = [flightplanLogPrefix, message];
 		if (typeof extra !== 'undefined') {
 			parts.push(extra);
 		}
-		console.log.apply(console, parts);
+		navlogLogger.debug.apply(navlogLogger, parts);
 	}
 	catch (err) {
 		// logging must never break functionality
@@ -3143,26 +3140,26 @@ function logFlightplanInfo(message, extra) {
 }
 
 function handleGlobalFlightplanBroadcast(e) {
-	NAVLOG_DEBUG && console.log('[Navlog Debug] handleGlobalFlightplanBroadcast called');
+	navlogLogger.debug('handleGlobalFlightplanBroadcast called');
 	if (!e || typeof e.data !== 'string') {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] No event or data is not string');
+		navlogLogger.debug('No event or data is not string');
 		return;
 	}
-	NAVLOG_DEBUG && console.log('[Navlog Debug] Event data length:', e.data.length);
+	navlogLogger.debug('Event data length:', e.data.length);
 	var separatorIndex = e.data.indexOf(':');
 	if (separatorIndex === -1) {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] No separator found in data');
+		navlogLogger.debug('No separator found in data');
 		return;
 	}
 	var sender = e.data.substr(0, separatorIndex);
-	NAVLOG_DEBUG && console.log('[Navlog Debug] Sender:', sender);
+	navlogLogger.debug('Sender:', sender);
 	if (sender !== 'Flightplan') {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Sender is not Flightplan, ignoring');
+		navlogLogger.debug('Sender is not Flightplan, ignoring');
 		return;
 	}
 	var payload = e.data.substr(separatorIndex + 1);
-	NAVLOG_DEBUG && console.log('[Navlog Debug] Payload length:', payload.length);
-	NAVLOG_DEBUG && console.log('[Navlog Debug] Calling handleFlightplanPayload...');
+	navlogLogger.debug('Payload length:', payload.length);
+	navlogLogger.debug('Calling handleFlightplanPayload...');
 	handleFlightplanPayload(payload);
 }
 
@@ -3200,10 +3197,10 @@ function applyFlightplanToNavlog(flightplan, targetKey) {
 	var activatedKey = activateFlightType(targetKey);
 	var config = waypointAutoExpandConfigs[activatedKey] || waypointAutoExpandConfigs.ifr;
 	if (!navRoot || !config) {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] navRoot:', navRoot ? 'OK' : 'NULL');
-		NAVLOG_DEBUG && console.log('[Navlog Debug] activatedKey:', activatedKey);
-		NAVLOG_DEBUG && console.log('[Navlog Debug] config:', config ? 'OK' : 'NULL');
-		NAVLOG_DEBUG && console.log('[Navlog Debug] waypointAutoExpandConfigs:', waypointAutoExpandConfigs);
+		navlogLogger.debug('navRoot:', navRoot ? 'OK' : 'NULL');
+		navlogLogger.debug('activatedKey:', activatedKey);
+		navlogLogger.debug('config:', config ? 'OK' : 'NULL');
+		navlogLogger.debug('waypointAutoExpandConfigs:', waypointAutoExpandConfigs);
 		logFlightplanInfo('Navlog not ready or configuration missing.');
 		return false;
 	}
@@ -3212,8 +3209,8 @@ function applyFlightplanToNavlog(flightplan, targetKey) {
 		return true;
 	}
 	if (!config.tbody || !config.templateRows || !config.templateRows.length) {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] config.tbody:', config.tbody ? 'OK' : 'NULL');
-		NAVLOG_DEBUG && console.log('[Navlog Debug] config.templateRows:', config.templateRows ? ('Array[' + config.templateRows.length + ']') : 'NULL');
+		navlogLogger.debug('config.tbody:', config.tbody ? 'OK' : 'NULL');
+		navlogLogger.debug('config.templateRows:', config.templateRows ? ('Array[' + config.templateRows.length + ']') : 'NULL');
 		logFlightplanInfo('Navlog not ready - ' + activatedKey.toUpperCase() + ' blocks missing.');
 		return false;
 	}
@@ -3286,7 +3283,7 @@ function applyFlightplanToNavlog(flightplan, targetKey) {
 		setNavlogFieldValue('Waypoints-IFR-Dist', '');
 
 		saveValues();
-		NAVLOG_DEBUG && console.log('[Navlog] Flightplan reset completed - all fields cleared');
+		navlogLogger.debug('Flightplan reset completed - all fields cleared');
 		return true;
 	}
 
@@ -3311,10 +3308,10 @@ function applyFlightplanToNavlog(flightplan, targetKey) {
 }
 
 function parseFlightplanPayload(payload) {
-	NAVLOG_DEBUG && console.log('[parseFlightplanPayload] ====== FUNCTION CALLED ======');
-	NAVLOG_DEBUG && console.log('[parseFlightplanPayload] payload type:', typeof payload);
-	NAVLOG_DEBUG && console.log('[parseFlightplanPayload] payload keys:', payload ? Object.keys(payload) : 'NULL');
-	NAVLOG_DEBUG && console.log('[parseFlightplanPayload] has ofp?', !!(payload && payload.ofp));
+	navlogLogger.debug('parseFlightplanPayload: ====== FUNCTION CALLED ======');
+	navlogLogger.debug('parseFlightplanPayload: payload type:', typeof payload);
+	navlogLogger.debug('parseFlightplanPayload: payload keys:', payload ? Object.keys(payload) : 'NULL');
+	navlogLogger.debug('parseFlightplanPayload: has ofp?', !!(payload && payload.ofp));
 
 	var info = {
 		waypoints: [],
@@ -3324,12 +3321,12 @@ function parseFlightplanPayload(payload) {
 		ofpData: null  // OFP-Daten für Mapping
 	};
 	if (Array.isArray(payload)) {
-		NAVLOG_DEBUG && console.log('[parseFlightplanPayload] payload is Array - returning early');
+		navlogLogger.debug('parseFlightplanPayload: payload is Array - returning early');
 		info.waypoints = payload;
 		return info;
 	}
 	if (!payload || typeof payload !== 'object') {
-		NAVLOG_DEBUG && console.log('[parseFlightplanPayload] payload is invalid - returning early');
+		navlogLogger.debug('parseFlightplanPayload: payload is invalid - returning early');
 		return info;
 	}
 	var root = payload;
@@ -3339,13 +3336,13 @@ function parseFlightplanPayload(payload) {
 	if (payload.pln && typeof payload.pln === 'object') {
 		root = payload.pln;
 		ofpData = payload.ofp || null;
-		NAVLOG_DEBUG && console.log('[parseFlightplanPayload] Found pln+ofp format, ofpData:', ofpData ? 'exists' : 'NULL');
+		navlogLogger.debug('parseFlightplanPayload: Found pln+ofp format, ofpData:', ofpData ? 'exists' : 'NULL');
 	} else if (payload.ofp) {
 		// OFP-Daten direkt im Payload (z.B. von kneeboard.js konvertiert)
 		ofpData = payload.ofp;
-		NAVLOG_DEBUG && console.log('[parseFlightplanPayload] Found direct ofp format, ofpData:', ofpData ? 'exists' : 'NULL');
+		navlogLogger.debug('parseFlightplanPayload: Found direct ofp format, ofpData:', ofpData ? 'exists' : 'NULL');
 	} else {
-		NAVLOG_DEBUG && console.log('[parseFlightplanPayload] No ofp data found in payload');
+		navlogLogger.debug('parseFlightplanPayload: No ofp data found in payload');
 	}
 
 	// OFP-Daten für Mapping speichern
@@ -3367,13 +3364,13 @@ function parseFlightplanPayload(payload) {
 	var metaSource = (root.meta && typeof root.meta === 'object') ? Object.assign({}, root.meta) : {};
 
 	// OFP-Daten in metaSource übernehmen (Simbrief-spezifisch)
-	NAVLOG_DEBUG && console.log('[OFP] ofpData:', ofpData);
-	NAVLOG_DEBUG && console.log('[OFP] ofpData keys:', ofpData ? Object.keys(ofpData) : 'NULL');
+	navlogLogger.debug('OFP: ofpData:', ofpData);
+	navlogLogger.debug('OFP: ofpData keys:', ofpData ? Object.keys(ofpData) : 'NULL');
 
 	if (ofpData && typeof ofpData === 'object') {
-		NAVLOG_DEBUG && console.log('[OFP Debug] Inside ofpData block - ofpData keys:', Object.keys(ofpData));
-		NAVLOG_DEBUG && console.log('[OFP Debug] Has Atc?', !!ofpData.Atc, 'Has atc?', !!ofpData.atc);
-		NAVLOG_DEBUG && console.log('[OFP Debug] Has Aircraft?', !!ofpData.Aircraft, 'Has aircraft?', !!ofpData.aircraft);
+		navlogLogger.debug('OFP: Inside ofpData block - ofpData keys:', Object.keys(ofpData));
+		navlogLogger.debug('OFP: Has Atc?', !!ofpData.Atc, 'Has atc?', !!ofpData.atc);
+		navlogLogger.debug('OFP: Has Aircraft?', !!ofpData.Aircraft, 'Has aircraft?', !!ofpData.aircraft);
 
 		// Versuche beide Schreibweisen (PascalCase und lowercase)
 		var atcData = ofpData.Atc || ofpData.atc;
@@ -3382,8 +3379,8 @@ function parseFlightplanPayload(payload) {
 		var timesData = ofpData.Times || ofpData.times;
 		var alternateData = ofpData.Alternate || ofpData.alternate;
 		var fuelData = ofpData.Fuel || ofpData.fuel;
-		NAVLOG_DEBUG && console.log('[OFP] fuelData:', fuelData);
-		NAVLOG_DEBUG && console.log('[OFP] fuelData keys:', fuelData ? Object.keys(fuelData) : 'NULL');
+		navlogLogger.debug('OFP: fuelData:', fuelData);
+		navlogLogger.debug('OFP: fuelData keys:', fuelData ? Object.keys(fuelData) : 'NULL');
 
 		if (atcData && atcData.Callsign) {
 			metaSource.callsign = atcData.Callsign;
@@ -3401,13 +3398,13 @@ function parseFlightplanPayload(payload) {
 		if (generalData) {
 			if (generalData.Cruise_tas) metaSource.trueAirspeed = generalData.Cruise_tas;
 			else if (generalData.cruise_tas) metaSource.trueAirspeed = generalData.cruise_tas;
-			NAVLOG_DEBUG && console.log('[OFP Debug] General keys:', Object.keys(generalData));
-			NAVLOG_DEBUG && console.log('[OFP Debug] General data:', JSON.stringify(generalData, null, 2));
+			navlogLogger.debug('OFP: General keys:', Object.keys(generalData));
+			navlogLogger.debug('OFP: General data:', JSON.stringify(generalData, null, 2));
 		}
 		// Origin/Departure Daten
 		var originData = ofpData.Origin || ofpData.origin;
 		if (originData) {
-			NAVLOG_DEBUG && console.log('[OFP Debug] Origin keys:', Object.keys(originData));
+			navlogLogger.debug('OFP: Origin keys:', Object.keys(originData));
 		}
 		if (originData) {
 			var originIcao = originData.Icao_code || originData.icao_code;
@@ -3419,18 +3416,18 @@ function parseFlightplanPayload(payload) {
 				if (originName) depParts.push(originName);
 				if (originRwy) depParts.push('RWY ' + originRwy);
 				metaSource.departurePosition = depParts.join(' ');
-				NAVLOG_DEBUG && console.log('[OFP Debug] Departure Position:', metaSource.departurePosition);
+				navlogLogger.debug('OFP: Departure Position:', metaSource.departurePosition);
 			}
 			// Departure RWY
 			if (originRwy) {
 				metaSource.departureRwy = originRwy;
-				NAVLOG_DEBUG && console.log('[OFP Debug] Departure RWY:', originRwy);
+				navlogLogger.debug('OFP: Departure RWY:', originRwy);
 			}
 			// Departure Elevation
 			var originElev = originData.Elevation || originData.elevation || originData.Elev || originData.elev;
 			if (originElev !== undefined && originElev !== null) {
 				metaSource.departureElevation = originElev;
-				NAVLOG_DEBUG && console.log('[OFP Debug] Departure Elevation:', originElev, 'ft');
+				navlogLogger.debug('OFP: Departure Elevation:', originElev, 'ft');
 			}
 		}
 		if (timesData) {
@@ -3448,7 +3445,7 @@ function parseFlightplanPayload(payload) {
 					var enrouteMinutes = Math.floor(enrouteSeconds / 60);
 					metaSource.destinationHours = Math.floor(enrouteMinutes / 60);
 					metaSource.destinationMinutes = enrouteMinutes % 60;
-					NAVLOG_DEBUG && console.log('[OFP Debug] Est Time Enroute:', enrouteSeconds, 'sec =', metaSource.destinationHours + 'h ' + metaSource.destinationMinutes + 'm');
+					navlogLogger.debug('OFP: Est Time Enroute:', enrouteSeconds, 'sec =', metaSource.destinationHours + 'h ' + metaSource.destinationMinutes + 'm');
 				}
 			}
 		}
@@ -3471,13 +3468,13 @@ function parseFlightplanPayload(payload) {
 			// Arrival RWY
 			if (destRwy) {
 				metaSource.arrivalRwy = destRwy;
-				NAVLOG_DEBUG && console.log('[OFP Debug] Arrival RWY:', destRwy);
+				navlogLogger.debug('OFP: Arrival RWY:', destRwy);
 			}
 			// Arrival Elevation
 			var destElev = destData.Elevation || destData.elevation || destData.Elev || destData.elev;
 			if (destElev !== undefined && destElev !== null) {
 				metaSource.arrivalElevation = destElev;
-				NAVLOG_DEBUG && console.log('[OFP Debug] Arrival Elevation:', destElev, 'ft');
+				navlogLogger.debug('OFP: Arrival Elevation:', destElev, 'ft');
 			}
 		}
 
@@ -3491,7 +3488,7 @@ function parseFlightplanPayload(payload) {
 		if (generalData) {
 			sid = generalData.Sid || generalData.sid || generalData.SID || generalData.Sid_name || generalData.sid_name;
 			star = generalData.Star || generalData.star || generalData.STAR || generalData.Star_name || generalData.star_name;
-			NAVLOG_DEBUG && console.log('[OFP Debug] General keys:', Object.keys(generalData));
+			navlogLogger.debug('OFP: General keys:', Object.keys(generalData));
 		}
 
 		// Fallback: Origin für SID
@@ -3521,7 +3518,7 @@ function parseFlightplanPayload(payload) {
 						var sidVia = fix.Via_airway || fix.via_airway || fix.Via || fix.via;
 						if (sidVia) {
 							sid = sidVia;
-							NAVLOG_DEBUG && console.log('[OFP Debug] SID from Via_airway:', sid, 'at fix:', fix.Ident || fix.ident);
+							navlogLogger.debug('OFP: SID from Via_airway:', sid, 'at fix:', fix.Ident || fix.ident);
 							break;
 						}
 					}
@@ -3539,7 +3536,7 @@ function parseFlightplanPayload(payload) {
 
 					if (isStarFix && starVia) {
 						starCandidate = starVia;
-						NAVLOG_DEBUG && console.log('[OFP Debug] STAR candidate from Via_airway:', starVia, 'at fix:', fixEnd.Ident || fixEnd.ident);
+						navlogLogger.debug('OFP: STAR candidate from Via_airway:', starVia, 'at fix:', fixEnd.Ident || fixEnd.ident);
 					}
 					// Wenn wir auf einen Fix ohne Is_sid_star stoßen und schon einen Kandidaten haben, sind wir aus der STAR raus
 					if (!isStarFix && starCandidate) {
@@ -3549,18 +3546,18 @@ function parseFlightplanPayload(payload) {
 				// Stelle sicher, dass STAR nicht gleich SID ist
 				if (starCandidate && starCandidate !== sid) {
 					star = starCandidate;
-					NAVLOG_DEBUG && console.log('[OFP Debug] Final STAR:', star);
+					navlogLogger.debug('OFP: Final STAR:', star);
 				}
 			}
 		}
 
 		if (sid) {
 			metaSource.departureSid = sid;
-			NAVLOG_DEBUG && console.log('[OFP Debug] Departure SID:', sid);
+			navlogLogger.debug('OFP: Departure SID:', sid);
 		}
 		if (star) {
 			metaSource.arrivalStar = star;
-			NAVLOG_DEBUG && console.log('[OFP Debug] Arrival STAR:', star);
+			navlogLogger.debug('OFP: Arrival STAR:', star);
 		}
 
 		// Departure Point (Punkt an dem man die CTR verlässt) = Ende der SID oder erster Enroute Fix
@@ -3584,22 +3581,22 @@ function parseFlightplanPayload(payload) {
 			}
 			if (departurePoint) {
 				metaSource.departurePoint = departurePoint;
-				NAVLOG_DEBUG && console.log('[OFP Debug] Departure Point:', departurePoint);
+				navlogLogger.debug('OFP: Departure Point:', departurePoint);
 			}
 		}
 		// Fuel Endurance aus OFP extrahieren (Stunden und Minuten)
-		NAVLOG_DEBUG && console.log('[Fuel] fuelData:', fuelData);
+		navlogLogger.debug('Fuel: fuelData:', fuelData);
 		if (fuelData) {
 			var planRamp = fuelData.Plan_ramp || fuelData.plan_ramp;
 			if (planRamp !== undefined && planRamp !== null) {
 				metaSource.totalFuel = planRamp;
-				NAVLOG_DEBUG && console.log('[Fuel] Total Fuel (Plan Ramp):', planRamp);
+				navlogLogger.debug('Fuel: Total Fuel (Plan Ramp):', planRamp);
 			}
 
 			var avgFuelFlow = fuelData.Avg_fuel_flow || fuelData.avg_fuel_flow;
 			if (avgFuelFlow !== undefined && avgFuelFlow !== null) {
 				metaSource.avgFuelFlow = avgFuelFlow;
-				NAVLOG_DEBUG && console.log('[Fuel] Avg Fuel Flow:', avgFuelFlow);
+				navlogLogger.debug('Fuel: Avg Fuel Flow:', avgFuelFlow);
 			}
 
 			if (planRamp && avgFuelFlow && parseFloat(avgFuelFlow) > 0) {
@@ -3610,7 +3607,7 @@ function parseFlightplanPayload(payload) {
 				var enduranceMins = Math.round((enduranceHoursDecimal - enduranceHours) * 60);
 				metaSource.enduranceHours = enduranceHours;
 				metaSource.enduranceMinutes = enduranceMins;
-				NAVLOG_DEBUG && console.log('[Fuel] Fuel Endurance CALCULATED:', enduranceHours + 'h ' + enduranceMins + 'm');
+				navlogLogger.debug('Fuel: Fuel Endurance CALCULATED:', enduranceHours + 'h ' + enduranceMins + 'm');
 			}
 		}
 
@@ -3621,7 +3618,7 @@ function parseFlightplanPayload(payload) {
 			var briefingText = textData.Briefing || textData.briefing;
 			if (briefingText) {
 				metaSource.notes = briefingText;
-				NAVLOG_DEBUG && console.log('[OFP Debug] Notes (Briefing):', briefingText.substring(0, 100) + '...');
+				navlogLogger.debug('OFP: Notes (Briefing):', briefingText.substring(0, 100) + '...');
 			}
 		}
 		// Alternativ: General.Notes
@@ -3629,7 +3626,7 @@ function parseFlightplanPayload(payload) {
 			var notes = generalData.Notes || generalData.notes;
 			if (notes) {
 				metaSource.notes = notes;
-				NAVLOG_DEBUG && console.log('[OFP Debug] Notes (General):', notes.substring(0, 100) + '...');
+				navlogLogger.debug('OFP: Notes (General):', notes.substring(0, 100) + '...');
 			}
 		}
 
@@ -3641,12 +3638,12 @@ function parseFlightplanPayload(payload) {
 			if (originMetar) {
 				metaSource.departureMetar = originMetar;
 				metaSource.departureWeather = parseMetarForWeatherLog(originMetar);
-				NAVLOG_DEBUG && console.log('[OFP Debug] Departure METAR:', originMetar);
+				navlogLogger.debug('OFP: Departure METAR:', originMetar);
 			}
 			if (originTaf) {
 				metaSource.departureTaf = originTaf;
 				metaSource.departureForecast = parseTafForWeatherLog(originTaf);
-				NAVLOG_DEBUG && console.log('[OFP Debug] Departure TAF:', originTaf.substring(0, 100) + '...');
+				navlogLogger.debug('OFP: Departure TAF:', originTaf.substring(0, 100) + '...');
 			}
 		}
 		// Destination (Arrival) Weather
@@ -3656,12 +3653,12 @@ function parseFlightplanPayload(payload) {
 			if (destMetarFull) {
 				metaSource.arrivalMetar = destMetarFull;
 				metaSource.arrivalWeather = parseMetarForWeatherLog(destMetarFull);
-				NAVLOG_DEBUG && console.log('[OFP Debug] Arrival METAR:', destMetarFull);
+				navlogLogger.debug('OFP: Arrival METAR:', destMetarFull);
 			}
 			if (destTafFull) {
 				metaSource.arrivalTaf = destTafFull;
 				metaSource.arrivalForecast = parseTafForWeatherLog(destTafFull);
-				NAVLOG_DEBUG && console.log('[OFP Debug] Arrival TAF:', destTafFull.substring(0, 100) + '...');
+				navlogLogger.debug('OFP: Arrival TAF:', destTafFull.substring(0, 100) + '...');
 			}
 		}
 		// Alternate Weather
@@ -3671,7 +3668,7 @@ function parseFlightplanPayload(payload) {
 			if (altMetar) {
 				metaSource.alternateMetar = altMetar;
 				metaSource.alternateWeather = parseMetarForWeatherLog(altMetar);
-				NAVLOG_DEBUG && console.log('[OFP Debug] Alternate METAR:', altMetar);
+				navlogLogger.debug('OFP: Alternate METAR:', altMetar);
 			}
 			if (altTaf) {
 				metaSource.alternateTaf = altTaf;
@@ -3680,20 +3677,18 @@ function parseFlightplanPayload(payload) {
 		}
 
 		// Debug: Zeige extrahierte Werte
-		if (NAVLOG_DEBUG) {
-			console.log('[OFP Debug] Extracted values from OFP:');
-			console.log('  - callsign:', metaSource.callsign);
-			console.log('  - aircraftType:', metaSource.aircraftType);
-			console.log('  - aircraftEquip:', metaSource.aircraftEquip);
-			console.log('  - departureTime:', metaSource.departureTime);
-			console.log('  - alternateAirport:', metaSource.alternateAirport);
-		}
+		navlogLogger.debug('OFP Debug - Extracted values from OFP:');
+		navlogLogger.debug('  - callsign:', metaSource.callsign);
+		navlogLogger.debug('  - aircraftType:', metaSource.aircraftType);
+		navlogLogger.debug('  - aircraftEquip:', metaSource.aircraftEquip);
+		navlogLogger.debug('  - departureTime:', metaSource.departureTime);
+		navlogLogger.debug('  - alternateAirport:', metaSource.alternateAirport);
 
 		// Wetterdaten aus OFP Navlog Fixes auf Waypoints anwenden
 		var navlogData = ofpData.Navlog || ofpData.navlog;
 		var fixes = navlogData && (navlogData.Fix || navlogData.fix);
 		if (Array.isArray(fixes) && Array.isArray(info.waypoints) && info.waypoints.length > 0) {
-			NAVLOG_DEBUG && console.log('[OFP Debug] Merging weather data from', fixes.length, 'fixes to', info.waypoints.length, 'waypoints');
+			navlogLogger.debug('OFP: Merging weather data from', fixes.length, 'fixes to', info.waypoints.length, 'waypoints');
 
 			// Map für schnelles Lookup nach Ident
 			var fixByIdent = {};
@@ -3784,7 +3779,7 @@ function parseFlightplanPayload(payload) {
 						} else if (matchingFix.fuel_totalused !== undefined) {
 							wp.Fuel_totalused = matchingFix.fuel_totalused;
 						}
-						NAVLOG_DEBUG && console.log('[OFP Debug] Merged data for', wpName, '- Wind:', wp.Wind_dir + '°/' + wp.Wind_spd + 'kt, Temp:', wp.Oat + '°C, GS:', wp.Groundspeed);
+						navlogLogger.debug('OFP: Merged data for', wpName, '- Wind:', wp.Wind_dir + '°/' + wp.Wind_spd + 'kt, Temp:', wp.Oat + '°C, GS:', wp.Groundspeed);
 					}
 				}
 			}
@@ -3926,36 +3921,41 @@ function parseFlightplanPayload(payload) {
 	}
 
 	// Debug: Zeige finale meta-Werte
-	if (NAVLOG_DEBUG) {
-		console.log('[OFP Debug] Final info.meta:');
-		console.log('  - callsign:', info.meta.callsign);
-		console.log('  - aircraftType:', info.meta.aircraftType);
-		console.log('  - aircraftEquip:', info.meta.aircraftEquip);
-		console.log('  - departureTime:', info.meta.departureTime);
-		console.log('  - alternateAirport:', info.meta.alternateAirport);
-	}
+	navlogLogger.debug('OFP Debug - Final info.meta:');
+	navlogLogger.debug('  - callsign:', info.meta.callsign);
+	navlogLogger.debug('  - aircraftType:', info.meta.aircraftType);
+	navlogLogger.debug('  - aircraftEquip:', info.meta.aircraftEquip);
+	navlogLogger.debug('  - departureTime:', info.meta.departureTime);
+	navlogLogger.debug('  - alternateAirport:', info.meta.alternateAirport);
 
 	return info;
 }
 
 function handleFlightplanPayload(message) {
 	try {
-		NAVLOG_DEBUG && console.log('[Navlog Debug] ====== handleFlightplanPayload CALLED ======');
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Raw message length:', message ? message.length : 'NULL');
+		navlogLogger.debug('====== handleFlightplanPayload CALLED ======');
+		navlogLogger.debug('Raw message length:', message ? message.length : 'NULL');
 
 		var raw = message ? JSON.parse(message) : [];
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Parsed raw data type:', Array.isArray(raw) ? 'Array' : typeof raw);
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Raw data keys:', raw && typeof raw === 'object' ? Object.keys(raw) : 'N/A');
+		navlogLogger.debug('Parsed raw data type:', Array.isArray(raw) ? 'Array' : typeof raw);
+		navlogLogger.debug('Raw data keys:', raw && typeof raw === 'object' ? Object.keys(raw) : 'N/A');
 
 		var parsed = parseFlightplanPayload(raw);
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Parsed result - waypoints:', Array.isArray(parsed.waypoints) ? parsed.waypoints.length : 'NOT ARRAY');
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Parsed result - meta keys:', parsed.meta ? Object.keys(parsed.meta) : 'NULL');
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Parsed result - forceReset:', parsed.forceReset);
+		navlogLogger.debug('Parsed result - waypoints:', Array.isArray(parsed.waypoints) ? parsed.waypoints.length : 'NOT ARRAY');
+		navlogLogger.debug('Parsed result - meta keys:', parsed.meta ? Object.keys(parsed.meta) : 'NULL');
+		navlogLogger.debug('Parsed result - forceReset:', parsed.forceReset);
 
 		if (parsed.forceReset) {
 			cachedFlightplanData = [];
 			cachedFlightplanMeta = {};
 			cachedOfpData = null;
+			// KRITISCH: sessionStorage leeren, sonst restauriert applyCachedFlightplanIfReady()
+			// den alten Flugplan beim nächsten Tab-Wechsel
+			try {
+				sessionStorage.removeItem('kneeboard_cachedFlightplanData');
+				sessionStorage.removeItem('kneeboard_cachedFlightplanMeta');
+				sessionStorage.removeItem('kneeboard_cachedOfpData');
+			} catch (e) {}
 			logFlightplanInfo('Flightplan reset request received.');
 			applyFlightplanToNavlog([], parsed.flightType);
 			return;
@@ -3968,7 +3968,7 @@ function handleFlightplanPayload(message) {
 		if (parsed.ofpData && typeof OFP_NAVLOG_MAPPING !== 'undefined') {
 			// FLAG SETZEN: OFP-Mapping läuft - Server-Sync blockieren!
 			ofpMappingInProgress = true;
-			NAVLOG_DEBUG && console.log('[Navlog Debug] OFP MAPPING STARTED - Server sync blocked');
+			navlogLogger.debug('OFP MAPPING STARTED - Server sync blocked');
 
 			// KRITISCH: SERVER-CACHE ZUERST LÖSCHEN bevor neue OFP-Werte gesetzt werden!
 			// Sonst holt loadNavlogFromServer() (200ms timeout) die alten Werte und überschreibt die neuen
@@ -3977,66 +3977,66 @@ function handleFlightplanPayload(message) {
 				fetch(clearUrl, { method: 'GET' })
 					.then(function(res) {
 						if (res.ok) {
-							NAVLOG_DEBUG && console.log('[Navlog Debug] Server navlog cache cleared for new flightplan');
+							navlogLogger.debug('Server navlog cache cleared for new flightplan');
 						}
 					})
 					.catch(function(err) {
-						console.warn('[Navlog] Failed to clear server cache:', err);
+						navlogLogger.error('Failed to clear server cache:', err);
 					});
 			} catch (e) {
-				console.warn('[Navlog] Error clearing server cache:', e);
+				navlogLogger.error('Error clearing server cache:', e);
 			}
 
 			// localStorage für OFP-Felder löschen bevor neue Werte gesetzt werden
 			// Sonst überschreibt readValues() die neuen Werte mit alten cached Werten
 			clearOFPFieldsFromLocalStorage();
-			NAVLOG_DEBUG && console.log('[Navlog Debug] Cleared OFP fields from localStorage and server cache');
-			NAVLOG_DEBUG && console.log('[Navlog Debug] Enriching waypoints with OFP data BEFORE caching...');
+			navlogLogger.debug('Cleared OFP fields from localStorage and server cache');
+			navlogLogger.debug('Enriching waypoints with OFP data BEFORE caching...');
 			// Waypoints mit OFP-Daten anreichern (Wind, Fuel, Time, etc.)
 			enrichWaypointsWithOFP(parsed.waypoints, parsed.ofpData);
 
 			// OFP-Daten cachen für späteren Zugriff bei DOM-Ready
 			cachedOfpData = parsed.ofpData;
-			NAVLOG_DEBUG && console.log('[Navlog Debug] Cached OFP data for DOM-ready mapping');
+			navlogLogger.debug('Cached OFP data for DOM-ready mapping');
 
 			// TEIL 1: Persistentes Caching in sessionStorage für Page-Reload-Resistenz
 			try {
 				sessionStorage.setItem('kneeboard_cachedFlightplanData', JSON.stringify(parsed.waypoints));
 				sessionStorage.setItem('kneeboard_cachedFlightplanMeta', JSON.stringify(parsed.meta || {}));
 				sessionStorage.setItem('kneeboard_cachedOfpData', JSON.stringify(parsed.ofpData));
-				NAVLOG_DEBUG && console.log('[Navlog Debug] Cached flightplan data to sessionStorage');
+				navlogLogger.debug('Cached flightplan data to sessionStorage');
 			} catch (e) {
-				console.warn('[Navlog] Failed to cache to sessionStorage:', e);
+				navlogLogger.error('Failed to cache to sessionStorage:', e);
 			}
 
-			NAVLOG_DEBUG && console.log('[Navlog Debug] Applying OFP mapping (may fail if DOM not ready)...');
+			navlogLogger.debug('Applying OFP mapping (may fail if DOM not ready)...');
 			var mappedValues = processOFPWithMapping(parsed.ofpData, parsed.waypoints);
 			applyMappedValuesToNavlog(mappedValues);
 			// FLAG wird in pushNavlogToServer() zurückgesetzt nach erfolgreichem Push
 		}
 
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Calling cacheFlightplanData with', parsed.waypoints.length, 'waypoints');
+		navlogLogger.debug('Calling cacheFlightplanData with', parsed.waypoints.length, 'waypoints');
 		var cached = cacheFlightplanData(parsed.waypoints, parsed.meta);
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Cached result:', cached ? cached.length : 'NULL', 'waypoints');
-		NAVLOG_DEBUG && console.log('[Navlog Debug] cachedFlightplanData after caching:', cachedFlightplanData ? cachedFlightplanData.length : 'NULL');
-		NAVLOG_DEBUG && console.log('[Navlog Debug] cachedFlightplanMeta after caching:', cachedFlightplanMeta ? Object.keys(cachedFlightplanMeta) : 'NULL');
+		navlogLogger.debug('Cached result:', cached ? cached.length : 'NULL', 'waypoints');
+		navlogLogger.debug('cachedFlightplanData after caching:', cachedFlightplanData ? cachedFlightplanData.length : 'NULL');
+		navlogLogger.debug('cachedFlightplanMeta after caching:', cachedFlightplanMeta ? Object.keys(cachedFlightplanMeta) : 'NULL');
 
-		NAVLOG_DEBUG && console.log('[Navlog Debug] Calling applyFlightplanToNavlog...');
+		navlogLogger.debug('Calling applyFlightplanToNavlog...');
 		var applyResult = applyFlightplanToNavlog(cached, parsed.flightType);
-		NAVLOG_DEBUG && console.log('[Navlog Debug] applyFlightplanToNavlog returned:', applyResult);
+		navlogLogger.debug('applyFlightplanToNavlog returned:', applyResult);
 
 		if (!applyResult) {
 			logFlightplanInfo('Navlog not ready, data cached. Will be applied when user opens Navlog tab.');
-			NAVLOG_DEBUG && console.log('[Navlog Debug] FINAL CHECK - cachedFlightplanData:', cachedFlightplanData ? cachedFlightplanData.length : 'NULL');
-			NAVLOG_DEBUG && console.log('[Navlog Debug] FINAL CHECK - cachedFlightplanMeta:', cachedFlightplanMeta);
+			navlogLogger.debug('FINAL CHECK - cachedFlightplanData:', cachedFlightplanData ? cachedFlightplanData.length : 'NULL');
+			navlogLogger.debug('FINAL CHECK - cachedFlightplanMeta:', cachedFlightplanMeta);
 			// Data is cached - it will be applied when user switches to Navlog tab
 			// See: kneeboard.js btnNavlogClicked() and initNavlogPage() which call applyCachedFlightplanIfReady()
 		}
 
-		NAVLOG_DEBUG && console.log('[Navlog Debug] ====== handleFlightplanPayload COMPLETE ======');
+		navlogLogger.debug('====== handleFlightplanPayload COMPLETE ======');
 	}
 	catch (err) {
-		console.error('[Navlog Debug] ERROR in handleFlightplanPayload:', err);
+		navlogLogger.error('ERROR in handleFlightplanPayload:', err);
 		logFlightplanInfo('Flightplan import failed', err);
 	}
 }
@@ -4276,7 +4276,7 @@ function broadcastNavlogString(navlogString) {
 			senderId: navlogSyncId
 		});
 	} catch (err) {
-		console.warn('[Navlog] Unable to broadcast navlog:', err);
+		navlogLogger.warn('Unable to broadcast navlog:', err);
 	}
 }
 
@@ -4305,24 +4305,24 @@ function pushNavlogToServer(navlogString) {
 						// ECHO PREVENTION: Store hash of what we just pushed
 						lastServerNavlogHash = hashNavlogString(navlogString);
 					}
-					console.info("[Navlog] → Pushed to server, timestamp:", timestamp, "hash stored for echo prevention");
+					navlogLogger.info("→ Pushed to server, timestamp:", timestamp, "hash stored for echo prevention");
 
 					// FLAG FREIGEBEN: Server-Push erfolgreich - Server-Sync wieder erlauben
 					if (ofpMappingInProgress) {
 						ofpMappingInProgress = false;
-						NAVLOG_DEBUG && console.log('[Navlog] OFP MAPPING COMPLETE - Server sync unblocked after successful push');
+						navlogLogger.debug('OFP MAPPING COMPLETE - Server sync unblocked after successful push');
 					}
 				})
 				.catch(function (e) {
-					NAVLOG_DEBUG && console.warn("[Navlog] push to server failed:", e);
+					navlogLogger.warn("push to server failed:", e);
 					// Bei Fehler auch Flag freigeben damit System nicht blockiert bleibt
 					if (ofpMappingInProgress) {
 						ofpMappingInProgress = false;
-						NAVLOG_DEBUG && console.log('[Navlog] OFP mapping flag cleared after push error');
+						navlogLogger.debug('OFP mapping flag cleared after push error');
 					}
 				});
 		} catch (err) {
-			NAVLOG_DEBUG && console.warn("[Navlog] push to server failed:", err);
+			navlogLogger.warn("push to server failed:", err);
 			if (ofpMappingInProgress) {
 				ofpMappingInProgress = false;
 			}
@@ -4338,7 +4338,7 @@ function applyNavlogSyncString(navlogString) {
 	// KRITISCH: Wenn OFP-Mapping läuft, Server-Sync blockieren!
 	// Sonst überschreiben alte Server-Werte die neuen OFP-Werte (FL13 statt FL170)
 	if (ofpMappingInProgress) {
-		NAVLOG_DEBUG && console.log('[applyNavlogSyncString] BLOCKED - OFP mapping in progress, ignoring server data');
+		navlogLogger.debug('applyNavlogSyncString: BLOCKED - OFP mapping in progress, ignoring server data');
 		return;
 	}
 
@@ -4346,25 +4346,25 @@ function applyNavlogSyncString(navlogString) {
 
 	// Skip hash check on initial load - always accept first data
 	if (!initialNavlogLoadComplete) {
-		NAVLOG_DEBUG && console.log('[applyNavlogSyncString] Initial load - accepting data without hash check');
+		navlogLogger.debug('applyNavlogSyncString: Initial load - accepting data without hash check');
 	}
 
 	// Wenn bereits angewendet, nicht erneut verarbeiten
 	if (hash && lastAppliedNavlogHash && hash === lastAppliedNavlogHash) {
-		logVerbose('[applyNavlogSyncString] Incoming payload hash matches last applied, skipping');
+		logVerbose('applyNavlogSyncString: Incoming payload hash matches last applied, skipping');
 		return;
 	}
 
 	// Im Kneeboard nur anwenden, wenn Navlog-Tab aktiv ist
 	if (!isNavlogActiveTab()) {
-		logVerbose('[applyNavlogSyncString] Navlog tab not active, skipping apply');
+		logVerbose('applyNavlogSyncString: Navlog tab not active, skipping apply');
 		return;
 	}
 
 	// Parse incoming payload
 	var parts = navlogString.split('~');
 	if (parts.length < 3) {
-		NAVLOG_DEBUG && console.warn('[applyNavlogSyncString] Not enough parts to apply payload');
+		navlogLogger.warn('Not enough parts to apply payload');
 		return;
 	}
 
@@ -4377,7 +4377,7 @@ function applyNavlogSyncString(navlogString) {
 
 		// Switch flight type if needed
 		if (incomingFlightType && flightType !== incomingFlightType) {
-			NAVLOG_DEBUG && console.log('[applyNavlogSyncString] Switching flight type from', flightType, 'to', incomingFlightType);
+			navlogLogger.debug('applyNavlogSyncString: Switching flight type from', flightType, 'to', incomingFlightType);
 			flightType = incomingFlightType;
 			setFlightType();
 		}
@@ -4385,26 +4385,26 @@ function applyNavlogSyncString(navlogString) {
 		// Get navlog container FIRST (needed for clearing)
 		var navRoot = ensureNavlogContainer();
 		if (!navRoot) {
-			NAVLOG_DEBUG && console.warn('[applyNavlogSyncString] Navlog container not found');
+			navlogLogger.warn('Navlog container not found');
 			return;
 		}
 
 		// STEP 1: Reset to 5 rows (Kneeboard default) to clear old data
-		NAVLOG_DEBUG && console.log('[applyNavlogSyncString] Resetting to 5 rows (Kneeboard default)...');
+		navlogLogger.debug('applyNavlogSyncString: Resetting to 5 rows (Kneeboard default)...');
 		if (typeof setWaypointFixedCount === 'function') {
 			setWaypointFixedCount(flightType, 5);
 		}
 		ensureExactRowCount(flightType, 5);
 
 		// STEP 2: Clear all textareas
-		NAVLOG_DEBUG && console.log('[applyNavlogSyncString] Clearing all textareas...');
+		navlogLogger.debug('applyNavlogSyncString: Clearing all textareas...');
 		var allTextareas = navRoot.getElementsByTagName('textarea');
 		for (var j = 0; j < allTextareas.length; j++) {
 			allTextareas[j].value = '';
 		}
 
 		// STEP 3: Set the actual row count from incoming data
-		NAVLOG_DEBUG && console.log('[applyNavlogSyncString] Setting row count to:', incomingRowCount);
+		navlogLogger.debug('applyNavlogSyncString: Setting row count to:', incomingRowCount);
 		if (typeof setWaypointFixedCount === 'function') {
 			setWaypointFixedCount(flightType, incomingRowCount);
 		}
@@ -4416,7 +4416,7 @@ function applyNavlogSyncString(navlogString) {
 		var skippedCount = 0;
 
 		if (textareas.length < parts.length - startIndex) {
-			NAVLOG_DEBUG && console.warn('[applyNavlogSyncString] Fewer textareas than incoming values. Values:', (parts.length - startIndex), 'Textareas:', textareas.length);
+			navlogLogger.warn('Fewer textareas than incoming values. Values:', (parts.length - startIndex), 'Textareas:', textareas.length);
 		}
 
 		for (var i = startIndex; i < parts.length; i++) {
@@ -4433,7 +4433,7 @@ function applyNavlogSyncString(navlogString) {
 			}
 		}
 
-		NAVLOG_DEBUG && console.log('[applyNavlogSyncString] Applied payload. Updated:', updatedCount, 'Skipped:', skippedCount);
+		navlogLogger.debug('applyNavlogSyncString: Applied payload. Updated:', updatedCount, 'Skipped:', skippedCount);
 
 		// Track hashes to avoid duplicates
 		lastAppliedNavlogHash = hash;
@@ -4442,19 +4442,19 @@ function applyNavlogSyncString(navlogString) {
 		if (isBrowserMirror || !isInIframe) {
 			lastBroadcastNavlogHash = hash;
 		} else {
-			NAVLOG_DEBUG && console.log('[applyNavlogSyncString] Kneeboard iframe context, skipping broadcast hash update');
+			navlogLogger.debug('applyNavlogSyncString: Kneeboard iframe context, skipping broadcast hash update');
 		}
 
 		// Mark initial load complete
 		if (!initialNavlogLoadComplete) {
 			initialNavlogLoadComplete = true;
-			NAVLOG_DEBUG && console.log('[applyNavlogSyncString] Initial navlog load complete - future updates will use hash checking');
+			navlogLogger.debug('applyNavlogSyncString: Initial navlog load complete - future updates will use hash checking');
 		}
 
 		// Log-time IMMER neu berechnen wenn Block-Zeiten aus Sync kommen
 		calculateLogTime(true);
 	} catch (err) {
-		console.warn('[Navlog] Failed to apply synced navlog payload:', err);
+		navlogLogger.error('Failed to apply synced navlog payload:', err);
 	} finally {
 		setTimeout(function () { suppressNavlogPush = false; }, 300);
 	}
@@ -4532,13 +4532,13 @@ function initNavlogSync() {
 		}, NAVLOG_PULL_INTERVAL_MS);
 
 	} catch (err) {
-		console.warn('[Navlog] Sync init failed:', err);
+		navlogLogger.error('Sync init failed:', err);
 	}
 }
 
 function pollNavlogFromServer() {
 	if (!isNavlogActiveTab()) {
-		logVerbose("[Navlog] Skip poll - navlog tab not active in Kneeboard");
+		logVerbose("Skip poll - navlog tab not active in Kneeboard");
 		return;
 	}
 	// First check if there's a newer version on the server
@@ -4553,7 +4553,7 @@ function pollNavlogFromServer() {
 
 			// Only fetch data if server has newer version
 			if (serverTimestamp > lastServerTimestamp) {
-				NAVLOG_DEBUG && console.log("[Navlog] Server has newer data, timestamp:", serverTimestamp, "vs local:", lastServerTimestamp);
+				navlogLogger.debug("Server has newer data, timestamp:", serverTimestamp, "vs local:", lastServerTimestamp);
 
 				// Fetch the actual data
 				var dataUrl = getNavlogSyncUrl("getNavlogValues");
@@ -4573,17 +4573,17 @@ function pollNavlogFromServer() {
 						}
 						var incomingHash = hashNavlogString(text);
 						if (incomingHash && incomingHash === lastServerNavlogHash) {
-							NAVLOG_DEBUG && console.log("[Navlog] ✓ Pull prevented - server data hash unchanged (echo detected)");
+							navlogLogger.debug("✓ Pull prevented - server data hash unchanged (echo detected)");
 							return;
 						}
 						applyNavlogSyncString(text);
-						console.info("[Navlog] Polled and applied server data with timestamp:", lastServerTimestamp);
+						navlogLogger.info("Polled and applied server data with timestamp:", lastServerTimestamp);
 						lastServerNavlogHash = incomingHash;
 					});
 			}
 		})
 		.catch(function (err) {
-			NAVLOG_DEBUG && console.warn("[Navlog] poll from server failed:", err);
+			navlogLogger.warn("poll from server failed:", err);
 		});
 }
 
@@ -4598,7 +4598,7 @@ function loadNavlogFromServer() {
 			if (typeof text !== "string") return;
 			if (!text) return;
 			if (!isNavlogActiveTab()) {
-				logVerbose("[Navlog] Skip initial load apply - navlog tab not active in Kneeboard");
+				logVerbose("Skip initial load apply - navlog tab not active in Kneeboard");
 				return;
 			}
 			var incomingHash = hashNavlogString(text);
@@ -4611,12 +4611,12 @@ function loadNavlogFromServer() {
 			// Mark initial load as complete after first successful load
 			if (!initialNavlogLoadComplete) {
 				initialNavlogLoadComplete = true;
-				NAVLOG_DEBUG && console.info("[Navlog] Initial load complete - future updates will use normal processing");
+				navlogLogger.info("Initial load complete - future updates will use normal processing");
 			}
-			NAVLOG_DEBUG && console.info("[Navlog] loaded server navlog (initial load, not setting hash)");
+			navlogLogger.info("loaded server navlog (initial load, not setting hash)");
 		})
 		.catch(function (err) {
-			NAVLOG_DEBUG && console.warn("[Navlog] load from server failed:", err);
+			navlogLogger.warn("load from server failed:", err);
 		});
 }
 
@@ -4711,7 +4711,7 @@ function calculateLogTime(forceOverwrite) {
 	var logTime = formatMinutesToTime(diffMinutes);
 	if (logTimeField.value !== logTime) {
 		logTimeField.value = logTime;
-		NAVLOG_DEBUG && console.log('[Navlog] Log-time berechnet:', logTime, 'aus Block_out:', blockOutField.value, 'Block_in:', blockInField.value);
+		navlogLogger.debug('Log-time berechnet:', logTime, 'aus Block_out:', blockOutField.value, 'Block_in:', blockInField.value);
 	}
 }
 
@@ -4753,7 +4753,7 @@ function saveValuesImmediate() {
 	try {
 		saveNavlogToLocalStorage();
 	} catch (e) {
-		console.warn('[Navlog] Immediate save failed:', e);
+		navlogLogger.error('Immediate save failed:', e);
 	}
 	clearTimeout(timeout);
 	timeout = setTimeout(enableMessageReceiver, MESSAGE_RECEIVER_TIMEOUT_MS);
@@ -4823,7 +4823,7 @@ function saveValues() {
 function saveNavlogToLocalStorage() {
 	// DEAKTIVIERT: Server ist Single Source of Truth
 	// localStorage-Backup verursacht Konflikte mit OFP-Mapping (FL13 statt FL170)
-	NAVLOG_DEBUG && console.log("[Navlog] localStorage saving DISABLED - using server sync only");
+	navlogLogger.debug("localStorage saving DISABLED - using server sync only");
 	return;
 }
 
@@ -4872,11 +4872,11 @@ function clearOFPFieldsFromLocalStorage() {
 		if (id && ofpFieldIds.indexOf(id) !== -1) {
 			// Diese Textarea ist ein OFP-Feld - localStorage-Eintrag löschen
 			localStorage.removeItem(String(i));
-			NAVLOG_DEBUG && console.log('[OFP Clear] Removed localStorage for OFP field:', id, 'index:', i);
+			navlogLogger.debug('OFP Clear: Removed localStorage for OFP field:', id, 'index:', i);
 		}
 	}
 
-	NAVLOG_DEBUG && console.log('[OFP Clear] Cleared localStorage for', ofpFieldIds.length, 'OFP field definitions');
+	navlogLogger.debug('OFP Clear: Cleared localStorage for', ofpFieldIds.length, 'OFP field definitions');
 }
 
 function clearAllNavlogTextareas() {
@@ -4916,7 +4916,7 @@ function readValues() {
 
 	// TEXTAREA-WERTE NICHT AUS LOCALSTORAGE LADEN!
 	// Server ist Single Source of Truth - localStorage verursacht FL13 statt FL170
-	NAVLOG_DEBUG && console.log("[Navlog] localStorage textarea loading DISABLED - server is single source of truth");
+	navlogLogger.debug("localStorage textarea loading DISABLED - server is single source of truth");
 
 	btnVFRClicked(); // Default to VFR
 
@@ -5038,7 +5038,7 @@ function handleIncomingMessage(e) {
 			localStorage.setItem("fontColorLight", fontColorLight);
 			localStorage.setItem("fontColorDark", fontColorDark);
 		}
-		NAVLOG_DEBUG && console.log("Farben aktualisiert & gespeichert:", colorLight, colorDark, fontColorLight, fontColorDark);
+		navlogLogger.debug("Farben aktualisiert & gespeichert:", colorLight, colorDark, fontColorLight, fontColorDark);
 	}
 
 	if (typeof e.data !== "string") {
@@ -5090,10 +5090,10 @@ function handleIncomingMessage(e) {
 					var roundedTas = Math.round(tasValue);
 					if (tasField.value !== String(roundedTas)) {
 						tasField.value = roundedTas;
-						NAVLOG_DEBUG && console.log('[Navlog] TAS updated:', roundedTas, 'from IAS:', iasValue, 'at alt:', altitudeFt);
+						navlogLogger.debug('TAS updated:', roundedTas, 'from IAS:', iasValue, 'at alt:', altitudeFt);
 					}
 				} else {
-					console.warn('[Navlog] True-Airspeed element not found in DOM');
+					navlogLogger.warn('True-Airspeed element not found in DOM');
 				}
 			}
 		}
@@ -5113,7 +5113,7 @@ function handleIncomingMessage(e) {
 
 		// Skip hash check on initial load - always accept first data from Kneeboard
 		if (!initialNavlogLoadComplete) {
-			NAVLOG_DEBUG && console.log('[handleIncomingMessage] Initial load - accepting data without hash check');
+			navlogLogger.debug('handleIncomingMessage: Initial load - accepting data without hash check');
 		} else {
 			// For data coming from applyNavlogSyncString (server polling), we trust it
 			// The polling function already verified this is new data from server
@@ -5124,16 +5124,16 @@ function handleIncomingMessage(e) {
 				// Only check hashes for broadcast messages between browser tabs
 				// Check if this is the same data we already have (only for broadcast messages)
 				if (incomingHash === currentHash) {
-					NAVLOG_DEBUG && console.log('[handleIncomingMessage] Broadcast data is identical to current data, skipping update');
+					navlogLogger.debug('handleIncomingMessage: Broadcast data is identical to current data, skipping update');
 					return;
 				}
 
 				if (incomingHash === lastAppliedNavlogHash) {
-					NAVLOG_DEBUG && console.log('[handleIncomingMessage] Already applied this broadcast data, skipping duplicate');
+					navlogLogger.debug('handleIncomingMessage: Already applied this broadcast data, skipping duplicate');
 					return;
 				}
 			} else {
-				NAVLOG_DEBUG && console.log('[handleIncomingMessage] Data from server polling, applying without hash check');
+				navlogLogger.debug('handleIncomingMessage: Data from server polling, applying without hash check');
 			}
 		}
 
@@ -5144,28 +5144,28 @@ function handleIncomingMessage(e) {
 			receiveMessages = true;
 		}
 
-		NAVLOG_DEBUG && console.log('[handleIncomingMessage] receiveMessages:', receiveMessages);
+		navlogLogger.debug('handleIncomingMessage: receiveMessages:', receiveMessages);
 
 		if (receiveMessages === true) {
 			var values = message2.split("~");
 
-			NAVLOG_DEBUG && console.log('[handleIncomingMessage] Received navlog with', values.length, 'values (hash:', incomingHash.substring(0, 20), ')');
+			navlogLogger.debug('handleIncomingMessage: Received navlog with', values.length, 'values (hash:', incomingHash.substring(0, 20), ')');
 
 			// Extract flight type and row count
 			var incomingFlightType = values[0];
 			var incomingRowCount = parseInt(values[1]) || 0;
 
-			NAVLOG_DEBUG && console.log('[handleIncomingMessage] Flight type:', incomingFlightType, ', Row count:', incomingRowCount);
+			navlogLogger.debug('handleIncomingMessage: Flight type:', incomingFlightType, ', Row count:', incomingRowCount);
 
 			if (flightType != incomingFlightType) {
-				NAVLOG_DEBUG && console.log('[handleIncomingMessage] Switching flight type from', flightType, 'to', incomingFlightType);
+				navlogLogger.debug('handleIncomingMessage: Switching flight type from', flightType, 'to', incomingFlightType);
 				flightType = incomingFlightType;
 				setFlightType();
-				NAVLOG_DEBUG && console.log('[handleIncomingMessage] Flight type switched');
+				navlogLogger.debug('handleIncomingMessage: Flight type switched');
 			}
 
 			// Ensure we have the exact number of waypoint rows
-			NAVLOG_DEBUG && console.log('[handleIncomingMessage] Ensuring exact row count:', incomingRowCount, 'for', flightType);
+			navlogLogger.debug('handleIncomingMessage: Ensuring exact row count:', incomingRowCount, 'for', flightType);
 			ensureExactRowCount(flightType, incomingRowCount);
 
 			var allNavlogTextareas = document.getElementById('navlog') ? document.getElementById('navlog').getElementsByTagName('textarea') : [];
@@ -5177,9 +5177,9 @@ function handleIncomingMessage(e) {
 					visibleCount++;
 				}
 			}
-			NAVLOG_DEBUG && console.log('[handleIncomingMessage] Total textareas:', navlogTextareas.length, 'Visible:', visibleCount, 'Hidden:', (navlogTextareas.length - visibleCount));
+			navlogLogger.debug('handleIncomingMessage: Total textareas:', navlogTextareas.length, 'Visible:', visibleCount, 'Hidden:', (navlogTextareas.length - visibleCount));
 			if (navlogTextareas.length < values.length - 1) {
-				NAVLOG_DEBUG && console.warn('[handleIncomingMessage] Fewer textareas than incoming values. Values:', (values.length - 1), 'Textareas:', navlogTextareas.length);
+				navlogLogger.warn('Fewer textareas than incoming values. Values:', (values.length - 1), 'Textareas:', navlogTextareas.length);
 			}
 
 			var updatedCount = 0;
@@ -5197,10 +5197,10 @@ function handleIncomingMessage(e) {
 					}
 				}
 			}
-			NAVLOG_DEBUG && console.log('[handleIncomingMessage] First waypoint at index:', firstWaypointIndex, ', Last non-empty:', lastNonEmptyIndex);
+			navlogLogger.debug('handleIncomingMessage: First waypoint at index:', firstWaypointIndex, ', Last non-empty:', lastNonEmptyIndex);
 
 			// Assign values to textareas
-			NAVLOG_DEBUG && console.log('[handleIncomingMessage] Assigning values to textareas...');
+			navlogLogger.debug('handleIncomingMessage: Assigning values to textareas...');
 			for (var i = startIndex; i < values.length; i++) {
 				try {
 					var targetIndex = i - startIndex;
@@ -5208,7 +5208,7 @@ function handleIncomingMessage(e) {
 					if (!targetTextarea) {
 						skippedCount++;
 						if (values[i] && values[i].trim()) {
-							NAVLOG_DEBUG && console.log('[handleIncomingMessage] Skipped non-empty value at index', i, ':', values[i].substring(0, 20));
+							navlogLogger.debug('handleIncomingMessage: Skipped non-empty value at index', i, ':', values[i].substring(0, 20));
 						}
 						continue;
 					}
@@ -5251,11 +5251,11 @@ function handleIncomingMessage(e) {
 					}
 				}
 				catch (e) {
-					NAVLOG_DEBUG && console.log('[handleIncomingMessage] Error at index', i, ':', e);
+					navlogLogger.debug('handleIncomingMessage: Error at index', i, ':', e);
 				}
 			}
 
-			NAVLOG_DEBUG && console.log('[handleIncomingMessage] Updated', updatedCount, 'fields, skipped', skippedCount);
+			navlogLogger.debug('handleIncomingMessage: Updated', updatedCount, 'fields, skipped', skippedCount);
 
 			// Update the hash to mark this data as applied (even though we're only syncing rows)
 			lastAppliedNavlogHash = incomingHash;
@@ -5268,16 +5268,16 @@ function handleIncomingMessage(e) {
 				lastBroadcastNavlogHash = incomingHash;
 			} else {
 				// We're in kneeboard (iframe), skip broadcast hash update
-				NAVLOG_DEBUG && console.log('[handleIncomingMessage] Kneeboard iframe context, skipping broadcast hash update');
+				navlogLogger.debug('handleIncomingMessage: Kneeboard iframe context, skipping broadcast hash update');
 			}
 
 			// Mark initial load as complete after first successful update
 			if (!initialNavlogLoadComplete) {
 				initialNavlogLoadComplete = true;
-				NAVLOG_DEBUG && console.log('[handleIncomingMessage] Initial navlog load complete - future updates will use hash checking');
+				navlogLogger.debug('handleIncomingMessage: Initial navlog load complete - future updates will use hash checking');
 			}
 		} else {
-			NAVLOG_DEBUG && console.log('[handleIncomingMessage] receiveMessages is false, skipping update');
+			navlogLogger.debug('handleIncomingMessage: receiveMessages is false, skipping update');
 		}
 		saveNavlogToLocalStorage();
 		receiving = false;
@@ -5340,7 +5340,7 @@ function fillCurrentTime(fieldId) {
 	}
 
 	saveValues();
-	NAVLOG_DEBUG && console.log('[TimeIcon] Filled', fieldId, 'with current', fieldType);
+	navlogLogger.debug('TimeIcon: Filled', fieldId, 'with current', fieldType);
 }
 
 function createTimeIcon(fieldId) {
@@ -5431,5 +5431,5 @@ function initTimeIcons() {
 		parentCell.appendChild(icon);
 	});
 
-	NAVLOG_DEBUG && console.log('[TimeIcon] Initialized icons for:', Object.keys(timeIconFields).join(', '));
+	navlogLogger.debug('TimeIcon: Initialized icons for:', Object.keys(timeIconFields).join(', '));
 }

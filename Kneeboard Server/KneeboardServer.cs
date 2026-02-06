@@ -216,7 +216,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimBrief] Error extracting SID waypoints: {ex.Message}");
+                KneeboardLogger.SimBriefError($"Error extracting SID waypoints: {ex.Message}");
                 return new { error = ex.Message, waypoints = new List<object>() };
             }
         }
@@ -295,7 +295,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimBrief] Error extracting STAR waypoints: {ex.Message}");
+                KneeboardLogger.SimBriefError($"Error extracting STAR waypoints: {ex.Message}");
                 return new { error = ex.Message, waypoints = new List<object>() };
             }
         }
@@ -425,7 +425,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimBrief] Error getting procedures: {ex.Message}");
+                KneeboardLogger.SimBriefError($"Error getting procedures: {ex.Message}");
                 return new { error = ex.Message };
             }
         }
@@ -444,24 +444,24 @@ namespace Kneeboard_Server
                 if (!string.IsNullOrEmpty(persistedFlightplan))
                 {
                     flightplan = persistedFlightplan;
-                    Console.WriteLine($"[Persistence] Loaded flightplan from settings (length: {flightplan.Length})");
+                    KneeboardLogger.PersistenceDebug($"Loaded flightplan from settings (length: {flightplan.Length})");
                 }
 
                 if (!string.IsNullOrEmpty(persistedTimestamp))
                 {
                     cachedSimbriefTimeGenerated = persistedTimestamp;
-                    Console.WriteLine($"[Persistence] Loaded SimBrief timestamp: {cachedSimbriefTimeGenerated}");
+                    KneeboardLogger.PersistenceDebug($"Loaded SimBrief timestamp: {cachedSimbriefTimeGenerated}");
                 }
 
                 if (!string.IsNullOrEmpty(persistedOFPData))
                 {
                     simbriefOFPData = persistedOFPData;
-                    Console.WriteLine($"[Persistence] Loaded OFP data from settings (length: {simbriefOFPData.Length})");
+                    KneeboardLogger.PersistenceDebug($"Loaded OFP data from settings (length: {simbriefOFPData.Length})");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Persistence] Error loading persisted data: {ex.Message}");
+                KneeboardLogger.PersistenceError($"Error loading persisted data: {ex.Message}");
             }
         }
 
@@ -476,11 +476,11 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.cachedSimbriefTimeGenerated = cachedSimbriefTimeGenerated ?? "";
                 Properties.Settings.Default.cachedSimbriefOFPData = simbriefOFPData ?? "";
                 Properties.Settings.Default.Save();
-                Console.WriteLine("[Persistence] Flightplan data saved to settings");
+                KneeboardLogger.Persistence("Flightplan data saved to settings");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Persistence] Error saving data: {ex.Message}");
+                KneeboardLogger.PersistenceError($"Error saving data: {ex.Message}");
             }
         }
 
@@ -495,7 +495,7 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.cachedSimbriefTimeGenerated = "";
                 Properties.Settings.Default.cachedSimbriefOFPData = "";
                 Properties.Settings.Default.Save();
-                Console.WriteLine("[Persistence] Flightplan data cleared from settings");
+                KneeboardLogger.Persistence("Flightplan data cleared from settings");
 
                 // OFP PDF aus Dokumentenliste entfernen
                 if (instance != null) // Prüfen ob Instanz existiert
@@ -504,13 +504,13 @@ namespace Kneeboard_Server
                     {
                         instance.UpdateFileList();
                         instance.SaveDocumentState();
-                        Console.WriteLine("[SimBrief] OFP PDF removed from document list");
+                        KneeboardLogger.SimBrief("OFP PDF removed from document list");
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Persistence] Error clearing data: {ex.Message}");
+                KneeboardLogger.PersistenceError($"Error clearing data: {ex.Message}");
             }
         }
 
@@ -532,7 +532,7 @@ namespace Kneeboard_Server
                             {
                                 instance.UpdateFileList();
                                 instance.SaveDocumentState();
-                                Console.WriteLine("[SimBrief] OFP removed from document list (soft clear)");
+                                KneeboardLogger.SimBrief("OFP removed from document list (soft clear)");
                             }
                         }));
                     }
@@ -542,14 +542,14 @@ namespace Kneeboard_Server
                         {
                             instance.UpdateFileList();
                             instance.SaveDocumentState();
-                            Console.WriteLine("[SimBrief] OFP removed from document list (soft clear)");
+                            KneeboardLogger.SimBrief("OFP removed from document list (soft clear)");
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimBrief] Error removing OFP from list: {ex.Message}");
+                KneeboardLogger.SimBriefError($"Error removing OFP from list: {ex.Message}");
             }
         }
 
@@ -560,14 +560,14 @@ namespace Kneeboard_Server
         {
             if (string.IsNullOrEmpty(Properties.Settings.Default.simbriefId))
             {
-                Console.WriteLine("[SimBrief Background] No SimBrief ID configured, skipping background sync");
+                KneeboardLogger.Warn("SimBrief", "No SimBrief ID configured, skipping background sync");
                 return;
             }
 
             // Stop existing timer if any
             StopBackgroundSimbriefSync();
 
-            Console.WriteLine("[SimBrief Background] Starting background sync timer (interval: 3 min)");
+            KneeboardLogger.SimBrief("Starting background sync timer (interval: 3 min)");
 
             // Initial sync immediately, then every 3 minutes
             simbriefBackgroundTimer = new System.Threading.Timer(
@@ -587,7 +587,7 @@ namespace Kneeboard_Server
             {
                 simbriefBackgroundTimer.Dispose();
                 simbriefBackgroundTimer = null;
-                Console.WriteLine("[SimBrief Background] Background sync timer stopped");
+                KneeboardLogger.SimBrief("Background sync timer stopped");
             }
         }
 
@@ -612,7 +612,7 @@ namespace Kneeboard_Server
                     return;
                 }
 
-                Console.WriteLine("[SimBrief Background] Checking for updates...");
+                KneeboardLogger.SimBriefDebug("Background: Checking for updates...");
 
                 var url = GetSimbriefApiUrl();
                 string xmlStr;
@@ -632,11 +632,11 @@ namespace Kneeboard_Server
                 if (!string.IsNullOrEmpty(cachedSimbriefTimeGenerated) &&
                     currentTimeGenerated == cachedSimbriefTimeGenerated)
                 {
-                    Console.WriteLine($"[SimBrief Background] No update (timestamp unchanged: {cachedSimbriefTimeGenerated})");
+                    KneeboardLogger.SimBriefDebug($"Background: No update (timestamp unchanged: {cachedSimbriefTimeGenerated})");
                     return;
                 }
 
-                Console.WriteLine($"[SimBrief Background] New flightplan detected! (old: {cachedSimbriefTimeGenerated}, new: {currentTimeGenerated})");
+                KneeboardLogger.SimBrief($"Background: New flightplan detected! (old: {cachedSimbriefTimeGenerated}, new: {currentTimeGenerated})");
 
                 // Parse OFP data
                 using (StringReader stringReader = new StringReader(xmlStr))
@@ -644,7 +644,7 @@ namespace Kneeboard_Server
                     XmlSerializer ofpSerializer = new XmlSerializer(typeof(Simbrief.OFP));
                     Simbrief.OFP ofpData = (Simbrief.OFP)ofpSerializer.Deserialize(stringReader);
                     simbriefOFPData = Newtonsoft.Json.JsonConvert.SerializeObject(ofpData);
-                    Console.WriteLine($"[SimBrief Background] OFP data loaded (length: {simbriefOFPData.Length})");
+                    KneeboardLogger.SimBriefDebug($"Background: OFP data loaded (length: {simbriefOFPData.Length})");
                 }
 
                 // Get PLN download URL and load waypoints
@@ -664,7 +664,7 @@ namespace Kneeboard_Server
                             ofp = simbriefOFPData != null ? Newtonsoft.Json.JsonConvert.DeserializeObject(simbriefOFPData) : null
                         };
                         flightplan = Newtonsoft.Json.JsonConvert.SerializeObject(combinedData);
-                        Console.WriteLine($"[SimBrief Background] Flightplan loaded (length: {flightplan.Length})");
+                        KneeboardLogger.SimBriefDebug($"Background: Flightplan loaded (length: {flightplan.Length})");
                     }
                 }
 
@@ -706,7 +706,7 @@ namespace Kneeboard_Server
                                 {
                                     instance.UpdateFileList();
                                     instance.SaveDocumentState();
-                                    Console.WriteLine("[SimBrief Background] OFP PDF updated in document list");
+                                    KneeboardLogger.SimBrief("Background: OFP PDF updated in document list");
                                 }
                             }));
                         }
@@ -716,17 +716,17 @@ namespace Kneeboard_Server
                             {
                                 instance.UpdateFileList();
                                 instance.SaveDocumentState();
-                                Console.WriteLine("[SimBrief Background] OFP PDF updated in document list");
+                                KneeboardLogger.SimBrief("Background: OFP PDF updated in document list");
                             }
                         }
                     }
                 }
 
-                Console.WriteLine("[SimBrief Background] Background sync complete - data ready for instant use");
+                KneeboardLogger.SimBrief("Background sync complete - data ready for instant use");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimBrief Background] Error during sync: {ex.Message}");
+                KneeboardLogger.SimBriefError($"Background: Error during sync: {ex.Message}");
             }
             finally
             {
@@ -800,7 +800,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Failed to load document state: " + ex.Message);
+                KneeboardLogger.ServerError("Failed to load document state: " + ex.Message);
                 filesList = filesList ?? new List<KneeboardFile>();
                 foldersList = foldersList ?? new List<KneeboardFolder>();
             }
@@ -821,7 +821,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Failed to save document state: " + ex.Message);
+                KneeboardLogger.ServerError("Failed to save document state: " + ex.Message);
             }
         }
 
@@ -859,7 +859,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error adding Simbrief OFP to document list: {ex.Message}");
+                KneeboardLogger.SimBriefError($"Error adding Simbrief OFP to document list: {ex.Message}");
                 return false;
             }
         }
@@ -882,12 +882,12 @@ namespace Kneeboard_Server
                     foldersList.Remove(simbriefFolder);
                 }
 
-                Console.WriteLine($"[SimBrief] Removed {removed} OFP file(s) from document list");
+                KneeboardLogger.SimBrief($"Removed {removed} OFP file(s) from document list");
                 return removed > 0;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error removing Simbrief OFP from document list: {ex.Message}");
+                KneeboardLogger.SimBriefError($"Error removing Simbrief OFP from document list: {ex.Message}");
                 return false;
             }
         }
@@ -907,7 +907,7 @@ namespace Kneeboard_Server
 
                 if (!Directory.Exists(manualsPath))
                 {
-                    Console.WriteLine("Manuals directory does not exist: " + manualsPath);
+                    KneeboardLogger.Warn("Server", "Manuals directory does not exist: " + manualsPath);
                     // Mark as initialized even if directory doesn't exist to avoid repeated checks
                     Properties.Settings.Default.manualsInitialized = true;
                     Properties.Settings.Default.Save();
@@ -919,7 +919,7 @@ namespace Kneeboard_Server
 
                 if (manualFiles.Length == 0)
                 {
-                    Console.WriteLine("No manual PDF files found in: " + manualsPath);
+                    KneeboardLogger.Warn("Server", "No manual PDF files found in: " + manualsPath);
                     // Mark as initialized to avoid repeated checks
                     Properties.Settings.Default.manualsInitialized = true;
                     Properties.Settings.Default.Save();
@@ -948,7 +948,7 @@ namespace Kneeboard_Server
 
                         filesList.Add(manualFile);
                         stateChanged = true;
-                        Console.WriteLine("Added manual to documents list: " + manualName);
+                        KneeboardLogger.Server("Added manual to documents list: " + manualName);
                     }
                 }
 
@@ -960,12 +960,12 @@ namespace Kneeboard_Server
                 if (stateChanged)
                 {
                     SaveDocumentState();
-                    Console.WriteLine("Document state saved with new manuals");
+                    KneeboardLogger.Server("Document state saved with new manuals");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error ensuring default manuals exist: " + ex.Message);
+                KneeboardLogger.ServerError("Error ensuring default manuals exist: " + ex.Message);
             }
         }
 
@@ -987,16 +987,16 @@ namespace Kneeboard_Server
                 simConnectManager = new SimConnectManager(this.Handle);
                 simConnectManager.ConnectionStatusChanged += OnSimConnectStatusChanged;
                 simConnectManager.Start();
-                Console.WriteLine("[KneeboardServer] SimConnect manager started");
+                KneeboardLogger.Server("SimConnect manager started");
             }
             catch (FileNotFoundException)
             {
-                Console.WriteLine("[KneeboardServer] SimConnect DLL not found - MSFS not installed, continuing without SimConnect");
+                KneeboardLogger.Warn("Server", "SimConnect DLL not found - MSFS not installed, continuing without SimConnect");
                 simConnectManager = null;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[KneeboardServer] SimConnect initialization failed: {ex.Message}");
+                KneeboardLogger.ServerError($"SimConnect initialization failed: {ex.Message}");
                 simConnectManager = null;
             }
 
@@ -1109,7 +1109,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Update check failed: {ex.Message}");
+                KneeboardLogger.ServerError($"Update check failed: {ex.Message}");
                 if (manual)
                 {
                     Invoke(new Action(() =>
@@ -1180,7 +1180,7 @@ namespace Kneeboard_Server
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Auto-update failed: {ex.Message}");
+                        KneeboardLogger.ServerError($"Auto-update failed: {ex.Message}");
                         UpdateMessage.Text = $" Update {args.CurrentVersion} available. Click here for download.";
                         UpdateMessage.BackColor = Color.Red;
                     }
@@ -1195,7 +1195,7 @@ namespace Kneeboard_Server
             }
             else
             {
-                Console.WriteLine($"Update check failed: {args.Error.Message}");
+                KneeboardLogger.ServerError($"Update check failed: {args.Error.Message}");
                 UpdateMessage.Visible = false;
                 UpdateStatusBar();
                 updateAvailable = false;
@@ -1468,7 +1468,7 @@ namespace Kneeboard_Server
                                     PanelDeploymentService.DeployPanel(path, null);
                                     lastPath = path;
                                     deployed++;
-                                    Console.WriteLine($"[KneeboardServer] Deployed Kneeboard panel to {path}");
+                                    KneeboardLogger.Server($"Deployed Kneeboard panel to {path}");
                                 }
                             }
 
@@ -1478,7 +1478,7 @@ namespace Kneeboard_Server
                                 PanelDeploymentService.DeployPanel(path, null);
                                 lastPath = path;
                                 deployed++;
-                                Console.WriteLine($"[KneeboardServer] Deployed Kneeboard panel to {path}");
+                                KneeboardLogger.Server($"Deployed Kneeboard panel to {path}");
                             }
 
                             if (lastPath != null)
@@ -1493,7 +1493,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[KneeboardServer] First-start wizard error: {ex.Message}");
+                KneeboardLogger.ServerError($"First-start wizard error: {ex.Message}");
             }
         }
 
@@ -1627,11 +1627,11 @@ namespace Kneeboard_Server
                             }
                         }
 
-                        Console.WriteLine($"Processed exe.xml: {exeXmlPath}");
+                        KneeboardLogger.ServerDebug($"Processed exe.xml: {exeXmlPath}");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error processing exe.xml at {exeXmlPath}: {ex.Message}");
+                        KneeboardLogger.ServerError($"Error processing exe.xml at {exeXmlPath}: {ex.Message}");
                     }
                 }
             }
@@ -1652,7 +1652,7 @@ namespace Kneeboard_Server
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[SimConnect] WndProc error: {ex.Message}");
+                    KneeboardLogger.SimConnectError($"WndProc error: {ex.Message}");
                 }
             }
 
@@ -1699,16 +1699,16 @@ namespace Kneeboard_Server
             {
                 folderpath = Path.GetFullPath(Path.Combine(baseDir, @"..\..\.."));
             }
-            Console.WriteLine($"[Server] Data directory: {folderpath}\\data");
+            KneeboardLogger.Server($"Data directory: {folderpath}\\data");
 
-            KneeboardLogger.Initialize(consoleOutput: true, fileOutput: true, minLevel: KneeboardLogger.Level.DEBUG);
+            KneeboardLogger.Initialize(consoleOutput: true, fileOutput: true, minLevel: KneeboardLogger.Level.INFO);
             KneeboardLogger.Server("Kneeboard Server starting...");
             KneeboardLogger.CleanupOldLogs(keepDays: 7);
             
             //MessageBox.Show(folderpath);
             LoadDocumentState();
-            // OFP PDF zur Dokumentenliste hinzufügen, falls Datei existiert aber nicht in der Liste ist
-            if (System.IO.File.Exists(Path.Combine(simbriefDataDir, "OFP.pdf")))
+            // OFP PDF zur Dokumentenliste hinzufügen, aber nur wenn ein Flugplan aktiv ist
+            if (!string.IsNullOrEmpty(flightplan) && System.IO.File.Exists(Path.Combine(simbriefDataDir, "OFP.pdf")))
             {
                 if (AddSimbriefOFPToDocumentList())
                 {
@@ -1751,7 +1751,7 @@ namespace Kneeboard_Server
             }
 
             myServer = new SimpleHTTPServer(folderpath + @"\data", Convert.ToInt32(port), this);
-            Console.WriteLine("Server is running on this port: " + myServer.Port.ToString());
+            KneeboardLogger.Server("Server is running on this port: " + myServer.Port.ToString());
             statusBox.BackColor = SystemColors.MenuHighlight;
             serverRun = true;
             UpdateStatusBar();
@@ -1959,11 +1959,11 @@ namespace Kneeboard_Server
                     }
                 }
 
-                Console.WriteLine($"Text file converted to images: {textFilePath}");
+                KneeboardLogger.ServerDebug($"Text file converted to images: {textFilePath}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error creating text image: {ex.Message}");
+                KneeboardLogger.ServerError($"Error creating text image: {ex.Message}");
             }
         }
 
@@ -2017,11 +2017,11 @@ namespace Kneeboard_Server
                                 try
                                 {
                                     Directory.Delete(subDir, true);
-                                    Console.WriteLine($"Deleted orphaned subfolder: {subDir}");
+                                    KneeboardLogger.ServerDebug($"Deleted orphaned subfolder: {subDir}");
                                 }
                                 catch (Exception ex)
                                 {
-                                    Console.WriteLine($"Error deleting subfolder: {ex.Message}");
+                                    KneeboardLogger.ServerError($"Error deleting subfolder: {ex.Message}");
                                 }
                             }
                         }
@@ -2032,18 +2032,18 @@ namespace Kneeboard_Server
                         try
                         {
                             Directory.Delete(dir, true);
-                            Console.WriteLine($"Deleted orphaned folder: {dir}");
+                            KneeboardLogger.ServerDebug($"Deleted orphaned folder: {dir}");
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"Error deleting folder: {ex.Message}");
+                            KneeboardLogger.ServerError($"Error deleting folder: {ex.Message}");
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error during cleanup: {ex.Message}");
+                KneeboardLogger.ServerError($"Error during cleanup: {ex.Message}");
             }
         }
 
@@ -2052,7 +2052,7 @@ namespace Kneeboard_Server
             // Verhindere parallele Ausführung - prüfe ob bereits eine Instanz läuft
             if (imagesProcessing)
             {
-                Console.WriteLine("Image creation already in progress - skipping duplicate call");
+                KneeboardLogger.Warn("Server", "Image creation already in progress - skipping duplicate call");
                 return;
             }
 
@@ -2163,7 +2163,7 @@ namespace Kneeboard_Server
                                 UpdateMessage.Text = $" Creating images ({processedFiles}/{totalFiles}): {Path.GetFileName(file.Path)}";
                                 await Task.Run(() => createImage(file.Path, targetPath));
                                 imagesCreated = true;
-                                Console.WriteLine($"Images successfully created: {file.Path}");
+                                KneeboardLogger.ServerDebug($"Images successfully created: {file.Path}");
                             }
                         }
                         else if (IsImageFile(file.Path))
@@ -2181,7 +2181,7 @@ namespace Kneeboard_Server
                                 UpdateMessage.Text = $" Creating images ({processedFiles}/{totalFiles}): {Path.GetFileName(file.Path)}";
                                 await Task.Run(() => CreateTextImage(file.Path, targetPath));
                                 imagesCreated = true;
-                                Console.WriteLine($"Text images created: {file.Path}");
+                                KneeboardLogger.ServerDebug($"Text images created: {file.Path}");
                             }
                         }
                     }
@@ -2204,7 +2204,7 @@ namespace Kneeboard_Server
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error in CreateImages: {e.Message}");
+                KneeboardLogger.ServerError($"Error in CreateImages: {e.Message}");
             }
             finally
             {
@@ -2234,11 +2234,11 @@ namespace Kneeboard_Server
                     }
                 }
 
-                Console.WriteLine($"PDF images created successfully: {file}");
+                KneeboardLogger.ServerDebug($"PDF images created successfully: {file}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error creating PDF images: {ex.Message}");
+                KneeboardLogger.ServerError($"Error creating PDF images: {ex.Message}");
                 MessageBox.Show($"Error creating PDF images: {ex.Message}", "PDF Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -2400,7 +2400,7 @@ namespace Kneeboard_Server
             }
             catch (Exception e2)
             {
-                Console.WriteLine(e2.Message);
+                KneeboardLogger.ServerError(e2.Message);
             }
 
         }
@@ -2491,7 +2491,7 @@ namespace Kneeboard_Server
         private void Kneeboard_Server_MouseDoubleClick(object sender, MouseEventArgs e)
         {
             UpdateFileList();
-            Console.WriteLine("Update file list");
+            KneeboardLogger.ServerDebug("Update file list");
         }
 
         private void EditButton_Click(object sender, EventArgs e)
@@ -2569,7 +2569,7 @@ namespace Kneeboard_Server
                                 XmlSerializer ofpSerializer = new XmlSerializer(typeof(Simbrief.OFP));
                                 Simbrief.OFP ofpData = (Simbrief.OFP)ofpSerializer.Deserialize(stringReader);
                                 simbriefOFPData = Newtonsoft.Json.JsonConvert.SerializeObject(ofpData);
-                                Console.WriteLine("[OFP Debug] OFP deserialized successfully, JSON length: " + (simbriefOFPData != null ? simbriefOFPData.Length.ToString() : "null"));
+                                KneeboardLogger.SimBriefDebug("OFP deserialized successfully, JSON length: " + (simbriefOFPData != null ? simbriefOFPData.Length.ToString() : "null"));
                             }
 
                             var plnNode = xmlDoc.DocumentElement.SelectSingleNode("/OFP/fms_downloads/mfs/link");
@@ -2598,14 +2598,14 @@ namespace Kneeboard_Server
                                 XmlSerializer serializer = new XmlSerializer(typeof(SimBaseDocument));
                                 SimBaseDocument waypoints = (SimBaseDocument)serializer.Deserialize(reader);
                                 // Kombiniertes Objekt mit PLN und OFP-Daten senden
-                                Console.WriteLine("[OFP Debug] Creating combined data - simbriefOFPData is " + (simbriefOFPData != null ? "NOT null, length: " + simbriefOFPData.Length : "NULL"));
+                                KneeboardLogger.SimBriefDebug("Creating combined data - simbriefOFPData is " + (simbriefOFPData != null ? "NOT null, length: " + simbriefOFPData.Length : "NULL"));
                                 var combinedData = new
                                 {
                                     pln = waypoints,
                                     ofp = simbriefOFPData != null ? Newtonsoft.Json.JsonConvert.DeserializeObject(simbriefOFPData) : null
                                 };
                                 flightplan = Newtonsoft.Json.JsonConvert.SerializeObject(combinedData);
-                                Console.WriteLine("[OFP Debug] Combined flightplan created, length: " + (flightplan != null ? flightplan.Length.ToString() : "null"));
+                                KneeboardLogger.SimBriefDebug("Combined flightplan created, length: " + (flightplan != null ? flightplan.Length.ToString() : "null"));
                                 reader.Close();
                             }
 
@@ -2628,7 +2628,7 @@ namespace Kneeboard_Server
                             {
                                 UpdateFileList();      // UI aktualisieren
                                 SaveDocumentState();   // Zustand persistieren
-                                Console.WriteLine("[SimBrief] OFP PDF added to document list");
+                                KneeboardLogger.SimBrief("OFP PDF added to document list");
                             }
 
                             lastFlightplanSource = FlightplanSource.SimBrief;
@@ -2636,17 +2636,17 @@ namespace Kneeboard_Server
                         }
                         catch (System.Net.WebException webEx)
                         {
-                            Console.WriteLine($"SimBrief download error: {webEx.Message}");
+                            KneeboardLogger.SimBriefError($"Download error: {webEx.Message}");
                             MessageBox.Show($"Could not connect to SimBrief. Please check your internet connection.\n\nError: {webEx.Message}", "Network Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                         catch (XmlException xmlEx)
                         {
-                            Console.WriteLine($"SimBrief XML parsing error: {xmlEx.Message}");
+                            KneeboardLogger.SimBriefError($"XML parsing error: {xmlEx.Message}");
                             MessageBox.Show($"Invalid response from SimBrief. Please ensure you have a valid flight plan generated.\n\nError: {xmlEx.Message}", "SimBrief Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"SimBrief import error: {ex.Message}");
+                            KneeboardLogger.SimBriefError($"Import error: {ex.Message}");
                             MessageBox.Show($"Failed to import SimBrief flight plan.\n\nError: {ex.Message}", "Import Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                     }
@@ -2658,7 +2658,7 @@ namespace Kneeboard_Server
                         };
                         if (openFileDialog1.ShowDialog() == DialogResult.OK)
                         {
-                            Console.WriteLine(Path.GetExtension(openFileDialog1.FileName));
+                            KneeboardLogger.Debug("Documents", Path.GetExtension(openFileDialog1.FileName));
                             if (Path.GetExtension(openFileDialog1.FileName) == ".knf" || Path.GetExtension(openFileDialog1.FileName) == ".KNF")
                             {
                                 // Create a StreamReader from a FileStream
@@ -2669,7 +2669,7 @@ namespace Kneeboard_Server
                                     while ((line = reader.ReadLine()) != null)
                                     {
                                         myServer.values = line;
-                                        Console.WriteLine(line);
+                                        KneeboardLogger.Debug("Documents", line);
                                         Properties.Settings.Default.values = line;
                                         Properties.Settings.Default.Save();
                                     }
@@ -2695,7 +2695,7 @@ namespace Kneeboard_Server
                                 }
                                 catch (Exception e2)
                                 {
-                                    Console.WriteLine(e2.Message);
+                                    KneeboardLogger.ServerError(e2.Message);
                                 }
                             }
                             else if (Path.GetExtension(openFileDialog1.FileName) == ".flightplan" || Path.GetExtension(openFileDialog1.FileName) == ".FLIGHTPLAN")
@@ -2712,7 +2712,7 @@ namespace Kneeboard_Server
                                 }
                                 catch (Exception e2)
                                 {
-                                    Console.WriteLine(e2.Message);
+                                    KneeboardLogger.ServerError(e2.Message);
                                     MessageBox.Show("Error loading SkyDemon flightplan: " + e2.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                                 }
                             }
@@ -2727,7 +2727,7 @@ namespace Kneeboard_Server
                     };
                     if (openFileDialog1.ShowDialog() == DialogResult.OK)
                     {
-                        Console.WriteLine(Path.GetExtension(openFileDialog1.FileName));
+                        KneeboardLogger.Debug("Documents", Path.GetExtension(openFileDialog1.FileName));
                         if (Path.GetExtension(openFileDialog1.FileName) == ".knf" || Path.GetExtension(openFileDialog1.FileName) == ".KNF")
                         {
                             // Create a StreamReader from a FileStream
@@ -2738,7 +2738,7 @@ namespace Kneeboard_Server
                                 while ((line = reader.ReadLine()) != null)
                                 {
                                     myServer.values = line;
-                                    Console.WriteLine(line);
+                                    KneeboardLogger.Debug("Documents", line);
                                     Properties.Settings.Default.values = line;
                                     Properties.Settings.Default.Save();
                                 }
@@ -2764,7 +2764,7 @@ namespace Kneeboard_Server
                             }
                             catch (Exception e2)
                             {
-                                Console.WriteLine(e2.Message);
+                                KneeboardLogger.ServerError(e2.Message);
                             }
                         }
                         else if (Path.GetExtension(openFileDialog1.FileName) == ".flightplan" || Path.GetExtension(openFileDialog1.FileName) == ".FLIGHTPLAN")
@@ -2781,7 +2781,7 @@ namespace Kneeboard_Server
                             }
                             catch (Exception e2)
                             {
-                                Console.WriteLine(e2.Message);
+                                KneeboardLogger.ServerError(e2.Message);
                                 MessageBox.Show("Error loading SkyDemon flightplan: " + e2.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                             }
                         }
@@ -3113,12 +3113,12 @@ namespace Kneeboard_Server
             {
                 string currentTime = GetSimbriefTimeGenerated();
                 bool updateAvailable = currentTime != cachedSimbriefTimeGenerated;
-                Console.WriteLine($"[SimBrief] Update check: cached={cachedSimbriefTimeGenerated}, current={currentTime}, updateAvailable={updateAvailable}");
+                KneeboardLogger.SimBriefDebug($"Update check: cached={cachedSimbriefTimeGenerated}, current={currentTime}, updateAvailable={updateAvailable}");
                 return updateAvailable;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SimBrief] Error checking for updates: {ex.Message}");
+                KneeboardLogger.SimBriefError($"Error checking for updates: {ex.Message}");
                 return false;
             }
         }
@@ -3144,7 +3144,7 @@ namespace Kneeboard_Server
                 }
                 // Enrich with SID/STAR waypoints if available
                 flightplan = EnrichFlightplanWithProceduresAsync(flightplan).GetAwaiter().GetResult();
-                Console.WriteLine(flightplan);
+                KneeboardLogger.Debug("SimBrief", flightplan);
             }
             else if (lastFlightplanSource == FlightplanSource.SimBrief ||
                      (lastFlightplanSource == FlightplanSource.None && Properties.Settings.Default.simbriefId != ""))
@@ -3168,7 +3168,7 @@ namespace Kneeboard_Server
                     if (flightplan != null && cachedSimbriefTimeGenerated != null &&
                         currentTimeGenerated == cachedSimbriefTimeGenerated)
                     {
-                        Console.WriteLine($"[SimBrief] Using cached flightplan (timestamp {cachedSimbriefTimeGenerated} unchanged)");
+                        KneeboardLogger.SimBriefDebug($"Using cached flightplan (timestamp {cachedSimbriefTimeGenerated} unchanged)");
                         // SID/STAR Waypoints auch bei cached flightplan anreichern
                         flightplan = EnrichFlightplanWithProceduresAsync(flightplan).GetAwaiter().GetResult();
 
@@ -3190,7 +3190,7 @@ namespace Kneeboard_Server
                                         {
                                             client.DownloadFile(new Uri("https://www.simbrief.com/ofp/flightplans/" + cachedOfpNode.InnerText), Path.Combine(simbriefDataDir, "OFP.pdf"));
                                         }
-                                        Console.WriteLine("[SimBrief syncFlightplan] OFP PDF downloaded (cached path)");
+                                        KneeboardLogger.SimBrief("syncFlightplan: OFP PDF downloaded (cached path)");
                                     }
                                 }
 
@@ -3205,7 +3205,7 @@ namespace Kneeboard_Server
                                             {
                                                 instance.UpdateFileList();
                                                 instance.SaveDocumentState();
-                                                Console.WriteLine("[SimBrief syncFlightplan] OFP PDF added to document list (cached path)");
+                                                KneeboardLogger.SimBrief("syncFlightplan: OFP PDF added to document list (cached path)");
                                             }
                                         }));
                                     }
@@ -3215,21 +3215,21 @@ namespace Kneeboard_Server
                                         {
                                             instance.UpdateFileList();
                                             instance.SaveDocumentState();
-                                            Console.WriteLine("[SimBrief syncFlightplan] OFP PDF added to document list (cached path)");
+                                            KneeboardLogger.SimBrief("syncFlightplan: OFP PDF added to document list (cached path)");
                                         }
                                     }
                                 }
                             }
                             catch (Exception ofpEx)
                             {
-                                Console.WriteLine($"[SimBrief syncFlightplan] OFP PDF error (cached path): {ofpEx.Message}");
+                                KneeboardLogger.SimBriefError($"syncFlightplan: OFP PDF error (cached path): {ofpEx.Message}");
                             }
                         }
 
                         return flightplan;
                     }
 
-                    Console.WriteLine($"[SimBrief] Loading new flightplan (cached: {cachedSimbriefTimeGenerated}, current: {currentTimeGenerated})");
+                    KneeboardLogger.SimBrief($"Loading new flightplan (cached: {cachedSimbriefTimeGenerated}, current: {currentTimeGenerated})");
 
                     // OFP-Daten deserialisieren und speichern
                     using (StringReader stringReader = new StringReader(xmlStr))
@@ -3237,7 +3237,7 @@ namespace Kneeboard_Server
                         XmlSerializer ofpSerializer = new XmlSerializer(typeof(Simbrief.OFP));
                         Simbrief.OFP ofpData = (Simbrief.OFP)ofpSerializer.Deserialize(stringReader);
                         simbriefOFPData = Newtonsoft.Json.JsonConvert.SerializeObject(ofpData);
-                        Console.WriteLine("[OFP Debug syncFlightplan] OFP deserialized, JSON length: " + (simbriefOFPData != null ? simbriefOFPData.Length.ToString() : "null"));
+                        KneeboardLogger.SimBriefDebug("syncFlightplan: OFP deserialized, JSON length: " + (simbriefOFPData != null ? simbriefOFPData.Length.ToString() : "null"));
                     }
 
                     var plnNode = xmlDoc.DocumentElement.SelectSingleNode("/OFP/fms_downloads/mfs/link");
@@ -3245,7 +3245,7 @@ namespace Kneeboard_Server
 
                     if (plnNode == null || ofpNode == null)
                     {
-                        Console.WriteLine("SimBrief: Could not retrieve flight plan data from XML response");
+                        KneeboardLogger.Warn("SimBrief", "Could not retrieve flight plan data from XML response");
                         return flightplan;
                     }
 
@@ -3266,7 +3266,7 @@ namespace Kneeboard_Server
                         SimBaseDocument waypoints = (SimBaseDocument)serializer.Deserialize(reader);
 
                         // Kombiniertes Objekt mit PLN und OFP-Daten senden
-                        Console.WriteLine("[OFP Debug syncFlightplan] Creating combined data - simbriefOFPData is " + (simbriefOFPData != null ? "NOT null, length: " + simbriefOFPData.Length : "NULL"));
+                        KneeboardLogger.SimBriefDebug("syncFlightplan: Creating combined data - simbriefOFPData is " + (simbriefOFPData != null ? "NOT null, length: " + simbriefOFPData.Length : "NULL"));
 
                         object combinedData = new
                         {
@@ -3282,12 +3282,12 @@ namespace Kneeboard_Server
 
                         // Update cached timestamp after successful load
                         cachedSimbriefTimeGenerated = currentTimeGenerated;
-                        Console.WriteLine($"[SimBrief] Cached timestamp updated to: {cachedSimbriefTimeGenerated}");
+                        KneeboardLogger.SimBriefDebug($"Cached timestamp updated to: {cachedSimbriefTimeGenerated}");
 
                         // Persist flightplan data to settings
                         SaveFlightplanDataToSettings();
 
-                        Console.WriteLine("[OFP Debug syncFlightplan] Combined flightplan created, length: " + (flightplan != null ? flightplan.Length.ToString() : "null"));
+                        KneeboardLogger.SimBriefDebug("syncFlightplan: Combined flightplan created, length: " + (flightplan != null ? flightplan.Length.ToString() : "null"));
                         reader.Close();
                     }
 
@@ -3327,26 +3327,26 @@ namespace Kneeboard_Server
                                         instance.SaveDocumentState();
                                     }
                                 }
-                                Console.WriteLine("[SimBrief syncFlightplan] OFP PDF added to document list");
+                                KneeboardLogger.SimBrief("OFP PDF added to document list");
                             }
                         }
                         catch (Exception ofpEx)
                         {
-                            Console.WriteLine($"[SimBrief syncFlightplan] OFP PDF download error: {ofpEx.Message}");
+                            KneeboardLogger.SimBriefError($"OFP PDF download error: {ofpEx.Message}");
                         }
                     }
                 }
                 catch (System.Net.WebException webEx)
                 {
-                    Console.WriteLine($"SimBrief sync error (network): {webEx.Message}");
+                    KneeboardLogger.SimBriefError($"Sync error (network): {webEx.Message}");
                 }
                 catch (XmlException xmlEx)
                 {
-                    Console.WriteLine($"SimBrief sync error (XML parsing): {xmlEx.Message}");
+                    KneeboardLogger.SimBriefError($"Sync error (XML parsing): {xmlEx.Message}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"SimBrief sync error: {ex.Message}");
+                    KneeboardLogger.SimBriefError($"Sync error: {ex.Message}");
                 }
             }
             return flightplan;
@@ -3369,7 +3369,7 @@ namespace Kneeboard_Server
                 var proc = jobj["procedures"];
                 if (proc == null || proc.Type == Newtonsoft.Json.Linq.JTokenType.Null)
                 {
-                    Console.WriteLine("[FlightplanNeedsEnrichment] procedures is null");
+                    KneeboardLogger.NavigraphDebug("FlightplanNeedsEnrichment: procedures is null");
                     return true;
                 }
 
@@ -3381,13 +3381,13 @@ namespace Kneeboard_Server
                 bool hasStar = starWaypoints != null && starWaypoints.Count > 0;
                 bool hasApproach = approachWaypoints != null && approachWaypoints.Count > 0;
 
-                Console.WriteLine($"[FlightplanNeedsEnrichment] SID: {sidWaypoints?.Count ?? 0}, STAR: {starWaypoints?.Count ?? 0}, Approach: {approachWaypoints?.Count ?? 0}");
+                KneeboardLogger.NavigraphDebug($"FlightplanNeedsEnrichment - SID: {sidWaypoints?.Count ?? 0}, STAR: {starWaypoints?.Count ?? 0}, Approach: {approachWaypoints?.Count ?? 0}");
 
                 return !hasSid && !hasStar && !hasApproach;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[FlightplanNeedsEnrichment] Exception: {ex.Message}");
+                KneeboardLogger.NavigraphError($"FlightplanNeedsEnrichment exception: {ex.Message}");
                 return true;
             }
         }
@@ -3398,7 +3398,7 @@ namespace Kneeboard_Server
         /// </summary>
         public static async Task<string> EnrichFlightplanWithProceduresAsync(string flightplanJson)
         {
-            Console.WriteLine($"[SID/STAR Enrich] Called with {flightplanJson?.Length ?? 0} bytes");
+            KneeboardLogger.NavigraphDebug($"SID/STAR enrichment called with {flightplanJson?.Length ?? 0} bytes");
 
             if (string.IsNullOrEmpty(flightplanJson))
                 return flightplanJson;
@@ -3409,12 +3409,12 @@ namespace Kneeboard_Server
                 dynamic flightplanData = JsonConvert.DeserializeObject(flightplanJson);
                 if (flightplanData == null)
                 {
-                    Console.WriteLine("[SID/STAR Enrich] flightplanData is null");
+                    KneeboardLogger.NavigraphDebug("SID/STAR enrichment: flightplanData is null");
                     return flightplanJson;
                 }
                 if (flightplanData.pln == null)
                 {
-                    Console.WriteLine("[SID/STAR Enrich] flightplanData.pln is null");
+                    KneeboardLogger.NavigraphDebug("SID/STAR enrichment: flightplanData.pln is null");
                     return flightplanJson;
                 }
 
@@ -3422,7 +3422,7 @@ namespace Kneeboard_Server
                 var flightPlan = pln.FlightPlanFlightPlan;
                 if (flightPlan == null)
                 {
-                    Console.WriteLine("[SID/STAR Enrich] FlightPlanFlightPlan is null");
+                    KneeboardLogger.NavigraphDebug("SID/STAR enrichment: FlightPlanFlightPlan is null");
                     return flightplanJson;
                 }
 
@@ -3481,10 +3481,10 @@ namespace Kneeboard_Server
                     }
                 }
 
-                Console.WriteLine($"[SID/STAR Enrich] Departure: {departureIcao}, Arrival: {arrivalIcao}");
-                Console.WriteLine($"[SID/STAR Enrich] SID: {sidName ?? "none"} (trans: {sidTransition ?? "none"}, rwy: {departureRunway ?? "none"})");
-                Console.WriteLine($"[SID/STAR Enrich] STAR: {starName ?? "none"} (trans: {starTransition ?? "none"}, rwy: {arrivalRunway ?? "none"})");
-                Console.WriteLine($"[SID/STAR Enrich] Approach: {approachName ?? "none"} (trans: {approachTransition ?? "none"})");
+                KneeboardLogger.Navigraph($"SID/STAR enrichment - Departure: {departureIcao}, Arrival: {arrivalIcao}");
+                KneeboardLogger.NavigraphDebug($"SID/STAR enrichment - SID: {sidName ?? "none"} (trans: {sidTransition ?? "none"}, rwy: {departureRunway ?? "none"})");
+                KneeboardLogger.NavigraphDebug($"SID/STAR enrichment - STAR: {starName ?? "none"} (trans: {starTransition ?? "none"}, rwy: {arrivalRunway ?? "none"})");
+                KneeboardLogger.NavigraphDebug($"SID/STAR enrichment - Approach: {approachName ?? "none"} (trans: {approachTransition ?? "none"})");
 
                 // Try to get detailed waypoints with transitions
                 var sidWaypoints = await GetProcedureWaypointsAsync(departureIcao, sidName, "SID", sidTransition, departureRunway);
@@ -3493,7 +3493,7 @@ namespace Kneeboard_Server
 
                 if (sidWaypoints.Count > 0 || starWaypoints.Count > 0 || approachWaypoints.Count > 0)
                 {
-                    Console.WriteLine($"[SID/STAR Enrich] Got {sidWaypoints.Count} SID, {starWaypoints.Count} STAR, {approachWaypoints.Count} Approach waypoints");
+                    KneeboardLogger.Navigraph($"SID/STAR enrichment - Got {sidWaypoints.Count} SID, {starWaypoints.Count} STAR, {approachWaypoints.Count} Approach waypoints");
 
                     // Create enriched flightplan with transition info
                     var enrichedData = new
@@ -3530,17 +3530,17 @@ namespace Kneeboard_Server
                     };
 
                     var result = JsonConvert.SerializeObject(enrichedData);
-                    Console.WriteLine($"[SID/STAR Enrich] Enriched JSON length: {result.Length}, contains procedures: {result.Contains("\"procedures\"")}");
+                    KneeboardLogger.NavigraphDebug($"SID/STAR enrichment - Enriched JSON length: {result.Length}, contains procedures: {result.Contains("procedures")}");
                     return result;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SID/STAR Enrich] Error: {ex.Message}");
-                Console.WriteLine($"[SID/STAR Enrich] StackTrace: {ex.StackTrace}");
+                KneeboardLogger.NavigraphError($"SID/STAR enrichment error: {ex.Message}");
+                KneeboardLogger.NavigraphError($"SID/STAR enrichment stacktrace: {ex.StackTrace}");
             }
 
-            Console.WriteLine("[SID/STAR Enrich] Returning original flightplan (no procedures enriched)");
+            KneeboardLogger.NavigraphDebug("SID/STAR enrichment: Returning original flightplan (no procedures enriched)");
             return flightplanJson;
         }
 
@@ -3560,13 +3560,13 @@ namespace Kneeboard_Server
                 var navigraphData = SimpleHTTPServer.GetNavigraphData();
                 if (navigraphData != null && navigraphData.IsDataAvailable)
                 {
-                    Console.WriteLine($"[SID/STAR] Querying Navigraph for {icao}/{procedureName} type={type} trans={transition ?? "none"} rwy={runway ?? "none"}");
+                    KneeboardLogger.Navigraph($"Querying for {icao}/{procedureName} type={type} trans={transition ?? "none"} rwy={runway ?? "none"}");
 
                     var detail = navigraphData.GetProcedureDetail(icao, procedureName, transition, type, runway);
                     if (detail != null && detail.Waypoints != null && detail.Waypoints.Count > 0)
                     {
                         var wpNames = string.Join(", ", detail.Waypoints.Select(w => w.Identifier));
-                        Console.WriteLine($"[SID/STAR] Found {detail.Waypoints.Count} waypoints from Navigraph: {wpNames}");
+                        KneeboardLogger.NavigraphDebug($"Found {detail.Waypoints.Count} waypoints from Navigraph: {wpNames}");
 
                         foreach (var wp in detail.Waypoints)
                         {
@@ -3587,21 +3587,21 @@ namespace Kneeboard_Server
                                 transitionIdentifier = wp.TransitionIdentifier
                             });
                         }
-                        Console.WriteLine($"[SID/STAR] Added {waypoints.Count} waypoints (after filtering zero-coords)");
+                        KneeboardLogger.NavigraphDebug($"Added {waypoints.Count} waypoints (after filtering zero-coords)");
                     }
                     else
                     {
-                        Console.WriteLine($"[SID/STAR] No waypoints found in Navigraph for {procedureName}");
+                        KneeboardLogger.Navigraph($"No waypoints found in Navigraph for {procedureName}");
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"[SID/STAR] Navigraph data not available");
+                    KneeboardLogger.NavigraphDebug("Navigraph data not available");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SID/STAR] Error getting waypoints: {ex.Message}");
+                KneeboardLogger.NavigraphError($"Error getting waypoints: {ex.Message}");
             }
 
             return waypoints;
@@ -3622,7 +3622,7 @@ namespace Kneeboard_Server
                 if (fileName.StartsWith("kneeboard_manual"))
                 {
                     System.Diagnostics.Process.Start(folderpath + @"\data\manuals\Kneeboard_Manual_EN.pdf");
-                    Console.WriteLine("open: " + fileName);
+                    KneeboardLogger.UI("Opening file: " + fileName);
                 }
             }
         }

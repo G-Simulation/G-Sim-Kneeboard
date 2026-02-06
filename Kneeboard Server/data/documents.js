@@ -16,6 +16,7 @@ function safeSetItem(key, value) {
 }
 
 var documents = 0;
+var actDoc = 1;
 var myState = {
 	currentDoc: 1,
 	totalDoc: 0,
@@ -203,6 +204,8 @@ function loadDocumentByIndex(targetIndex, targetPage = 1) {
 	myState.currentImg = safePage;
 	pendingPageAfterLoad = safePage;
 	currentDocumentSource = null;
+	imageRetryCount = 0;
+	if (imageRetryTimer) { clearTimeout(imageRetryTimer); imageRetryTimer = null; }
 	localStorage.setItem("currentDoc", safeIndex);
 	localStorage.setItem("currentImg", safePage);
 	updateDocIndicator();
@@ -571,25 +574,25 @@ function determineImageCount(meta) {
 		if (cachedValue < CACHE_RECHECK_THRESHOLD) {
 			cacheIsValid = cacheAge < 30000; // 30 Sekunden
 			if (!cacheIsValid) {
-				DOCUMENTS_DEBUG && console.log("Cache expired for " + meta.serverName + " (small page count, re-checking for new pages)");
+				docsLogger.debug("Cache expired for " + meta.serverName + " (small page count, re-checking for new pages)");
 			}
 		} else {
 			// Bei vielen Seiten: Cache 5 Minuten gültig
 			cacheIsValid = cacheAge < CACHE_VALIDITY_MS;
 			if (!cacheIsValid) {
-				DOCUMENTS_DEBUG && console.log("Cache expired for " + meta.serverName + " (older than 5 minutes)");
+				docsLogger.debug("Cache expired for " + meta.serverName + " (older than 5 minutes)");
 			}
 		}
 	}
 
 	if (cacheIsValid) {
-		DOCUMENTS_DEBUG && console.log("Using cached page count for " + meta.serverName + ": " + cachedValue);
+		docsLogger.debug("Using cached page count for " + meta.serverName + ": " + cachedValue);
 		return Promise.resolve(cachedValue);
 	}
 
-	DOCUMENTS_DEBUG && console.log("Probing image count for " + meta.serverName + "...");
+	docsLogger.debug("Probing image count for " + meta.serverName + "...");
 	return probeImageCount(meta).then(function (count) {
-		DOCUMENTS_DEBUG && console.log("Found " + count + " pages for " + meta.serverName);
+		docsLogger.debug("Found " + count + " pages for " + meta.serverName);
 		if (count > 0) {
 			localStorage.setItem(cacheKey, String(count));
 			localStorage.setItem(timestampKey, String(now));
@@ -613,7 +616,7 @@ function resolveImageSource(entry) {
 // Hilfsfunktion zum manuellen Aktualisieren der Seitenzahl
 function refreshCurrentDocumentPageCount() {
 	if (!currentDocumentEntry) {
-		console.warn("Kein Dokument geladen");
+		docsLogger.warn("Kein Dokument geladen");
 		return;
 	}
 	var cacheKey = IMAGE_COUNT_CACHE_PREFIX + (currentDocumentEntry.storageKey || currentDocumentEntry.fileSanitized || currentDocumentEntry.serverName || "");
@@ -623,7 +626,7 @@ function refreshCurrentDocumentPageCount() {
 	localStorage.removeItem(cacheKey);
 	localStorage.removeItem(timestampKey);
 
-	DOCUMENTS_DEBUG && console.log("Cache für " + currentDocumentEntry.serverName + " gelöscht. Lade Dokument neu...");
+	docsLogger.debug("Cache für " + currentDocumentEntry.serverName + " gelöscht. Lade Dokument neu...");
 
 	// Lade Dokument neu
 	loadImagesForCurrentDocument();
@@ -640,6 +643,11 @@ function clearCurrentImageElement() {
 	canvasDoc.style.visibility = "hidden";
 }
 
+var imageRetryCount = 0;
+var imageRetryTimer = null;
+var IMAGE_RETRY_MAX = 5;
+var IMAGE_RETRY_DELAY = 2000;
+
 function loadImagesForCurrentDocument() {
 	if (!currentDocumentEntry) {
 		showSpinner(false);
@@ -651,6 +659,19 @@ function loadImagesForCurrentDocument() {
 	showImageMessage("Dokument wird geladen…");
 	resolveImageSource(currentDocumentEntry).then(function (source) {
 		if (!source || !source.pageCount) {
+			// Bilder werden evtl. noch vom Server erstellt - Retry mit Verzögerung
+			if (imageRetryCount < IMAGE_RETRY_MAX) {
+				imageRetryCount++;
+				docsLogger.debug("Keine Seiten gefunden, Retry " + imageRetryCount + "/" + IMAGE_RETRY_MAX + " in " + IMAGE_RETRY_DELAY + "ms...");
+				showImageMessage("Seiten werden erstellt… (" + imageRetryCount + "/" + IMAGE_RETRY_MAX + ")");
+				if (imageRetryTimer) clearTimeout(imageRetryTimer);
+				imageRetryTimer = setTimeout(function() {
+					imageRetryTimer = null;
+					loadImagesForCurrentDocument();
+				}, IMAGE_RETRY_DELAY);
+				return;
+			}
+			imageRetryCount = 0;
 			currentDocumentSource = null;
 			myState.totalImg = 0;
 			updatePageIndicatorDisplay();
@@ -658,6 +679,7 @@ function loadImagesForCurrentDocument() {
 			showImageMessage("Keine Seiten gefunden.");
 			return;
 		}
+		imageRetryCount = 0;
 		currentDocumentSource = source;
 		myState.totalImg = source.pageCount;
 		const initialPage = clampValue(pendingPageAfterLoad || 1, 1, source.pageCount);
@@ -673,7 +695,7 @@ function loadImagesForCurrentDocument() {
 		displayCurrentPageImage();
 	}).catch(function (err) {
 		currentDocumentSource = null;
-		console.error("Fehler beim Laden der Dokumentbilder:", err);
+		docsLogger.error("Fehler beim Laden der Dokumentbilder:", err);
 		showSpinner(false);
 		showImageMessage("Fehler beim Laden der Bilder.");
 	});
@@ -1046,7 +1068,7 @@ function setZoomLevel(newZoom) {
 			var payload = [myState.angle, normalizedZoom, DOC_STATE_VERSION].join("~");
 			localStorage.setItem(myState.currentName, payload);
 		} catch (err) {
-			console.warn("Konnte Doc-State nicht speichern:", err);
+			docsLogger.warn("Konnte Doc-State nicht speichern:", err);
 		}
 	}
 
@@ -1074,7 +1096,7 @@ function getDocumentsList(skipInitialLoad) {
             if (xhr.readyState == XMLHttpRequest.DONE) {
                 documentsListLoading = false;
                 nextDocumentsRefreshTime = Date.now() + DOCUMENT_LIST_REFRESH_DELAY;
-                DOCUMENTS_DEBUG && console.log(xhr.responseText);
+                docsLogger.debug(xhr.responseText);
 
                 list = xhr.responseText;
 
@@ -1217,11 +1239,11 @@ function getDocumentsList(skipInitialLoad) {
         xhr.onerror = function () {
             documentsListLoading = false;
             nextDocumentsRefreshTime = Date.now() + DOCUMENT_LIST_REFRESH_DELAY;
-            console.warn("Documents: Liste konnte nicht geladen werden");
+            docsLogger.warn("Liste konnte nicht geladen werden");
         };
     }
     catch (e) {
-        console.error(e);
+        docsLogger.error("Fehler beim Laden der Dokumentenliste:", e);
         documentsListLoading = false;
     }
 	}

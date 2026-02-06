@@ -27,12 +27,8 @@ var mapIsLoading = false;
 
 // Zentraler Logger - nutzt KneeboardLogger falls verfügbar
 const logger = (typeof KneeboardLogger !== 'undefined')
-  ? KneeboardLogger.createLogger('Kneeboard', { minLevel: KNEEBOARD_DEBUG ? 'DEBUG' : 'INFO' })
-  : {
-      info: function() { if (KNEEBOARD_DEBUG) console.log.apply(console, ['[Kneeboard]'].concat(Array.prototype.slice.call(arguments))); },
-      warn: function() { if (KNEEBOARD_DEBUG) console.warn.apply(console, ['[Kneeboard]'].concat(Array.prototype.slice.call(arguments))); },
-      error: function() { console.error.apply(console, ['[Kneeboard]'].concat(Array.prototype.slice.call(arguments))); }
-    };
+  ? KneeboardLogger.createLogger('Kneeboard', { minLevel: 'DEBUG', debugConfigKey: 'SIMBRIEF' })
+  : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
 
 // Mapping between tab identifiers and their HTML fragments.
 const PAGE_MAP = {
@@ -289,7 +285,7 @@ function normalizeSimbriefString(value) {
 }
 
 function convertSimbriefFlightplan(document, ofpData, procedures) {
-  KNEEBOARD_DEBUG && console.log('[convertSimbriefFlightplan] CALLED - procedures:', procedures ? JSON.stringify(procedures).substring(0, 500) : 'null');
+  logger.debug('convertSimbriefFlightplan CALLED - procedures:', procedures ? JSON.stringify(procedures).substring(0, 500) : 'null');
   if (!document || !document.FlightPlanFlightPlan) {
     return { waypoints: [], ofp: ofpData || null };
   }
@@ -314,21 +310,21 @@ function convertSimbriefFlightplan(document, ofpData, procedures) {
     procedures.sid.waypoints.forEach(function(wp) {
       if (wp.name) sidWaypointNames[wp.name.toUpperCase()] = true;
     });
-    KNEEBOARD_DEBUG && console.log('[convertSimbriefFlightplan] SID waypoints from Navigraph:', Object.keys(sidWaypointNames).join(', '));
+    logger.debug('SID waypoints from Navigraph:', Object.keys(sidWaypointNames).join(', '));
   }
   if (procedures && procedures.star && procedures.star.waypoints) {
     starName = procedures.star.name;
     procedures.star.waypoints.forEach(function(wp) {
       if (wp.name) starWaypointNames[wp.name.toUpperCase()] = true;
     });
-    KNEEBOARD_DEBUG && console.log('[convertSimbriefFlightplan] STAR waypoints from Navigraph:', Object.keys(starWaypointNames).join(', '));
+    logger.debug('STAR waypoints from Navigraph:', Object.keys(starWaypointNames).join(', '));
   }
   if (procedures && procedures.approach && procedures.approach.waypoints) {
     approachName = procedures.approach.name;
     procedures.approach.waypoints.forEach(function(wp) {
       if (wp.name) approachWaypointNames[wp.name.toUpperCase()] = true;
     });
-    KNEEBOARD_DEBUG && console.log('[convertSimbriefFlightplan] Approach waypoints from Navigraph:', Object.keys(approachWaypointNames).join(', '));
+    logger.debug('Approach waypoints from Navigraph:', Object.keys(approachWaypointNames).join(', '));
   }
 
   var normalized = [];
@@ -669,7 +665,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // NEUE LOGIK: Handle Objekt-Nachrichten (z.B. von map.js)
     if (typeof e.data === 'object' && e.data !== null) {
       if (e.data.type === 'resetFlightplanHash') {
-        console.log('[Kneeboard] Resetting flightplan hash');
+        logger.info('Resetting flightplan hash');
         lastFlightplanHash = null;
       }
       // Für alle Objekt-Nachrichten: nicht weiter verarbeiten mit String-Methoden
@@ -889,8 +885,8 @@ function loadFlightplanFromServer() {
               var plnData = JSON.parse(response);
 
               // Prüfen ob kombiniertes Format (pln + ofp + procedures) von Simbrief
-              console.log('[Kneeboard] plnData keys:', plnData ? Object.keys(plnData) : 'null');
-              console.log('[Kneeboard] plnData.procedures?', plnData && plnData.procedures ? 'YES' : 'NO');
+              logger.debug('plnData keys:', plnData ? Object.keys(plnData) : 'null');
+              logger.debug('plnData.procedures?', plnData && plnData.procedures ? 'YES' : 'NO');
               var flightplanRoot = plnData;
               var ofpData = null;
               var proceduresData = null;
@@ -898,7 +894,7 @@ function loadFlightplanFromServer() {
                 flightplanRoot = plnData.pln;
                 ofpData = plnData.ofp || null;
                 proceduresData = plnData.procedures || null;
-                console.log('[Kneeboard] proceduresData extracted:', proceduresData ? JSON.stringify(proceduresData).substring(0, 300) : 'null');
+                logger.debug('proceduresData extracted:', proceduresData ? JSON.stringify(proceduresData).substring(0, 300) : 'null');
               }
 
               if (flightplanRoot && flightplanRoot.FlightPlanFlightPlan) {
@@ -1168,7 +1164,7 @@ function logTabEvent(tabKey, action, details) {
   try {
     logger.info(TAB_LOG_PREFIX, tabKey, action, details || "");
   } catch (err) {
-    console.warn("Tab logging failed:", err);
+    logger.warn("Tab logging failed:", err);
   }
 }
 
@@ -1606,6 +1602,8 @@ window.Keyboard = {
         e.target.classList &&
         e.target.classList.contains("use-keyboard-input")
       ) {
+        // Wenn Tastatur bereits für dieses Element offen ist, Callback nicht überschreiben
+        if (this.properties.targetElement === e.target) return;
         const element = e.target;
         this.open(
           element.value,
@@ -2115,6 +2113,20 @@ window.Keyboard = {
     this._enableAutoShift();
     this._refreshKeyLabels();
     this.elements.main.classList.remove("keyboard--hidden");
+    // Content über der Tastatur verkleinern (deferred, damit Click-Events korrekt feuern)
+    var self = this;
+    clearTimeout(this._kbLayoutTimeout);
+    this._kbLayoutTimeout = setTimeout(function() {
+      var kbHeight = self.elements.main.offsetHeight;
+      if (kbHeight > 0) {
+        var viewport = document.getElementById('appViewport');
+        if (viewport) {
+          var totalHeight = window.innerHeight || document.documentElement.clientHeight;
+          viewport.style.height = (totalHeight - kbHeight) + 'px';
+          viewport.style.flex = 'none';
+        }
+      }
+    }, 80);
     if (element && typeof element.focus === "function") {
       element.focus();
       var isRangeInput =
@@ -2143,6 +2155,12 @@ window.Keyboard = {
     this.eventHandlers.oninput = null;
     this.properties.targetElement = null;
     this.elements.main.classList.add("keyboard--hidden");
+    clearTimeout(this._kbLayoutTimeout);
+    var viewport = document.getElementById('appViewport');
+    if (viewport) {
+      viewport.style.height = '';
+      viewport.style.flex = '';
+    }
     keyboardActive = false;
   },
 

@@ -121,7 +121,7 @@ jobs:
       run: |
         $version = "${{ steps.get_version.outputs.VERSION }}"
         $setupDir = "Kneeboard Server Setup/Debug"
-        $zipName = "Kneeboard-v$version-Setup.zip"
+        $zipName = "Kneeboard-Setup.zip"
 
         if (-not (Test-Path "$setupDir/Kneeboard Server.msi")) {
           echo "ERROR: MSI file not found!"
@@ -157,6 +157,6 @@ jobs:
         $tag = "v$version"
 
         gh release create $tag `
-          "Kneeboard-v$version-Setup.zip" `
+          "Kneeboard-Setup.zip" `
           --title "Kneeboard v$version" `
           --generate-notes

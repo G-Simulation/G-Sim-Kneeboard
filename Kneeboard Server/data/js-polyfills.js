@@ -73,8 +73,10 @@ window.isCoherentGT = (function() {
   return false;
 })();
 
+var polyfillLogger = (typeof KneeboardLogger !== 'undefined') ? KneeboardLogger.createLogger('Polyfills', { minLevel: 'INFO' }) : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
 if (window.isCoherentGT) {
-  console.log('[Polyfills] Coherent GT detected - performance optimizations enabled');
+  polyfillLogger.info('Coherent GT detected - performance optimizations enabled');
 }
 
 // ============================================================================
@@ -119,7 +121,7 @@ if (window.isCoherentGT) {
       subtree: true
     });
 
-    console.log('[Polyfills] Coherent GT cursor polyfill initialized');
+    polyfillLogger.info('Coherent GT cursor polyfill initialized');
   });
 })();
 

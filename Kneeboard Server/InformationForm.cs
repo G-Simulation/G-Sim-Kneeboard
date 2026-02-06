@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Kneeboard_Server.Logging;
 using Kneeboard_Server.Navigraph;
 
 namespace Kneeboard_Server
@@ -302,7 +303,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph UI] Status update error: {ex.Message}");
+                KneeboardLogger.UIError($"Navigraph status update error: {ex.Message}");
                 navigraphStatusLabel.Text = "Error";
                 navigraphStatusLabel.ForeColor = System.Drawing.Color.Red;
             }
@@ -411,7 +412,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Navigraph UI] Login error: {ex.Message}");
+                KneeboardLogger.UIError($"Navigraph login error: {ex.Message}");
                 MessageBox.Show($"Login error: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -482,7 +483,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Panel UI] Status error: {ex.Message}");
+                KneeboardLogger.UIError($"Panel status error: {ex.Message}");
                 panelStatusLabel.Text = "Error";
                 panelStatusLabel.ForeColor = Color.Red;
             }
@@ -541,7 +542,7 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Panel UI] Install error: {ex.Message}");
+                KneeboardLogger.UIError($"Panel install error: {ex.Message}");
                 MessageBox.Show($"Installation failed: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 UpdatePanelStatus();

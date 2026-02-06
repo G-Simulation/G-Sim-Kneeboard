@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Kneeboard_Server.Logging;
 
 namespace Kneeboard_Server.Navigraph
 {
@@ -109,14 +110,14 @@ namespace Kneeboard_Server.Navigraph
             // Use TRUE heading for calculation (not magnetic!)
             double headingToUse = TrueHeading > 0 ? TrueHeading : Heading;
 
-            Console.WriteLine($"[Runway DEBUG] {Identifier}: Threshold=({ThresholdLat:F6},{ThresholdLon:F6}), MagHdg={Heading:F1}°, TrueHdg={TrueHeading:F1}°, Using={headingToUse:F1}°, Length={Length}ft");
+            KneeboardLogger.NavigraphDebug($"{Identifier}: Threshold=({ThresholdLat:F6},{ThresholdLon:F6}), MagHdg={Heading:F1}, TrueHdg={TrueHeading:F1}, Using={headingToUse:F1}, Length={Length}ft");
 
             // Calculate end point using TRUE heading
             var endPoint = CalculateDestination(ThresholdLat, ThresholdLon, headingToUse, lengthNm);
             EndLat = endPoint.Item1;
             EndLon = endPoint.Item2;
 
-            Console.WriteLine($"[Runway DEBUG] {Identifier}: Calculated End=({EndLat:F6},{EndLon:F6})");
+            KneeboardLogger.NavigraphDebug($"{Identifier}: Calculated End=({EndLat:F6},{EndLon:F6})");
         }
 
         private static (double, double) CalculateDestination(double lat, double lon, double bearing, double distanceNm)

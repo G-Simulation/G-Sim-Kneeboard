@@ -123,7 +123,7 @@
 				<td style="vertical-align:middle; text-align:right; width: 15%; color: var(--fontDark); ">
 					<textarea oninput="saveValues(); calculate();"
 						style="text-align: right; margin-left: 0; width: 6em; height: 1.5em; padding-top: 0.13em; overflow:hidden; display: inline-block;"
-						readonly id="RC"></textarea>&nbsp;°
+						readonly id="RC"></textarea>&nbsp;nm
 				</td>
 			</tr>
 		</table>
@@ -284,11 +284,13 @@
 						<tbody style="border-style: none;">
 							<tr style="border-style: none;">
 								<td style="vertical-align:middle; text-align:left; width: 40%; ">
-									<span style="margin-right: 0.5vmin;">cos</span>
-									<textarea oninput="saveValues(); calculate();"
-										style="text-align: center; margin-left: 0; width: calc(100% - 4vmin); height: 1.5em; padding-top: 0.25em; overflow:hidden; display: inline-block;"
-										class="formulasTextarea use-keyboard-input"
-										id="HWCWD">( Wind dir. (°)</textarea>
+									<div style="display: flex; align-items: center;">
+										<span style="margin-right: 0.5vmin; flex-shrink: 0;">cos</span>
+										<textarea oninput="saveValues(); calculate();"
+											style="text-align: center; margin-left: 0; flex: 1; min-width: 0; height: 1.5em; padding-top: 0.25em; overflow:hidden;"
+											class="formulasTextarea use-keyboard-input"
+											id="HWCWD">( Wind dir. (°)</textarea>
+									</div>
 								</td>
 								<td style="vertical-align:middle; text-align:center; width: 8%; ">-</td>
 								<td style="vertical-align:middle; text-align:center; width: 32%; ">

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Kneeboard_Server.Logging;
 using Newtonsoft.Json.Linq;
 
 namespace Kneeboard_Server
@@ -121,7 +122,7 @@ namespace Kneeboard_Server
 
             string version = ReadVersion(manifestCheck) ?? "unknown";
             progress?.Report($"Installed (v{version})");
-            Console.WriteLine($"[PanelDeploy] Successfully deployed v{version} to {targetPath}");
+            KneeboardLogger.Info("PanelDeploy", $"Successfully deployed v{version} to {targetPath}");
         }
 
         private static void CopyDirectory(string source, string destination, IProgress<string> progress)

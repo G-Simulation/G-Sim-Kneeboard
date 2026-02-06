@@ -1,6 +1,5 @@
 // VERSION MARKER - Wird beim Laden der Datei geloggt um Cache-Probleme zu erkennen
 var MAP_JS_VERSION = "2026-02-03-v7.15-sid-star-fix";
-console.log('[Map] map.js loaded - VERSION:', MAP_JS_VERSION);
 
 // ============================================================================
 // FLIGHTPLAN PANEL STYLING - Now handled entirely via map.css
@@ -9,8 +8,99 @@ console.log('[Map] map.js loaded - VERSION:', MAP_JS_VERSION);
 
 // Zentraler Logger - nutzt KneeboardLogger falls verfügbar
 var mapLogger = (typeof KneeboardLogger !== 'undefined')
-    ? KneeboardLogger.createLogger('Map', { minLevel: 'INFO' })
-    : { info: function(){}, warn: console.warn.bind(console), error: console.error.bind(console) };
+    ? KneeboardLogger.createLogger('Map', { minLevel: 'DEBUG', debugConfigKey: 'MAP' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var windLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Wind', { minLevel: 'DEBUG', debugConfigKey: 'WIND' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var czLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('CZ', { minLevel: 'DEBUG', debugConfigKey: 'CZ' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var runwayLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Runway', { minLevel: 'DEBUG', debugConfigKey: 'RUNWAY' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var freqLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Freq', { minLevel: 'DEBUG', debugConfigKey: 'FREQUENCY' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var weatherLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Weather', { minLevel: 'DEBUG', debugConfigKey: 'METAR' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var simconnectLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('SimConnect', { minLevel: 'DEBUG', debugConfigKey: 'SIMCONNECT' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var waypointLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Waypoints', { minLevel: 'DEBUG', debugConfigKey: 'WAYPOINTS' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var teleportLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Teleport', { minLevel: 'DEBUG', debugConfigKey: 'TELEPORT' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var apiLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('API', { minLevel: 'DEBUG', debugConfigKey: 'API' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var airportLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Airports', { minLevel: 'DEBUG', debugConfigKey: 'AIRPORTS' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var controllerLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Controller', { minLevel: 'DEBUG', debugConfigKey: 'CONTROLLER' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var pilotsLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Pilots', { minLevel: 'DEBUG', debugConfigKey: 'CONTROLLER' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var hoverRouteLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('HoverRoute', { minLevel: 'DEBUG', debugConfigKey: 'HOVER_ROUTE' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var elevationLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Elevation', { minLevel: 'DEBUG', debugConfigKey: 'ELEVATION' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var bridgeLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Bridge', { minLevel: 'DEBUG', debugConfigKey: 'BRIDGE' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var flightplanPanelLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('FlightplanPanel', { minLevel: 'DEBUG', debugConfigKey: 'FLIGHTPLANPANEL' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var cacheLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Cache', { minLevel: 'DEBUG', debugConfigKey: 'CACHE' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var initLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Init', { minLevel: 'DEBUG', debugConfigKey: 'INIT' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var navlogMapLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('NavlogMap', { minLevel: 'DEBUG', debugConfigKey: 'NAVLOG' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var stateLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('State', { minLevel: 'DEBUG', debugConfigKey: 'STATE' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var simbriefLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('SimBrief', { minLevel: 'DEBUG', debugConfigKey: 'SIMBRIEF' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+var configLogger = (typeof KneeboardLogger !== 'undefined')
+    ? KneeboardLogger.createLogger('Config', { minLevel: 'DEBUG', debugConfigKey: 'MAP' })
+    : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
+// Log version after all loggers are declared
+mapLogger.info('map.js loaded - VERSION:', MAP_JS_VERSION);
 
 // ============================================================================
 // SVG ICON HELPER - Returns SVG icon with optional color and size
@@ -21,7 +111,7 @@ function getIcon(name, options) {
   var size = options.size || 18;
   var svg = (typeof cssggSvg !== 'undefined' && cssggSvg[name]) ? cssggSvg[name] : '';
   if (!svg) {
-    console.warn('[Icon] Unknown icon: ' + name);
+    mapLogger.warn('Unknown icon: ' + name);
     return '<span style="font-size:10px;">' + name + '</span>';
   }
   // Replace size and color
@@ -115,18 +205,11 @@ var RUNWAY_DEBUG = DEBUG_CONFIG.RUNWAY_DEBUG || false;
 
 function log(category, message, level) {
   level = level || 'info';
-  if (DEBUG_CONFIG.DISABLE_ALL_LOGS) return;
-  
-  var category_upper = category.toUpperCase().replace(/\s+/g, '_');
-  if (!DEBUG_CONFIG[category_upper] && !DEBUG_CONFIG[category]) return;
-  
-  var timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
-  var prefix = '[' + timestamp + '] [' + category + ']';
-  
+  // Delegate to mapLogger - DEBUG_CONFIG check handled by debugConfigKey in each sub-logger
   switch(level) {
-    case 'error': console.error(prefix, message); break;
-    case 'warn': console.warn(prefix, message); break;
-    default: console.log(prefix, message);
+    case 'error': mapLogger.error('[' + category + ']', message); break;
+    case 'warn': mapLogger.warn('[' + category + ']', message); break;
+    default: mapLogger.debug('[' + category + ']', message);
   }
 }
 
@@ -136,17 +219,7 @@ function shouldLog(category) {
   return DEBUG_CONFIG[category_upper] || DEBUG_CONFIG[category] || false;
 }
 
-// In Coherent GT (MSFS Panel): Alle Logs deaktivieren für Performance
-// Im Browser: Logs nur wenn DEBUG_CONFIG aktiviert
-var _isCoherentGT = (typeof window.engine !== 'undefined' && typeof window.engine.trigger === 'function');
-if (DISABLE_ALL_LOGS || _isCoherentGT) {
-  var _originalConsoleError = console.error;
-  console.log = function() {};
-  console.warn = function() {};
-  console.info = function() {};
-  // console.error bleibt aktiv für echte Fehler
-  console.error = _originalConsoleError;
-}
+// Console override removed - KneeboardLogger handles log level control via debugConfigKey
 
 // DOM-Element-Cache: Häufig verwendete Elemente einmal cachen statt wiederholt getElementById
 var DOM = {};
@@ -236,7 +309,6 @@ var browserDebug = 0;    // Set to 1 to disable postMessage to parent (for brows
 // Elevation Panel Konfiguration
 var ELEVATION_PANEL_MIN_HEIGHT_RATIO = 0.25;  // 35% of viewport
 
-
 // ============================================================================
 // ABORT CONTROLLER POLYFILL - Für Coherent GT und ältere Browser
 // ============================================================================
@@ -245,7 +317,7 @@ if (typeof AbortController === 'undefined') {
     this.signal = { aborted: false };
     this.abort = function() { this.signal.aborted = true; };
   };
-  if (MAP_DEBUG) console.log('[Polyfill] AbortController polyfill installed');
+  mapLogger.debug('AbortController polyfill installed');
 }
 
 // ============================================================================
@@ -279,7 +351,7 @@ function transitionToState(newState, reason) {
     timestamp: Date.now()
   });
   if (MAP_DEBUG) {
-    console.log('[State] ' + oldState + ' → ' + newState + (reason ? ' (' + reason + ')' : ''));
+    stateLogger.debug('' + oldState + ' → ' + newState + (reason ? ' (' + reason + ')' : ''));
   }
 }
 
@@ -388,10 +460,10 @@ function centerMapOnFlightplanBounds(flightplanData, options) {
       }
       map.fitBounds(bounds, fitOptions);
     }
-    if (MAP_DEBUG) console.log('[Map] Centered on flightplan bounds (', coords.length, 'waypoints)');
+    mapLogger.debug('Centered on flightplan bounds (', coords.length, 'waypoints)');
     return true;
   } catch (e) {
-    console.warn('[Map] Error centering on flightplan bounds:', e);
+    mapLogger.warn('Error centering on flightplan bounds:', e);
     return false;
   }
 }
@@ -402,25 +474,25 @@ function centerMapOnFlightplanBounds(flightplanData, options) {
  */
 function centerMapOnAircraft(reason) {
   if (!map) {
-    if (MAP_DEBUG) console.log('[Center] Cannot center - map not ready');
+    mapLogger.debug('Cannot center - map not ready');
     return false;
   }
 
   if (!window.aircraftPositionInitialized && !hasCachedAircraftPosition) {
-    if (MAP_DEBUG) console.log('[Center] Cannot center - aircraft position not received from simulator yet and no cached position');
+    mapLogger.debug('Cannot center - aircraft position not received from simulator yet and no cached position');
     return false;
   }
 
   var lat = parseFloat(pos_lat);
   var lng = parseFloat(pos_lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    if (MAP_DEBUG) console.log('[Center] Cannot center - invalid aircraft position');
+    mapLogger.debug('Cannot center - invalid aircraft position');
     return false;
   }
 
   if (currentFlightplanState === FlightplanLoadState.ANIMATING_WAYPOINTS ||
       currentFlightplanState === FlightplanLoadState.CENTERING_FLIGHTPLAN) {
-    if (MAP_DEBUG) console.log('[Center] Skipping aircraft center - flightplan active');
+    mapLogger.debug('Skipping aircraft center - flightplan active');
     return false;
   }
 
@@ -429,11 +501,11 @@ function centerMapOnAircraft(reason) {
     map.setView(pos);
     if (MAP_DEBUG) {
       var source = window.aircraftPositionInitialized ? 'live' : 'cached';
-      console.log('[Center] Aircraft (' + source + ')' + (reason ? ' (' + reason + ')' : '') + ':', lat.toFixed(4), lng.toFixed(4));
+      mapLogger.debug('Aircraft (' + source + ')' + (reason ? ' (' + reason + ')' : '') + ':', lat.toFixed(4), lng.toFixed(4));
     }
     return true;
   } catch (err) {
-    if (MAP_DEBUG) console.warn('[Center] Error:', err);
+    mapLogger.warn('Error:', err);
     return false;
   }
 }
@@ -442,7 +514,7 @@ function preCenterMapOnFlightplan(flightplanData, reason) {
   if (!flightplanData || !flightplanData.length) {
     return false;
   }
-  if (MAP_DEBUG) console.log('[Center] Pre-centering on flightplan' + (reason ? ' (' + reason + ')' : ''));
+  mapLogger.debug('Pre-centering on flightplan' + (reason ? ' (' + reason + ')' : ''));
   return centerMapOnFlightplanBounds(flightplanData, { animate: false, maxZoom: 13 });
 }
 
@@ -464,22 +536,22 @@ function centerFlightplanWithElevationPadding() {
 function disableSyncButton(reason) {
   if (typeof toggle5 !== 'undefined' && toggle5 && typeof toggle5.disable === 'function') {
     toggle5.disable();
-    if (MAP_DEBUG && reason) console.log('[Map] Sync button disabled (' + reason + ')');
+    if (reason) mapLogger.debug('Sync button disabled (' + reason + ')');
   }
 }
 
 function enableSyncButtonIfAllowed(reason) {
   if (window.syncButtonLockedUntilServerFlightplan) {
-    if (MAP_DEBUG) console.log('[Map] Sync button remains locked' + (reason ? ' (' + reason + ')' : ''));
+    mapLogger.debug('Sync button remains locked' + (reason ? ' (' + reason + ')' : ''));
     return;
   }
   if (typeof toggle5 !== 'undefined' && toggle5 && typeof toggle5.enable === 'function') {
     toggle5.enable();
-    if (MAP_DEBUG && reason) console.log('[Map] Sync button enabled (' + reason + ')');
+    if (reason) mapLogger.debug('Sync button enabled (' + reason + ')');
   } else {
     // Button doesn't exist yet - set flag for delayed enable when button is created
     window.pendingSyncButtonEnable = true;
-    if (MAP_DEBUG) console.log('[Map] Sync button enable pending (' + reason + ')');
+    mapLogger.debug('Sync button enable pending (' + reason + ')');
   }
 }
 
@@ -504,14 +576,14 @@ function startSyncButtonPulse() {
       // Also add to container for background pulse
       container.classList.add('sync-pulsing-container');
 
-      if (MAP_DEBUG) console.log('[Map] Sync button CSS pulse started, svg found:', !!svg);
+      mapLogger.debug('Sync button CSS pulse started, svg found:', !!svg);
     } else if (MAP_DEBUG) {
-      console.log('[Map] Sync button pulse: no button/container found');
+      mapLogger.debug('Sync button pulse: no button/container found');
     }
   } else {
     // toggle5 doesn't exist yet, set flag to start pulse when created
     window.pendingSyncButtonPulse = true;
-    if (MAP_DEBUG) console.log('[Map] Sync button pulse pending (button not yet created)');
+    mapLogger.debug('Sync button pulse pending (button not yet created)');
   }
 }
 
@@ -552,14 +624,14 @@ function setSyncButtonOrange() {
       // Mark that orange state is active
       window.syncButtonOrangeActive = true;
 
-      if (MAP_DEBUG) console.log('[Map] Sync button set to ORANGE (server has flightplan ready)');
+      mapLogger.debug('Sync button set to ORANGE (server has flightplan ready)');
     } else if (MAP_DEBUG) {
-      console.log('[Map] Sync button orange: no button/container found');
+      mapLogger.debug('Sync button orange: no button/container found');
     }
   } else {
     // toggle5 doesn't exist yet, set flag to apply orange when button is created
     window.pendingSyncButtonOrange = true;
-    if (MAP_DEBUG) console.log('[Map] Sync button ORANGE pending (button not yet created)');
+    mapLogger.debug('Sync button ORANGE pending (button not yet created)');
   }
 }
 
@@ -605,7 +677,7 @@ function stopSyncButtonPulse() {
           icon.style.color = '';
           icon.style.boxShadow = '';
         }
-        if (MAP_DEBUG) console.log('[Map] Sync button CSS pulse stopped');
+        mapLogger.debug('Sync button CSS pulse stopped');
       }
 
       // Reset container background color
@@ -619,7 +691,7 @@ function stopSyncButtonPulse() {
 function lockSyncButtonUntilServerFlightplan(reason) {
   if (!window.syncButtonLockedUntilServerFlightplan) {
     window.syncButtonLockedUntilServerFlightplan = true;
-    if (MAP_DEBUG) console.log('[Map] Sync button locked until server flightplan (' + (reason || 'no reason') + ')');
+    mapLogger.debug('Sync button locked until server flightplan (' + (reason || 'no reason') + ')');
   }
   disableSyncButton(reason || 'waiting for server flightplan');
 }
@@ -629,7 +701,7 @@ function markServerFlightplanReceived(reason) {
     return;
   }
   window.syncButtonLockedUntilServerFlightplan = false;
-  if (MAP_DEBUG) console.log('[Map] Server flightplan received, releasing sync lock' + (reason ? ' (' + reason + ')' : ''));
+  mapLogger.debug('Server flightplan received, releasing sync lock' + (reason ? ' (' + reason + ')' : ''));
   updateSyncButtonState();
 }
 
@@ -646,10 +718,10 @@ async function checkSimbriefIdAvailable() {
     var response = await fetch('hasSimbriefId');
     var data = await response.json();
     simbriefIdAvailable = data.hasSimbriefId === true;
-    if (MAP_DEBUG) console.log('[SimBrief] ID available:', simbriefIdAvailable);
+    simbriefLogger.debug('ID available:', simbriefIdAvailable);
     return simbriefIdAvailable;
   } catch (e) {
-    console.warn('[SimBrief] Error checking ID availability:', e.message);
+    simbriefLogger.warn('Error checking ID availability:', e.message);
     simbriefIdAvailable = false;
     return false;
   }
@@ -661,19 +733,19 @@ async function checkSimbriefIdAvailable() {
  */
 async function checkForSimbriefUpdate() {
   if (!simbriefIdAvailable) {
-    if (MAP_DEBUG) console.log('[SimBrief] Skipping update check (no SimBrief ID)');
+    simbriefLogger.debug('Skipping update check (no SimBrief ID)');
     return;
   }
   try {
     var response = await fetch('checkSimbriefUpdate');
     var data = await response.json();
-    if (MAP_DEBUG) console.log('[SimBrief] Update check result:', data);
+    simbriefLogger.debug('Update check result:', data);
     if (data.updateAvailable) {
-      console.log('[SimBrief] Newer flightplan available on SimBrief!');
+      simbriefLogger.debug('Newer flightplan available on SimBrief!');
       startSyncButtonPulse();
     }
   } catch (e) {
-    console.warn('[SimBrief] Error checking for updates:', e.message);
+    simbriefLogger.warn('Error checking for updates:', e.message);
   }
 }
 
@@ -686,15 +758,15 @@ async function checkServerHasFlightplan() {
   try {
     var response = await fetch('hasServerFlightplan');
     var data = await response.json();
-    if (MAP_DEBUG) console.log('[SimBrief] Server has flightplan:', data.hasFlightplan);
+    simbriefLogger.debug('Server has flightplan:', data.hasFlightplan);
     if (data.hasFlightplan) {
-      console.log('[SimBrief] Server has flightplan ready - setting button ORANGE');
+      simbriefLogger.info('Server has flightplan ready - setting button ORANGE');
       setSyncButtonOrange();
       return true;
     }
     return false;
   } catch (e) {
-    console.warn('[SimBrief] Error checking server flightplan:', e.message);
+    simbriefLogger.warn('Error checking server flightplan:', e.message);
     return false;
   }
 }
@@ -715,7 +787,7 @@ function startUpdateCheckInterval() {
     checkForSimbriefUpdate();
   }, UPDATE_CHECK_INTERVAL_MS);
 
-  if (MAP_DEBUG) console.log('[SimBrief] Update check interval started (' + (UPDATE_CHECK_INTERVAL_MS / 1000) + 's)');
+  simbriefLogger.debug('Update check interval started (' + (UPDATE_CHECK_INTERVAL_MS / 1000) + 's)');
 }
 
 /**
@@ -725,7 +797,7 @@ function stopUpdateCheckInterval() {
   if (updateCheckInterval) {
     clearInterval(updateCheckInterval);
     updateCheckInterval = null;
-    if (MAP_DEBUG) console.log('[SimBrief] Update check interval stopped');
+    simbriefLogger.debug('Update check interval stopped');
   }
 }
 
@@ -736,7 +808,7 @@ function abortPendingFlightplanLoads() {
   if (currentFlightplanAbortController) {
     currentFlightplanAbortController.abort();
     currentFlightplanAbortController = null;
-    if (MAP_DEBUG) console.log('[Map] Pending flightplan loads aborted');
+    mapLogger.debug('Pending flightplan loads aborted');
   }
   stopUpdateCheckInterval();
   stopSyncButtonPulse();
@@ -784,7 +856,7 @@ function setCachedItem(key, value) {
     localStorage.setItem(versionedKey, JSON.stringify(data));
     return true;
   } catch (e) {
-    console.warn('[Cache] Set failed for key:', key, e);
+    cacheLogger.warn('Set failed for key:', key, e);
     return false;
   }
 }
@@ -804,14 +876,14 @@ function getCachedItem(key, maxAgeMs) {
       // Fallback: Versuche alte Daten zu migrieren
       var oldData = localStorage.getItem(key);
       if (oldData) {
-        if (MAP_DEBUG) console.log('[Cache] Migrating old data for key:', key);
+        cacheLogger.debug('Migrating old data for key:', key);
         try {
           var value = JSON.parse(oldData);
           setCachedItem(key, value);
           localStorage.removeItem(key); // Alte Version l�schen
           return value;
         } catch (parseError) {
-          console.warn('[Cache] Migration parse error for key:', key);
+          cacheLogger.warn('Migration parse error for key:', key);
           return null;
         }
       }
@@ -822,21 +894,21 @@ function getCachedItem(key, maxAgeMs) {
 
     // Versions-Check
     if (data.version !== CACHE_VERSION) {
-      if (MAP_DEBUG) console.log('[Cache] Version mismatch for key:', key, '(expected:', CACHE_VERSION, 'got:', data.version, ')');
+      cacheLogger.debug('Version mismatch for key:', key, '(expected:', CACHE_VERSION, 'got:', data.version, ')');
       localStorage.removeItem(versionedKey);
       return null;
     }
 
     // Age-Check (optional)
     if (maxAgeMs && (Date.now() - data.timestamp) > maxAgeMs) {
-      if (MAP_DEBUG) console.log('[Cache] Expired key:', key, '(age:', Date.now() - data.timestamp, 'ms)');
+      cacheLogger.debug('Expired key:', key, '(age:', Date.now() - data.timestamp, 'ms)');
       localStorage.removeItem(versionedKey);
       return null;
     }
 
     return data.value;
   } catch (e) {
-    console.warn('[Cache] Get failed for key:', key, e);
+    cacheLogger.warn('Get failed for key:', key, e);
     return null;
   }
 }
@@ -870,10 +942,10 @@ function saveMapState() {
     };
 
     setCachedItem(MAP_STATE_KEY, state);
-    if (MAP_DEBUG) console.log('[MapState] Saved state:', state);
+    cacheLogger.debug('Saved state:', state);
     return true;
   } catch (e) {
-    console.warn('[MapState] Save failed:', e);
+    cacheLogger.warn('Save failed:', e);
     return false;
   }
 }
@@ -885,11 +957,11 @@ function restoreMapState() {
   try {
     var state = getCachedItem(MAP_STATE_KEY);
     if (!state) {
-      if (MAP_DEBUG) console.log('[MapState] No saved state found');
+      cacheLogger.debug('No saved state found');
       return false;
     }
 
-    if (MAP_DEBUG) console.log('[MapState] Restoring state:', state);
+    cacheLogger.debug('Restoring state:', state);
 
     // Karten-Position und Zoom wiederherstellen - nur wenn anders als aktuell
     if (state.mapCenter && state.zoomLevel && map) {
@@ -900,9 +972,9 @@ function restoreMapState() {
                          currentZoom === state.zoomLevel;
       if (!samePosition) {
         map.setView(state.mapCenter, state.zoomLevel, { animate: false });
-        if (MAP_DEBUG) console.log('[MapState] View updated to saved position');
+        cacheLogger.debug('View updated to saved position');
       } else {
-        if (MAP_DEBUG) console.log('[MapState] Position already correct, skipping setView');
+        cacheLogger.debug('Position already correct, skipping setView');
       }
     }
 
@@ -916,10 +988,10 @@ function restoreMapState() {
       }
     }
 
-    if (MAP_DEBUG) console.log('[MapState] State restored successfully');
+    cacheLogger.debug('State restored successfully');
     return true;
   } catch (e) {
-    console.warn('[MapState] Restore failed:', e);
+    cacheLogger.warn('Restore failed:', e);
     return false;
   }
 }
@@ -950,7 +1022,7 @@ function hasCachedFlightplanData() {
     var cachedPoints = getCachedItem("clickedPoints");
     return Array.isArray(cachedPoints) && cachedPoints.length > 0;
   } catch (err) {
-    if (MAP_DEBUG) console.log("[Cache] hasCachedFlightplanData error:", err);
+    cacheLogger.debug("hasCachedFlightplanData error:", err);
     return false;
   }
 }
@@ -979,17 +1051,17 @@ function cleanupOldCacheVersions() {
     }
 
     if (keysToRemove.length > 0) {
-      if (MAP_DEBUG) console.log('[Cache] Removing ' + keysToRemove.length + ' outdated cache entries');
+      cacheLogger.debug('Removing ' + keysToRemove.length + ' outdated cache entries');
       keysToRemove.forEach(function(key) {
         try {
           localStorage.removeItem(key);
         } catch (e) {
-          console.warn('[Cache] Error removing old key:', key, e);
+          cacheLogger.warn('Error removing old key:', key, e);
         }
       });
     }
   } catch (e) {
-    console.warn('[Cache] Cleanup error:', e);
+    cacheLogger.warn('Cleanup error:', e);
   }
 }
 // ============================================================================
@@ -1301,7 +1373,7 @@ function removeAllTrackedEventListeners() {
     try {
       item.element.removeEventListener(item.event, item.handler, item.options);
     } catch (e) {
-      console.warn('Error removing event listener:', e);
+      mapLogger.warn('Error removing event listener:', e);
     }
   });
   eventListenerRegistry = [];
@@ -1519,7 +1591,7 @@ function parseNoaaBatchResponse(text, level) {
   var latMatch = text.match(/lat,\s*\[\d+\]\n([\d\.,\s-]+)/);
   var lonMatch = text.match(/lon,\s*\[\d+\]\n([\d\.,\s-]+)/);
   if (!latMatch || !lonMatch) {
-    console.warn('[Wind] Failed to parse lat/lon from NOAA response');
+    windLogger.warn('Failed to parse lat/lon from NOAA response');
     return results;
   }
 
@@ -1530,7 +1602,7 @@ function parseNoaaBatchResponse(text, level) {
   var ugrdSection = text.match(/ugrd(?:10m|prs)[^\n]*\n([\s\S]*?)\n\n/);
   var vgrdSection = text.match(/vgrd(?:10m|prs)[^\n]*\n([\s\S]*?)\n\n/);
   if (!ugrdSection || !vgrdSection) {
-    console.warn('[Wind] Failed to parse ugrd/vgrd sections');
+    windLogger.warn('Failed to parse ugrd/vgrd sections');
     return results;
   }
 
@@ -1574,7 +1646,7 @@ function parseNoaaBatchResponse(text, level) {
     }
   }
 
-  if (WIND_DEBUG) console.log('[Wind] Parsed', results.length, 'wind points from batch response');
+  windLogger.debug('Parsed', results.length, 'wind points from batch response');
   return results;
 }
 
@@ -1584,7 +1656,7 @@ function fetchWindData() {
 
   // Verhindere parallele API-Aufrufe
   if (windFetchInProgress) {
-    if (WIND_DEBUG) console.log('[Wind] Fetch already in progress, skipping');
+    windLogger.debug('Fetch already in progress, skipping');
     return;
   }
 
@@ -1612,27 +1684,26 @@ function fetchWindData() {
 
   // Rate limiting: only use cache if viewport AND altitude haven't changed AND we're within rate limit period
   if (windDataCache && !viewportChanged && !altitudeChanged && (now - lastWindFetchTime) < MIN_FETCH_INTERVAL) {
-    if (WIND_DEBUG) console.log('[Wind] Using cached data for same viewport and altitude (' + lastParams.level + '), ' +
-                Math.round((MIN_FETCH_INTERVAL - (now - lastWindFetchTime)) / 1000) +
-                's until next fetch allowed');
+    windLogger.debug('Using cached data for same viewport and altitude (' + lastParams.level + '), ' + Math.round((MIN_FETCH_INTERVAL - (now - lastWindFetchTime)) / 1000) + 's until next fetch allowed');
+
     updateWindDisplay();
     // Ensure wind layer is visible (in case it was added with opacity 0)
     // BUT only if UI sequence is not in progress (flightplan loading)
     if (owmWindLayer && map.hasLayer(owmWindLayer) && !window.flightplanUISequenceInProgress && !window.flightplanAnimationInProgress) {
       owmWindLayer.setOpacity(0.4);
     } else if (window.flightplanUISequenceInProgress || window.flightplanAnimationInProgress) {
-      if (WIND_DEBUG) console.log('[Wind] Keeping wind layer hidden - UI sequence in progress');
+      windLogger.debug('Keeping wind layer hidden - UI sequence in progress');
     }
     return;
   }
 
   // Log reason for fetching new data
   if (altitudeChanged) {
-    if (WIND_DEBUG) console.log('[Wind] Altitude changed from', lastWindFetchAltitude, 'ft (' + lastParams.level + ') to', currentAlt, 'ft (' + currentParams.level + '), fetching new data');
+    windLogger.debug('Altitude changed from', lastWindFetchAltitude, 'ft (' + lastParams.level + ') to', currentAlt, 'ft (' + currentParams.level + '), fetching new data');
   } else if (viewportChanged) {
-    if (WIND_DEBUG) console.log('[Wind] Viewport changed, fetching new data for current view');
+    windLogger.debug('Viewport changed, fetching new data for current view');
   } else {
-    if (WIND_DEBUG) console.log('[Wind] Rate limit period expired or no cache, fetching new data');
+    windLogger.debug('Rate limit period expired or no cache, fetching new data');
   }
 
   // Create grid of points aligned to GFS 1-degree grid
@@ -1658,7 +1729,7 @@ function fetchWindData() {
     }
   }
 
-  if (WIND_DEBUG) console.log('[Wind] GFS grid points in viewport:', points.length, 'from', gfsLatMin + ',' + gfsLngMin, 'to', gfsLatMax + ',' + gfsLngMax);
+  windLogger.debug('GFS grid points in viewport:', points.length, 'from', gfsLatMin + ',' + gfsLngMin, 'to', gfsLatMax + ',' + gfsLngMax);
 
   // Fetch wind data from NOAA NOMADS GFS
   // NOAA GFS 1-degree grid: lat index = lat + 90 (0-180), lon index = lon (0-360)
@@ -1669,7 +1740,7 @@ function fetchWindData() {
   var windParams = getWindParametersForAltitude(currentAlt);
   lastWindFetchAltitude = currentAlt;
 
-  if (WIND_DEBUG) console.log('[Wind] Fetching wind for altitude:', currentAlt, 'ft -> Level:', windParams.level);
+  windLogger.debug('Fetching wind for altitude:', currentAlt, 'ft -> Level:', windParams.level);
 
   // Get current GFS run date (updated 4x daily: 00, 06, 12, 18 UTC)
   // GFS data is available ~4-5 hours after run time
@@ -1692,7 +1763,7 @@ function fetchWindData() {
     String(now.getUTCDate()).padStart(2, '0');
   var runStr = String(runHour).padStart(2, '0');
 
-  if (WIND_DEBUG) console.log('[Wind] Using GFS run:', dateStr, runStr + 'z (current UTC hour:', utcHour + ')');
+  windLogger.debug('Using GFS run:', dateStr, runStr + 'z (current UTC hour:', utcHour + ')');
 
   // Build SINGLE batch request URL with range syntax
   // NOAA OPeNDAP allows ranges: ugrd10m[0][latMin:latMax][lonMin:lonMax]
@@ -1709,7 +1780,7 @@ function fetchWindData() {
     // This means we only show wind data for the eastern part when zoomed out far
     lonIdxMin = 0;
     lonIdxMax = gfsLngMax;
-    if (WIND_DEBUG) console.log('[Wind] Viewport crosses prime meridian, limiting to east:', lonIdxMin, '-', lonIdxMax);
+    windLogger.debug('Viewport crosses prime meridian, limiting to east:', lonIdxMin, '-', lonIdxMax);
   } else if (gfsLngMin < 0 && gfsLngMax < 0) {
     // Entire viewport in western hemisphere
     lonIdxMin = gfsLngMin + 360;
@@ -1733,28 +1804,28 @@ function fetchWindData() {
       'vgrdprs%5B0%5D%5B' + windParams.levIdx + '%5D%5B' + latIdxMin + ':' + latIdxMax + '%5D%5B' + lonIdxMin + ':' + lonIdxMax + '%5D';
   }
 
-  if (WIND_DEBUG) console.log('[Wind] Fetching batch URL:', url);
+  windLogger.debug('Fetching batch URL:', url);
 
   fetch(url)
     .then(function(response) {
-      if (WIND_DEBUG) console.log('[Wind] Batch response status:', response.status);
+      windLogger.debug('Batch response status:', response.status);
       if (!response.ok) throw new Error('NOAA batch fetch failed: ' + response.status);
       return response.text();
     })
     .then(function(text) {
       windFetchInProgress = false;
 
-      if (WIND_DEBUG) console.log('[Wind] Batch response length:', text.length);
+      windLogger.debug('Batch response length:', text.length);
 
       // Parse the batch response
       windDataCache = parseNoaaBatchResponse(text, windParams.level);
 
       if (windDataCache.length === 0) {
-        console.warn('[Wind] No wind data parsed from NOAA batch response');
+        windLogger.warn('No wind data parsed from NOAA batch response');
         return;
       }
 
-      if (WIND_DEBUG) console.log('[Wind] NOAA batch data received:', windDataCache.length, 'points at', windParams.level);
+      windLogger.debug('NOAA batch data received:', windDataCache.length, 'points at', windParams.level);
 
       // Update timestamp and bounds on successful fetch
       lastWindFetchTime = Date.now();
@@ -1764,7 +1835,7 @@ function fetchWindData() {
       // v1.24L: Clear initial fetch flag - moveend fetches are now allowed again
       if (window.windLayerInitialFetchInProgress) {
         window.windLayerInitialFetchInProgress = false;
-        if (WIND_DEBUG) console.log('[Wind] Initial fetch complete - moveend fetches re-enabled');
+        windLogger.debug('Initial fetch complete - moveend fetches re-enabled');
       }
 
       // Fade in wind layer after data is loaded (was added with opacity 0)
@@ -1774,7 +1845,7 @@ function fetchWindData() {
                              window.autoloadCheckInProgress;
       if (owmWindLayer && map.hasLayer(owmWindLayer) && !shouldKeepHidden) {
         owmWindLayer.setOpacity(0.4);
-        if (WIND_DEBUG) console.log('[Wind] Wind layer faded in after data load');
+        windLogger.debug('Wind layer faded in after data load');
 
         // Check if bounds have changed significantly since fetch started
         if (!window.windBoundsRefetchDone) {
@@ -1787,7 +1858,7 @@ function fetchWindData() {
 
           if (boundsChanged) {
             window.windBoundsRefetchDone = true;
-            if (WIND_DEBUG) console.log('[Wind] Bounds changed during fetch, scheduling refetch');
+            windLogger.debug('Bounds changed during fetch, scheduling refetch');
             requestAnimationFrame(function() {
               requestAnimationFrame(function() {
                 fetchWindData();
@@ -1796,11 +1867,11 @@ function fetchWindData() {
           }
         }
       } else if (shouldKeepHidden) {
-        if (WIND_DEBUG) console.log('[Wind] Wind data loaded but keeping layer hidden - UI sequence in progress');
+        windLogger.debug('Wind data loaded but keeping layer hidden - UI sequence in progress');
       }
     })
     .catch(function(err) {
-      console.warn('[Wind] Batch fetch failed:', err);
+      windLogger.warn('Batch fetch failed:', err);
       window.windLayerInitialFetchInProgress = false;
       windFetchInProgress = false;
     });
@@ -1966,12 +2037,12 @@ function calculateWindGridSize() {
 }
 
 function updateWindDisplay() {
-  if (WIND_DEBUG) console.log('[Wind] updateWindDisplay called');
-  if (WIND_DEBUG) console.log('[Wind] windDataCache:', windDataCache);
-  if (WIND_DEBUG) console.log('[Wind] map.hasLayer(owmWindLayer):', map.hasLayer(owmWindLayer));
+  windLogger.debug('updateWindDisplay called');
+  windLogger.debug('windDataCache:', windDataCache);
+  windLogger.debug('map.hasLayer(owmWindLayer):', map.hasLayer(owmWindLayer));
 
   if (!windDataCache || !Array.isArray(windDataCache) || windDataCache.length === 0 || !map.hasLayer(owmWindLayer)) {
-    if (WIND_DEBUG) console.log('[Wind] Early return - no data or layer not active');
+    windLogger.debug('Early return - no data or layer not active');
     return;
   }
 
@@ -1997,7 +2068,7 @@ function updateWindDisplay() {
   var latOffset = latStep / 2;  // Half step margin to edge
   var lngOffset = lngStep / 2;
 
-  if (WIND_DEBUG) console.log('[Wind] Creating evenly spaced grid:', gridRows, 'x', gridCols, 'in bounds', south, west, 'to', north, east);
+  windLogger.debug('Creating evenly spaced grid:', gridRows, 'x', gridCols, 'in bounds', south, west, 'to', north, east);
 
   var markersCreated = 0;
 
@@ -2043,7 +2114,7 @@ function updateWindDisplay() {
     }
   }
 
-  if (WIND_DEBUG) console.log('[Wind] Wind markers layer contains', markersCreated, 'markers (evenly spaced grid)');
+  windLogger.debug('Wind markers layer contains', markersCreated, 'markers (evenly spaced grid)');
 }
 
 // Wind event handlers will be set up after map initialization
@@ -2055,14 +2126,14 @@ function setupWindEventHandlers() {
       // v1.24j: Skip wind data fetch when activating from animation complete
       // The fetch will be done explicitly in handleAnimationComplete with correct bounds
       if (window.windLayerActivatingFromComplete) {
-        if (WIND_DEBUG) console.log('[Wind] Wind layer add from animation complete - skipping overlayadd fetch');
+        windLogger.debug('Wind layer add from animation complete - skipping overlayadd fetch');
         owmWindLayer.setOpacity(0);
         windMarkersLayer.addTo(map);
         return;
       }
       // v1.24i: Skip wind data fetch during autoload - will be triggered properly later
       if (window.autoloadCheckInProgress || window.flightplanUISequenceInProgress || window.flightplanAnimationInProgress) {
-        if (WIND_DEBUG) console.log('[Wind] Wind layer add during autoload/animation - deferring data fetch');
+        windLogger.debug('Wind layer add during autoload/animation - deferring data fetch');
         owmWindLayer.setOpacity(0);
         windMarkersLayer.addTo(map);
         // Don't fetch data yet - it will be fetched after animation complete with correct bounds
@@ -2070,7 +2141,7 @@ function setupWindEventHandlers() {
       }
       // Start with opacity 0, will fade in after wind data is loaded
       owmWindLayer.setOpacity(0);
-      if (WIND_DEBUG) console.log('[Wind] Wind layer added via overlayadd, starting with opacity 0');
+      windLogger.debug('Wind layer added via overlayadd, starting with opacity 0');
       windMarkersLayer.addTo(map);
       fetchWindData();
     }
@@ -2106,11 +2177,11 @@ function setupWindEventHandlers() {
     if (map.hasLayer(owmWindLayer)) {
       // v1.24L: Skip if initial fetch is still in progress
       if (window.windLayerInitialFetchInProgress) {
-        if (WIND_DEBUG) console.log('[Wind] Skipping zoomend fetch - initial fetch in progress');
+        windLogger.debug('Skipping zoomend fetch - initial fetch in progress');
         return;
       }
       // After zoom, fetch new data for the new viewport (grid density changes with zoom)
-      if (WIND_DEBUG) console.log('[Wind] Zoom ended - fetching new wind data for updated viewport');
+      windLogger.debug('Zoom ended - fetching new wind data for updated viewport');
       // Short delay to let map settle, then fetch (bypass rate limit for zoom)
       clearTimeout(windFetchTimeout);
       windFetchTimeout = setTimeout(function() {
@@ -2125,21 +2196,21 @@ function setupWindEventHandlers() {
     if (map.hasLayer(owmWindLayer)) {
       // v1.24L: Skip moveend fetch if initial fetch is still in progress
       if (window.windLayerInitialFetchInProgress) {
-        if (WIND_DEBUG) console.log('[Wind] Skipping moveend fetch - initial fetch in progress');
+        windLogger.debug('Skipping moveend fetch - initial fetch in progress');
         return;
       }
 
       // Always immediately redisplay cached wind data after move (if available)
       if (windDataCache && windDataCache.length > 0 && windMarkersLayer.getLayers().length === 0) {
-        if (WIND_DEBUG) console.log('[Wind] Move ended - redisplaying cached wind data immediately');
+        windLogger.debug('Move ended - redisplaying cached wind data immediately');
         updateWindDisplay();
       }
 
       // Rate-Limit für neue Daten-Fetches respektieren (verhindert API 429 Fehler)
       var timeSinceLastFetch = Date.now() - lastWindFetchTime;
       if (timeSinceLastFetch < MIN_FETCH_INTERVAL) {
-        if (WIND_DEBUG) console.log('[Wind] Skipping moveend fetch - rate limit active (' +
-          Math.round((MIN_FETCH_INTERVAL - timeSinceLastFetch) / 1000) + 's remaining)');
+        windLogger.debug('Skipping moveend fetch - rate limit active (' + Math.round((MIN_FETCH_INTERVAL - timeSinceLastFetch) / 1000) + 's remaining)');
+
         return;
       }
       clearTimeout(windFetchTimeout);
@@ -2207,22 +2278,22 @@ var searchControl;
 try {
   var cachedLatStr = window.localStorage.getItem("mapCenterLat");
   var cachedLngStr = window.localStorage.getItem("mapCenterLng");
-  if (MAP_DEBUG) console.log('[Map] localStorage aircraft position raw:', cachedLatStr, cachedLngStr);
+  mapLogger.debug('localStorage aircraft position raw:', cachedLatStr, cachedLngStr);
   
   var cachedLat = parseFloat(cachedLatStr);
   var cachedLng = parseFloat(cachedLngStr);
-  if (MAP_DEBUG) console.log('[Map] localStorage aircraft position parsed:', cachedLat, cachedLng, 'isFinite:', Number.isFinite(cachedLat), Number.isFinite(cachedLng));
+  mapLogger.debug('localStorage aircraft position parsed:', cachedLat, cachedLng, 'isFinite:', Number.isFinite(cachedLat), Number.isFinite(cachedLng));
   
   if (Number.isFinite(cachedLat) && Number.isFinite(cachedLng)) {
     pos_lat = cachedLat;
     pos_lng = cachedLng;
     hasCachedAircraftPosition = true;
-    if (MAP_DEBUG) console.log('[Map] Using cached aircraft position:', pos_lat, pos_lng);
+    mapLogger.debug('Using cached aircraft position:', pos_lat, pos_lng);
   } else {
-    if (MAP_DEBUG) console.log('[Map] No valid cached aircraft position found');
+    mapLogger.debug('No valid cached aircraft position found');
   }
 } catch (posCacheError) {
-  if (MAP_DEBUG) console.log('[Map] Unable to read cached aircraft position:', posCacheError);
+  mapLogger.debug('Unable to read cached aircraft position:', posCacheError);
 }
 // Initiales Kartenzentrum = Flugzeugposition (falls verfügbar), sonst Fallback auf 0,0
 var mapCenter = [pos_lat || 0, pos_lng || 0];
@@ -2245,7 +2316,7 @@ var localStorageRestoreCompleted = false;
 
 // Handler für ANIMATION_COMPLETE - aktiviert Sync-Button und Wind-Layer
 function handleAnimationComplete(e) {
-  if (MAP_DEBUG) console.log('[Event] Animation complete', e.detail);
+  mapLogger.debug('Animation complete', e.detail);
 
   // Animation-Flags SOFORT zurücksetzen
   window.flightplanAnimationInProgress = false;
@@ -2257,8 +2328,6 @@ function handleAnimationComplete(e) {
   stopSyncButtonPulse();
   updateSyncButtonState();
 
-
-
   // Start periodic update check since we now have a flightplan loaded
   // Skip the immediate check - we just synced so data is fresh
   // Only start the interval for future checks
@@ -2266,7 +2335,7 @@ function handleAnimationComplete(e) {
   updateCheckInterval = setInterval(function() {
     checkForSimbriefUpdate();
   }, UPDATE_CHECK_INTERVAL_MS);
-  if (MAP_DEBUG) console.log('[SimBrief] Update check interval started (skipped initial check - just synced)');
+  simbriefLogger.debug('Update check interval started (skipped initial check - just synced)');
 
   var finalizeAfterElevation = function() {
     centerFlightplanWithElevationPadding();
@@ -2299,33 +2368,33 @@ function handleAnimationComplete(e) {
 
       window.windLayerWasActiveBeforeAnimation = false;
     } else if (typeof moverX !== 'undefined' && moverX && MAP_DEBUG) {
-      console.log('[Wind] Skipping wind layer activation - controller panel is open');
+      windLogger.warn('Skipping wind layer activation - controller panel is open');
     }
 
     transitionToState(FlightplanLoadState.READY, 'complete');
-    if (MAP_DEBUG) console.log('[Event] Ready');
+    mapLogger.debug('Ready');
 
     // Funktion um Elevation Profile anzuzeigen (nach aller Animation)
     var showElevationAfterAnimation = function() {
       var waypointLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
       if (waypointLayers.length >= 2 && typeof showElevationProfile === 'function' && !elevationProfileUserClosed && !moverX) {
-        if (MAP_DEBUG) console.log('[Map] Showing elevation profile after all animations complete');
+        mapLogger.debug('Showing elevation profile after all animations complete');
         showElevationProfile();
       } else if (moverX && MAP_DEBUG) {
-        console.log('[Map] Skipping elevation profile - controller mode active');
+        mapLogger.warn('Skipping elevation profile - controller mode active');
       } else if (elevationProfileUserClosed && MAP_DEBUG) {
-        console.log('[Map] Skipping elevation profile - user manually closed it');
+        mapLogger.warn('Skipping elevation profile - user manually closed it');
       }
     };
 
     // DURCHGEHENDE ANIMATION: Alternate-Route animiert NACH Hauptanimation, VOR Elevation Profile
     if (window.pendingAlternateRouteDraw) {
       window.pendingAlternateRouteDraw = false;
-      console.log('[FlightplanPanel] Animating alternate route after main animation');
+      flightplanPanelLogger.debug('Animating alternate route after main animation');
       if (typeof animateAlternateRoute === 'function') {
         // Animate alternate route, then show elevation profile
         animateAlternateRoute(function() {
-          console.log('[FlightplanPanel] Alternate animation complete');
+          flightplanPanelLogger.info('Alternate animation complete');
           showElevationAfterAnimation();
         });
       } else if (typeof drawAlternateRoute === 'function') {
@@ -2333,7 +2402,7 @@ function handleAnimationComplete(e) {
         drawAlternateRoute().then(function() {
           showElevationAfterAnimation();
         }).catch(function(err) {
-          console.warn('[FlightplanPanel] Error drawing alternate route:', err);
+          flightplanPanelLogger.warn('Error drawing alternate route:', err);
           showElevationAfterAnimation();
         });
       } else {
@@ -2346,7 +2415,7 @@ function handleAnimationComplete(e) {
   };
 
   var handleElevationError = function(err) {
-    if (err) console.warn('[Elevation] Error:', err);
+    if (err) elevationLogger.warn('Error:', err);
     finalizeAfterElevation();
   };
 
@@ -2355,12 +2424,12 @@ function handleAnimationComplete(e) {
       var result = updateElevationProfileImmediate();
       if (result && typeof result.then === 'function') {
         result.then(function() {
-          if (MAP_DEBUG) console.log('[Elevation] Profile shown');
+          elevationLogger.debug('Profile shown');
           finalizeAfterElevation();
         }).catch(handleElevationError);
         return;
       } else {
-        if (MAP_DEBUG) console.log('[Elevation] Profile shown');
+        elevationLogger.debug('Profile shown');
       }
     } catch (err) {
       handleElevationError(err);
@@ -2373,10 +2442,10 @@ function handleAnimationComplete(e) {
 
 // Handler für MARKERS_READY - Einzelne Zentrierung am Anfang der Chain
 function handleMarkersReady(e) {
-  if (MAP_DEBUG) console.log('[Event] Markers ready', e.detail);
+  mapLogger.debug('Markers ready', e.detail);
 
   if (currentFlightplanState === FlightplanLoadState.READY) {
-    if (MAP_DEBUG) console.log('[Event] Already ready, skipping');
+    mapLogger.debug('Already ready, skipping');
     return;
   }
 
@@ -2391,15 +2460,15 @@ function handleMarkersReady(e) {
 }
 
 function handleMapCentered(e) {
-  if (MAP_DEBUG) console.log('[Event] Map centered');
+  mapLogger.debug('Map centered');
   emitFlightplanEvent(FLIGHTPLAN_EVENTS.ELEVATION_UPDATED);
 }
 
 function handleElevationUpdated(e) {
-  if (MAP_DEBUG) console.log('[Event] Elevation updated');
+  mapLogger.debug('Elevation updated');
 
   if (currentFlightplanState === FlightplanLoadState.READY) {
-    if (MAP_DEBUG) console.log('[Event] Already ready, skipping');
+    mapLogger.debug('Already ready, skipping');
     return;
   }
 
@@ -2416,7 +2485,7 @@ window.addEventListener(FLIGHTPLAN_EVENTS.MARKERS_READY, handleMarkersReady);
 
 // Legacy callback function - emits MARKERS_READY event
 function onFlightplanAnimationComplete() {
-  if (MAP_DEBUG) console.log('[Event] onFlightplanAnimationComplete');
+  mapLogger.debug('onFlightplanAnimationComplete');
   emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY);
   // showElevationProfile() wird jetzt in finalizeAfterElevation() aufgerufen,
   // nachdem die Animation-Flags zurückgesetzt wurden
@@ -2428,21 +2497,21 @@ function executeFlightplanPath(data) {
   try {
     // Check if autoload is blocked (user deleted flightplan manually)
     if (window.autoloadBlockedUntilNewFlightplan) {
-      if (MAP_DEBUG) console.log('[Map] executeFlightplanPath blocked - user deleted flightplan, waiting for manual sync or new server flightplan');
+      mapLogger.debug('executeFlightplanPath blocked - user deleted flightplan, waiting for manual sync or new server flightplan');
       return Promise.resolve(); // Silently ignore
     }
 
-    // BLOCK when controller mode is active
+    // Controller-Modus automatisch deaktivieren wenn Flugplan geladen wird
     if (moverX) {
-      console.log('[Map] executeFlightplanPath BLOCKED - Controller mode active (moverX=true)');
-      return Promise.resolve(); // Silently ignore
+      mapLogger.info('Controller mode active - deactivating to load flightplan');
+      mout();
     }
 
     // BUGFIX: Blockiere Flightplan-Loading im Teleport-Modus
     // Im Teleport-Modus (toggle4.state() === 'add-markers') soll KEIN Flugplan angezeigt werden
     var toggle4State = (typeof toggle4 !== 'undefined' && toggle4) ? toggle4.state() : null;
     if (toggle4State === 'add-markers') {
-      console.log('[Map] executeFlightplanPath BLOCKED - Teleport mode active (no flightplan display)');
+      mapLogger.warn('executeFlightplanPath BLOCKED - Teleport mode active (no flightplan display)');
       return Promise.resolve(); // Silently ignore
     }
 
@@ -2450,7 +2519,7 @@ function executeFlightplanPath(data) {
     processFlightplanMessage(msg, true);
     return Promise.resolve();
   } catch (err) {
-    console.error('[Map] executeFlightplanPath failed:', err);
+    mapLogger.error('executeFlightplanPath failed:', err);
     return Promise.reject(err);
   }
 }
@@ -2783,7 +2852,7 @@ async function loadDepartureProceduresForManualAirport(icao) {
     }
     populateDropdown('depSidSelect', [], 'Identifier', ''); // Leer bis Runway gewählt
   } catch (err) {
-    console.warn('[Manual DEP] Error loading procedures:', err);
+    flightplanPanelLogger.warn('Error loading procedures:', err);
   }
 }
 
@@ -2810,7 +2879,7 @@ async function loadArrivalProceduresForManualAirport(icao) {
     }
     populateDropdown('arrApproachSelect', [], 'Identifier', '');
   } catch (err) {
-    console.warn('[Manual ARR] Error loading procedures:', err);
+    flightplanPanelLogger.warn('Error loading procedures:', err);
   }
 }
 
@@ -2837,7 +2906,7 @@ async function loadAlternateProceduresForManualAirport(icao) {
     }
     populateDropdown('altApproachSelect', [], 'Identifier', '');
   } catch (err) {
-    console.warn('[Manual ALT] Error loading procedures:', err);
+    flightplanPanelLogger.warn('Error loading procedures:', err);
   }
 }
 
@@ -3196,7 +3265,7 @@ function cleanupAllLayers() {
     if (layer) {
       // WICHTIG: Base Layers NICHT entfernen - die sollen immer auf der Map bleiben
       if (typeof baseMaps !== 'undefined' && baseMaps[name]) {
-        if (MAP_DEBUG) console.log('[Map] Skipping base layer in cleanup:', name);
+        mapLogger.debug('Skipping base layer in cleanup:', name);
         return; // Skip base layers
       }
       if (map && map.hasLayer(layer)) {
@@ -3235,7 +3304,7 @@ function validateWaypointArrays(context) {
   });
 
   if (errors.length > 0) {
-    console.error('[Map] Array-Sync-Fehler in ' + context + ': expected=' + expectedLength + ', ' + errors.join(', '));
+    mapLogger.error('Array-Sync-Fehler in ' + context + ': expected=' + expectedLength + ', ' + errors.join(', '));
     return false;
   }
 
@@ -3258,35 +3327,35 @@ var controllerInterval;
  * @returns {Promise<Object|null>} Runway data with coordinates or null
  */
 async function fetchRunwayData(icao, runwayId) {
-  if (MAP_DEBUG) console.log('[Runway] fetchRunwayData called with icao=', icao, 'runwayId=', runwayId);
+  runwayLogger.debug('fetchRunwayData called with icao=', icao, 'runwayId=', runwayId);
 
   if (!icao || !runwayId) {
-    if (MAP_DEBUG) console.log('[Runway] Skipping fetch - missing icao or runwayId');
+    runwayLogger.debug('Skipping fetch - missing icao or runwayId');
     return null;
   }
 
   // Check if Navigraph data is available first to avoid 404 errors
   if (navigraphStatus && navigraphStatus.isDataAvailable === false) {
-    if (MAP_DEBUG) console.log('[Runway] Skipping fetch - Navigraph data not available');
+    runwayLogger.debug('Skipping fetch - Navigraph data not available');
     return null;
   }
 
   try {
     var serverUrl = getServerUrl();
     var url = serverUrl + '/api/navigraph/runway/' + icao + '/' + runwayId;
-    if (MAP_DEBUG) console.log('[Runway] Fetching from URL:', url);
+    runwayLogger.debug('Fetching from URL:', url);
 
     var response = await fetch(url, {
       method: 'GET',
       timeout: 5000
     });
 
-    if (MAP_DEBUG) console.log('[Runway] Response status:', response.status);
+    runwayLogger.debug('Response status:', response.status);
 
     if (!response.ok) {
       // Bei 404: SimBrief-Runway existiert nicht in Navigraph - Fallback auf ähnlichste Runway
       if (response.status === 404) {
-        console.log('[Runway] Runway', runwayId, 'not found at', icao, '- trying fallback to closest runway');
+        runwayLogger.warn('Runway', runwayId, 'not found at', icao, '- trying fallback to closest runway');
         try {
           var fallbackUrl = serverUrl + '/api/navigraph/runways/' + icao;
           var fallbackResponse = await fetch(fallbackUrl, { method: 'GET', timeout: 5000 });
@@ -3329,37 +3398,37 @@ async function fetchRunwayData(icao, runwayId) {
 
               if (bestRunway) {
                 var fallbackId = bestRunway.Identifier || bestRunway.identifier;
-                console.log('[Runway] Fallback: using runway', fallbackId, 'instead of', runwayId, '(score:', bestScore + ')');
+                runwayLogger.warn('Fallback: using runway', fallbackId, 'instead of', runwayId, '(score:', bestScore + ')');
                 // Rekursiver Aufruf mit der gefundenen Runway
                 return await fetchRunwayData(icao, fallbackId);
               }
             }
           }
         } catch (fallbackErr) {
-          console.warn('[Runway] Fallback failed:', fallbackErr.message);
+          runwayLogger.warn('Fallback failed:', fallbackErr.message);
         }
         return null;
       }
       // 503 = Navigraph nicht verfügbar - kein Fallback nötig
       if (response.status !== 503) {
-        console.warn('[Runway] Failed to fetch runway data for', icao, runwayId, ':', response.status);
+        runwayLogger.warn('Failed to fetch runway data for', icao, runwayId, ':', response.status);
       } else {
-        if (MAP_DEBUG) console.log('[Runway] Runway data not available for', icao, runwayId, '(status:', response.status + ')');
+        runwayLogger.debug('Runway data not available for', icao, runwayId, '(status:', response.status + ')');
       }
       return null;
     }
 
     var data = await response.json();
-    if (MAP_DEBUG) console.log('[Runway] Response data:', data);
+    runwayLogger.debug('Response data:', data);
     
     if (data && data.thresholdLat && data.thresholdLon) {
-      if (MAP_DEBUG) console.log('[Runway] Successfully fetched runway data:', icao, runwayId, 'Threshold:', data.thresholdLat, data.thresholdLon);
+      runwayLogger.debug('Successfully fetched runway data:', icao, runwayId, 'Threshold:', data.thresholdLat, data.thresholdLon);
       return data;
     }
-    if (MAP_DEBUG) console.log('[Runway] Response missing thresholdLat or thresholdLon');
+    runwayLogger.debug('Response missing thresholdLat or thresholdLon');
     return null;
   } catch (err) {
-    console.warn('[Runway] Error fetching runway data:', err.message, err);
+    runwayLogger.warn('Error fetching runway data:', err.message, err);
     return null;
   }
 }
@@ -3396,29 +3465,29 @@ async function updateRunwayDataFromOFP() {
       var arrData = await fetchRunwayData(arrIcao, arrRunway);
       if (arrData) {
         arrivalRunwayData = arrData;
-        MAP_DEBUG && console.log('[Runway] Arrival runway loaded from OFP:', arrRunway, 'endLat:', arrData.endLat);
+        runwayLogger.debug('Arrival runway loaded from OFP:', arrRunway, 'endLat:', arrData.endLat);
       }
     } else {
-      MAP_DEBUG && console.log('[Runway] Arrival runway already set by loadArrivalProcedures, keeping:', arrivalRunwayData.identifier || arrivalRunwayData.runway);
+      runwayLogger.debug('Arrival runway already set by loadArrivalProcedures, keeping:', arrivalRunwayData.identifier || arrivalRunwayData.runway);
     }
 
     if (MAP_DEBUG) {
-      console.log('[Runway] Departure runway loaded:', departureRunwayData ? 'yes' : 'no');
-      console.log('[Runway] Arrival runway loaded:', arrivalRunwayData ? 'yes' : 'no');
+      runwayLogger.info('Departure runway loaded:', departureRunwayData ? 'yes' : 'no');
+      runwayLogger.info('Arrival runway loaded:', arrivalRunwayData ? 'yes' : 'no');
       if (departureRunwayData) {
-        console.log('[Runway] DEP coords:', departureRunwayData.thresholdLat, departureRunwayData.thresholdLon, '->', departureRunwayData.endLat, departureRunwayData.endLon);
+        runwayLogger.debug('DEP coords:', departureRunwayData.thresholdLat, departureRunwayData.thresholdLon, '->', departureRunwayData.endLat, departureRunwayData.endLon);
       }
       if (arrivalRunwayData) {
-        console.log('[Runway] ARR coords:', arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon, '->', arrivalRunwayData.endLat, arrivalRunwayData.endLon);
+        runwayLogger.debug('ARR coords:', arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon, '->', arrivalRunwayData.endLat, arrivalRunwayData.endLon);
       }
     }
 
     // Runway data is now loaded - animation will use it when building coordinates
     if (MAP_DEBUG) {
-      console.log('[Runway] Data ready for animation');
+      runwayLogger.info('Data ready for animation');
     }
   } catch (err) {
-    console.warn('[Runway] Error loading runway data from OFP:', err.message);
+    runwayLogger.warn('Error loading runway data from OFP:', err.message);
     departureRunwayData = null;
     // Don't clear arrivalRunwayData on error
   }
@@ -3561,7 +3630,6 @@ var controlZonesLayer = null;
 var controlZonesOfflineLayer = null;
 var controlZonesEnabled = false;
 var controlZonesNetwork = 'VATSIM';
-
 
 // Legacy controlZonesSettings - wird von altem Code referenziert
 var controlZonesSettings = {
@@ -3884,7 +3952,7 @@ var ivaoZoneNameToIcao = {
  * Aktiviert/Deaktiviert Control Zones
  */
 function czSetEnabled(enabled) {
-  if (CZ_DEBUG) console.log('[CZ] setEnabled:', enabled);
+  czLogger.debug('setEnabled:', enabled);
   czState.enabled = enabled;
   controlZonesEnabled = enabled; // Legacy sync
 
@@ -3896,13 +3964,13 @@ function czSetEnabled(enabled) {
   if (enabled) {
     // NICHT sofort rendern - wird von checkInRange() aufgerufen
     // wenn die Controller-Daten geladen sind
-    if (CZ_DEBUG) console.log('[CZ] Enabled - waiting for controller data to render');
+    czLogger.debug('Enabled - waiting for controller data to render');
   } else {
     // Cancel any pending debounced render
     if (czRenderDebounceTimer) {
       clearTimeout(czRenderDebounceTimer);
       czRenderDebounceTimer = null;
-      if (CZ_DEBUG) console.log('[CZ] Cancelled pending render timer');
+      czLogger.debug('Cancelled pending render timer');
     }
     czClear();
     // Reset first render flag for next time
@@ -3914,7 +3982,7 @@ function czSetEnabled(enabled) {
  * Wechselt das Netzwerk (VATSIM/IVAO)
  */
 function czSetNetwork(network) {
-  if (CZ_DEBUG) console.log('[CZ] setNetwork:', network);
+  czLogger.debug('setNetwork:', network);
   czState.network = network;
   controlZonesNetwork = network; // Legacy sync
   czClear();
@@ -3944,18 +4012,18 @@ async function czLoadBoundaries(network) {
 
   // CACHE CHECK: Nicht neu laden wenn bereits im Cache
   if (czCache[cacheKey] && czCache[cacheKey].features) {
-    if (CZ_DEBUG) console.log('[CZ] Using cached boundaries for', network, ':', czCache[cacheKey].features.length, 'features');
+    czLogger.debug('Using cached boundaries for', network, ':', czCache[cacheKey].features.length, 'features');
     return czCache[cacheKey];
   }
 
   // REQUEST-DEDUPLICATION: Warte auf laufenden Request statt neuen zu starten
   if (czBoundariesPromise[cacheKey]) {
-    if (CZ_DEBUG) console.log('[CZ] Waiting for in-flight request for', network);
+    czLogger.debug('Waiting for in-flight request for', network);
     return czBoundariesPromise[cacheKey];
   }
 
   var url = '/api/boundaries/' + cacheKey;
-  if (CZ_DEBUG) console.log('[CZ] Loading boundaries from:', url);
+  czLogger.debug('Loading boundaries from:', url);
 
   // Neuer Request - Promise speichern für Deduplication
   czBoundariesPromise[cacheKey] = (async function() {
@@ -3965,13 +4033,13 @@ async function czLoadBoundaries(network) {
         throw new Error('HTTP ' + response.status);
       }
       var data = await response.json();
-      if (CZ_DEBUG) console.log('[CZ] Loaded', data.features ? data.features.length : 0, 'features');
+      czLogger.debug('Loaded', data.features ? data.features.length : 0, 'features');
 
       // Cache speichern
       czCache[cacheKey] = data;
       return data;
     } catch (err) {
-      console.error('[CZ] Failed to load boundaries:', err);
+      czLogger.error('Failed to load boundaries:', err);
       return null;
     } finally {
       // Promise aus Deduplication-Cache entfernen
@@ -3987,7 +4055,7 @@ async function czLoadBoundaries(network) {
  * Dadurch sind die Daten bereits verfügbar wenn User Zonen aktiviert
  */
 function prefetchBoundaries() {
-  if (CZ_DEBUG) console.log('[Prefetch] Loading boundaries in background...');
+  czLogger.debug('Loading boundaries in background...');
 
   // VATSIM und IVAO parallel laden
   Promise.all([
@@ -3997,10 +4065,10 @@ function prefetchBoundaries() {
     if (CZ_DEBUG) {
       var vatsimCount = results[0] && results[0].features ? results[0].features.length : 0;
       var ivaoCount = results[1] && results[1].features ? results[1].features.length : 0;
-      console.log('[Prefetch] Boundaries loaded - VATSIM:', vatsimCount, 'IVAO:', ivaoCount);
+      czLogger.info('Boundaries loaded - VATSIM:', vatsimCount, 'IVAO:', ivaoCount);
     }
   }).catch(function(err) {
-    console.warn('[Prefetch] Some boundaries failed to load:', err);
+    czLogger.warn('Some boundaries failed to load:', err);
   });
 }
 
@@ -4384,23 +4452,23 @@ function czRenderDebounced() {
 async function czRender() {
   // Nur rendern wenn aktiviert und Panel offen
   if (!czState.enabled) {
-    if (CZ_DEBUG) console.log('[CZ] Skip render - not enabled');
+    czLogger.debug('Skip render - not enabled');
     return;
   }
 
   var panel = document.getElementById('controllerContainer');
   if (!panel || panel.style.visibility !== 'visible') {
-    if (CZ_DEBUG) console.log('[CZ] Skip render - panel not visible');
+    czLogger.debug('Skip render - panel not visible');
     return;
   }
 
   if (panelState !== 'vatsim' && panelState !== 'ivao') {
-    if (CZ_DEBUG) console.log('[CZ] Skip render - panelState:', panelState);
+    czLogger.debug('Skip render - panelState:', panelState);
     return;
   }
 
   if (czState.loading) {
-    if (CZ_DEBUG) console.log('[CZ] Skip render - already loading');
+    czLogger.debug('Skip render - already loading');
     return;
   }
 
@@ -4414,12 +4482,12 @@ async function czRender() {
 
   // NUR Controller-Key prüfen - hasLayers Check entfernt weil er false-positives verursacht
   if (czLastRenderedControllers === currentControllerKey) {
-    if (CZ_DEBUG) console.log('[CZ] Skip render - no controller changes (', activePrefixList.length, 'controllers)');
+    czLogger.debug('Skip render - no controller changes (', activePrefixList.length, 'controllers)');
     return;
   }
 
   czState.loading = true;
-  if (CZ_DEBUG) console.log('[CZ] Rendering for network:', network, '- Controllers changed:', activePrefixList.length);
+  czLogger.debug('Rendering for network:', network, '- Controllers changed:', activePrefixList.length);
 
   try {
     // 2. Lade Boundaries (mit Cache - kein erneuter Fetch wenn im Cache)
@@ -4427,13 +4495,13 @@ async function czRender() {
 
     // Race-condition check: User könnte während des Ladens deaktiviert haben
     if (!czState.enabled) {
-      if (CZ_DEBUG) console.log('[CZ] Aborted after boundary load - disabled during loading');
+      czLogger.debug('Aborted after boundary load - disabled during loading');
       czState.loading = false;
       return;
     }
 
     if (!data || !data.features) {
-      console.error('[CZ] No boundary data available');
+      czLogger.error('No boundary data available');
       czState.loading = false;
       return;
     }
@@ -4446,7 +4514,7 @@ async function czRender() {
     if (network === 'VATSIM') {
       // Lade TRACON-Daten asynchron falls nicht im Cache
       if (!vatsimTraconBoundariesCache) {
-        if (CZ_DEBUG) console.log('[CZ] Loading TRACON boundaries for VATSIM...');
+        czLogger.debug('Loading TRACON boundaries for VATSIM...');
         await new Promise(function(resolve) {
           loadVatsimTraconBoundaries(function(loadedData) {
             traconData = loadedData;
@@ -4456,14 +4524,14 @@ async function czRender() {
 
         // Race-condition check: User könnte während TRACON-Load deaktiviert haben
         if (!czState.enabled) {
-          if (CZ_DEBUG) console.log('[CZ] Aborted after TRACON load - disabled during loading');
+          czLogger.debug('Aborted after TRACON load - disabled during loading');
           czState.loading = false;
           return;
         }
       } else {
         traconData = vatsimTraconBoundariesCache;
       }
-      if (CZ_DEBUG) console.log('[CZ] TRACON data:', traconData ? (traconData.features ? traconData.features.length : 0) + ' features' : 'none');
+      czLogger.debug('TRACON data:', traconData ? (traconData.features ? traconData.features.length : 0) + ' features' : 'none');
     }
 
     // 5. Rufe die alte komplexe Render-Funktion auf (mit Labels und Kreisen)
@@ -4473,7 +4541,7 @@ async function czRender() {
     czLastRenderedControllers = currentControllerKey;
 
   } catch (err) {
-    console.error('[CZ] Render error:', err);
+    czLogger.error('Render error:', err);
   } finally {
     czState.loading = false;
   }
@@ -4535,7 +4603,7 @@ function czGetActiveControllers() {
  */
 function czCreateLayers(features, activeControllers) {
   if (!map) {
-    console.error('[CZ] No map available');
+    czLogger.error('No map available');
     return;
   }
 
@@ -4600,7 +4668,7 @@ function czCreateLayers(features, activeControllers) {
     }
   }
 
-  if (CZ_DEBUG) console.log('[CZ] Active:', activeFeatures.length, 'Offline:', offlineFeatures.length);
+  czLogger.debug('Active:', activeFeatures.length, 'Offline:', offlineFeatures.length);
 
   // Offline Layer (grau, transparent) - NUR FIR-Grenzen (CTR)
   // HINWEIS: validateAndFixPolygon ist jetzt global definiert (siehe oben)
@@ -4647,7 +4715,7 @@ function czCreateLayers(features, activeControllers) {
       }
     }
 
-    if (CZ_DEBUG) console.log('[CZ] FIR boundaries:', validFirFeatures.length, 'of', offlineFeatures.length, 'offline');
+    czLogger.debug('FIR boundaries:', validFirFeatures.length, 'of', offlineFeatures.length, 'offline');
 
     if (validFirFeatures.length > 0) {
       var offlineOptions = {
@@ -4695,7 +4763,7 @@ function czCreateLayers(features, activeControllers) {
     controlZonesLayer = czState.layer; // Legacy sync
   }
 
-  if (CZ_DEBUG) console.log('[CZ] Layers created successfully');
+  czLogger.debug('Layers created successfully');
 }
 
 /**
@@ -4753,7 +4821,7 @@ function czShowPopup(feature, latlng, activeControllers) {
  * Entfernt alle Control Zone Layer - robuste Version
  */
 function czClear() {
-  if (CZ_DEBUG) console.log('[CZ] czClear called');
+  czLogger.debug('czClear called');
 
   // Speichere Referenzen bevor wir sie nullen
   var layersToRemove = [
@@ -4773,7 +4841,7 @@ function czClear() {
           try {
             map.removeLayer(layer);
           } catch (e) {
-            console.warn('[CZ] Error removing layer:', e);
+            czLogger.warn('Error removing layer:', e);
           }
           break;
         }
@@ -4788,7 +4856,7 @@ function czClear() {
   controlZonesLayer = null;
   controlZonesOfflineLayer = null;
 
-  if (CZ_DEBUG) console.log('[CZ] czClear done');
+  czLogger.debug('czClear done');
 }
 
 /**
@@ -4796,7 +4864,7 @@ function czClear() {
  * Für Diff-basiertes Rendering: Vermeidet Flackern der grauen Hintergrund-Zonen
  */
 function czClearOnlineOnly() {
-  if (CZ_DEBUG) console.log('[CZ] czClearOnlineOnly called');
+  czLogger.debug('czClearOnlineOnly called');
 
   // Nur Online-Layer und Labels entfernen, NICHT den Offline-Layer
   var layersToRemove = [
@@ -4812,7 +4880,7 @@ function czClearOnlineOnly() {
           try {
             map.removeLayer(layer);
           } catch (e) {
-            console.warn('[CZ] Error removing layer:', e);
+            czLogger.warn('Error removing layer:', e);
           }
           break;
         }
@@ -4828,7 +4896,7 @@ function czClearOnlineOnly() {
   czRenderedZones = {};
   czRenderedLabels = {};
 
-  if (CZ_DEBUG) console.log('[CZ] czClearOnlineOnly done - offline layer preserved');
+  czLogger.debug('czClearOnlineOnly done - offline layer preserved');
 }
 
 /**
@@ -4847,7 +4915,7 @@ function renderControlZones(force) {
 }
 
 function initControlZones(config) {
-  if (CZ_DEBUG) console.log('[CZ] initControlZones called');
+  czLogger.debug('initControlZones called');
   // Nichts zu tun - State ist bereits initialisiert
 }
 
@@ -4938,7 +5006,7 @@ if (typeof window !== "undefined" && !window.__nativePostMessage) {
   try {
     window.__nativePostMessage = window.postMessage.bind(window);
   } catch (err) {
-    console.warn("Native postMessage nicht verf�gbar:", err);
+    mapLogger.warn("Native postMessage nicht verf�gbar:", err);
   }
 }
 
@@ -4973,7 +5041,7 @@ function getOpenAipProxyRoot() {
       }
     }
   } catch (error) {
-    console.warn("Unable to read KneeboardApiProxyUrl:", error);
+    mapLogger.warn("Unable to read KneeboardApiProxyUrl:", error);
   }
   if (!root) {
     try {
@@ -4987,7 +5055,7 @@ function getOpenAipProxyRoot() {
         root = normalizeProxyRoot(origin);
       }
     } catch (error) {
-      console.warn("Unable to read window.location.origin:", error);
+      windLogger.warn("Unable to read window.location.origin:", error);
     }
   }
   if (!root) {
@@ -5184,7 +5252,7 @@ function updateAllWaypointIcons() {
   });
 
   if (MAP_DEBUG && count > 0) {
-    console.log('[Waypoints] Updated', count, 'icons for zoom', zoom, '(size:', currentSize + ')');
+    waypointLogger.debug('Updated', count, 'icons for zoom', zoom, '(size:', currentSize + ')');
   }
 }
 
@@ -5352,7 +5420,7 @@ function reloadElevationProfileAfterTabSwitch() {
   var shouldBeVisible = map.hasLayer(elevationProfileLayer);
 
   if (shouldBeVisible) {
-    if (MAP_DEBUG) console.log('[Map] Reloading elevation profile after tab switch');
+    mapLogger.debug('Reloading elevation profile after tab switch');
 
     // Ensure the layer is on the map
     if (!map.hasLayer(elevationProfileLayer)) {
@@ -5645,7 +5713,7 @@ function onMainPolylineClick(event) {
   // Safety timeout - auto-reset after 500ms if still true
   setTimeout(function() {
     if (skipNextMapClick === true) {
-      console.warn('[Map Safety] skipNextMapClick stuck after 500ms at polyline click - auto-reset');
+      mapLogger.warn('skipNextMapClick stuck after 500ms at polyline click - auto-reset');
       skipNextMapClick = false;
     }
   }, 500);
@@ -5661,7 +5729,7 @@ function onMainPolylineClick(event) {
       synthetic: true,
     });
   } catch (err) {
-    console.error('[Map] Error firing contextmenu from polyline click:', err);
+    mapLogger.error('Error firing contextmenu from polyline click:', err);
     skipNextMapClick = false;
   }
 }
@@ -5681,14 +5749,14 @@ async function fetchServerFlightplanHash() {
     clearTimeout(timeout);
 
     if (!response.ok) {
-      console.warn('[Map Auto-Load] Server returned', response.status);
+      mapLogger.warn('Server returned', response.status);
       return null;
     }
 
     var data = await response.json();
     return data; // {exists: true/false, hash: "..."}
   } catch (error) {
-    console.warn('[Map Auto-Load] Failed to fetch hash:', error.message);
+    mapLogger.warn('Failed to fetch hash:', error.message);
     return null;
   }
 }
@@ -5708,7 +5776,7 @@ async function fetchServerFlightplan() {
     clearTimeout(timeout);
 
     if (!response.ok) {
-      console.warn('[Map Auto-Load] Server returned', response.status);
+      mapLogger.warn('Server returned', response.status);
       return null;
     }
 
@@ -5719,13 +5787,13 @@ async function fetchServerFlightplan() {
     }
 
     if (!text || text.trim() === '') {
-      if (MAP_DEBUG) console.log('[Map Auto-Load] Server returned empty flight plan');
+      mapLogger.debug('Server returned empty flight plan');
       return null;
     }
 
     return JSON.parse(text);
   } catch (error) {
-    console.warn('[Map Auto-Load] Failed to fetch flight plan:', error.message);
+    mapLogger.warn('Failed to fetch flight plan:', error.message);
     return null;
   }
 }
@@ -5780,7 +5848,7 @@ function resetMapState() {
   openAipLastRenderedKey.navaids = null;
   openAipLastRenderedKey.reportingPoints = null;
 
-  if (MAP_DEBUG) console.log('[Map] State komplett zurückgesetzt');
+  mapLogger.debug('State komplett zurückgesetzt');
 }
 
 function initMapPage() {
@@ -5832,7 +5900,7 @@ function initMapPage() {
     document.documentElement.style.setProperty("--fontLight", fontColorLight);
     document.documentElement.style.setProperty("--fontDark", fontColorDark);
     updateSettingsIconColor(colorDark);
-    if (MAP_DEBUG) console.log('[Map] Farben aus Cache übernommen:', colorLight, colorDark);
+    mapLogger.debug('Farben aus Cache übernommen:', colorLight, colorDark);
   } else {
     // No saved colors - use default theme color from CSS
     var defaultDark = getComputedStyle(document.documentElement).getPropertyValue('--dark').trim() || '#205d8e';
@@ -5851,9 +5919,8 @@ function initMapPage() {
   // --- Map-Container pr�fen ---
   var mapDiv = document.getElementById("map");
   if (!mapDiv) {
-    console.error(
-      "? Kein #map-Container gefunden (map.html wurde evtl. zu sp�t geladen)"
-    );
+    mapLogger.error("? Kein #map-Container gefunden (map.html wurde evtl. zu sp�t geladen)");
+
     return; // ?? ganz wichtig: NICHT weiter machen
   }
 
@@ -5861,14 +5928,14 @@ function initMapPage() {
     try {
       map.remove();
     } catch (disposeError) {
-      console.warn("map.js: Unable to dispose existing Leaflet map:", disposeError);
+      mapLogger.warn("map.js: Unable to dispose existing Leaflet map:", disposeError);
     }
     map = null;
 
     // CRITICAL FIX: Reset flightplan fingerprint when map is recreated
     // Otherwise scheduleFlightplanRender() will skip animation (same fingerprint)
     currentFlightplanFingerprint = null;
-    if (MAP_DEBUG) console.log('[Map] Fingerprint reset for map re-initialization');
+    mapLogger.debug('Fingerprint reset for map re-initialization');
   }
   // State aus localStorage
   airac = calculate_airac_cycle();
@@ -5879,10 +5946,10 @@ function initMapPage() {
     if (Number.isFinite(cachedCenterLat) && Number.isFinite(cachedCenterLng)) {
       mapCenter[0] = cachedCenterLat;
       mapCenter[1] = cachedCenterLng;
-      if (MAP_DEBUG) console.log('[Map] Restored map center from cache:', mapCenter[0], mapCenter[1]);
+      mapLogger.debug('Restored map center from cache:', mapCenter[0], mapCenter[1]);
     }
   } catch (centerCacheError) {
-    if (MAP_DEBUG) console.log('[Map] Unable to restore cached map center:', centerCacheError);
+    mapLogger.debug('Unable to restore cached map center:', centerCacheError);
   }
 
   // Restored cached center above - legacy block retained for reference
@@ -5904,7 +5971,7 @@ function initMapPage() {
   if (cachedWaypointsData && cachedWaypointsData.length > 0) {
     waypointsData = cachedWaypointsData;
     syncLegacyArraysFromWaypointsData();
-    if (MAP_DEBUG) console.log('[Cache] Restored waypointsData (new format):', waypointsData.length, 'waypoints');
+    cacheLogger.debug('Restored waypointsData (new format):', waypointsData.length, 'waypoints');
   } else {
     // LEGACY: Alte Arrays laden für Abwärtskompatibilität
     altitudes = getCachedItem("altitudes") || [];
@@ -5920,7 +5987,7 @@ function initMapPage() {
     // Zu waypointsData synchronisieren
     if (wpNames.length > 0) {
       syncWaypointsDataFromLegacyArrays();
-      if (MAP_DEBUG) console.log('[Cache] Restored legacy arrays, synced to waypointsData:', waypointsData.length, 'waypoints');
+      cacheLogger.debug('Restored legacy arrays, synced to waypointsData:', waypointsData.length, 'waypoints');
     }
   }
 
@@ -5929,7 +5996,7 @@ function initMapPage() {
     // Set animation flag EARLY to prevent loadPoints() from centering on aircraft
     // This will be properly managed by preCenterMapOnFlightplan() later
     window.flightplanAnimationInProgress = true;
-    if (MAP_DEBUG) console.log('[Map] Flightplan exists in cache, setting animation flag early to prevent aircraft centering');
+    mapLogger.debug('Flightplan exists in cache, setting animation flag early to prevent aircraft centering');
 
     // Set mapCenter to BOUNDS CENTER of cached flightplan (not just first waypoint)
     var cachedPoints = getCachedItem("clickedPoints");
@@ -5947,14 +6014,14 @@ function initMapPage() {
       var centerLat = (minLat + maxLat) / 2;
       var centerLng = (minLng + maxLng) / 2;
       mapCenter = [centerLat, centerLng];
-      if (MAP_DEBUG) console.log('[Map] Map center set to bounds center:', centerLat, centerLng);
+      mapLogger.debug('Map center set to bounds center:', centerLat, centerLng);
     } else if (cachedPoints && cachedPoints.length === 1) {
       var singlePoint = cachedPoints[0];
       var singleLat = Array.isArray(singlePoint) ? singlePoint[0] : singlePoint.lat;
       var singleLng = Array.isArray(singlePoint) ? singlePoint[1] : singlePoint.lng;
       if (singleLat && singleLng) {
         mapCenter = [singleLat, singleLng];
-        if (MAP_DEBUG) console.log('[Map] Map center set to single waypoint:', singleLat, singleLng);
+        mapLogger.debug('Map center set to single waypoint:', singleLat, singleLng);
       }
     }
   }
@@ -5963,7 +6030,7 @@ function initMapPage() {
   departureRunwayData = getCachedItem("departureRunwayData") || null;
   arrivalRunwayData = getCachedItem("arrivalRunwayData") || null;
   if (MAP_DEBUG && (departureRunwayData || arrivalRunwayData)) {
-    console.log('[Cache] Restored runway data - DEP:', !!departureRunwayData, 'ARR:', !!arrivalRunwayData);
+    cacheLogger.info('Restored runway data - DEP:', !!departureRunwayData, 'ARR:', !!arrivalRunwayData);
   }
 
   // Restore flightplan metadata
@@ -5978,7 +6045,7 @@ function initMapPage() {
   // Initiales Kartenzentrum = Flugzeugposition (falls verfügbar), sonst Fallback auf 0,0
   var initialCenter = [pos_lat || 0, pos_lng || 0];
 
-  if (MAP_DEBUG) console.log('[Map] v1.49: Initial map center (always neutral):', initialCenter);
+  mapLogger.debug('v1.49: Initial map center (always neutral):', initialCenter);
 
   // Map initialisieren (hier sind wir sicher, dass #map existiert)
   loadMap(initialCenter[0], initialCenter[1]);
@@ -5998,7 +6065,7 @@ function initMapPage() {
 
     var metarSearchButton = document.getElementById("boton");
     if (!metarSearchButton) {
-      console.warn("[map] #boton nicht gefunden");
+      mapLogger.warn("[map] #boton nicht gefunden");
     }
 
     var ID_Aeropuerto = document.getElementById("aeropuerto");
@@ -6011,7 +6078,7 @@ function initMapPage() {
         }
       });
     } else {
-      console.warn("?? #aeropuerto nicht gefunden");
+      mapLogger.warn("?? #aeropuerto nicht gefunden");
     }
     mapDomListenersBound = true;
   }
@@ -6025,7 +6092,7 @@ function initMapPage() {
         if (el) {
           el.style.visibility = "hidden";
         } else {
-          console.warn("?? #" + id + " nicht gefunden");
+          mapLogger.warn("?? #" + id + " nicht gefunden");
         }
       }
     );
@@ -6049,7 +6116,7 @@ function initMapPage() {
   checkSimbriefIdAvailable().then(function() {
     updateSyncButtonState();
   }).catch(function(e) {
-    console.warn('[SimBrief] Error checking ID:', e);
+    simbriefLogger.warn('Error checking ID:', e);
   });
 
   // NO AUTO-LOAD from server - only load from local cache if available
@@ -6062,11 +6129,11 @@ function initMapPage() {
     localStorageRestoreCompleted = true;
     transitionToState(FlightplanLoadState.LOADING_CACHE, 'restoring-from-cache');
 
-    if (MAP_DEBUG) console.log('[Init] Scenario 1: Loading flightplan from cache');
+    initLogger.debug('Scenario 1: Loading flightplan from cache');
 
     var clickedPoints = getCachedItem("clickedPoints");
     if (!clickedPoints || clickedPoints.length === 0) {
-      if (MAP_DEBUG) console.warn('[Init] Cache corrupt - wpNames exist but no clickedPoints');
+      initLogger.warn('Cache corrupt - wpNames exist but no clickedPoints');
       transitionToState(FlightplanLoadState.CENTERING_AIRCRAFT, 'cache-corrupt');
 
       if (window.aircraftPositionInitialized || hasCachedAircraftPosition) {
@@ -6074,10 +6141,10 @@ function initMapPage() {
       } else {
         if (map) {
           map.setView([pos_lat, pos_lng]);
-          if (MAP_DEBUG) console.log('[Center] Fallback position (cache-corrupt):', pos_lat, pos_lng);
+          mapLogger.debug('Fallback position (cache-corrupt):', pos_lat, pos_lng);
         }
         window.centerOnAircraftPending = true;
-        if (MAP_DEBUG) console.log('[Init] Using fallback position, will re-center when simulator sends position (cache-corrupt)');
+        initLogger.debug('Using fallback position, will re-center when simulator sends position (cache-corrupt)');
       }
 
       transitionToState(FlightplanLoadState.READY, 'cache-error');
@@ -6105,7 +6172,7 @@ function initMapPage() {
     }
 
     flightplan = restoredFlightplan;
-    if (MAP_DEBUG) console.log('[Init] Cache flightplan restored (' + restoredFlightplan.length + ' waypoints)');
+    initLogger.debug('Cache flightplan restored (' + restoredFlightplan.length + ' waypoints)');
     transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'cache-flightplan');
     preCenterMapOnFlightplan(restoredFlightplan, 'cache-flightplan');
 
@@ -6128,7 +6195,7 @@ function initMapPage() {
   }
 
   // SZENARIO 2: Kein Flugplan - Aircraft zentrieren
-  if (MAP_DEBUG) console.log('[Init] Scenario 2: No flightplan in cache');
+  initLogger.debug('Scenario 2: No flightplan in cache');
   transitionToState(FlightplanLoadState.CENTERING_AIRCRAFT, 'no-flightplan');
 
   // Check if server has a flightplan from background sync
@@ -6136,13 +6203,13 @@ function initMapPage() {
   // If no: just check SimBrief ID for button activation
   checkServerHasFlightplan().then(function(hasServerFlightplan) {
     if (hasServerFlightplan) {
-      if (MAP_DEBUG) console.log('[Init] Server has flightplan ready - ORANGE pulse started');
+      initLogger.debug('Server has flightplan ready - ORANGE pulse started');
       // Don't clear server cache - there's a flightplan ready!
     } else {
-      if (MAP_DEBUG) console.log('[Init] No flightplan on server');
+      initLogger.debug('No flightplan on server');
     }
   }).catch(function(e) {
-    console.warn('[Init] Error checking server flightplan:', e);
+    initLogger.warn('Error checking server flightplan:', e);
   });
 
   // If we have a position (live or cached), center on it
@@ -6152,11 +6219,11 @@ function initMapPage() {
     // No position yet - center on fallback coordinates immediately (Stuttgart area)
     if (map) {
       map.setView([pos_lat, pos_lng]);
-      if (MAP_DEBUG) console.log('[Center] Fallback position (no-flightplan):', pos_lat, pos_lng);
+      mapLogger.debug('Fallback position (no-flightplan):', pos_lat, pos_lng);
     }
     // When simulator sends first position, it will center via setPosition()
     window.centerOnAircraftPending = true;
-    if (MAP_DEBUG) console.log('[Init] Using fallback position, will re-center when simulator sends position');
+    initLogger.debug('Using fallback position, will re-center when simulator sends position');
   }
 
   transitionToState(FlightplanLoadState.READY, 'no-flightplan');
@@ -6168,7 +6235,7 @@ function initMapPage() {
     windActivationPollCount++;
     if (windActivationPollCount > 100) { // 10 seconds max
       clearInterval(windActivationPoll);
-      console.warn('[Wind] Timeout waiting for map initialization');
+      windLogger.warn('Timeout waiting for map initialization');
       return;
     }
 
@@ -6246,13 +6313,13 @@ function getFromLocalCache(key) {
     if (cached) {
       var parsed = JSON.parse(cached);
       if (parsed.timestamp && (Date.now() - parsed.timestamp) < CACHE_EXPIRY_MS) {
-        if (CZ_DEBUG) console.log('[ControlZones] Cache hit for', key);
+        czLogger.debug('Cache hit for', key);
         return parsed.data;
       }
-      if (CZ_DEBUG) console.log('[ControlZones] Cache expired for', key);
+      czLogger.debug('Cache expired for', key);
     }
   } catch (e) {
-    if (CZ_DEBUG) console.warn('[ControlZones] Cache read error:', e);
+    czLogger.warn('Cache read error:', e);
   }
   return null;
 }
@@ -6265,14 +6332,14 @@ function saveToLocalCache(key, data) {
     var json = JSON.stringify({ timestamp: Date.now(), data: data });
     // Skip caching if data > 2MB (localStorage limit is usually 5-10MB total)
     if (json.length > 2 * 1024 * 1024) {
-      if (CZ_DEBUG) console.log('[ControlZones] Skip caching', key, '- too large:', Math.round(json.length / 1024), 'KB');
+      czLogger.debug('Skip caching', key, '- too large:', Math.round(json.length / 1024), 'KB');
       return;
     }
     localStorage.setItem(key, json);
-    if (CZ_DEBUG) console.log('[ControlZones] Cached', key, '-', Math.round(json.length / 1024), 'KB');
+    czLogger.debug('Cached', key, '-', Math.round(json.length / 1024), 'KB');
   } catch (e) {
     // Quota exceeded - try to clear old caches
-    if (CZ_DEBUG) console.warn('[ControlZones] Cache write error, clearing old data:', e.name);
+    czLogger.warn('Cache write error, clearing old data:', e.name);
     try {
       localStorage.removeItem('vatsimBoundaries');
       localStorage.removeItem('ivaoBoundaries');
@@ -6307,11 +6374,11 @@ function loadVatspyFirNames(callback) {
       firStationNames = data || {};
       firNamesLoaded = true;
       saveToLocalCache('firNames', firStationNames);
-      if (CZ_DEBUG) console.log('[ControlZones] VATSpy FIR names loaded:', Object.keys(firStationNames).length, 'entries');
+      czLogger.debug('VATSpy FIR names loaded:', Object.keys(firStationNames).length, 'entries');
       if (callback) callback(firStationNames);
     })
     .catch(function(err) {
-      if (CZ_DEBUG) console.error('[ControlZones] Error loading VATSpy FIR names:', err);
+      czLogger.error('Error loading VATSpy FIR names:', err);
       firNamesLoaded = true; // Mark as loaded to prevent retries
       if (callback) callback({});
     });
@@ -6342,7 +6409,7 @@ function loadVatsimBoundaries(callback) {
   var cached = getFromLocalCache('vatsimBoundaries');
   if (cached) {
     vatsimBoundariesCache = cached;
-    if (CZ_DEBUG) console.log('[ControlZones] VATSIM boundaries from cache:', cached.features ? cached.features.length : 0, 'features');
+    czLogger.debug('VATSIM boundaries from cache:', cached.features ? cached.features.length : 0, 'features');
     if (callback) callback(cached);
     return;
   }
@@ -6364,7 +6431,7 @@ function loadVatsimBoundaries(callback) {
       vatsimBoundariesCache = data;
       vatsimBoundariesLoading = false;
       saveToLocalCache('vatsimBoundaries', data);
-      if (CZ_DEBUG) console.log('[ControlZones] VATSIM boundaries loaded:', data.features ? data.features.length : 0, 'features');
+      czLogger.debug('VATSIM boundaries loaded:', data.features ? data.features.length : 0, 'features');
       // Call all queued callbacks
       var callbacks = vatsimBoundariesCallbacks.slice();
       vatsimBoundariesCallbacks = [];
@@ -6373,15 +6440,15 @@ function loadVatsimBoundaries(callback) {
       // IMPORTANT: Don't render during flightplan loading to avoid interrupting the process
       if (controlZonesEnabled && !controlZonesOfflineLayer &&
           !window.autoloadCheckInProgress && !window.flightplanUISequenceInProgress && !window.flightplanAnimationInProgress) {
-        if (CZ_DEBUG) console.log('[ControlZones] First load complete, triggering re-render');
+        czLogger.debug('First load complete, triggering re-render');
         setTimeout(renderControlZones, 100);
       } else if (controlZonesEnabled && !controlZonesOfflineLayer) {
-        if (CZ_DEBUG) console.log('[ControlZones] First load complete, but flightplan loading in progress - skipping re-render');
+        czLogger.debug('First load complete, but flightplan loading in progress - skipping re-render');
       }
     })
     .catch(function(err) {
       vatsimBoundariesLoading = false;
-      if (CZ_DEBUG) console.error('[ControlZones] Error loading VATSIM boundaries:', err);
+      czLogger.error('Error loading VATSIM boundaries:', err);
       // Call all queued callbacks with null
       var callbacks = vatsimBoundariesCallbacks.slice();
       vatsimBoundariesCallbacks = [];
@@ -6408,7 +6475,7 @@ function loadVatsimTraconBoundaries(callback) {
   if (cached) {
     vatsimTraconBoundariesCache = cached;
     _cachedVatsimTraconFeatures = cached.features || [];
-    if (CZ_DEBUG) console.log('[ControlZones] VATSIM TRACON boundaries from cache:', _cachedVatsimTraconFeatures.length, 'features');
+    czLogger.debug('VATSIM TRACON boundaries from cache:', _cachedVatsimTraconFeatures.length, 'features');
     if (callback) callback(cached);
     return;
   }
@@ -6421,27 +6488,27 @@ function loadVatsimTraconBoundaries(callback) {
   vatsimTraconBoundariesLoading = true;
   if (callback) vatsimTraconBoundariesCallbacks.push(callback);
 
-  if (CZ_DEBUG) console.log('[CZ] Fetching TRACON from: /api/boundaries/vatsim-tracon');
+  czLogger.debug('Fetching TRACON from: /api/boundaries/vatsim-tracon');
   fetch('/api/boundaries/vatsim-tracon')
     .then(function(response) {
-      if (CZ_DEBUG) console.log('[CZ] TRACON fetch response:', response.status, response.ok);
+      czLogger.debug('TRACON fetch response:', response.status, response.ok);
       if (!response.ok) throw new Error('Failed to fetch VATSIM TRACON boundaries: ' + response.status);
       return response.json();
     })
     .then(function(data) {
-      if (CZ_DEBUG) console.log('[CZ] TRACON data received:', data ? (data.features ? data.features.length + ' features' : 'no features') : 'null');
+      czLogger.debug('TRACON data received:', data ? (data.features ? data.features.length + ' features' : 'no features') : 'null');
       vatsimTraconBoundariesCache = data;
       _cachedVatsimTraconFeatures = data.features || [];
       vatsimTraconBoundariesLoading = false;
       saveToLocalCache('vatsimTraconBoundaries', data);
-      if (CZ_DEBUG) console.log('[CZ] TRACON boundaries loaded:', _cachedVatsimTraconFeatures.length, 'features');
+      czLogger.debug('TRACON boundaries loaded:', _cachedVatsimTraconFeatures.length, 'features');
       // Call all queued callbacks
       var callbacks = vatsimTraconBoundariesCallbacks.slice();
       vatsimTraconBoundariesCallbacks = [];
       callbacks.forEach(function(cb) { cb(data); });
     })
     .catch(function(err) {
-      console.error('[CZ] TRACON fetch ERROR:', err);
+      czLogger.error('TRACON fetch ERROR:', err);
       vatsimTraconBoundariesLoading = false;
       // Call all queued callbacks with null
       var callbacks = vatsimTraconBoundariesCallbacks.slice();
@@ -6487,7 +6554,7 @@ function loadIvaoOfflineFir(callback) {
     .then(function(data) {
       ivaoOfflineFirCache = data;
       ivaoOfflineFirLoading = false;
-      if (CZ_DEBUG) console.log('[ControlZones] IVAO Offline FIR loaded:', data && data.features ? data.features.length : 0, 'FIRs');
+      czLogger.debug('IVAO Offline FIR loaded:', data && data.features ? data.features.length : 0, 'FIRs');
       // Call all queued callbacks
       var callbacks = ivaoOfflineFirCallbacks.slice();
       ivaoOfflineFirCallbacks = [];
@@ -6495,7 +6562,7 @@ function loadIvaoOfflineFir(callback) {
     })
     .catch(function(err) {
       ivaoOfflineFirLoading = false;
-      console.warn('[ControlZones] Could not load IVAO Offline FIR layer:', err.message);
+      czLogger.warn('Could not load IVAO Offline FIR layer:', err.message);
       // Call all queued callbacks with null
       var callbacks = ivaoOfflineFirCallbacks.slice();
       ivaoOfflineFirCallbacks = [];
@@ -6515,7 +6582,7 @@ function loadIvaoBoundaries(callback) {
     ivaoBoundariesCache = cached;
     // Invalidate converted GeoJSON cache to ensure name mapping is applied
     _cachedIvaoGeoJsonFeatures = null;
-    if (CZ_DEBUG) console.log('[ControlZones] IVAO boundaries from cache:', Array.isArray(cached) ? cached.length : 0, 'items');
+    czLogger.debug('IVAO boundaries from cache:', Array.isArray(cached) ? cached.length : 0, 'items');
     if (callback) callback(cached);
     return;
   }
@@ -6539,7 +6606,7 @@ function loadIvaoBoundaries(callback) {
       // Invalidate the converted GeoJSON cache so it gets re-converted with the name mapping
       _cachedIvaoGeoJsonFeatures = null;
       saveToLocalCache('ivaoBoundaries', data);
-      if (CZ_DEBUG) console.log('[ControlZones] IVAO boundaries loaded:', Array.isArray(data) ? data.length : (data && data.features ? data.features.length : 0), 'items');
+      czLogger.debug('IVAO boundaries loaded:', Array.isArray(data) ? data.length : (data && data.features ? data.features.length : 0), 'items');
       // Call all queued callbacks
       var callbacks = ivaoBoundariesCallbacks.slice();
       ivaoBoundariesCallbacks = [];
@@ -6547,7 +6614,7 @@ function loadIvaoBoundaries(callback) {
     })
     .catch(function(err) {
       ivaoBoundariesLoading = false;
-      if (CZ_DEBUG) console.error('[ControlZones] Error loading IVAO boundaries:', err);
+      czLogger.error('Error loading IVAO boundaries:', err);
       // Call all queued callbacks with null
       var callbacks = ivaoBoundariesCallbacks.slice();
       ivaoBoundariesCallbacks = [];
@@ -6629,10 +6696,10 @@ function loadIataToIcaoMapping() {
           if (data.ready && data.mapping) {
             iataToIcaoCache = data.mapping;
             iataToIcaoLoaded = true;
-            if (CZ_DEBUG) console.log('[IATA] Loaded ' + data.count + ' IATA→ICAO mappings');
+            czLogger.debug('Loaded ' + data.count + ' IATA→ICAO mappings');
           }
         } catch (e) {
-          console.error('[IATA] Parse error:', e);
+          czLogger.error('Parse error:', e);
         }
       }
     }
@@ -6665,7 +6732,7 @@ function getActiveControllerPrefixes() {
   var panelNetwork = vatsim ? 'VATSIM' : 'IVAO';
   if (panelNetwork !== controlZonesNetwork) {
     // Networks don't match - return empty to avoid mixing data
-    if (CZ_DEBUG) console.log('[ControlZones] Network mismatch - Panel:', panelNetwork, 'Zones:', controlZonesNetwork);
+    czLogger.debug('Network mismatch - Panel:', panelNetwork, 'Zones:', controlZonesNetwork);
     return prefixes;
   }
 
@@ -6797,7 +6864,7 @@ function findArtccForCoordinates(airportCode, lat, lng, callback) {
     if (isPointInPolygon(lat, lng, polyCoords)) {
       // Cache the result
       airportToArtccCache[airportCode] = id;
-      if (CZ_DEBUG) console.log('[CZ] Airport', airportCode, '→ ARTCC', id, '(geo-lookup)');
+      czLogger.debug('Airport', airportCode, '→ ARTCC', id, '(geo-lookup)');
       if (callback) callback(id);
       return;
     }
@@ -6841,10 +6908,14 @@ var PILOTS_VIEWPORT_DEBOUNCE_MS = 100; // Debounce für viewport updates
 var pilotFavorites = {};  // { "vatsim_12345": true, "ivao_67890": true } - gespeichert nach network_id
 var panelMode = 'zones';  // 'zones' oder 'pilots'
 var showOnlyFavorites = false;  // Filter: nur Favoriten anzeigen
+var _favoritesNeedSave = false; // Deferred save flag für Batch-Updates
 
 // User-IDs für eigenes Flugzeug ausblenden
 var userVatsimCid = '';
 var userIvaoVid = '';
+
+// Eigenes Flugzeug Pilotendaten (von VATSIM/IVAO), fuer Route-Anzeige im Controller-Modus
+var ownAircraftPilotData = null;
 
 // SVG-Icons für Sterne (Coherent GT kompatibel)
 var STAR_EMPTY_SVG = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" stroke-width="1" fill="none"/></svg>';
@@ -6857,10 +6928,10 @@ function loadUserIds() {
     .then(function(data) {
       userVatsimCid = data.vatsimCid || '';
       userIvaoVid = data.ivaoVid || '';
-      console.log('[UserIDs] Loaded - VATSIM:', userVatsimCid ? 'set' : 'none', 'IVAO:', userIvaoVid ? 'set' : 'none');
+      mapLogger.info('Loaded - VATSIM:', userVatsimCid ? 'set' : 'none', 'IVAO:', userIvaoVid ? 'set' : 'none');
     })
     .catch(function(err) {
-      console.warn('[UserIDs] Load error:', err);
+      mapLogger.warn('Load error:', err);
     });
 }
 
@@ -6878,10 +6949,10 @@ function loadPilotFavorites() {
     .then(function(response) { return response.json(); })
     .then(function(data) {
       pilotFavorites = data || {};
-      console.log('[Favorites] Loaded from server:', Object.keys(pilotFavorites).length);
+      mapLogger.info('Loaded from server:', Object.keys(pilotFavorites).length);
     })
     .catch(function(err) {
-      console.warn('[Favorites] Load error:', err);
+      mapLogger.warn('Load error:', err);
       pilotFavorites = {};
     });
 }
@@ -6893,17 +6964,18 @@ function savePilotFavorites() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(pilotFavorites)
   }).catch(function(err) {
-    console.warn('[Favorites] Save error:', err);
+    mapLogger.warn('Save error:', err);
   });
 }
 
 // Favorit togglen - verwendet network_id als Key (z.B. "vatsim_12345")
-function togglePilotFavorite(pilotId, network) {
+// Speichert optional Name und Callsign für Offline-Anzeige
+function togglePilotFavorite(pilotId, network, name, callsign) {
   var favKey = network + '_' + pilotId;
   if (pilotFavorites[favKey]) {
     delete pilotFavorites[favKey];
   } else {
-    pilotFavorites[favKey] = true;
+    pilotFavorites[favKey] = { name: name || '', callsign: callsign || '' };
   }
   savePilotFavorites();
   updatePilotMarkerColorById(pilotId, network);
@@ -6947,8 +7019,8 @@ function updatePilotMarkerColorById(pilotId, network) {
 }
 
 // Toggle Favorit aus dem Popup heraus (aktualisiert auch den Button im Popup)
-function togglePopupFavorite(pilotId, network, buttonElement) {
-  togglePilotFavorite(pilotId, network);
+function togglePopupFavorite(pilotId, network, buttonElement, name, callsign) {
+  togglePilotFavorite(pilotId, network, name, callsign);
 
   // Button im Popup aktualisieren
   if (buttonElement) {
@@ -6963,6 +7035,7 @@ function togglePopupFavorite(pilotId, network, buttonElement) {
 
 // Suchbegriff für Piloten-Suche (persistent während Session)
 var pilotSearchQuery = '';
+var pilotsVisibleCount = 0; // Wird dynamisch berechnet via calculateOptimalListCount()
 
 // Piloten im aktuellen Viewport listen (oder alle Favoriten wenn Filter aktiv)
 function listPilots() {
@@ -6974,60 +7047,128 @@ function listPilots() {
 
   if (listUl) listUl.innerHTML = "";
 
+  // Suchleiste einmalig erstellen (außerhalb der UL, damit sie nicht bei jedem Rebuild zerstört wird)
+  var existingSearch = list.querySelector('.pilot-search-container');
+  var favCount = Object.keys(pilotFavorites).length;
+  if (!existingSearch) {
+    var searchDiv = document.createElement('div');
+    searchDiv.className = 'pilot-search-container';
+    var favFilterClass = showOnlyFavorites ? 'fav-filter-btn active' : 'fav-filter-btn';
+    searchDiv.innerHTML = '<input type="text" id="pilotSearchInput" class="pilot-search-input use-keyboard-input" ' +
+      'placeholder="Suche: Callsign, Typ, Route..." value="' + (pilotSearchQuery || '') + '">' +
+      '<button id="favFilterBtn" class="' + favFilterClass + '" title="Nur Favoriten (' + favCount + ')">' +
+      STAR_FILLED_SVG + '</button>';
+    // Vor die UL einfügen
+    list.insertBefore(searchDiv, listUl);
+
+    // Event-Listener für Suchfeld (nur einmal binden)
+    var searchInput = searchDiv.querySelector('#pilotSearchInput');
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        pilotSearchQuery = this.value;
+        pilotsVisibleCount = 0; // Reset bei neuer Suche
+        listPilots();
+      });
+
+      // Suche bei Escape löschen
+      searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          pilotSearchQuery = '';
+          this.value = '';
+          pilotsVisibleCount = 0; // Reset
+          listPilots();
+        }
+      });
+
+      // Virtuelle Tastatur binden (Standard-Mechanismus wie alle anderen Inputs)
+      if (typeof attachKeyboard === 'function') {
+        attachKeyboard(searchInput);
+      }
+    }
+
+    // Event-Listener für Favoriten-Filter-Button
+    var favFilterBtn = searchDiv.querySelector('#favFilterBtn');
+    if (favFilterBtn) {
+      favFilterBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        showOnlyFavorites = !showOnlyFavorites;
+        pilotsVisibleCount = 0; // Reset bei Filter-Wechsel
+        listPilots();
+      });
+    }
+  } else {
+    // Suchleiste existiert bereits - nur Favoriten-Count aktualisieren
+    var favBtn = existingSearch.querySelector('#favFilterBtn');
+    if (favBtn) {
+      favBtn.title = 'Nur Favoriten (' + favCount + ')';
+      if (showOnlyFavorites) {
+        favBtn.classList.add('active');
+      } else {
+        favBtn.classList.remove('active');
+      }
+    }
+  }
+
   var bounds = map.getBounds();
   var pilotsToShow = [];
   var onlineFavKeys = {}; // Tracking welche Favoriten online sind
   var hasSearchQuery = pilotSearchQuery && pilotSearchQuery.trim().length > 0;
 
-  // Wenn Favoriten-Filter aktiv oder Suche aktiv: ALLE Piloten durchgehen
-  // Sonst: nur Piloten im Viewport
-  for (var key in pilotsMarkersCache) {
-    var marker = pilotsMarkersCache[key];
-    if (!marker || !marker.getLatLng) continue;
-
-    var data = marker._pilotData;
+  // ALLE gecachten Piloten durchgehen (nicht nur Marker im Viewport)
+  for (var key in pilotsAllDataCache) {
+    var data = pilotsAllDataCache[key];
     if (!data) continue;
 
-    var inViewport = bounds.contains(marker.getLatLng());
-    var isFavorite = isPilotFavorite(data.id, data.network, data.callsign);
+    var pilotLatLng = (data.latitude != null && data.longitude != null) ? L.latLng(data.latitude, data.longitude) : null;
+    var inViewport = pilotLatLng ? bounds.contains(pilotLatLng) : false;
+    var isFavorite = isPilotFavorite(data.id, data._network, data.callsign);
 
-    // Tracking: Welche Favoriten sind online?
+    // Tracking: Welche Favoriten sind online? + gespeicherte Daten aktualisieren
     if (isFavorite && data.id) {
-      var favKey = data.network + '_' + data.id;
+      var favKey = data._network + '_' + data.id;
       onlineFavKeys[favKey] = true;
+      // Favoriten-Daten aktualisieren (altes Format true → neues Format mit Name/Callsign)
+      var currentFav = pilotFavorites[favKey];
+      if (currentFav === true || (typeof currentFav === 'object' && !currentFav.callsign)) {
+        pilotFavorites[favKey] = { name: data.name || data.realname || '', callsign: data.callsign || '' };
+        _favoritesNeedSave = true;
+      }
     }
 
     // Filter-Logik:
-    // - Favoriten-Filter aktiv: nur Favoriten anzeigen (egal wo)
+    // - Favoriten-Filter aktiv: NUR Favoriten anzeigen
     // - Suche aktiv: ALLE Piloten durchsuchen (Filterung erfolgt später)
-    // - Sonst: nur Piloten im Viewport
+    // - Sonst: ALLE Piloten anzeigen (Favoriten + Viewport + Rest)
     if (showOnlyFavorites) {
       if (!isFavorite) continue;
-    } else if (!hasSearchQuery) {
-      // Keine Suche aktiv - nur Viewport
-      if (!inViewport) continue;
     }
-    // Bei aktiver Suche: ALLE Piloten hinzufügen (Filterung erfolgt später)
+    // Ohne Favoriten-Filter: alle Piloten in die Liste aufnehmen
 
     pilotsToShow.push({
       callsign: data.callsign,
       id: data.id || '',           // Pilot ID für Favoriten
-      network: data.network,
+      network: data._network,
       category: data.category,
       military: data.military,
       isOnline: true,              // Dieser Pilot ist online
       aircraft: data.aircraft || '',
       departure: data.departure || '',
       arrival: data.arrival || '',
-      name: data.name || '',
-      latlng: marker.getLatLng(),
+      name: data.name || data.realname || '',
+      latlng: pilotLatLng,
       key: key,
       inViewport: inViewport       // Für UI-Anzeige ob im Sichtbereich
     });
   }
 
-  // OFFLINE-FAVORITEN: Wenn Favoriten-Filter aktiv, zeige auch Favoriten die gerade offline sind
-  if (showOnlyFavorites) {
+  // Gesammelte Favoriten-Updates speichern
+  if (_favoritesNeedSave) {
+    _favoritesNeedSave = false;
+    savePilotFavorites();
+  }
+
+  // OFFLINE-FAVORITEN: Immer Favoriten anzeigen die gerade offline sind
+  {
     for (var favKey in pilotFavorites) {
       // Prüfe ob dieser Favorit online ist
       if (onlineFavKeys[favKey]) continue;
@@ -7037,9 +7178,13 @@ function listPilots() {
       if (parts.length < 2) continue;
       var network = parts[0];
       var pilotId = parts.slice(1).join('_'); // Falls ID ein _ enthält
+      // Gespeicherte Daten aus Favoriten-Objekt lesen (neues Format: { name, callsign })
+      var favData = pilotFavorites[favKey];
+      var savedName = (favData && typeof favData === 'object') ? (favData.name || '') : '';
+      var savedCallsign = (favData && typeof favData === 'object') ? (favData.callsign || '') : '';
 
       pilotsToShow.push({
-        callsign: pilotId,           // Zeige ID als Callsign (da wir kein Callsign haben)
+        callsign: savedCallsign || pilotId, // Gespeichertes Callsign oder ID als Fallback
         id: pilotId,
         network: network,
         category: '?',               // Unbekannt
@@ -7048,7 +7193,7 @@ function listPilots() {
         aircraft: '',
         departure: '',
         arrival: '',
-        name: '',
+        name: savedName,
         latlng: null,                // Keine Position
         key: favKey + '_offline',
         inViewport: false
@@ -7061,6 +7206,7 @@ function listPilots() {
   if (query) {
     pilotsToShow = pilotsToShow.filter(function(p) {
       return p.callsign.toLowerCase().indexOf(query) !== -1 ||
+             p.id.toLowerCase().indexOf(query) !== -1 ||
              p.aircraft.toLowerCase().indexOf(query) !== -1 ||
              p.departure.toLowerCase().indexOf(query) !== -1 ||
              p.arrival.toLowerCase().indexOf(query) !== -1 ||
@@ -7084,29 +7230,22 @@ function listPilots() {
   var fragment = document.createDocumentFragment();
   var tempDiv = document.createElement('div');
 
-  // Suchleiste mit Favoriten-Filter-Button
-  var favFilterClass = showOnlyFavorites ? 'fav-filter-btn active' : 'fav-filter-btn';
-  var favCount = Object.keys(pilotFavorites).length;
-  tempDiv.innerHTML = '<div class="pilot-search-container">' +
-    '<input type="text" id="pilotSearchInput" class="pilot-search-input" ' +
-    'placeholder="Suche: Callsign, Typ, Route..." value="' + (pilotSearchQuery || '') + '">' +
-    '<button id="favFilterBtn" class="' + favFilterClass + '" title="Nur Favoriten (' + favCount + ')">' +
-    STAR_FILLED_SVG + '</button>' +
-    '</div>';
-  while (tempDiv.firstChild) fragment.appendChild(tempDiv.firstChild);
-
   // Kategorie-Header mit Anzahl
-  var countText = pilotsToShow.length + ' im Sichtbereich';
+  var viewportCount = pilotsToShow.filter(function(p) { return p.isOnline && p.inViewport; }).length;
+  var favOutsideCount = pilotsToShow.filter(function(p) { return p.isOnline && !p.inViewport; }).length;
+  var offlineFavCount = pilotsToShow.filter(function(p) { return !p.isOnline; }).length;
+  var countText = viewportCount + ' im Sichtbereich';
+  if (favOutsideCount > 0) countText += ' + ' + favOutsideCount + ' Fav.';
+  if (offlineFavCount > 0) countText += ' + ' + offlineFavCount + ' offline';
+
   if (showOnlyFavorites) {
     var onlineCount = pilotsToShow.filter(function(p) { return p.isOnline; }).length;
-    var offlineCount = pilotsToShow.filter(function(p) { return !p.isOnline; }).length;
-    if (offlineCount > 0) {
-      countText = onlineCount + ' online, ' + offlineCount + ' offline';
+    if (offlineFavCount > 0) {
+      countText = onlineCount + ' online, ' + offlineFavCount + ' offline';
     } else {
       countText = onlineCount + ' Favoriten online';
     }
   } else if (query) {
-    // Globale Suche aktiv - zeige Anzahl der Treffer
     countText = pilotsToShow.length + ' gefunden (global)';
   }
   tempDiv.innerHTML = '<div class="kneeboard-panel-category">Piloten (' + countText + ')</div>';
@@ -7122,8 +7261,17 @@ function listPilots() {
     'R': '#eab308'   // Heli - Gelb
   };
 
-  // Piloten-Einträge
-  for (var i = 0; i < pilotsToShow.length; i++) {
+  // Sichtbare Anzahl initialisieren (dynamisch basierend auf Panel-Höhe)
+  if (!pilotsVisibleCount) {
+    pilotsVisibleCount = calculateOptimalListCount();
+  }
+  var totalPilots = pilotsToShow.length;
+  // Bei aktiver Suche alle Ergebnisse anzeigen, sonst begrenzen
+  var hasSearch = pilotSearchQuery && pilotSearchQuery.trim().length > 0;
+  var renderCount = hasSearch ? totalPilots : Math.min(totalPilots, pilotsVisibleCount);
+
+  // Piloten-Einträge (begrenzt auf renderCount)
+  for (var i = 0; i < renderCount; i++) {
     var pilot = pilotsToShow[i];
     var isFavorite = isPilotFavorite(pilot.id, pilot.network, pilot.callsign);
     var starClass = isFavorite ? 'favorite-star active' : 'favorite-star';
@@ -7145,11 +7293,21 @@ function listPilots() {
     }
 
     var offlineClass = !pilot.isOnline ? ' pilot-offline' : '';
+    // Bei Favoriten: Callsign, Name und ID anzeigen
+    var titleText = pilot.callsign;
+    if (isFavorite && pilot.name) {
+      titleText = pilot.callsign + ' <span class="pilot-name-label">' + pilot.name + '</span>';
+    }
+    if (isFavorite && pilot.id && pilot.id !== pilot.callsign) {
+      titleText += ' <span class="pilot-id-label">(' + pilot.id + ')</span>';
+    }
+    var safeNameAttr = (pilot.name || '').replace(/"/g, '&quot;');
+    var safeCallsignAttr = (pilot.callsign || '').replace(/"/g, '&quot;');
     var html = '<li class="kneeboard-list-item pilot-list-item' + offlineClass + '" data-callsign="' + pilot.callsign + '" data-key="' + pilot.key + '" data-id="' + pilot.id + '" data-network="' + pilot.network + '" data-online="' + (pilot.isOnline ? 'true' : 'false') + '">' +
       '<span class="kneeboard-list-dot" style="background-color: ' + dotColor + ';"></span>' +
-      '<span class="kneeboard-list-title">' + pilot.callsign + '</span>' +
+      '<span class="kneeboard-list-title">' + titleText + '</span>' +
       '<span class="kneeboard-list-subtitle">' + subtitle + '</span>' +
-      '<button class="' + starClass + '" data-id="' + pilot.id + '" data-network="' + pilot.network + '">' + starSvg + '</button>' +
+      '<button class="' + starClass + '" data-id="' + pilot.id + '" data-network="' + pilot.network + '" data-name="' + safeNameAttr + '" data-callsign="' + safeCallsignAttr + '">' + starSvg + '</button>' +
       '</li>';
 
     tempDiv.innerHTML = html;
@@ -7158,39 +7316,17 @@ function listPilots() {
 
   listUl.appendChild(fragment);
 
-  // Event-Listener für Suchfeld
-  var searchInput = document.getElementById('pilotSearchInput');
-  if (searchInput) {
-    // Fokus und Cursor-Position nur wiederherstellen wenn User gerade tippt
-    if (pilotSearchQuery) {
-      var cursorPos = pilotSearchQuery.length;
-      searchInput.focus();
-      searchInput.setSelectionRange(cursorPos, cursorPos);
+  // "Show more" Footer wenn es mehr Piloten gibt als angezeigt
+  var listSum = DOM.controllerListSum;
+  if (listSum) {
+    if (totalPilots > renderCount) {
+      var remaining = totalPilots - renderCount;
+      listSum.innerHTML = '<span class="station2" onclick="morePilots()">show&nbsp;more...&nbsp;(' + remaining + '&nbsp;weitere)</span>';
+      listSum.style.display = 'block';
+    } else {
+      listSum.innerHTML = '';
+      listSum.style.display = 'none';
     }
-
-    searchInput.addEventListener('input', function() {
-      pilotSearchQuery = this.value;
-      listPilots();
-    });
-
-    // Suche bei Escape löschen
-    searchInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') {
-        pilotSearchQuery = '';
-        this.value = '';
-        listPilots();
-      }
-    });
-  }
-
-  // Event-Listener für Favoriten-Filter-Button
-  var favFilterBtn = document.getElementById('favFilterBtn');
-  if (favFilterBtn) {
-    favFilterBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      showOnlyFavorites = !showOnlyFavorites;
-      listPilots();
-    });
   }
 
   // Event-Delegation für Stern-Buttons und Piloten-Klick (nativ statt jQuery)
@@ -7202,7 +7338,9 @@ function listPilots() {
         e.stopPropagation();
         var pilotId = star.dataset.id;
         var network = star.dataset.network;
-        togglePilotFavorite(pilotId, network);
+        var pilotName = star.dataset.name || '';
+        var pilotCallsign = star.dataset.callsign || '';
+        togglePilotFavorite(pilotId, network, pilotName, pilotCallsign);
         return;
       }
       var item = e.target.closest('.pilot-list-item');
@@ -7216,6 +7354,13 @@ function listPilots() {
         if (marker) {
           map.setView(marker.getLatLng(), Math.max(map.getZoom(), 8));
           marker.openPopup();
+        } else {
+          // Pilot hat keinen Marker (außerhalb Viewport) - pannen per gecachten Daten
+          var pilotData = pilotsAllDataCache[key];
+          if (pilotData && pilotData.latitude != null && pilotData.longitude != null) {
+            map.setView([pilotData.latitude, pilotData.longitude], Math.max(map.getZoom(), 8));
+            // Nach dem Pannen wird renderPilotsInViewport den Marker erstellen
+          }
         }
       }
     });
@@ -7311,7 +7456,7 @@ function getAircraftCategory(aircraftType) {
   }
 
   if (PILOTS_DEBUG && (cleanType !== type)) {
-    console.log('[Pilots] Aircraft type parsed:', type, '->', cleanType);
+    pilotsLogger.debug('Aircraft type parsed:', type, '->', cleanType);
   }
 
   // Super Heavy (J) - A380, AN-225
@@ -7514,10 +7659,13 @@ var pilotIconCache = {};
 function createPilotIcon(heading, category, network, isMilitary, pilotId, callsign) {
   var baseSize = 24;
   var color = '#0ea5e9'; // Kneeboard cyan
+  var isKfr = callsign && callsign.indexOf('KFR') === 0;
 
   // FAVORITEN: Gold-Farbe für Favoriten hat Priorität! (nach ID und Callsign für Rückwärtskompatibilität)
   var isFavorite = isPilotFavorite(pilotId, network, callsign);
-  if (isFavorite) {
+  if (isKfr) {
+    color = '#ef4444';  // Rot für KFR Kingfisher
+  } else if (isFavorite) {
     color = '#fbbf24';  // Gold/Amber für Favoriten
   } else if (isMilitary) {
     color = '#6b7c3f'; // Olive drab
@@ -7538,18 +7686,20 @@ function createPilotIcon(heading, category, network, isMilitary, pilotId, callsi
 
   // PERFORMANCE: Cache-Lookup für SVG-Body (ohne Rotation)
   // Favoriten haben eigenen Cache-Key wegen unterschiedlicher Farbe
-  var cacheKey = category + '_' + (isMilitary ? '1' : '0') + '_' + (isFavorite ? 'F' : '0') + '_' + zoomLevel;
+  var cacheKey = category + '_' + (isMilitary ? '1' : '0') + '_' + (isFavorite ? 'F' : '0') + '_' + (isKfr ? 'K' : '0') + '_' + zoomLevel;
   var svgBody = pilotIconCache[cacheKey];
 
   if (!svgBody) {
     // SVG-Body erstellen (OHNE Rotation - wird per CSS gesetzt)
     svgBody = createPilotSvgBody(category, color, size);
     pilotIconCache[cacheKey] = svgBody;
-    if (PILOTS_DEBUG) console.log('[Pilots] Icon cached:', cacheKey);
+    pilotsLogger.debug('Icon cached:', cacheKey);
   }
 
   // Rotation wird per CSS transform gesetzt
-  var svg = '<div style="transform: rotate(' + (heading || 0) + 'deg); width: ' + size + 'px; height: ' + size + 'px;">' + svgBody + '</div>';
+  // KFR-Favoriten bekommen goldenen Rahmen
+  var frameStyle = (isKfr && isFavorite) ? ' box-shadow: 0 0 0 2px #fbbf24, 0 0 6px rgba(251,191,36,0.6); border-radius: 50%;' : '';
+  var svg = '<div style="transform: rotate(' + (heading || 0) + 'deg); width: ' + size + 'px; height: ' + size + 'px;' + frameStyle + '">' + svgBody + '</div>';
 
   return L.divIcon({
     html: svg,
@@ -7701,7 +7851,9 @@ function createPilotPopup(pilot, network, isMilitary) {
     var isFavorite = isPilotFavorite(pilotId, network, pilot.callsign);
     var starSvg = isFavorite ? STAR_FILLED_SVG : STAR_EMPTY_SVG;
     var starColor = isFavorite ? '#fbbf24' : '#666';
-    html += '<button onclick="togglePopupFavorite(\'' + pilotId + '\', \'' + network + '\', this)" ';
+    var escapedName = (pilot.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    var escapedCallsign = (pilot.callsign || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    html += '<button onclick="togglePopupFavorite(\'' + pilotId + '\', \'' + network + '\', this, \'' + escapedName + '\', \'' + escapedCallsign + '\')" ';
     html += 'style="background:none;border:none;cursor:pointer;padding:4px;color:' + starColor + ';display:flex;align-items:center;" ';
     html += 'title="' + (isFavorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen') + '">';
     html += starSvg;
@@ -7899,7 +8051,7 @@ function showPilotRoute(pilotData) {
   fetchAirportCoordinates(pilotData.departure, function(depCoords) {
     fetchAirportCoordinates(pilotData.arrival, function(arrCoords) {
       if (!depCoords || !arrCoords) {
-        if (PILOTS_DEBUG) console.log('[Pilots] Could not fetch airport coordinates');
+        pilotsLogger.debug('Could not fetch airport coordinates');
         return;
       }
 
@@ -7953,7 +8105,7 @@ function showPilotRoute(pilotData) {
       window.pilotRouteLayer.addTo(map);
       window.pilotRouteMarkers.addTo(map);
 
-      if (PILOTS_DEBUG) console.log('[Pilots] Geodesic route displayed for', pilotData.callsign);
+      pilotsLogger.debug('Geodesic route displayed for', pilotData.callsign);
     });
   });
 }
@@ -7990,9 +8142,9 @@ window.currentHoverPilotId = null;  // Track currently hovered pilot
 var HOVER_DEBUG = false;
 
 function showPilotHoverRoute(pilotData) {
-  if (HOVER_DEBUG) console.log('[HoverRoute] called:', pilotData && pilotData.callsign, 'DEP:', pilotData && pilotData.departure, 'ARR:', pilotData && pilotData.arrival);
+  hoverRouteLogger.debug('called:', pilotData && pilotData.callsign, 'DEP:', pilotData && pilotData.departure, 'ARR:', pilotData && pilotData.arrival);
   if (!pilotData || !pilotData.departure || !pilotData.arrival) {
-    if (HOVER_DEBUG) console.log('[HoverRoute] SKIP - missing dep/arr');
+    hoverRouteLogger.debug('SKIP - missing dep/arr');
     return;
   }
 
@@ -8000,7 +8152,7 @@ function showPilotHoverRoute(pilotData) {
 
   // Don't show hover route for the same pilot that already has permanent route displayed
   if (window.currentPilotRouteId && window.currentPilotRouteId === pilotDataId) {
-    if (HOVER_DEBUG) console.log('[HoverRoute] SKIP - permanent route shown');
+    hoverRouteLogger.debug('SKIP - permanent route shown');
     return;
   }
 
@@ -8033,21 +8185,21 @@ function showPilotHoverRoute(pilotData) {
   window.pilotHoverRouteLayer = L.layerGroup().addTo(map);
 
   // Fetch airport coordinates (using batch endpoint for efficiency)
-  if (HOVER_DEBUG) console.log('[HoverRoute] Fetching coords for DEP:', pilotData.departure, 'ARR:', pilotData.arrival);
+  hoverRouteLogger.debug('Fetching coords for DEP:', pilotData.departure, 'ARR:', pilotData.arrival);
   fetchAirportCoordinatesBatch(pilotData.departure, pilotData.arrival, function(depCoords, arrCoords) {
-    if (HOVER_DEBUG) console.log('[HoverRoute] DEP coords:', depCoords, 'ARR coords:', arrCoords);
+    hoverRouteLogger.debug('DEP coords:', depCoords, 'ARR coords:', arrCoords);
     // Check if this request is still current (not superseded by newer hover)
     if (thisRequestId !== window.hoverRouteRequestId) {
-      if (HOVER_DEBUG) console.log('[HoverRoute] SKIP - request superseded');
+      hoverRouteLogger.debug('SKIP - request superseded');
       return;
     }
     if (!window.pilotHoverRouteLayer) {
-      if (HOVER_DEBUG) console.log('[HoverRoute] SKIP - layer gone');
+      hoverRouteLogger.debug('SKIP - layer gone');
       return;
     }
 
     if (!depCoords || !arrCoords) {
-      if (HOVER_DEBUG) console.log('[HoverRoute] SKIP - coords missing:', depCoords, arrCoords);
+      hoverRouteLogger.debug('SKIP - coords missing:', depCoords, arrCoords);
       return;
     }
 
@@ -8096,7 +8248,7 @@ function showPilotHoverRoute(pilotData) {
 
     // Add to hover layer (final check that this request is still current)
     if (window.pilotHoverRouteLayer && thisRequestId === window.hoverRouteRequestId) {
-      if (HOVER_DEBUG) console.log('[HoverRoute] Adding layers to map');
+      hoverRouteLogger.debug('Adding layers to map');
       window.pilotHoverRouteLayer.addLayer(completedLine);
       window.pilotHoverRouteLayer.addLayer(remainingLine);
       window.pilotHoverRouteLayer.addLayer(depMarker);
@@ -8108,7 +8260,7 @@ function showPilotHoverRoute(pilotData) {
 
 // Hide hover route - with small delay to handle setLatLng-triggered mouseout/mouseover pairs
 function hidePilotHoverRoute(immediate) {
-  if (HOVER_DEBUG) console.log('[HoverRoute] HIDE called, immediate:', !!immediate);
+  hoverRouteLogger.debug('HIDE called, immediate:', !!immediate);
 
   // Clear any pending hide timeout
   if (window.hoverHideTimeout) {
@@ -8120,7 +8272,7 @@ function hidePilotHoverRoute(immediate) {
     // Immediate removal (for zoom, drag, or explicit hide)
     window.currentHoverPilotId = null;
     if (window.pilotHoverRouteLayer && map) {
-      if (HOVER_DEBUG) console.log('[HoverRoute] Removing layer from map');
+      hoverRouteLogger.debug('Removing layer from map');
       map.removeLayer(window.pilotHoverRouteLayer);
       window.pilotHoverRouteLayer = null;
     }
@@ -8130,7 +8282,7 @@ function hidePilotHoverRoute(immediate) {
     window.hoverHideTimeout = setTimeout(function() {
       window.currentHoverPilotId = null;
       if (window.pilotHoverRouteLayer && map) {
-        if (HOVER_DEBUG) console.log('[HoverRoute] Removing layer from map (delayed)');
+        hoverRouteLogger.debug('Removing layer from map (delayed)');
         map.removeLayer(window.pilotHoverRouteLayer);
         window.pilotHoverRouteLayer = null;
       }
@@ -8160,9 +8312,9 @@ function buildAirportIcaoIndex() {
         };
       }
     }
-    if (MAP_DEBUG) console.log('[Airports] ICAO-Index erstellt mit', Object.keys(window.airportIcaoIndex).length, 'Einträgen');
+    airportLogger.debug('ICAO-Index erstellt mit', Object.keys(window.airportIcaoIndex).length, 'Einträgen');
   } else {
-    if (MAP_DEBUG) console.warn('[Airports] ICAO-Index LEER - airports nicht verfügbar:', typeof airports, airports ? airports.length : 'null');
+    airportLogger.warn('ICAO-Index LEER - airports nicht verfügbar:', typeof airports, airports ? airports.length : 'null');
   }
 }
 
@@ -8186,12 +8338,12 @@ function fetchAirportCoordinates(icao, callback) {
   if (window.airportIcaoIndex && window.airportIcaoIndex[icao]) {
     var coords = window.airportIcaoIndex[icao];
     window.airportCoordsCache[icao] = coords;
-    if (HOVER_DEBUG) console.log('[HoverRoute] Found in ICAO-Index:', icao, coords);
+    hoverRouteLogger.debug('Found in ICAO-Index:', icao, coords);
     callback(coords);
     return;
   }
 
-  if (HOVER_DEBUG) console.log('[HoverRoute] NOT in ICAO-Index:', icao, '- Index size:', Object.keys(window.airportIcaoIndex || {}).length, '- trying OpenAIP API...');
+  hoverRouteLogger.debug('NOT in ICAO-Index:', icao, '- Index size:', Object.keys(window.airportIcaoIndex || {}).length, '- trying OpenAIP API...');
   // Not found in local data - use OpenAIP API to fetch by ICAO code
   fetchAirportFromOpenAIP(icao, callback);
 }
@@ -8209,28 +8361,28 @@ function fetchAirportFromOpenAIP(icao, callback) {
           if (data && data.found && data.lat && data.lng) {
             var coords = { lat: data.lat, lng: data.lng };
             window.airportCoordsCache[icao] = coords;
-            if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP found:', icao, coords);
+            hoverRouteLogger.debug('OpenAIP found:', icao, coords);
             callback(coords);
           } else {
-            if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP not found:', icao, '- trying Nominatim...');
+            hoverRouteLogger.debug('OpenAIP not found:', icao, '- trying Nominatim...');
             fetchAirportFromNominatim(icao, callback);
           }
         } catch (e) {
-          if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP parse error:', e);
+          hoverRouteLogger.debug('OpenAIP parse error:', e);
           fetchAirportFromNominatim(icao, callback);
         }
       } else {
-        if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP error status:', xhr.status);
+        hoverRouteLogger.debug('OpenAIP error status:', xhr.status);
         fetchAirportFromNominatim(icao, callback);
       }
     }
   };
   xhr.onerror = function() {
-    if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP network error');
+    hoverRouteLogger.debug('OpenAIP network error');
     fetchAirportFromNominatim(icao, callback);
   };
   xhr.ontimeout = function() {
-    if (HOVER_DEBUG) console.log('[HoverRoute] OpenAIP timeout');
+    hoverRouteLogger.debug('OpenAIP timeout');
     fetchAirportFromNominatim(icao, callback);
   };
   xhr.send();
@@ -8257,7 +8409,7 @@ function fetchAirportCoordinatesBatch(depIcao, arrIcao, callback) {
 
   // If both are cached, return immediately
   if (depFromCache && arrFromCache) {
-    if (HOVER_DEBUG) console.log('[HoverRoute] Batch: both from cache');
+    hoverRouteLogger.debug('Batch: both from cache');
     callback(depFromCache, arrFromCache);
     return;
   }
@@ -8284,7 +8436,7 @@ function fetchAirportCoordinatesBatch(depIcao, arrIcao, callback) {
 
           // Check if airport database is still loading
           if (data.loading) {
-            if (HOVER_DEBUG) console.log('[HoverRoute] Airport database still loading...');
+            hoverRouteLogger.debug('Airport database still loading...');
             callback(depFromCache || null, arrFromCache || null);
             return;
           }
@@ -8295,16 +8447,16 @@ function fetchAirportCoordinatesBatch(depIcao, arrIcao, callback) {
           if (data.dep && data.dep.found) {
             depCoords = { lat: data.dep.lat, lng: data.dep.lng };
             window.airportCoordsCache[depIcao] = depCoords;
-            if (HOVER_DEBUG) console.log('[HoverRoute] Batch DEP found:', depIcao, depCoords);
+            hoverRouteLogger.debug('Batch DEP found:', depIcao, depCoords);
           } else if (depIcao && !depFromCache) {
-            if (HOVER_DEBUG) console.log('[HoverRoute] Batch DEP not found in OpenAIP:', depIcao, '- trying Nominatim...');
+            hoverRouteLogger.debug('Batch DEP not found in OpenAIP:', depIcao, '- trying Nominatim...');
           }
           if (data.arr && data.arr.found) {
             arrCoords = { lat: data.arr.lat, lng: data.arr.lng };
             window.airportCoordsCache[arrIcao] = arrCoords;
-            if (HOVER_DEBUG) console.log('[HoverRoute] Batch ARR found:', arrIcao, arrCoords);
+            hoverRouteLogger.debug('Batch ARR found:', arrIcao, arrCoords);
           } else if (arrIcao && !arrFromCache) {
-            if (HOVER_DEBUG) console.log('[HoverRoute] Batch ARR not found in OpenAIP:', arrIcao, '- trying Nominatim...');
+            hoverRouteLogger.debug('Batch ARR not found in OpenAIP:', arrIcao, '- trying Nominatim...');
           }
 
           // If either is missing, try Nominatim fallback
@@ -8340,21 +8492,21 @@ function fetchAirportCoordinatesBatch(depIcao, arrIcao, callback) {
             }
           }
         } catch (e) {
-          if (HOVER_DEBUG) console.log('[HoverRoute] Batch parse error:', e);
+          hoverRouteLogger.debug('Batch parse error:', e);
           callback(depFromCache || null, arrFromCache || null);
         }
       } else {
-        if (HOVER_DEBUG) console.log('[HoverRoute] Batch error status:', xhr.status);
+        hoverRouteLogger.debug('Batch error status:', xhr.status);
         callback(depFromCache || null, arrFromCache || null);
       }
     }
   };
   xhr.onerror = function() {
-    if (HOVER_DEBUG) console.log('[HoverRoute] Batch network error');
+    hoverRouteLogger.debug('Batch network error');
     callback(depFromCache || null, arrFromCache || null);
   };
   xhr.ontimeout = function() {
-    if (HOVER_DEBUG) console.log('[HoverRoute] Batch timeout');
+    hoverRouteLogger.debug('Batch timeout');
     callback(depFromCache || null, arrFromCache || null);
   };
   xhr.send();
@@ -8409,18 +8561,18 @@ function formatAltitude(alt) {
 
 // Fetch pilots from VATSIM (HYBRID: Server-seitig vorverarbeitet)
 function fetchVatsimPilots(callback) {
-  if (PILOTS_DEBUG) console.log('[Pilots] Fetching VATSIM pilots via HYBRID endpoint...');
+  pilotsLogger.debug('Fetching VATSIM pilots via HYBRID endpoint...');
 
   // Nutze neuen Server-Endpoint mit vorverarbeiteten Daten
   postRequest('api/pilots/vatsim', function(response) {
-    if (PILOTS_DEBUG) console.log('[Pilots] VATSIM response received, length:', response ? response.length : 0);
+    pilotsLogger.debug('VATSIM response received, length:', response ? response.length : 0);
     try {
       // Server liefert bereits fertiges Array mit category und military
       var pilots = JSON.parse(response);
-      if (PILOTS_DEBUG) console.log('[Pilots] VATSIM (HYBRID): ' + pilots.length + ' pilots fetched (vorverarbeitet)');
+      pilotsLogger.debug('VATSIM (HYBRID): ' + pilots.length + ' pilots fetched (vorverarbeitet)');
       callback(pilots);
     } catch (e) {
-      console.warn('[Pilots] VATSIM parse error:', e);
+      pilotsLogger.warn('VATSIM parse error:', e);
       callback([]);
     }
   });
@@ -8428,18 +8580,18 @@ function fetchVatsimPilots(callback) {
 
 // Fetch pilots from IVAO (HYBRID: Server-seitig vorverarbeitet)
 function fetchIvaoPilots(callback) {
-  if (PILOTS_DEBUG) console.log('[Pilots] Fetching IVAO pilots via HYBRID endpoint...');
+  pilotsLogger.debug('Fetching IVAO pilots via HYBRID endpoint...');
 
   // Nutze neuen Server-Endpoint mit vorverarbeiteten Daten
   postRequest('api/pilots/ivao', function(response) {
-    if (PILOTS_DEBUG) console.log('[Pilots] IVAO response received, length:', response ? response.length : 0);
+    pilotsLogger.debug('IVAO response received, length:', response ? response.length : 0);
     try {
       // Server liefert bereits fertiges Array mit category und military
       var pilots = JSON.parse(response);
-      if (PILOTS_DEBUG) console.log('[Pilots] IVAO (HYBRID): ' + pilots.length + ' pilots fetched (vorverarbeitet)');
+      pilotsLogger.debug('IVAO (HYBRID): ' + pilots.length + ' pilots fetched (vorverarbeitet)');
       callback(pilots);
     } catch (e) {
-      console.warn('[Pilots] IVAO parse error:', e);
+      pilotsLogger.warn('IVAO parse error:', e);
       callback([]);
     }
   });
@@ -8452,18 +8604,18 @@ var PILOTS_UPDATE_DEBOUNCE_MS = 500; // Min 500ms zwischen Updates
 
 // Update pilots on map (mit Debounce)
 function updatePilotsLayer() {
-  if (PILOTS_DEBUG) console.log('[Pilots] updatePilotsLayer called - enabled:', pilotsEnabled, 'layer:', !!pilotsLayer, 'map:', !!map, 'network:', pilotsNetwork);
+  pilotsLogger.debug('updatePilotsLayer called - enabled:', pilotsEnabled, 'layer:', !!pilotsLayer, 'map:', !!map, 'network:', pilotsNetwork);
   if (!pilotsEnabled || !pilotsLayer || !map) return;
 
   // DEBOUNCE: Verhindere mehrfache schnelle Aufrufe
   var now = Date.now();
   if (now - pilotsLastUpdateTime < PILOTS_UPDATE_DEBOUNCE_MS) {
-    if (PILOTS_DEBUG) console.log('[Pilots] Update SKIPPED - debounce (' + (now - pilotsLastUpdateTime) + 'ms since last)');
+    pilotsLogger.debug('Update SKIPPED - debounce (' + (now - pilotsLastUpdateTime) + 'ms since last)');
     return;
   }
   pilotsLastUpdateTime = now;
 
-  if (PILOTS_DEBUG) console.log('[Pilots] Updating pilots layer...');
+  pilotsLogger.debug('Updating pilots layer...');
 
   // Shared state object für beide Callbacks (verhindert Race Condition)
   var state = {
@@ -8478,7 +8630,7 @@ function updatePilotsLayer() {
     if (state.fetchCount === state.expectedFetches) {
       // Kombiniere alle Piloten erst am Ende
       var allPilots = state.vatsimPilots.concat(state.ivaoPilots);
-      if (PILOTS_DEBUG) console.log('[Pilots] Rendering total:', allPilots.length, '(VATSIM:', state.vatsimPilots.length, ', IVAO:', state.ivaoPilots.length + ')');
+      pilotsLogger.debug('Rendering total:', allPilots.length, '(VATSIM:', state.vatsimPilots.length, ', IVAO:', state.ivaoPilots.length + ')');
       renderPilots(allPilots);
     }
   }
@@ -8530,6 +8682,16 @@ function createPilotMarker(pilot, category, military) {
     className: 'pilot-popup-container',
     maxWidth: 300
   });
+
+  // Favoriten: Callsign permanent als Label anzeigen
+  if (isPilotFavorite(pilot.id, pilot._network, pilot.callsign)) {
+    marker.bindTooltip(pilot.callsign, {
+      permanent: true,
+      direction: 'right',
+      offset: [12, 0],
+      className: 'pilot-callsign-label'
+    });
+  }
 
   // Panel wieder öffnen wenn Controller-Modus aktiv aber Panel versteckt
   marker.on('click', function() {
@@ -8650,12 +8812,15 @@ function renderPilotsInViewport() {
     }
 
     var inViewport = isInExtendedViewport(pilot.latitude, pilot.longitude, bounds, PILOTS_VIEWPORT_PADDING);
+    // Favoriten immer anzeigen, auch außerhalb des Viewports
+    var isFav = isPilotFavorite(pilot.id, pilot._network, pilot.callsign);
+    var shouldRender = inViewport || isFav;
     var existingMarker = pilotsMarkersCache[key];
 
-    if (inViewport) {
+    if (shouldRender) {
       visibleCount++;
       if (!existingMarker) {
-        // Pilot ist im Viewport aber hat noch keinen Marker -> erstellen
+        // Pilot ist im Viewport oder Favorit aber hat noch keinen Marker -> erstellen
         var category = pilot.category || getAircraftCategory(pilot.aircraft);
         var military = pilot.military !== undefined ? pilot.military : isMilitaryAircraft(pilot.callsign, pilot.aircraft);
         var marker = createPilotMarker(pilot, category, military);
@@ -8681,7 +8846,7 @@ function renderPilotsInViewport() {
     } else {
       hiddenCount++;
       if (existingMarker) {
-        // Pilot ist außerhalb des Viewports -> Marker entfernen
+        // Pilot ist außerhalb des Viewports und kein Favorit -> Marker entfernen
         pilotsLayer.removeLayer(existingMarker);
         delete pilotsMarkersCache[key];
         removedCount++;
@@ -8690,9 +8855,8 @@ function renderPilotsInViewport() {
   }
 
   if (PILOTS_DEBUG) {
-    console.log('[Pilots] Viewport update - Visible:', visibleCount, 'Hidden:', hiddenCount,
-                'Added:', addedCount, 'Removed:', removedCount,
-                'Markers on map:', Object.keys(pilotsMarkersCache).length);
+    pilotsLogger.info('Viewport update - Visible:', visibleCount, 'Hidden:', hiddenCount, 'Added:', addedCount, 'Removed:', removedCount, 'Markers on map:', Object.keys(pilotsMarkersCache).length);
+
   }
 }
 
@@ -8700,12 +8864,19 @@ function renderPilotsInViewport() {
 function renderPilots(pilots) {
   if (!pilotsLayer || !map) return;
 
-  if (PILOTS_DEBUG) console.log('[Pilots] Received ' + pilots.length + ' pilots from server');
+  pilotsLogger.debug('Received ' + pilots.length + ' pilots from server');
 
   // EIGENES FLUGZEUG AUSBLENDEN
   var filteredPilots = pilots.filter(function(p) {
     if (isOwnAircraft(p.id, p._network)) {
-      if (PILOTS_DEBUG) console.log('[Pilots] Eigenes Flugzeug ausgeblendet:', p.callsign, p._network, p.id);
+      pilotsLogger.debug('Eigenes Flugzeug ausgeblendet:', p.callsign, p._network, p.id);
+      // Pilotendaten fuer Route-Anzeige im Controller-Modus speichern
+      ownAircraftPilotData = {
+        callsign: p.callsign,
+        departure: p.departure || '',
+        arrival: p.arrival || '',
+        network: p._network
+      };
       return false;
     }
     return true;
@@ -8743,19 +8914,23 @@ function renderPilots(pilots) {
     var existingData = pilotsAllDataCache[key];
     var existingMarker = pilotsMarkersCache[key];
     var inViewport = isInExtendedViewport(pilot.latitude, pilot.longitude, bounds, PILOTS_VIEWPORT_PADDING);
+    // Favoriten immer anzeigen, auch außerhalb des Viewports
+    var isFav = isPilotFavorite(pilot.id, pilot._network, pilot.callsign);
+    var shouldRender = inViewport || isFav;
 
     // Daten immer aktualisieren
     pilotsAllDataCache[key] = pilot;
 
-    if (inViewport) {
+    if (shouldRender) {
       stats.visible++;
 
       if (existingMarker) {
         // Update Position
         existingMarker.setLatLng([pilot.latitude, pilot.longitude]);
 
-        // Icon nur bei signifikanter Heading-Änderung updaten
-        if (!existingData || Math.abs((pilot.heading || 0) - (existingMarker._lastHeading || 0)) > 5) {
+        // Icon updaten bei Heading-Änderung oder Kategorie-Wechsel (z.B. KFR-Erkennung)
+        var categoryChanged = existingData && existingData.category !== pilot.category;
+        if (!existingData || categoryChanged || Math.abs((pilot.heading || 0) - (existingMarker._lastHeading || 0)) > 5) {
           var icon = createPilotIcon(pilot.heading, pilot.category, pilot._network, pilot.military, pilot.id, pilot.callsign);
           existingMarker.setIcon(icon);
           existingMarker._lastHeading = pilot.heading;
@@ -8795,7 +8970,7 @@ function renderPilots(pilots) {
       }
     } else {
       stats.hidden++;
-      // Marker entfernen wenn außerhalb des Viewports
+      // Marker entfernen wenn außerhalb des Viewports (nicht für Favoriten)
       if (existingMarker) {
         pilotsLayer.removeLayer(existingMarker);
         delete pilotsMarkersCache[key];
@@ -8809,10 +8984,8 @@ function renderPilots(pilots) {
   }
 
   if (PILOTS_DEBUG) {
-    console.log('[Pilots] Render complete - Total:', Object.keys(pilotsAllDataCache).length,
-                'Visible:', stats.visible, 'Hidden:', stats.hidden,
-                'Updated:', stats.updated, 'Added:', stats.added,
-                'Markers on map:', Object.keys(pilotsMarkersCache).length);
+    pilotsLogger.info('Render complete - Total:', Object.keys(pilotsAllDataCache).length, 'Visible:', stats.visible, 'Hidden:', stats.hidden, 'Updated:', stats.updated, 'Added:', stats.added, 'Markers on map:', Object.keys(pilotsMarkersCache).length);
+
   }
 }
 
@@ -8823,14 +8996,14 @@ function startPilotsAutoUpdate() {
     pilotsUpdateInterval = null;
   }
   pilotsUpdateInterval = setInterval(updatePilotsLayer, PILOTS_UPDATE_INTERVAL_MS);
-  if (PILOTS_DEBUG) console.log('[Pilots] Auto-update started (' + (PILOTS_UPDATE_INTERVAL_MS / 1000) + 's interval)');
+  pilotsLogger.debug('Auto-update started (' + (PILOTS_UPDATE_INTERVAL_MS / 1000) + 's interval)');
 }
 
 function stopPilotsAutoUpdate() {
   if (pilotsUpdateInterval) {
     clearInterval(pilotsUpdateInterval);
     pilotsUpdateInterval = null;
-    if (PILOTS_DEBUG) console.log('[Pilots] Auto-update stopped');
+    pilotsLogger.debug('Auto-update stopped');
   }
 }
 
@@ -8843,16 +9016,16 @@ function setPilotsEnabled(enabled) {
 
     // Wenn bereits gecachte Daten vorhanden sind, sofort anzeigen (schneller Switch!)
     if (hasCachedData) {
-      if (PILOTS_DEBUG) console.log('[Pilots] Using cached data for instant display:', Object.keys(pilotsAllDataCache).length, 'pilots');
+      pilotsLogger.debug('Using cached data for instant display:', Object.keys(pilotsAllDataCache).length, 'pilots');
       renderPilotsInViewport();
     }
 
     // NUR neu laden wenn Cache alt oder leer ist
     if (!hasCachedData || cacheAge >= PILOTS_CACHE_FRESH_MS) {
-      if (PILOTS_DEBUG) console.log('[Pilots] Cache stale or empty (' + (cacheAge/1000).toFixed(1) + 's), fetching new data');
+      pilotsLogger.debug('Cache stale or empty (' + (cacheAge/1000).toFixed(1) + 's), fetching new data');
       updatePilotsLayer();
     } else {
-      if (PILOTS_DEBUG) console.log('[Pilots] Cache fresh (' + (cacheAge/1000).toFixed(1) + 's < ' + (PILOTS_CACHE_FRESH_MS/1000) + 's), skipping fetch');
+      pilotsLogger.debug('Cache fresh (' + (cacheAge/1000).toFixed(1) + 's < ' + (PILOTS_CACHE_FRESH_MS/1000) + 's), skipping fetch');
     }
     startPilotsAutoUpdate();
   } else {
@@ -8878,7 +9051,7 @@ function setPilotsNetwork(network) {
     pilotsMarkersCache = {}; // Marker-Cache leeren bei Netzwerk-Wechsel
     // WICHTIG: pilotsAllDataCache NICHT leeren! Das ermöglicht schnelles Wechseln zwischen Networks
     // Die Daten werden einfach gefiltert basierend auf dem aktuellen Network
-    if (PILOTS_DEBUG) console.log('[Pilots] Cleared markers for network switch:', oldNetwork, '->', network);
+    pilotsLogger.debug('Cleared markers for network switch:', oldNetwork, '->', network);
   }
 
   if (pilotsEnabled) {
@@ -8897,14 +9070,14 @@ function updatePilotIconsForZoom() {
 
   // PERFORMANCE: Nur aktualisieren wenn sich das Scale-Level geändert hat
   if (currentScaleLevel === pilotsLastZoomLevel) {
-    if (PILOTS_DEBUG) console.log('[Pilots] Zoom-Update SKIPPED - Scale-Level unchanged (' + currentScaleLevel + ')');
+    pilotsLogger.debug('Zoom-Update SKIPPED - Scale-Level unchanged (' + currentScaleLevel + ')');
     return;
   }
 
   pilotsLastZoomLevel = currentScaleLevel;
   var markerCount = Object.keys(pilotsMarkersCache).length;
 
-  if (PILOTS_DEBUG) console.log('[Pilots] Zoom-Update: Scale-Level changed to ' + currentScaleLevel + ', updating ' + markerCount + ' icons...');
+  pilotsLogger.debug('Zoom-Update: Scale-Level changed to ' + currentScaleLevel + ', updating ' + markerCount + ' icons...');
 
   // PERFORMANCE: Immer requestAnimationFrame verwenden für flüssigeres Zoomen
   requestAnimationFrame(function() {
@@ -8935,7 +9108,7 @@ function updatePilotIconsBatched() {
         marker.setIcon(newIcon);
       }
     }
-    if (PILOTS_DEBUG) console.log('[Pilots] Zoom-Update complete: ' + totalMarkers + ' Icons (single batch)');
+    pilotsLogger.debug('Zoom-Update complete: ' + totalMarkers + ' Icons (single batch)');
     return;
   }
 
@@ -8969,7 +9142,7 @@ function updatePilotIconsBatched() {
     if (index < keys.length) {
       requestAnimationFrame(processBatch);
     } else {
-      if (PILOTS_DEBUG) console.log('[Pilots] Batched Zoom-Update complete: ' + updatedTotal + ' Icons');
+      pilotsLogger.debug('Batched Zoom-Update complete: ' + updatedTotal + ' Icons');
     }
   }
 
@@ -8983,13 +9156,13 @@ function updatePilotIconsBatched() {
 // OLD renderControlZones replaced - now uses new czRender system
 // This is just a wrapper for backward compatibility
 function renderControlZones_OLD(forceRender) {
-  if (CZ_DEBUG) console.log('[CZ] renderControlZones_OLD called - redirecting to czRenderDebounced');
+  czLogger.debug('renderControlZones_OLD called - redirecting to czRenderDebounced');
   czRenderDebounced();
 }
 
 // OLD renderControlZonesImmediate - DISABLED, use czRender instead
 function renderControlZonesImmediate(forceRender) {
-  if (CZ_DEBUG) console.log('[CZ] renderControlZonesImmediate called - redirecting to czRenderDebounced');
+  czLogger.debug('renderControlZonesImmediate called - redirecting to czRenderDebounced');
   czRenderDebounced();
 }
 
@@ -9001,7 +9174,7 @@ function renderControlZonesImmediate(forceRender) {
  */
 function renderControlZonesWithData(boundariesData, activePrefixes, activePrefixList, currentVersion, traconData) {
     if (!boundariesData) {
-      console.error('[ControlZones] No boundaries data available');
+      czLogger.error('No boundaries data available');
       return;
     }
 
@@ -9022,12 +9195,12 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
     if (boundariesData.features) {
       // GeoJSON format (VATSIM)
       features = boundariesData.features.slice(); // Clone to avoid mutation
-      if (CZ_DEBUG) console.log('[ControlZones] Using GeoJSON features format, count:', features.length);
+      czLogger.debug('Using GeoJSON features format, count:', features.length);
 
       // Add TRACON features for VATSIM (APP/DEP sectors from SimAware TRACON project)
       if (controlZonesNetwork === 'VATSIM' && traconData && traconData.features) {
         var traconFeatures = traconData.features;
-        if (CZ_DEBUG) console.log('[CZ] Adding TRACON features:', traconFeatures.length);
+        czLogger.debug('Adding TRACON features:', traconFeatures.length);
 
         // Convert TRACON features to our format
         // TRACON format: { prefix: ["EGLL"], suffix: "APP", id: "EGLL", name: "Heathrow Director" }
@@ -9063,15 +9236,15 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
             features.push(normalizedFeature);
           });
         });
-        if (CZ_DEBUG) console.log('[CZ] Total features after TRACON merge:', features.length);
+        czLogger.debug('Total features after TRACON merge:', features.length);
       } else if (CZ_DEBUG) {
-        console.log('[CZ] NO TRACON data for VATSIM! traconData:', traconData);
+        czLogger.debug('NO TRACON data for VATSIM! traconData:', traconData);
       }
 
       // Cache VATSIM features AFTER TRACON merge for viewport-based controller filtering
       if (controlZonesNetwork === 'VATSIM') {
         _cachedVatsimBoundaryFeatures = features;
-        if (CZ_DEBUG) console.log('[ControlZones] Cached VATSIM features (incl. TRACON):', features.length);
+        czLogger.debug('Cached VATSIM features (incl. TRACON):', features.length);
       }
     } else if (Array.isArray(boundariesData)) {
       // IVAO array format - convert to GeoJSON-like structure (FALLBACK)
@@ -9079,11 +9252,11 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
       // Use cache to avoid re-conversion on every render
       if (_cachedIvaoGeoJsonFeatures && _cachedIvaoGeoJsonFeatures.length > 0) {
         features = _cachedIvaoGeoJsonFeatures;
-        if (CZ_DEBUG) console.log('[ControlZones] Using cached IVAO GeoJSON features:', features.length);
+        czLogger.debug('Using cached IVAO GeoJSON features:', features.length);
       } else {
         // Structure from server: { airport_id, position, middle_identifier, name, map_region }
         // Server already applies name-to-ICAO mapping, so we just use the data directly
-        if (CZ_DEBUG) console.log('[ControlZones] Converting IVAO array format:', boundariesData.length, 'items');
+        czLogger.debug('Converting IVAO array format:', boundariesData.length, 'items');
 
         features = boundariesData.map(function(item) {
           // Get fields (server has already mapped names to ICAO codes)
@@ -9145,22 +9318,22 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
 
         // Cache the converted features
         _cachedIvaoGeoJsonFeatures = features;
-        if (CZ_DEBUG) console.log('[ControlZones] IVAO features converted and cached:', features.length);
+        czLogger.debug('IVAO features converted and cached:', features.length);
       }
     } else if (typeof boundariesData === 'object' && boundariesData !== null) {
       // Maybe IVAO has a different root structure - check for common keys
-      if (CZ_DEBUG) console.log('[ControlZones] Object format detected, keys:', Object.keys(boundariesData));
+      czLogger.debug('Object format detected, keys:', Object.keys(boundariesData));
 
       // Check if it has a different array property (e.g., "boundaries", "firs", "positions")
       var possibleArrayKeys = ['boundaries', 'firs', 'positions', 'atcs', 'sectors', 'airspaces', 'data'];
       for (var k = 0; k < possibleArrayKeys.length; k++) {
         var key = possibleArrayKeys[k];
         if (boundariesData[key] && Array.isArray(boundariesData[key])) {
-          if (CZ_DEBUG) console.log('[ControlZones] Found array at key:', key, 'length:', boundariesData[key].length);
+          czLogger.debug('Found array at key:', key, 'length:', boundariesData[key].length);
           features = boundariesData[key].map(function(item) {
             // Log first item structure for debugging
             if (CZ_DEBUG && features.length === 0) {
-              console.log('[ControlZones] First item keys:', Object.keys(item));
+              czLogger.debug('First item keys:', Object.keys(item));
             }
             return {
               type: 'Feature',
@@ -9183,15 +9356,15 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
     if (features.length === 0) {
       if (CZ_DEBUG) {
         try {
-          console.warn('[ControlZones] Could not parse boundaries data, structure:', JSON.stringify(boundariesData).substring(0, 1000));
+          czLogger.warn('Could not parse boundaries data, structure:', JSON.stringify(boundariesData).substring(0, 1000));
         } catch (e) {
-          console.warn('[ControlZones] Could not parse boundaries data (stringify failed)');
+          czLogger.warn('Could not parse boundaries data (stringify failed)');
         }
       }
 
       // Clear rendering flag before returning
       window.controlZonesRendering = false;
-      if (CZ_DEBUG) console.log('[ControlZones] Rendering flag cleared (no features to render)');
+      czLogger.debug('Rendering flag cleared (no features to render)');
       return;
     }
 
@@ -9204,7 +9377,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
     // Leaflet handhabt das Rendern effizient, nur sichtbare werden gezeichnet
     // Das vermeidet das Problem dass Zonen beim Herauszoomen fehlen
     var visibleFeatures = allFeatures;
-    if (CZ_DEBUG) console.log('[ControlZones] Rendering all', allFeatures.length, 'features (no viewport filter)');
+    czLogger.debug('Rendering all', allFeatures.length, 'features (no viewport filter)');
 
     // Single-pass filtering: categorize features as active or offline (optimization)
     // Pre-build lookup Sets for O(1) lookups instead of O(n) loop
@@ -9225,7 +9398,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
     }
 
     // DEBUG: Zeige alle aktiven Callsigns (nur wenn CZ_DEBUG aktiv)
-    if (CZ_DEBUG) console.log('[CZ] Aktive Callsigns:', Object.keys(activeCallsignSet).join(', '));
+    czLogger.debug('Aktive Callsigns:', Object.keys(activeCallsignSet).join(', '));
 
     var activeFeatures = [];
     var offlineFeaturesRaw = [];
@@ -9489,7 +9662,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
             var expectedZone = singleCtrZoneCountries[ctrlCountryCode];
             if (expectedZone && expectedZone === zoneIcao) {
               isActive = true;
-              if (CZ_DEBUG) console.log('[CZ] CTR Zone', featureId, 'aktiviert durch', callsign, '(Country-Match:', ctrlCountryCode, '→', expectedZone + ')');
+              czLogger.debug('CTR Zone', featureId, 'aktiviert durch', callsign, '(Country-Match:', ctrlCountryCode, '→', expectedZone + ')');
               break;
             }
           }
@@ -9500,7 +9673,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
           var cachedArtcc = airportToArtccCache[ctrlPrefix];
           if (cachedArtcc && cachedArtcc === zoneIcao) {
             isActive = true;
-            if (CZ_DEBUG) console.log('[CZ] CTR Zone', featureId, 'aktiviert durch', callsign, '(Airport-ARTCC-Match:', ctrlPrefix, '→', cachedArtcc + ')');
+            czLogger.debug('CTR Zone', featureId, 'aktiviert durch', callsign, '(Airport-ARTCC-Match:', ctrlPrefix, '→', cachedArtcc + ')');
             break;
           }
         }
@@ -9533,7 +9706,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
 
           // Prefix-Match ist ausreichend für FIR-Aktivierung
           isActive = true;
-          if (CZ_DEBUG) console.log('[ControlZones] FIR', featureId, 'activated by', callsign, '(prefix match)');
+          czLogger.debug('FIR', featureId, 'activated by', callsign, '(prefix match)');
           break;
         }
       }
@@ -9606,7 +9779,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
       return orderA - orderB;  // Smaller order = rendered first (below)
     });
 
-    if (CZ_DEBUG) console.log('[ControlZones] Active zones:', activeFeatures.length, 'of', allFeatures.length, 'total boundaries');
+    czLogger.debug('Active zones:', activeFeatures.length, 'of', allFeatures.length, 'total boundaries');
 
     // Only re-render offline layer if it doesn't exist yet
     // This prevents flickering and multiple redraws during zoom
@@ -9637,18 +9810,18 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
           var firPrefix = (feature.properties.prefix || '').toUpperCase();
           return !activeFirPrefixes[firPrefix];
         });
-        if (CZ_DEBUG) console.log('[ControlZones] Using precomputed offline FIR layer:', ivaoOfflineFirCache.features.length, 'total,', offlineFeatures.length, 'displayed (excluding', Object.keys(activeFirPrefixes).length, 'active FIRs)');
+        czLogger.debug('Using precomputed offline FIR layer:', ivaoOfflineFirCache.features.length, 'total,', offlineFeatures.length, 'displayed (excluding', Object.keys(activeFirPrefixes).length, 'active FIRs)');
       } else {
         // Fallback: Load offline layer async (first render might be empty)
         loadIvaoOfflineFir(function(data) {
           if (data && data.features && data.features.length > 0) {
             // Trigger re-render with loaded data
-            if (CZ_DEBUG) console.log('[ControlZones] Offline FIR layer loaded async, triggering re-render');
+            czLogger.debug('Offline FIR layer loaded async, triggering re-render');
             controlZonesOfflineLayer = null; // Force re-render
             czRenderDebounced();
           }
         });
-        if (CZ_DEBUG) console.log('[ControlZones] Offline FIR layer not yet loaded, loading async...');
+        czLogger.debug('Offline FIR layer not yet loaded, loading async...');
       }
 
     if (offlineFeatures.length > 0) {
@@ -9677,7 +9850,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
       function renderOfflineBatch() {
         // Abort if layer was destroyed (e.g., network switch during batch render)
         if (!controlZonesOfflineLayer) {
-          if (CZ_DEBUG) console.log('[ControlZones] Batch render aborted - layer destroyed');
+          czLogger.debug('Batch render aborted - layer destroyed');
           return;
         }
 
@@ -9724,14 +9897,14 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
         if (batchIndex < offlineFeatures.length) {
           requestAnimationFrame(renderOfflineBatch);
         } else {
-          if (CZ_DEBUG) console.log('[ControlZones] Added offline layer:', offlineFeatures.length, 'zones (batched)');
+          czLogger.debug('Added offline layer:', offlineFeatures.length, 'zones (batched)');
         }
       }
 
       renderOfflineBatch();
     }
     } else {
-      if (CZ_DEBUG) console.log('[ControlZones] Skipping offline layer re-render - already exists');
+      czLogger.debug('Skipping offline layer re-render - already exists');
     }
 
     // Sammle kleinere Zonen für CTR-Label-Positionierung (vermeidet Überlappung)
@@ -9748,7 +9921,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
         }
       }
     }
-    if (CZ_DEBUG) console.log('[ControlZones] Smaller zones map:', Object.keys(smallerZonesMap).length, 'prefixes');
+    czLogger.debug('Smaller zones map:', Object.keys(smallerZonesMap).length, 'prefixes');
 
     // Create active zones layer - colored by controller type
     if (activeFeatures.length > 0) {
@@ -9818,7 +9991,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
         var color = controlZonesSettings.colors[zoneType] || controlZonesSettings.colors.DEFAULT;
 
         // Debug: log zone type and color
-        if (CZ_DEBUG) console.log('[ControlZones] Zone:', featureId, 'Position:', featurePosition, 'Type:', zoneType, 'Color:', color);
+        czLogger.debug('Zone:', featureId, 'Position:', featurePosition, 'Type:', zoneType, 'Color:', color);
 
         return {
           color: color,
@@ -10202,7 +10375,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
       function renderOnlineBatch() {
         // Check if render version changed (new render requested)
         if (controlZonesRenderVersion !== currentVersion) {
-          if (CZ_DEBUG) console.log('[ControlZones] Online batch render cancelled - version changed');
+          czLogger.debug('Online batch render cancelled - version changed');
           return;
         }
 
@@ -10671,7 +10844,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
                 });
 
                 controlZonesLayer.addLayer(circle);
-                if (CZ_DEBUG) console.log('[ControlZones] Added circle for:', labelData.icaoCode, 'type:', circleConfig.type, 'radius:', circleConfig.radius);
+                czLogger.debug('Added circle for:', labelData.icaoCode, 'type:', circleConfig.type, 'radius:', circleConfig.radius);
               });
             }
           });
@@ -10683,7 +10856,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
           // Continue with next batch using RAF for smoother rendering
           requestAnimationFrame(renderOnlineBatch);
         } else {
-          if (CZ_DEBUG) console.log('[ControlZones] Added online layer:', activeFeatures.length, 'zones with', Object.keys(addedLabels).length, 'labels');
+          czLogger.debug('Added online layer:', activeFeatures.length, 'zones with', Object.keys(addedLabels).length, 'labels');
 
           // Erstelle kombinierte CTR-Sektor-Marker für Center mit mehreren Sektoren
           for (var combinedKey in addedLabels) {
@@ -10696,7 +10869,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
             var ctrSectors = combinedData.sectors;
             var ctrCenter = combinedData.center;
 
-            if (CZ_DEBUG) console.log('[ControlZones] Creating combined CTR marker for', ctrIcao, 'with sectors:', ctrSectors);
+            czLogger.debug('Creating combined CTR marker for', ctrIcao, 'with sectors:', ctrSectors);
 
             // HTML für kombinierten Marker: ICAO + ein Punkt pro Sektor
             var combinedHtml = '<div class="cz-label-container">';
@@ -10872,7 +11045,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
     } // end if (activeFeatures.length > 0)
 
     } catch (error) {
-      console.error('[ControlZones] Error during rendering:', error);
+      czLogger.error('Error during rendering:', error);
     } finally {
       // Restore original animation settings
       map.options.zoomAnimation = originalAnimate;
@@ -10880,7 +11053,7 @@ function renderControlZonesWithData(boundariesData, activePrefixes, activePrefix
 
       // Clear rendering flag
       window.controlZonesRendering = false;
-      if (CZ_DEBUG) console.log('[ControlZones] Rendering complete');
+      czLogger.debug('Rendering complete');
     }
 }
 
@@ -10897,7 +11070,7 @@ function renderStandaloneTwrGndDelCircles(addedLabels) {
     : (controllers_array || []);
 
   if (!sourceArray || sourceArray.length === 0) {
-    if (CZ_DEBUG) console.log('[ControlZones] No controllers for standalone circles');
+    czLogger.debug('No controllers for standalone circles');
     return;
   }
 
@@ -10947,11 +11120,11 @@ function renderStandaloneTwrGndDelCircles(addedLabels) {
 
   var standaloneCount = Object.keys(controllersByIcao).length;
   if (standaloneCount === 0) {
-    if (CZ_DEBUG) console.log('[ControlZones] No standalone TWR/GND/DEL controllers found');
+    czLogger.debug('No standalone TWR/GND/DEL controllers found');
     return;
   }
 
-  if (CZ_DEBUG) console.log('[ControlZones] Adding', standaloneCount, 'standalone TWR/GND/DEL circles');
+  czLogger.debug('Adding', standaloneCount, 'standalone TWR/GND/DEL circles');
 
   // Render circles and labels for each standalone station (uses global CZ_CIRCLE_SIZES)
   for (var icao in controllersByIcao) {
@@ -11236,7 +11409,7 @@ function renderStandaloneTwrGndDelCircles(addedLabels) {
 
     controlZonesLayer.addLayer(labelMarker);
 
-    if (CZ_DEBUG) console.log('[ControlZones] Added standalone circle+label for:', icao, 'types:', stationData.types.join(','));
+    czLogger.debug('Added standalone circle+label for:', icao, 'types:', stationData.types.join(','));
   }
 }
 
@@ -11250,7 +11423,7 @@ function renderStandaloneTwrGndDelCircles(addedLabels) {
 function setControlZoneFrequency(frequency, callsign, comIndex, isActive) {
   var frequencyMHz = parseFloat(frequency);
   if (isNaN(frequencyMHz)) {
-    if (CZ_DEBUG) console.warn('[ControlZones] Invalid frequency:', frequency);
+    czLogger.warn('Invalid frequency:', frequency);
     return;
   }
 
@@ -11267,13 +11440,13 @@ function setControlZoneFrequency(frequency, callsign, comIndex, isActive) {
   };
 
   var message = 'setFrequency:' + JSON.stringify(payload);
-  if (CZ_DEBUG) console.log('[ControlZones] Setting COM' + comIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyMHz + ' MHz (' + callsign + ')');
+  czLogger.debug('Setting COM' + comIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyMHz + ' MHz (' + callsign + ')');
 
   // Send to MSFS Kneeboard
   if (typeof postMessageToBridge === 'function') {
     postMessageToBridge(message);
   } else {
-    if (CZ_DEBUG) console.warn('[ControlZones] postMessageToBridge not available');
+    czLogger.warn('postMessageToBridge not available');
   }
 
   // Close popup after setting frequency
@@ -11292,7 +11465,7 @@ var windLayerStateBeforeControlZones = null;
 
 // OLD setControlZonesEnabled - replaced by wrapper in new CZ system
 function setControlZonesEnabled_OLD(enabled) {
-  if (CZ_DEBUG) console.log('[CZ] setControlZonesEnabled_OLD called - use czSetEnabled instead');
+  czLogger.debug('setControlZonesEnabled_OLD called - use czSetEnabled instead');
   czSetEnabled(enabled);
 }
 
@@ -11334,7 +11507,7 @@ function updateControlZonesLayerUI(enabled) {
   var removeLayer = layerRegistry[removeLayerKey];
 
   if (!targetLayer || !removeLayer) {
-    if (CZ_DEBUG) console.warn('[ControlZones] Layers not found in registry');
+    czLogger.warn('Layers not found in registry');
     return;
   }
 
@@ -11364,7 +11537,7 @@ function updateControlZonesLayerUI(enabled) {
  * OLD setControlZonesNetwork - replaced by wrapper in new CZ system
  */
 function setControlZonesNetwork_OLD(network) {
-  if (CZ_DEBUG) console.log('[CZ] setControlZonesNetwork_OLD called - use czSetNetwork instead');
+  czLogger.debug('setControlZonesNetwork_OLD called - use czSetNetwork instead');
   czSetNetwork(network);
 }
 
@@ -11437,7 +11610,7 @@ function initControlZones(config) {
     controlZonesNetwork = savedNetwork;
   }
 
-  if (CZ_DEBUG) console.log('[ControlZones] Initialized - Enabled:', controlZonesEnabled, ', Network:', controlZonesNetwork);
+  czLogger.debug('Initialized - Enabled:', controlZonesEnabled, ', Network:', controlZonesNetwork);
 
   // DISABLED: Re-render on moveend was causing thread blocking that sent events to simulator
   // Leaflet GeoJSON layers automatically update on zoom/pan, no need to re-render
@@ -11501,7 +11674,7 @@ var _vatsimFetchGeneration = 0;   // Generation-Counter: invalidiert alte Callba
 function getVatsimData() {
   // Idempotenz: Skip wenn bereits ein Fetch läuft (gilt nur für Timer-basierte Polls)
   if (_vatsimDataFetching) {
-    console.log('[Controller] Skipping getVatsimData - already fetching');
+    controllerLogger.warn('Skipping getVatsimData - already fetching');
     return;
   }
   _vatsimDataFetching = true;
@@ -11544,11 +11717,11 @@ function loadMapLayersFromConfig(callback) {
         var config = JSON.parse(xhr.responseText);
         callback(null, config);
       } catch (e) {
-        console.error('Error parsing map layers config:', e);
+        mapLogger.error('Error parsing map layers config:', e);
         callback(e, null);
       }
     } else {
-      console.error('Error loading map layers config:', xhr.status);
+      mapLogger.error('Error loading map layers config:', xhr.status);
       callback(new Error('Failed to load config'), null);
     }
   };
@@ -11615,7 +11788,7 @@ function createLayersFromConfig(config) {
       // If this layer has default: true, use it as the default base layer
       if (layerConfig.default === true) {
         defaultBaseLayer = layerConfig.name;
-        if (MAP_DEBUG) console.log('[Map] Default base layer set from layer config:', layerConfig.name);
+        mapLogger.debug('Default base layer set from layer config:', layerConfig.name);
       }
     });
   }
@@ -11655,11 +11828,11 @@ function createLayersFromConfig(config) {
                 layer = L.OWM.wind(owmOptions);
                 break;
               default:
-                console.error('[Map] Unknown OWM layer type:', layerConfig.owmType);
+                mapLogger.error('Unknown OWM layer type:', layerConfig.owmType);
                 layer = L.tileLayer("http://", {});
             }
           } else {
-            console.warn('[Map] OWM plugin not available for layer:', layerConfig.name);
+            mapLogger.warn('OWM plugin not available for layer:', layerConfig.name);
             layer = L.tileLayer("http://", {});
           }
         } else if (layerConfig.type === 'controlZones') {
@@ -11748,7 +11921,7 @@ function loadMap(lat, lon) {
   // Load layer configuration and initialize map
   loadMapLayersFromConfig(function(error, config) {
     if (error) {
-      console.error('Failed to load map layer configuration, using fallback');
+      mapLogger.error('Failed to load map layer configuration, using fallback');
       // Fallback to minimal configuration
       initializeMapWithLayers({
         baseMaps: {
@@ -11769,7 +11942,7 @@ function loadMap(lat, lon) {
       if (isNaN(aircraftScale) || aircraftScale < 0.1 || aircraftScale > 5.0) {
         aircraftScale = 1.0;
       }
-      if (MAP_DEBUG) console.log('Aircraft scale loaded from config:', aircraftScale);
+      mapLogger.debug('Aircraft scale loaded from config:', aircraftScale);
     }
 
     // Load wind settings from config
@@ -11783,7 +11956,7 @@ function loadMap(lat, lon) {
       if (config.windSettings.arrowSize !== undefined) {
         windSettings.arrowSize = parseInt(config.windSettings.arrowSize) || 24;
       }
-      if (MAP_DEBUG) console.log('Wind settings loaded from config:', windSettings);
+      mapLogger.debug('Wind settings loaded from config:', windSettings);
     }
 
     // Load map settings from config
@@ -11794,7 +11967,7 @@ function loadMap(lat, lon) {
       if (config.mapSettings.smoothSensitivity !== undefined) {
         mapSettings.smoothSensitivity = parseFloat(config.mapSettings.smoothSensitivity) || 1.5;
       }
-      if (MAP_DEBUG) if (MAP_DEBUG) console.log('Map settings loaded from config:', mapSettings);
+      if (MAP_DEBUG) mapLogger.debug('Map settings loaded from config:', mapSettings);
     }
 
     // Load route colors from config
@@ -11805,7 +11978,7 @@ function loadMap(lat, lon) {
       if (config.routeColors.approach) routeColors.approach = config.routeColors.approach;
       if (config.routeColors.goAround) routeColors.goAround = config.routeColors.goAround;
       if (config.routeColors.alternate) routeColors.alternate = config.routeColors.alternate;
-      console.log('[Config] Route colors loaded:', routeColors);
+      configLogger.info('Route colors loaded:', routeColors);
 
       // Update previewStyle with loaded colors
       if (typeof previewStyle !== 'undefined') {
@@ -11822,13 +11995,13 @@ function loadMap(lat, lon) {
     // Load default base layer from config
     if (config.defaultBaseLayer) {
       defaultBaseLayer = config.defaultBaseLayer;
-      if (MAP_DEBUG) console.log('Default base layer loaded from config:', defaultBaseLayer);
+      mapLogger.debug('Default base layer loaded from config:', defaultBaseLayer);
     }
 
     // Load default overlays from config
     if (config.defaultOverlays) {
       defaultOverlays = config.defaultOverlays;
-      if (MAP_DEBUG) console.log('Default overlays loaded from config:', defaultOverlays);
+      mapLogger.debug('Default overlays loaded from config:', defaultOverlays);
     }
 
     // Load scale control settings from config
@@ -11842,13 +12015,13 @@ function loadMap(lat, lon) {
       if (config.scaleControl.nautic !== undefined) {
         scaleControl.nautic = config.scaleControl.nautic;
       }
-      if (MAP_DEBUG) console.log('Scale control loaded from config:', scaleControl);
+      mapLogger.debug('Scale control loaded from config:', scaleControl);
     }
 
     // Load OpenWeatherMap API key from config (optional)
     if (config.owmApiKey) {
       owmApiKey = config.owmApiKey;
-      if (MAP_DEBUG) console.log('OWM API key loaded from config');
+      mapLogger.debug('OWM API key loaded from config');
     }
 
     var layers = createLayersFromConfig(config);
@@ -11967,7 +12140,7 @@ function initializeMapWithLayers(layers) {
 
     var targetLayer = baseMaps[layerName];
     if (!targetLayer) {
-      console.warn('[Map] setBaseLayerSelection: Layer not found:', layerName);
+      mapLogger.warn('setBaseLayerSelection: Layer not found:', layerName);
       return;
     }
 
@@ -11993,7 +12166,7 @@ function initializeMapWithLayers(layers) {
         }
       }
     }
-    console.log('[Map] Base layer set to:', layerName);
+    mapLogger.debug('Base layer set to:', layerName);
   }
 
   function setOpenAipSelection(enableMainLayer) {
@@ -12039,18 +12212,18 @@ function initializeMapWithLayers(layers) {
   // Map INITIALISIEREN � nur mit Basemap; OpenAIP-Layer NICHT als Basemap-Gruppe
   // Prevent double initialization
   if (map) {
-    if (MAP_DEBUG) console.log('[Map] Map already initialized, skipping');
+    mapLogger.debug('Map already initialized, skipping');
     return;
   }
   // Get configured base layer or fall back to first
   var initialBaseLayer = baseMaps[defaultBaseLayer] || firstBaseLayer;
-  console.log('[Map] Default base layer:', defaultBaseLayer, '- Found:', !!baseMaps[defaultBaseLayer], '- Using:', initialBaseLayer ? 'OK' : 'FALLBACK');
+  mapLogger.warn('Default base layer:', defaultBaseLayer, '- Found:', !!baseMaps[defaultBaseLayer], '- Using:', initialBaseLayer ? 'OK' : 'FALLBACK');
 
   // Coherent GT (MSFS) performance optimizations
   // SVG renderer is kept for correct polyline rendering (Canvas causes zoom artifacts)
   var useCoherentGTOptimizations = window.isCoherentGT === true;
   if (useCoherentGTOptimizations && MAP_DEBUG) {
-    console.log('[Map] Coherent GT detected - applying performance optimizations (keeping SVG renderer)');
+    mapLogger.debug('Coherent GT detected - applying performance optimizations (keeping SVG renderer)');
   }
 
   map = L.map("map", {
@@ -12117,7 +12290,7 @@ function initializeMapWithLayers(layers) {
       e.preventDefault();
     }, { passive: false, capture: true });
 
-    if (MAP_DEBUG) console.log('[Map] Event blocking initialized - wheel (bubbling) and contextmenu (capture)');
+    mapLogger.debug('Event blocking initialized - wheel (bubbling) and contextmenu (capture)');
   }
 
   // Window-level wheel blocking for safety (bubbling phase only)
@@ -12133,7 +12306,7 @@ function initializeMapWithLayers(layers) {
 
     // Special handling for Online Pilots - skip here, handled separately below
     if (groupName === 'Online Pilots') {
-      if (MAP_DEBUG) console.log('[Map] Skipping Online Pilots in default overlays init - handled separately');
+      mapLogger.debug('Skipping Online Pilots in default overlays init - handled separately');
       return;
     }
 
@@ -12141,7 +12314,7 @@ function initializeMapWithLayers(layers) {
     if (groupName === 'OpenAip') {
       if (groupedOverlays[groupName] && groupedOverlays[groupName][layerName]) {
         pendingOpenAipLayer = groupedOverlays[groupName][layerName];
-        console.log('[Map] OpenAIP layer deferred - will load after base layer');
+        mapLogger.debug('OpenAIP layer deferred - will load after base layer');
       }
       return;
     }
@@ -12149,20 +12322,20 @@ function initializeMapWithLayers(layers) {
     // For all other groups, add the configured layer
     if (groupedOverlays[groupName] && groupedOverlays[groupName][layerName]) {
       groupedOverlays[groupName][layerName].addTo(map);
-      if (MAP_DEBUG) console.log('[Map] Added default overlay:', groupName, '=', layerName);
+      mapLogger.debug('Added default overlay:', groupName, '=', layerName);
     }
   });
 
   // Fallback for overlays not in config (backward compatibility)
   if (!defaultOverlays['OpenAip'] && openAip) {
     pendingOpenAipLayer = openAip;
-    console.log('[Map] OpenAIP layer (fallback) deferred - will load after base layer');
+    mapLogger.warn('OpenAIP layer (fallback) deferred - will load after base layer');
   }
 
   // OpenAIP Layer verzögert laden - warte bis Base Layer erste Tiles geladen hat
   if (pendingOpenAipLayer) {
     var baseLayerLoadHandler = function() {
-      console.log('[Map] Base layer loaded - now adding OpenAIP layer');
+      mapLogger.info('Base layer loaded - now adding OpenAIP layer');
       pendingOpenAipLayer.addTo(map);
       // Event Listener entfernen
       initialBaseLayer.off('load', baseLayerLoadHandler);
@@ -12174,7 +12347,7 @@ function initializeMapWithLayers(layers) {
     // Fallback: Nach 2 Sekunden trotzdem laden falls 'load' nicht feuert
     setTimeout(function() {
       if (!map.hasLayer(pendingOpenAipLayer)) {
-        console.log('[Map] Base layer timeout - adding OpenAIP layer now');
+        mapLogger.warn('Base layer timeout - adding OpenAIP layer now');
         pendingOpenAipLayer.addTo(map);
         initialBaseLayer.off('load', baseLayerLoadHandler);
       }
@@ -12218,12 +12391,12 @@ function initializeMapWithLayers(layers) {
   // Wind layer activation is now handled by onFlightplanAnimationComplete()
   // This ensures wind layer is only shown AFTER flightplan loading/centering is complete
   // or when there is no flightplan to load
-  if (WIND_DEBUG) console.log('[Wind] Wind layer will be activated after flightplan load completes (via onFlightplanAnimationComplete)');
+  windLogger.debug('Wind layer will be activated after flightplan load completes (via onFlightplanAnimationComplete)');
 
   // Activate wind layer when no flight plan exists (via mapInitialized event or activateWindLayerWhenReady flag)
   function activateWindLayerForNoFlightplan() {
     if (typeof map === 'undefined' || !map || !window.initialWindLayerConfig) {
-      if (WIND_DEBUG) console.log('[Wind] mapInitialized event: Not ready yet, skipping wind layer activation');
+      windLogger.debug('mapInitialized event: Not ready yet, skipping wind layer activation');
       return;
     }
 
@@ -12243,12 +12416,12 @@ function initializeMapWithLayers(layers) {
 
       // Don't activate wind layer if controller panel is open
       if (typeof moverX !== 'undefined' && moverX) {
-        if (WIND_DEBUG) console.log('[Wind] mapInitialized event: Skipping wind layer - controller panel is open');
+        windLogger.debug('mapInitialized event: Skipping wind layer - controller panel is open');
         return;
       }
 
       if (!map.hasLayer(windLayer)) {
-        if (WIND_DEBUG) console.log('[Wind] mapInitialized event: Activating wind layer for no-flightplan scenario');
+        windLogger.debug('mapInitialized event: Activating wind layer for no-flightplan scenario');
         windLayer.setOpacity(0);
         windLayer.addTo(map);
 
@@ -12259,7 +12432,7 @@ function initializeMapWithLayers(layers) {
             setTimeout(function() {
               if (windLayer && map.hasLayer(windLayer)) {
                 windLayer.setOpacity(0.4);
-                if (WIND_DEBUG) console.log('[Wind] Wind layer faded in');
+                windLogger.debug('Wind layer faded in');
               }
             }, 300);
           }
@@ -12285,7 +12458,7 @@ function initializeMapWithLayers(layers) {
       var windLayer = window.initialWindLayerConfig && window.initialWindLayerConfig.layer;
 
       if (shouldActivateWind && windLayer && typeof map !== 'undefined' && map && !map.hasLayer(windLayer)) {
-        if (WIND_DEBUG) console.log('[Wind] No-flightplan fallback: Activating wind layer after timeout');
+        windLogger.debug('No-flightplan fallback: Activating wind layer after timeout');
         windLayer.setOpacity(0);
         windLayer.addTo(map);
 
@@ -12295,7 +12468,7 @@ function initializeMapWithLayers(layers) {
             setTimeout(function() {
               if (windLayer && map.hasLayer(windLayer)) {
                 windLayer.setOpacity(0.4);
-                if (WIND_DEBUG) console.log('[Wind] Wind layer faded in (no-flightplan fallback)');
+                windLogger.debug('Wind layer faded in (no-flightplan fallback)');
               }
             }, 300);
           }
@@ -12977,7 +13150,7 @@ function initializeMapWithLayers(layers) {
             if (!skipDrawLinesFlag) drawLines();
             scheduleNavlogSync();
           }).catch(function(err) {
-            console.error('[contextmenu] Error fetching elevation:', err);
+            mapLogger.error('Error fetching elevation:', err);
             // Set fallback altitude: 1000 ft
             if (waypointsData[elevInsertIndex]) {
               waypointsData[elevInsertIndex].altitude = 1000;
@@ -13377,11 +13550,11 @@ function initializeMapWithLayers(layers) {
   // v1.46: middleMarkers auf Map-Objekt speichern - überlebt JS-Reset in Coherent!
   // Wenn map._middleMarkers existiert (von vor dem Reload), wiederverwenden und leeren
   if (map._middleMarkers) {
-    if (MAP_DEBUG) console.log('[Map] v1.46: Wiederverwendung von map._middleMarkers (Coherent-Reload erkannt)');
+    mapLogger.debug('v1.46: Wiederverwendung von map._middleMarkers (Coherent-Reload erkannt)');
     middleMarkers = map._middleMarkers;
     middleMarkers.clearLayers();  // Alte Marker löschen!
   } else {
-    if (MAP_DEBUG) console.log('[Map] v1.46: Neue middleMarkers FeatureGroup erstellt');
+    mapLogger.debug('v1.46: Neue middleMarkers FeatureGroup erstellt');
     middleMarkers = new L.FeatureGroup();
     map._middleMarkers = middleMarkers;
     middleMarkers.addTo(map);
@@ -13402,7 +13575,7 @@ function getRunwayDataWithFallback(icao, runwayId, callback) {
       if (response.ok) {
         return response.json();
       } else if (response.status === 404) {
-        if (RUNWAY) console.log(`[Runway] Navigraph runway ${runwayId} at ${icao} not found, trying openAIP`);
+        runwayLogger.debug(`[Runway] Navigraph runway ${runwayId} at ${icao} not found, trying openAIP`);
         return fetch(`/api/openaip/runway/${icao}/${runwayId}`).then(r => 
           r.ok ? r.json() : null
         );
@@ -13411,7 +13584,7 @@ function getRunwayDataWithFallback(icao, runwayId, callback) {
     })
     .then(data => callback(data))
     .catch(error => {
-      if (RUNWAY) console.log(`[Runway] Error fetching runway data for ${runwayId} at ${icao}:`, error.message);
+      runwayLogger.debug(`[Runway] Error fetching runway data for ${runwayId} at ${icao}:`, error.message);
       callback(null);
     });
 }
@@ -13661,7 +13834,7 @@ function setupWaypointEventHandlers(waypointLayers) {
         if (navFrequency) {
           var wpName = targetEl.getAttribute("data-wpname") || 'NAV';
           var freqMode = targetEl.getAttribute("data-navfrequencymode") || 'nav';
-          if (MAP_DEBUG) console.log('[Frequency] Waypoint long press - showing context menu for:', wpName, navFrequency, 'mode:', freqMode);
+          freqLogger.debug('Waypoint long press - showing context menu for:', wpName, navFrequency, 'mode:', freqMode);
           showFrequencyContextMenu(longPressStartX, longPressStartY, navFrequency, wpName, freqMode, true);
         }
 
@@ -14237,8 +14410,8 @@ function createPolylines(coordinateData) {
   if (pline && typeof pline.getLatLngs === 'function' && pline.getLatLngs().length > 1) {
     createMiddleMarkers(pline);
   } else {
-    console.log('[drawLines] pline not ready for middle markers - latLngs:',
-      pline ? pline.getLatLngs().length : 'null');
+    mapLogger.info('pline not ready for middle markers - latLngs:', pline ? pline.getLatLngs().length : 'null');
+
   }
 }
 
@@ -14398,7 +14571,6 @@ function drawLines() {
     }
   }
 
-
   function activateNearestWaypoint() {
     var layers = getWaypointLayersSorted();
     if (!layers || layers.length === 0) {
@@ -14431,7 +14603,7 @@ function drawLines() {
 
     // Wenn keine echte Position bekannt ist, nicht automatisch aktivieren
     if (!hasRealAircraftPosition) {
-      if (MAP_DEBUG) console.log('[Map] No real aircraft position - not activating any waypoint');
+      mapLogger.debug('No real aircraft position - not activating any waypoint');
       pendingFirstActivation = false;
       startlineShow = false;
       targetMarker = -1;
@@ -14460,12 +14632,12 @@ function drawLines() {
       }
     });
 
-    if (MAP_DEBUG) console.log('[Map] Nearest waypoint: index', nearestIndex, 'at', nearestDistance.toFixed(2), 'nm from aircraft');
+    mapLogger.debug('Nearest waypoint: index', nearestIndex, 'at', nearestDistance.toFixed(2), 'nm from aircraft');
 
     // Nicht aktivieren wenn nächster Waypoint > 20nm entfernt ist
     var maxActivationDistanceNm = 20;
     if (nearestDistance > maxActivationDistanceNm) {
-      if (MAP_DEBUG) console.log('[Map] Nearest waypoint too far (' + nearestDistance.toFixed(2) + 'nm > ' + maxActivationDistanceNm + 'nm) - not activating');
+      mapLogger.debug('Nearest waypoint too far (' + nearestDistance.toFixed(2) + 'nm > ' + maxActivationDistanceNm + 'nm) - not activating');
       pendingFirstActivation = false;
       startlineShow = false;
       targetMarker = -1;
@@ -14736,7 +14908,7 @@ function drawLines() {
           // Center on aircraft position when follow mode is activated
           if (typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
             map.setView(new L.LatLng(pos_lat, pos_lng));
-            console.log("Centered on aircraft at:", pos_lat, pos_lng);
+            mapLogger.debug("Centered on aircraft at:", pos_lat, pos_lng);
           }
           if (newMarker && map.hasLayer(newMarker)) {
             map.removeLayer(newMarker);
@@ -14759,7 +14931,6 @@ function drawLines() {
   if (!window.autoloadCheckInProgress) {
     loadPoints();
   }
-
 
   map.on("dragstart", function (e) {
     toggle.enable();
@@ -15024,7 +15195,7 @@ function drawLines() {
 
       if (!panelVisible) {
         // Panel not visible - don't enable pilots, revert to "Off"
-        if (PILOTS_DEBUG) console.log('[Pilots] Layer selection blocked - controller panel not active');
+        pilotsLogger.debug('Layer selection blocked - controller panel not active');
 
         // Remove the layer that was just added
         if (e.layer && map.hasLayer(e.layer)) {
@@ -15254,9 +15425,9 @@ function drawLines() {
     if (!map.hasLayer(defaultPilotsOffLayer)) {
       map.addLayer(defaultPilotsOffLayer);
     }
-    if (MAP_DEBUG) console.log('[Map] Online Pilots Off layer on map:', map.hasLayer(defaultPilotsOffLayer));
+    mapLogger.debug('Online Pilots Off layer on map:', map.hasLayer(defaultPilotsOffLayer));
   } else {
-    if (MAP_DEBUG) console.error('[Map] Online Pilots Off layer NOT FOUND in registry!');
+    mapLogger.error('Online Pilots Off layer NOT FOUND in registry!');
   }
 
   // Wind: Only add Off layer if config says Off, otherwise activate configured layer
@@ -15264,12 +15435,12 @@ function drawLines() {
     if (windOffLayer && !map.hasLayer(windOffLayer)) {
       map.addLayer(windOffLayer);
     }
-    if (MAP_DEBUG) console.log('[Map] Wind Off layer on map:', windOffLayer ? map.hasLayer(windOffLayer) : false);
+    mapLogger.debug('Wind Off layer on map:', windOffLayer ? map.hasLayer(windOffLayer) : false);
   } else if (defaultOverlays['Wind'] && defaultOverlays['Wind'] !== 'Off') {
     var configuredWindLayer = groupedOverlays['Wind'] && groupedOverlays['Wind'][defaultOverlays['Wind']];
     if (configuredWindLayer && !map.hasLayer(configuredWindLayer)) {
       map.addLayer(configuredWindLayer);
-      if (MAP_DEBUG) console.log('[Map] Wind layer activated:', defaultOverlays['Wind']);
+      mapLogger.debug('Wind layer activated:', defaultOverlays['Wind']);
     }
   }
 
@@ -15279,28 +15450,28 @@ function drawLines() {
     if (weatherOffLayer && !map.hasLayer(weatherOffLayer)) {
       map.addLayer(weatherOffLayer);
     }
-    if (MAP_DEBUG) console.log('[Map] Weather Off layer on map');
+    mapLogger.debug('Weather Off layer on map');
   } else if (defaultOverlays['Weather'] && defaultOverlays['Weather'] !== 'Off' && defaultOverlays['Weather'] !== 'On') {
     // Weather configured to specific layer (Clouds, Precipitation, etc.)
     var configuredWeatherLayer = groupedOverlays['Weather'] && groupedOverlays['Weather'][defaultOverlays['Weather']];
     if (configuredWeatherLayer && !map.hasLayer(configuredWeatherLayer)) {
       map.addLayer(configuredWeatherLayer);
-      if (MAP_DEBUG) console.log('[Map] Weather layer activated:', defaultOverlays['Weather']);
+      mapLogger.debug('Weather layer activated:', defaultOverlays['Weather']);
     }
   }
   // Note: Weather "On" is ignored as it's not a valid layer name
 
-  if (MAP_DEBUG) console.log('[Map] Creating LayerControl now...');
+  mapLogger.debug('Creating LayerControl now...');
   if (typeof L.control.groupedLayers === 'function') {
     LayerControl = L.control
       .groupedLayers(baseMaps, groupedOverlays, options)
       .addTo(map);
-    if (MAP_DEBUG) console.log('[Map] LayerControl created');
+    mapLogger.debug('LayerControl created');
   } else {
-    console.error('[Map] L.control.groupedLayers not available - plugin not loaded');
+    mapLogger.error('L.control.groupedLayers not available - plugin not loaded');
     // Fallback: use standard layers control
     LayerControl = L.control.layers(baseMaps, {}).addTo(map);
-    if (MAP_DEBUG) console.log('[Map] Fallback LayerControl created');
+    mapLogger.debug('Fallback LayerControl created');
   }
 
   // Sync the base layer radio button AND ensure layer is on map
@@ -15316,7 +15487,7 @@ function drawLines() {
         if (!map.hasLayer(layerObj.layer)) {
           map.addLayer(layerObj.layer);
         }
-        console.log('[Map] Base layer activated:', layerObj.name);
+        mapLogger.info('Base layer activated:', layerObj.name);
         break;
       }
     }
@@ -15325,7 +15496,7 @@ function drawLines() {
   // FINAL FIX: Set Off layers and update UI after a delay to ensure all init is complete
   // This runs AFTER all layer add/remove events from initialization have settled
   setTimeout(function() {
-    if (MAP_DEBUG) console.log('[Map] Final Off-layer setup starting...');
+    mapLogger.debug('Final Off-layer setup starting...');
 
     // Ensure Off layers are on the map
     var pilotsOff = layerRegistry['Online Pilots_Off'];
@@ -15360,10 +15531,10 @@ function drawLines() {
       });
     }
 
-    if (MAP_DEBUG) console.log('[Map] Final Off-layer setup complete');
-    if (MAP_DEBUG) console.log('[Map] Online Pilots Off on map:', pilotsOff ? map.hasLayer(pilotsOff) : 'N/A');
-    if (MAP_DEBUG) console.log('[Map] Wind Off on map:', windOff ? map.hasLayer(windOff) : 'N/A');
-    if (MAP_DEBUG) console.log('[Map] Weather Off on map:', weatherOff ? map.hasLayer(weatherOff) : 'N/A');
+    mapLogger.debug('Final Off-layer setup complete');
+    mapLogger.debug('Online Pilots Off on map:', pilotsOff ? map.hasLayer(pilotsOff) : 'N/A');
+    mapLogger.debug('Wind Off on map:', windOff ? map.hasLayer(windOff) : 'N/A');
+    mapLogger.debug('Weather Off on map:', weatherOff ? map.hasLayer(weatherOff) : 'N/A');
   }, 500);
 
   // Prevent wheel events in layer control from zooming the map
@@ -15376,9 +15547,8 @@ function drawLines() {
 
   // Base layer change logging only - no transition logic needed, Leaflet handles it
   map.on('baselayerchange', function(e) {
-    if (MAP_DEBUG) console.log('[Map] Base layer changed to:', e.name);
+    mapLogger.debug('Base layer changed to:', e.name);
   });
-
 
   // Override _expand to prevent size changes when elevation profile is toggled
   (function() {
@@ -15400,7 +15570,7 @@ function drawLines() {
     var panelStates = {};
 
     var hidePanels = function() {
-      if (MAP_DEBUG) console.log('[Map] Hiding panels - layer control opened');
+      mapLogger.debug('Hiding panels - layer control opened');
       var overlayEl = document.getElementById('overlay');
       var overlayEl = document.getElementById('overlay');
       var overlayListEl = document.getElementById('overlayList');
@@ -15432,7 +15602,7 @@ function drawLines() {
     };
 
     var showPanels = function() {
-      if (MAP_DEBUG) console.log('[Map] Showing panels - layer control closed');
+      mapLogger.debug('Showing panels - layer control closed');
       var overlayEl = document.getElementById('overlay');
       var overlayEl = document.getElementById('overlay');
       var overlayListEl = document.getElementById('overlayList');
@@ -15458,7 +15628,7 @@ function drawLines() {
       mutations.forEach(function(mutation) {
         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
           var isExpanded = LayerControl._container.classList.contains('leaflet-control-layers-expanded');
-          if (MAP_DEBUG) console.log('[Map] Layer control expanded:', isExpanded);
+          mapLogger.debug('Layer control expanded:', isExpanded);
           if (isExpanded) {
             hidePanels();
           } else {
@@ -15473,7 +15643,7 @@ function drawLines() {
       attributeFilter: ['class']
     });
 
-    if (MAP_DEBUG) console.log('[Map] Panel hide/show observer initialized');
+    mapLogger.debug('Panel hide/show observer initialized');
   }
 
   setOpenAipSelection(true);
@@ -15610,7 +15780,7 @@ function drawLines() {
         onClick: function () {
           // Check if autoload is still in progress - block sync until complete
           if (window.autoloadCheckInProgress || !window.initialAutoloadComplete) {
-            if (MAP_DEBUG) console.log('[Map] Sync button clicked but autoload still in progress, ignoring');
+            mapLogger.debug('Sync button clicked but autoload still in progress, ignoring');
             return;
           }
 
@@ -15650,7 +15820,7 @@ function drawLines() {
                   window.parent.postMessage(payload, "coui://html_ui");
                 }
               } catch (err) {
-                console.warn("Weiterleiten an Parent fehlgeschlagen:", err);
+                mapLogger.warn("Weiterleiten an Parent fehlgeschlagen:", err);
               }
 
               // Reset import flag - allows new sync after this one completes
@@ -15661,23 +15831,23 @@ function drawLines() {
             // Fallback: Re-enable after timeout in case animation hangs or no flightplan received
             setTimeout(function () {
               if (flightplanImportInProgress) {
-                if (MAP_DEBUG) console.log('[Map] Sync button fallback timeout - re-enabling');
+                mapLogger.debug('Sync button fallback timeout - re-enabling');
                 flightplanImportInProgress = false;
                 if (!window.flightplanUISequenceInProgress && !window.flightplanAnimationInProgress) {
                   onFlightplanAnimationComplete();
                 } else {
-                  if (MAP_DEBUG) console.log('[Map] Skipping fallback onFlightplanAnimationComplete - UI sequence in progress');
+                  mapLogger.debug('Skipping fallback onFlightplanAnimationComplete - UI sequence in progress');
                 }
               }
             }, 30000); // 30 second timeout
 
           } catch (err) {
-            console.error("Sync-Request gescheitert:", err);
+            mapLogger.error("Sync-Request gescheitert:", err);
             flightplanImportInProgress = false;
             if (!window.flightplanUISequenceInProgress && !window.flightplanAnimationInProgress) {
               onFlightplanAnimationComplete();
             } else {
-              if (MAP_DEBUG) console.log('[Map] Skipping error onFlightplanAnimationComplete - UI sequence in progress');
+              mapLogger.debug('Skipping error onFlightplanAnimationComplete - UI sequence in progress');
             }
           }
         }
@@ -15691,17 +15861,17 @@ function drawLines() {
     setTimeout(function() {
       startSyncButtonPulse();
       window.pendingSyncButtonPulse = false;  // Flag erst NACH Start löschen
-      if (MAP_DEBUG) console.log('[Map] Sync button pulse started (was pending)');
+      mapLogger.debug('Sync button pulse started (was pending)');
     }, 50);
   }
 
   // Button state based on SimBrief ID availability
   // Initially disabled, checkSimbriefIdAvailable() will enable if SimBrief ID is configured
   if (simbriefIdAvailable) {
-    if (MAP_DEBUG) console.log('[Map] Sync button created - enabled (SimBrief ID available)');
+    mapLogger.debug('Sync button created - enabled (SimBrief ID available)');
   } else {
     toggle5.disable();
-    if (MAP_DEBUG) console.log('[Map] Sync button created - disabled (waiting for SimBrief ID check)');
+    mapLogger.debug('Sync button created - disabled (waiting for SimBrief ID check)');
   }
 
   toggle3 = L.easyButton({
@@ -15732,7 +15902,6 @@ function drawLines() {
         title: "Radio Networks",
         icon: btnIcon('data', 'RADIO'),
         onClick: function (control) {
-          closeAllPopups();
           // WICHTIG: Erst enabled setzen, DANN Panel öffnen!
           // openControllerPanel setzt das Netzwerk automatisch
           setControlZonesEnabled(true);
@@ -15746,8 +15915,6 @@ function drawLines() {
         icon: btnIcon('data', 'IVAO'),
         onClick: function (control) {
           // Wechselt zu VATSIM - openControllerPanel setzt das Netzwerk
-          closeAllPopups();
-          setControlZonesEnabled(true);
           openControllerPanel("vatsim");
           control.state("vatsim");
         },
@@ -15758,7 +15925,6 @@ function drawLines() {
         icon: btnIcon('data', 'VATSIM'),
         onClick: function (control) {
           // Schließt das Panel und zurück zu radio
-          closeAllPopups();
           mout();
           setControlZonesEnabled(false);
           control.state("radio");
@@ -15849,10 +16015,34 @@ function drawLines() {
     className: "currentAirplane"
   });
 
-
   airplane = L.marker([47.442, 10.23], {
     icon: iconAirplane,
   }).addTo(map);
+
+  // Klick auf eigenes Flugzeug: Route anzeigen/verstecken (nur im Controller-Modus)
+  airplane.on('click', function() {
+    if (!moverX) return;
+
+    // Toggle: Wenn Route fuer eigenes Flugzeug bereits angezeigt wird, verstecken
+    if (window.currentPilotRouteId === '__own_aircraft__' && window.pilotRouteLayer) {
+      hidePilotRoute();
+      return;
+    }
+
+    // Pruefen ob wir Pilotendaten haben
+    if (!ownAircraftPilotData || !ownAircraftPilotData.departure || !ownAircraftPilotData.arrival) return;
+
+    // Route anzeigen mit aktueller SimConnect-Position
+    showPilotRoute({
+      callsign: ownAircraftPilotData.callsign,
+      departure: ownAircraftPilotData.departure,
+      arrival: ownAircraftPilotData.arrival,
+      latitude: pos_lat,
+      longitude: pos_lng,
+      network: ownAircraftPilotData.network
+    });
+    window.currentPilotRouteId = '__own_aircraft__';
+  });
 
   var pos = new L.LatLng(pos_lat, pos_lng);
   airplane.setLatLng(pos).update();
@@ -15861,13 +16051,13 @@ function drawLines() {
     if (window.aircraftPositionInitialized || hasCachedAircraftPosition) {
       var source = window.aircraftPositionInitialized ? 'live' : 'cached';
       map.panTo(pos);
-      if (MAP_DEBUG) console.log('[Map] Airplane init: panTo aircraft (' + source + ') at', pos_lat, pos_lng);
+      mapLogger.debug('Airplane init: panTo aircraft (' + source + ') at', pos_lat, pos_lng);
     } else {
       window.centerOnAircraftPending = true;
-      if (MAP_DEBUG) console.log('[Map] Airplane init: centering deferred until position received');
+      mapLogger.debug('Airplane init: centering deferred until position received');
     }
   } else {
-    if (MAP_DEBUG) console.log('[Map] Airplane init: SKIPPED panTo - animation in progress');
+    mapLogger.debug('Airplane init: SKIPPED panTo - animation in progress');
   }
 
   // Activate Elevation Profile layer (add to map for layer control)
@@ -15880,23 +16070,23 @@ function drawLines() {
   // ========================================================================
   // Map ist jetzt vollständig initialisiert - starte Kneeboard-Init
   // ========================================================================
-  if (MAP_DEBUG) console.log('[Map] Map initialization complete, starting Kneeboard initialization');
+  mapLogger.debug('Map initialization complete, starting Kneeboard initialization');
   // Fallback: ensure initializeKneeboard exists before calling
   if (typeof initializeKneeboard !== 'function') {
     window.initializeKneeboard = function() {
-      MAP_DEBUG && console.warn('[Map] initializeKneeboard not defined - skipping kneeboard init');
+      mapLogger.warn('initializeKneeboard not defined - skipping kneeboard init');
       return Promise.resolve();
     };
   }
   initializeKneeboard().catch(function(error) {
-    console.error('[Map] Kneeboard initialization failed:', error);
+    mapLogger.error('Kneeboard initialization failed:', error);
     // Fehler wurde bereits in initializeKneeboard() behandelt (Fallback zu executeSimplePath)
   });
 
   // Restore saved map UI state AFTER all UI elements are initialized
   // (toggle10, toggle11, measureButton, searchButton, etc.)
   setTimeout(function() {
-    if (MAP_DEBUG) console.log('[Map] Restoring map UI state after full initialization');
+    mapLogger.debug('Restoring map UI state after full initialization');
     restoreMapState();
   }, 500);
 
@@ -15904,16 +16094,16 @@ function drawLines() {
   // This handles the case when the page is reloaded with a cached flightplan
   setTimeout(function() {
     if (importedOFPData && typeof initFlightplanPanel === 'function') {
-      console.log('[Map] Initializing Flightplan Panel with CACHED OFP data');
+      mapLogger.debug('Initializing Flightplan Panel with CACHED OFP data');
       try {
         initFlightplanPanel(importedOFPData).catch(function(err) {
-          console.error('[Map] Error initializing Flightplan Panel from cache:', err);
+          mapLogger.error('Error initializing Flightplan Panel from cache:', err);
         });
       } catch (syncErr) {
-        console.error('[Map] Error initializing Flightplan Panel from cache (sync):', syncErr);
+        mapLogger.error('Error initializing Flightplan Panel from cache (sync):', syncErr);
       }
     } else {
-      if (MAP_DEBUG) console.log('[Map] No cached OFP data for Flightplan Panel');
+      mapLogger.debug('No cached OFP data for Flightplan Panel');
     }
   }, 800);
 }
@@ -15930,12 +16120,12 @@ function drawLines() {
  */
 function animateFlightplanRoute(flightplanData, onComplete) {
   if (!flightplanData || flightplanData.length === 0) {
-    MAP_DEBUG && console.log('[AnimRoute] No flightplan data provided');
+    mapLogger.debug('No flightplan data provided');
     if (onComplete) onComplete();
     return;
   }
 
-  MAP_DEBUG && console.log('[AnimRoute] Starting synchronized line+marker animation with', flightplanData.length, 'waypoints');
+  mapLogger.debug('Starting synchronized line+marker animation with', flightplanData.length, 'waypoints');
 
   // IMPORTANT: Skip polyline creation in drawLines() during entire animation
   // Animation creates its own polylines that include the runway END point
@@ -16018,7 +16208,7 @@ function animateFlightplanRoute(flightplanData, onComplete) {
   function animateStep() {
     // Check if animation should be cancelled
     if (flightplanAnimationState.shouldCancel) {
-      MAP_DEBUG && console.log('[AnimRoute] Animation cancelled');
+      mapLogger.debug('Animation cancelled');
       flightplanAnimationState.inProgress = false;
       if (onComplete) onComplete();
       return;
@@ -16033,7 +16223,7 @@ function animateFlightplanRoute(flightplanData, onComplete) {
 
       if (currentIndex >= waypointsWithSegment.length) {
         // Animation complete - Runway END ist jetzt ein echter Waypoint mit Marker
-        MAP_DEBUG && console.log('[AnimRoute] Animation complete');
+        mapLogger.debug('Animation complete');
 
         // Animation is done - let drawLines() recreate polylines with proper data
         window._skipPolylineCreation = false;
@@ -16048,7 +16238,7 @@ function animateFlightplanRoute(flightplanData, onComplete) {
 
       // Debug: Log RWY waypoint processing
       if (MAP_DEBUG && (wp.waypointType || '').toUpperCase() === 'RWY') {
-        console.log('[AnimRoute] Processing RWY waypoint:', wp.name, 'segment:', segment, 'coord:', coord);
+        mapLogger.debug('Processing RWY waypoint:', wp.name, 'segment:', segment, 'coord:', coord);
       }
 
       // Ensure line continuity between segments
@@ -16172,7 +16362,7 @@ function getNoaaRecord(responseText) {
   try {
     return getNoaaRecordFromPayload(JSON.parse(responseText));
   } catch (error) {
-    console.error("Unable to parse NOAA response", error);
+    mapLogger.error("Unable to parse NOAA response", error);
     return null;
   }
 }
@@ -16227,7 +16417,7 @@ function renderTafResult(targetElement, record) {
 
 function clearMetarOutputs() {
   if (!ensureMetarElements()) {
-    console.warn("METAR containers missing, aborting clear.");
+    weatherLogger.warn("METAR containers missing, aborting clear.");
     return;
   }
   caja_METAR.innerHTML = "";
@@ -16273,12 +16463,12 @@ function ensureMetarElements() {
 
 function pedirXML(e, t, start) {
   if (!ensureMetarElements()) {
-    console.warn("METAR containers missing, aborting request.");
+    weatherLogger.warn("METAR containers missing, aborting request.");
     return;
   }
 
   if (e !== "metar") {
-    console.warn("Unsupported METAR request type:", e);
+    weatherLogger.warn("Unsupported METAR request type:", e);
   }
   const a = new XMLHttpRequest(),
     r = buildNoaaUrl(e, t);
@@ -16291,7 +16481,7 @@ function pedirXML(e, t, start) {
         if (200 === this.status) {
           metarRecord = getNoaaRecord(this.response);
         } else {
-          console.warn("METAR request failed: " + this.status);
+          weatherLogger.warn("METAR request failed: " + this.status);
         }
         renderMetarResult(caja_METAR, start, metarRecord);
       }
@@ -16305,11 +16495,11 @@ function pedirXML(e, t, start) {
 
 function pedirXML2(e, t, destination) {
   if (!ensureMetarElements()) {
-    console.warn("METAR containers missing, aborting request.");
+    weatherLogger.warn("METAR containers missing, aborting request.");
     return;
   }
   if (e !== "metar") {
-    console.warn("Unsupported METAR request type:", e);
+    weatherLogger.warn("Unsupported METAR request type:", e);
   }
   const a = new XMLHttpRequest(),
     r = buildNoaaUrl(e, t);
@@ -16322,7 +16512,7 @@ function pedirXML2(e, t, destination) {
         if (200 === this.status) {
           metarRecord = getNoaaRecord(this.response);
         } else {
-          console.warn("METAR request failed: " + this.status);
+          weatherLogger.warn("METAR request failed: " + this.status);
         }
         renderMetarResult(caja_METAR2, destination, metarRecord);
       }
@@ -16336,11 +16526,11 @@ function pedirXML2(e, t, destination) {
 
 function pedirXMLTAF(e, t) {
   if (!ensureMetarElements()) {
-    console.warn("TAF containers missing, aborting request.");
+    weatherLogger.warn("TAF containers missing, aborting request.");
     return;
   }
   if (e !== "taf") {
-    console.warn("Unsupported TAF request type:", e);
+    weatherLogger.warn("Unsupported TAF request type:", e);
   }
   const a2 = new XMLHttpRequest(),
     r2 = buildNoaaUrl(e, t);
@@ -16353,7 +16543,7 @@ function pedirXMLTAF(e, t) {
         if (200 === this.status) {
           tafRecord = getNoaaRecord(this.response);
         } else {
-          console.warn("TAF request failed: " + this.status);
+          weatherLogger.warn("TAF request failed: " + this.status);
         }
         renderTafResult(caja_Taf, tafRecord);
       }
@@ -16367,11 +16557,11 @@ function pedirXMLTAF(e, t) {
 
 function pedirXMLTAF2(e, t) {
   if (!ensureMetarElements()) {
-    console.warn("TAF containers missing, aborting request.");
+    weatherLogger.warn("TAF containers missing, aborting request.");
     return;
   }
   if (e !== "taf") {
-    console.warn("Unsupported TAF request type:", e);
+    weatherLogger.warn("Unsupported TAF request type:", e);
   }
   const a2 = new XMLHttpRequest(),
     r2 = buildNoaaUrl(e, t);
@@ -16384,7 +16574,7 @@ function pedirXMLTAF2(e, t) {
         if (200 === this.status) {
           tafRecord = getNoaaRecord(this.response);
         } else {
-          console.warn("TAF request failed: " + this.status);
+          weatherLogger.warn("TAF request failed: " + this.status);
         }
         renderTafResult(caja_Taf2, tafRecord);
       }
@@ -16424,13 +16614,13 @@ function reset(message) {
   caja_METAR2.innerHTML = "";
   caja_Taf2.innerHTML = "";
 
-  if (MAP_DEBUG) console.log('[MapReset] METAR data cleared, flightplan data preserved');
+  mapLogger.debug('METAR data cleared, flightplan data preserved');
 }
 
 var Timer;
 function metarSearch() {
   if (!ensureMetarElements()) {
-    console.warn("METAR containers missing, cannot run search.");
+    weatherLogger.warn("METAR containers missing, cannot run search.");
     return;
   }
   clearMetarOutputs();
@@ -16450,7 +16640,7 @@ function metarSearch() {
   if (document.getElementById("aeropuerto").value.length == 4) {
     if (!check_ICAO(t)) {
       // Ung�ltiger ICAO: Fehler-Nachricht anzeigen
-      console.warn("[METAR] Invalid ICAO code:", t);
+      weatherLogger.warn("Invalid ICAO code:", t);
       return;
     }
     hasValidICAO = true;
@@ -16461,7 +16651,7 @@ function metarSearch() {
   if (document.getElementById("aeropuerto2").value.length == 4) {
     if (!check_ICAO(t2)) {
       // Ung�ltiger ICAO: Fehler-Nachricht anzeigen
-      console.warn("[METAR] Invalid ICAO code:", t2);
+      weatherLogger.warn("Invalid ICAO code:", t2);
       return;
     }
     hasValidICAO = true;
@@ -16473,7 +16663,7 @@ function metarSearch() {
   if (!hasValidICAO && (e.length === 0 && e2.length === 0)) {
     var metarContainer = DOM.metarContainer;
     if (metarContainer && metarSearchExpandet) {
-      if (MAP_DEBUG) console.log("[METAR] No valid ICAO codes, hiding panel");
+      weatherLogger.debug("No valid ICAO codes, hiding panel");
       metarContainer.style.display = "none";
       metarSearchExpandet = false;
     }
@@ -16510,11 +16700,11 @@ function postRequest(endpoint, onSuccess, onError) {
     }
   };
   xhr.ontimeout = function() {
-    console.warn('[Network] Timeout for ' + endpoint);
+    apiLogger.warn('Timeout for ' + endpoint);
     if (onError) onError(new Error('Timeout for ' + endpoint));
   };
   xhr.onerror = function() {
-    console.warn('[Network] Error for ' + endpoint);
+    apiLogger.warn('Error for ' + endpoint);
     if (onError) onError(new Error('Network error for ' + endpoint));
   };
   xhr.send("foobar");
@@ -16536,7 +16726,7 @@ function getCachedControllerData(callback, errorCallback) {
     controllerDataCache.timestamp = Date.now();
     callback(response);
   }, function(err) {
-    console.warn('[Controller] synchronizeControllers failed:', err.message);
+    controllerLogger.warn('synchronizeControllers failed:', err.message);
     if (errorCallback) errorCallback(err);
   });
 }
@@ -16566,13 +16756,13 @@ function getControllers(gen) {
       _vatsimControllersReady = true;
       _tryProcessVatsimData();
     } catch (e) {
-      console.warn('[Controller] getControllers parse error:', e.message);
+      controllerLogger.warn('getControllers parse error:', e.message);
       _vatsimDataFetching = false;
       startVatsimPolling();
     }
   }, function(err) {
     if (gen !== _vatsimFetchGeneration) return;
-    console.warn('[Controller] getControllers failed:', err.message);
+    controllerLogger.warn('getControllers failed:', err.message);
     _vatsimDataFetching = false;
     startVatsimPolling();
   });
@@ -16586,13 +16776,13 @@ function getTransceivers(gen) {
       _vatsimTransceiversReady = true;
       _tryProcessVatsimData();
     } catch (e) {
-      console.warn('[Controller] getTransceivers parse error:', e.message);
+      controllerLogger.warn('getTransceivers parse error:', e.message);
       _vatsimDataFetching = false;
       startVatsimPolling();
     }
   }, function(err) {
     if (gen !== _vatsimFetchGeneration) return;
-    console.warn('[Controller] getTransceivers failed:', err.message);
+    controllerLogger.warn('getTransceivers failed:', err.message);
     _vatsimDataFetching = false;
     startVatsimPolling();
   });
@@ -16640,12 +16830,12 @@ function getIVAO(gen) {
       }
       startVatsimPolling();
     } catch (e) {
-      console.warn('[Controller] getIVAO parse error:', e.message);
+      controllerLogger.warn('getIVAO parse error:', e.message);
       startVatsimPolling();
     }
   }, function(err) {
     if (gen !== _vatsimFetchGeneration) return;
-    console.warn('[Controller] getIVAO failed:', err.message);
+    controllerLogger.warn('getIVAO failed:', err.message);
     _vatsimDataFetching = false;
     startVatsimPolling();
   });
@@ -16744,60 +16934,71 @@ function mover() {
       waypointMarkers: []
     };
 
-    // Hide route polylines
-    if (flightpathLayersStateBeforeController.pLineGroup && pLineGroup) {
-      map.removeLayer(pLineGroup);
-    }
-    if (flightpathLayersStateBeforeController.pLineGroupDEP && pLineGroupDEP) {
-      map.removeLayer(pLineGroupDEP);
-    }
-    if (flightpathLayersStateBeforeController.pLineGroupARR && pLineGroupARR) {
-      map.removeLayer(pLineGroupARR);
-    }
-    if (flightpathLayersStateBeforeController.startLineGroup && startLineGroup) {
-      map.removeLayer(startLineGroup);
-    }
-    if (flightpathLayersStateBeforeController.middleMarkers && middleMarkers) {
-      map.removeLayer(middleMarkers);
-    }
-
-    // Hide live tracking polyline (red flight path animation)
-    if (flightpathLayersStateBeforeController.liveTrackingPolyline && polyline) {
-      map.removeLayer(polyline);
-    }
-
-    // Hide alternate route
-    if (flightpathLayersStateBeforeController.alternateRoute && alternateRouteLayer) {
-      map.removeLayer(alternateRouteLayer);
-    }
-
-    // Hide waypoint markers
+    // Waypoint-Layer-State synchron sammeln (für mout()-Restore)
     if (typeof getWaypointLayersSorted === 'function') {
       var wpLayers = getWaypointLayersSorted();
       for (var i = 0; i < wpLayers.length; i++) {
         var wpLayer = wpLayers[i];
         if (map.hasLayer(wpLayer)) {
           flightpathLayersStateBeforeController.waypointMarkers.push(wpLayer);
-          map.removeLayer(wpLayer);
         }
       }
     }
 
-    console.log('[Controller] Flight path hidden - route lines, live tracking, and', flightpathLayersStateBeforeController.waypointMarkers.length, 'waypoints');
-
-    // Deaktiviere Delete-Button im Controller-Modus
-    var deleteBtn = document.querySelector('.leaflet-draw-edit-remove');
-    if (deleteBtn) {
-      deleteBtn.style.pointerEvents = 'none';
-      deleteBtn.style.opacity = '0.5';
-    }
-
-    // Force map resize after all UI changes to ensure full height rendering
+    // Layer-Entfernungen deferred ausführen damit UI responsive bleibt
+    var savedState = flightpathLayersStateBeforeController;
     setTimeout(function() {
+      // Guard: Wenn mout() zwischenzeitlich lief, nichts mehr tun
+      if (!moverX) return;
+
+      // Hide route polylines
+      if (savedState.pLineGroup && pLineGroup && map.hasLayer(pLineGroup)) {
+        map.removeLayer(pLineGroup);
+      }
+      if (savedState.pLineGroupDEP && pLineGroupDEP && map.hasLayer(pLineGroupDEP)) {
+        map.removeLayer(pLineGroupDEP);
+      }
+      if (savedState.pLineGroupARR && pLineGroupARR && map.hasLayer(pLineGroupARR)) {
+        map.removeLayer(pLineGroupARR);
+      }
+      if (savedState.startLineGroup && startLineGroup && map.hasLayer(startLineGroup)) {
+        map.removeLayer(startLineGroup);
+      }
+      if (savedState.middleMarkers && middleMarkers && map.hasLayer(middleMarkers)) {
+        map.removeLayer(middleMarkers);
+      }
+
+      // Hide live tracking polyline (red flight path animation)
+      if (savedState.liveTrackingPolyline && polyline && map.hasLayer(polyline)) {
+        map.removeLayer(polyline);
+      }
+
+      // Hide alternate route
+      if (savedState.alternateRoute && alternateRouteLayer && map.hasLayer(alternateRouteLayer)) {
+        map.removeLayer(alternateRouteLayer);
+      }
+
+      // Hide waypoint markers
+      for (var j = 0; j < savedState.waypointMarkers.length; j++) {
+        if (map.hasLayer(savedState.waypointMarkers[j])) {
+          map.removeLayer(savedState.waypointMarkers[j]);
+        }
+      }
+
+      controllerLogger.info('Flight path hidden (deferred) - route lines, live tracking, and', savedState.waypointMarkers.length, 'waypoints');
+
+      // Deaktiviere Delete-Button im Controller-Modus
+      var deleteBtn = document.querySelector('.leaflet-draw-edit-remove');
+      if (deleteBtn) {
+        deleteBtn.style.pointerEvents = 'none';
+        deleteBtn.style.opacity = '0.5';
+      }
+
+      // Force map resize after all UI changes
       if (map) {
         map.invalidateSize({ pan: false });
       }
-    }, 100);
+    }, 0);
   }
 }
 
@@ -16849,18 +17050,16 @@ function mout() {
   var list = DOM.controllerList;
   list.style.visibility = "hidden";
 
+  // Pilot-Route verstecken wenn Controller-Modus beendet wird
+  hidePilotRoute();
+
   // Hide control zones when panel is closed
   czClear();
 
   // Remove VATSIM/IVAO attribution from map
   clearNetworkAttribution();
 
-  // Reaktiviere Delete-Button
-  var deleteBtn = document.querySelector('.leaflet-draw-edit-remove');
-  if (deleteBtn) {
-    deleteBtn.style.pointerEvents = 'auto';
-    deleteBtn.style.opacity = '1';
-  }
+  // Delete-Button wird im deferred Layer-Restore reaktiviert
 
   // Disable Online Pilots when panel is closed
   setPilotsEnabled(false);
@@ -16943,62 +17142,67 @@ function mout() {
   }
   flightplanPanelStateBeforeController = null; // Reset state
 
-  // Restore flight path layers (route lines + waypoints)
-  if (flightpathLayersStateBeforeController) {
-    // Restore route polylines
-    if (flightpathLayersStateBeforeController.pLineGroup && pLineGroup && map && !map.hasLayer(pLineGroup)) {
-      map.addLayer(pLineGroup);
-    }
-    if (flightpathLayersStateBeforeController.pLineGroupDEP && pLineGroupDEP && map && !map.hasLayer(pLineGroupDEP)) {
-      map.addLayer(pLineGroupDEP);
-    }
-    if (flightpathLayersStateBeforeController.pLineGroupARR && pLineGroupARR && map && !map.hasLayer(pLineGroupARR)) {
-      map.addLayer(pLineGroupARR);
-    }
-    if (flightpathLayersStateBeforeController.startLineGroup && startLineGroup && map && !map.hasLayer(startLineGroup)) {
-      map.addLayer(startLineGroup);
-    }
-    if (flightpathLayersStateBeforeController.middleMarkers && middleMarkers && map && !map.hasLayer(middleMarkers)) {
-      map.addLayer(middleMarkers);
-    }
+  // Restore flight path layers deferred (route lines + waypoints)
+  var savedRestoreState = flightpathLayersStateBeforeController;
+  flightpathLayersStateBeforeController = null; // Reset state sofort
+  if (savedRestoreState) {
+    setTimeout(function() {
+      // Restore route polylines
+      if (savedRestoreState.pLineGroup && pLineGroup && map && !map.hasLayer(pLineGroup)) {
+        map.addLayer(pLineGroup);
+      }
+      if (savedRestoreState.pLineGroupDEP && pLineGroupDEP && map && !map.hasLayer(pLineGroupDEP)) {
+        map.addLayer(pLineGroupDEP);
+      }
+      if (savedRestoreState.pLineGroupARR && pLineGroupARR && map && !map.hasLayer(pLineGroupARR)) {
+        map.addLayer(pLineGroupARR);
+      }
+      if (savedRestoreState.startLineGroup && startLineGroup && map && !map.hasLayer(startLineGroup)) {
+        map.addLayer(startLineGroup);
+      }
+      if (savedRestoreState.middleMarkers && middleMarkers && map && !map.hasLayer(middleMarkers)) {
+        map.addLayer(middleMarkers);
+      }
 
-    // Restore live tracking polyline (red flight path)
-    if (flightpathLayersStateBeforeController.liveTrackingPolyline && polyline && map && !map.hasLayer(polyline)) {
-      map.addLayer(polyline);
-    }
+      // Restore live tracking polyline (red flight path)
+      if (savedRestoreState.liveTrackingPolyline && polyline && map && !map.hasLayer(polyline)) {
+        map.addLayer(polyline);
+      }
 
-    // Restore alternate route
-    if (flightpathLayersStateBeforeController.alternateRoute && alternateRouteLayer && map && !map.hasLayer(alternateRouteLayer)) {
-      map.addLayer(alternateRouteLayer);
-    }
+      // Restore alternate route
+      if (savedRestoreState.alternateRoute && alternateRouteLayer && map && !map.hasLayer(alternateRouteLayer)) {
+        map.addLayer(alternateRouteLayer);
+      }
 
-    // Restore waypoint markers
-    var restoredCount = 0;
-    if (flightpathLayersStateBeforeController.waypointMarkers && flightpathLayersStateBeforeController.waypointMarkers.length > 0) {
-      for (var i = 0; i < flightpathLayersStateBeforeController.waypointMarkers.length; i++) {
-        var wpLayer = flightpathLayersStateBeforeController.waypointMarkers[i];
-        if (wpLayer && map && !map.hasLayer(wpLayer)) {
-          map.addLayer(wpLayer);
-          restoredCount++;
+      // Restore waypoint markers
+      var restoredCount = 0;
+      if (savedRestoreState.waypointMarkers && savedRestoreState.waypointMarkers.length > 0) {
+        for (var i = 0; i < savedRestoreState.waypointMarkers.length; i++) {
+          var wpLayer = savedRestoreState.waypointMarkers[i];
+          if (wpLayer && map && !map.hasLayer(wpLayer)) {
+            map.addLayer(wpLayer);
+            restoredCount++;
+          }
         }
       }
-    }
 
-    console.log('[Controller] Flight path restored - route lines, alternate and', restoredCount, 'waypoints');
+      controllerLogger.info('Flight path restored (deferred) - route lines, alternate and', restoredCount, 'waypoints');
 
-    // Force map to re-render all layers by invalidating size and triggering a micro-pan
-    setTimeout(function() {
+      // Force map to re-render all layers
       if (map) {
         map.invalidateSize();
-        // Micro-pan trick: verschiebe 1px und sofort zurück um SVG/Canvas Renderer zu erzwingen
-        var center = map.getCenter();
         map.panBy([1, 0], { animate: false });
         map.panBy([-1, 0], { animate: false });
-        console.log('[Controller] Forced map re-render via invalidateSize + panBy');
       }
-    }, 100);
+
+      // Reaktiviere Delete-Button
+      var deleteBtn = document.querySelector('.leaflet-draw-edit-remove');
+      if (deleteBtn) {
+        deleteBtn.style.pointerEvents = 'auto';
+        deleteBtn.style.opacity = '1';
+      }
+    }, 0);
   }
-  flightpathLayersStateBeforeController = null; // Reset state
 
   // Update LayerControl UI to show "Off"
   updatePilotsLayerControlUI('Off');
@@ -17009,12 +17213,12 @@ function mout() {
 
 // Separate function to hide all flightpath layers - called when controller panel opens
 function hideFlightpathLayers() {
-  console.log('[Controller] hideFlightpathLayers called');
+  controllerLogger.debug('hideFlightpathLayers called');
 
   // Hide route polylines
   if (pLineGroup && map && map.hasLayer(pLineGroup)) {
     map.removeLayer(pLineGroup);
-    console.log('[Controller] Removed pLineGroup');
+    controllerLogger.info('Removed pLineGroup');
   }
   if (pLineGroupDEP && map && map.hasLayer(pLineGroupDEP)) {
     map.removeLayer(pLineGroupDEP);
@@ -17032,19 +17236,19 @@ function hideFlightpathLayers() {
   // Hide live tracking polyline
   if (polyline && map && map.hasLayer(polyline)) {
     map.removeLayer(polyline);
-    console.log('[Controller] Removed live tracking polyline');
+    controllerLogger.info('Removed live tracking polyline');
   }
 
   // Hide alternate route
   if (alternateRouteLayer && map && map.hasLayer(alternateRouteLayer)) {
     map.removeLayer(alternateRouteLayer);
-    console.log('[Controller] Removed alternate route');
+    controllerLogger.info('Removed alternate route');
   }
 
   // Hide ALL waypoint markers
   if (typeof getWaypointLayersSorted === 'function') {
     var wpLayers = getWaypointLayersSorted();
-    console.log('[Controller] Found', wpLayers.length, 'waypoint layers to hide');
+    controllerLogger.debug('Found', wpLayers.length, 'waypoint layers to hide');
     for (var i = 0; i < wpLayers.length; i++) {
       if (map.hasLayer(wpLayers[i])) {
         map.removeLayer(wpLayers[i]);
@@ -17119,18 +17323,18 @@ function openControllerPanel(network) {
   var pilotsNetworkName = network === 'vatsim' ? 'VATSIM' : 'IVAO';
   var targetPilotsLayer = layerRegistry['Online Pilots_' + pilotsNetworkName];
 
-  if (PILOTS_DEBUG) console.log('[Pilots] openControllerPanel - network:', network, 'layerKey:', 'Online Pilots_' + pilotsNetworkName, 'targetLayer:', !!targetPilotsLayer);
+  pilotsLogger.debug('openControllerPanel - network:', network, 'layerKey:', 'Online Pilots_' + pilotsNetworkName, 'targetLayer:', !!targetPilotsLayer);
 
   if (targetPilotsLayer) {
-    // Remove any other pilots layers that might be on the map
-    var pilotsLayerNames = ['Online Pilots_Both', 'Online Pilots_VATSIM', 'Online Pilots_IVAO', 'Online Pilots_Off'];
-    pilotsLayerNames.forEach(function(name) {
-      var layer = layerRegistry[name];
-      if (layer && map.hasLayer(layer)) {
-        map.removeLayer(layer);
-        if (PILOTS_DEBUG) console.log('[Pilots] Removed layer:', name);
-      }
-    });
+    // Nur den aktuellen Layer entfernen statt alle 4 durchzuiterieren
+    if (pilotsLayer && pilotsLayer !== targetPilotsLayer && map.hasLayer(pilotsLayer)) {
+      map.removeLayer(pilotsLayer);
+    }
+    // Off-Layer entfernen falls aktiv
+    var pilotsOffLayer = layerRegistry['Online Pilots_Off'];
+    if (pilotsOffLayer && map.hasLayer(pilotsOffLayer)) {
+      map.removeLayer(pilotsOffLayer);
+    }
 
     // Set the correct pilotsLayer reference
     pilotsLayer = targetPilotsLayer;
@@ -17141,12 +17345,9 @@ function openControllerPanel(network) {
     // Add the target layer to the map
     if (!map.hasLayer(targetPilotsLayer)) {
       map.addLayer(targetPilotsLayer);
-      if (PILOTS_DEBUG) console.log('[Pilots] Added targetPilotsLayer to map');
     }
-
-    if (PILOTS_DEBUG) console.log('[Pilots] Layer on map after add:', map.hasLayer(targetPilotsLayer));
   } else {
-    console.error('[Pilots] ERROR: targetPilotsLayer not found in layerRegistry!');
+    pilotsLogger.error('ERROR: targetPilotsLayer not found in layerRegistry!');
   }
 
   // WICHTIG: Setze zuerst die Variablen OHNE Update zu triggern,
@@ -17394,7 +17595,7 @@ function findAirportCoordinates(_controller) {
         }
       }
 
-      if (CZ_DEBUG) console.log('[ATIS] ' + callsign + ': ' + (foundCoords ? 'coords from ' + coordSource : 'no sync coords, trying OpenAIP...'));
+      czLogger.debug('' + callsign + ': ' + (foundCoords ? 'coords from ' + coordSource : 'no sync coords, trying OpenAIP...'));
 
       // 4. Fallback: OpenAIP wenn keine Koordinaten gefunden (asynchron)
       if (!foundCoords) {
@@ -17407,11 +17608,11 @@ function findAirportCoordinates(_controller) {
             _controller.lng = result.lng;
             controllersWithCoordArray.push(_controller);
             _atisCoordLookupCache[callsign] = { status: 'found', lat: result.lat, lng: result.lng };
-            if (CZ_DEBUG) console.log('[ATIS] ' + callsign + ': coords from OpenAIP async', result.lat, result.lng);
+            czLogger.debug('' + callsign + ': coords from OpenAIP async', result.lat, result.lng);
             checkInRange(controllersWithCoordArray);
           } else {
             _atisCoordLookupCache[callsign] = { status: 'notfound' };
-            if (CZ_DEBUG) console.log('[ATIS] ' + callsign + ': NO coords found!');
+            czLogger.debug('' + callsign + ': NO coords found!');
           }
         });
       }
@@ -17644,7 +17845,7 @@ function checkInRange(_controllersWithCoordArray) {
   }
   controllersInRange.sort(dynamicSortMultiple("distance", "name"));
 
-  if (CZ_DEBUG) console.log('[ControllerList] Controllers in range:', controllersInRange.length);
+  controllerLogger.debug('Controllers in range:', controllersInRange.length);
 
   // Always update the list (remove broken comparison)
   var listEl = document.getElementById("controllerListUl");
@@ -17668,7 +17869,7 @@ function checkInRange(_controllersWithCoordArray) {
   if (czState.enabled && (prefixesChanged || isFirstRender)) {
     window._lastRenderedControllerPrefixes = currentPrefixKeys;
     window._czFirstRenderDone = true;
-    if (CZ_DEBUG) console.log('[CZ] Triggering render - prefixesChanged:', prefixesChanged, 'isFirstRender:', isFirstRender);
+    czLogger.debug('Triggering render - prefixesChanged:', prefixesChanged, 'isFirstRender:', isFirstRender);
     czRenderDebounced(); // Re-render control zones when controller data changes (debounced)
   }
   startVatsimPolling();
@@ -17695,7 +17896,7 @@ function getMarkerId() {
 // Diese Funktion überlebt Coherent JS-Resets weil sie map._layers direkt durchsucht
 function removeAllWaypointLayers() {
   if (!map || !map._layers) {
-    if (MAP_DEBUG) console.log('[Map] v1.47: map._layers nicht verfügbar');
+    mapLogger.debug('v1.47: map._layers nicht verfügbar');
     return 0;
   }
 
@@ -17717,11 +17918,11 @@ function removeAllWaypointLayers() {
       map.removeLayer(layer);
       removedCount++;
     } catch (err) {
-      console.warn('[Map] v1.47: Fehler beim Entfernen von Layer:', err);
+      mapLogger.warn('v1.47: Fehler beim Entfernen von Layer:', err);
     }
   });
 
-  if (MAP_DEBUG) console.log('[Map] v1.47: removeAllWaypointLayers entfernte', removedCount, 'Waypoint-Layers');
+  mapLogger.debug('v1.47: removeAllWaypointLayers entfernte', removedCount, 'Waypoint-Layers');
   return removedCount;
 }
 
@@ -17805,14 +18006,14 @@ function removeAllMarkersAndClearServer() {
   // Clear SID/STAR/Approach preview layers
   if (typeof clearAllPreviews === 'function') {
     clearAllPreviews();
-    console.log('[Map] Cleared procedure preview layers');
+    mapLogger.info('Cleared procedure preview layers');
   }
 
   // Clear Alternate Route layer
   if (typeof alternateRouteLayer !== 'undefined' && alternateRouteLayer) {
     map.removeLayer(alternateRouteLayer);
     alternateRouteLayer = null;
-    console.log('[Map] Cleared alternate route layer');
+    mapLogger.info('Cleared alternate route layer');
   }
 
   // Reset flightplan panel state
@@ -17820,7 +18021,7 @@ function removeAllMarkersAndClearServer() {
     flightplanPanelState.departure = { icao: '', runways: [], sids: [], selectedRunway: '', selectedSid: '', selectedTransition: '' };
     flightplanPanelState.arrival = { icao: '', runways: [], stars: [], approaches: [], selectedRunway: '', selectedStar: '', selectedTransition: '', selectedApproach: '', selectedApproachTransition: '' };
     flightplanPanelState.alternate = { icao: '', lat: 0, lng: 0, runways: [], stars: [], approaches: [], selectedRunway: '', selectedStar: '', selectedTransition: '', selectedApproach: '' };
-    console.log('[Map] Reset flightplan panel state');
+    mapLogger.info('Reset flightplan panel state');
 
     // Also reset flightplan panel UI elements
     var depIcaoDisplay = document.getElementById('depIcaoDisplay');
@@ -17858,7 +18059,7 @@ function removeAllMarkersAndClearServer() {
     var altSection = document.getElementById('fpAlternateSection');
     if (altSection) altSection.style.display = 'none';
 
-    console.log('[Map] Reset flightplan panel UI');
+    mapLogger.info('Reset flightplan panel UI');
   }
 
   // First remove all visual markers
@@ -17907,16 +18108,16 @@ function removeAllMarkersAndClearServer() {
 
   // Reset flightplan fingerprint so the same flightplan can be reloaded after deletion
   currentFlightplanFingerprint = null;
-  if (MAP_DEBUG) console.log('[Map] Flightplan fingerprint reset');
+  mapLogger.debug('Flightplan fingerprint reset');
 
   // WICHTIG: Flugplan-Hash zur�cksetzen damit gel�schte Flugpl�ne neu geladen werden k�nnen
   try {
     if (typeof window !== 'undefined' && window.parent) {
       window.parent.postMessage({ type: 'resetFlightplanHash' }, '*');
-      if (MAP_DEBUG) console.log('[Map] Flightplan hash reset message sent');
+      mapLogger.debug('Flightplan hash reset message sent');
     }
   } catch (e) {
-    console.warn('[Map] Could not send hash reset message:', e);
+    mapLogger.warn('Could not send hash reset message:', e);
   }
 
   // Clear stored hash so server flight plan can be reloaded
@@ -17945,15 +18146,20 @@ function removeAllMarkersAndClearServer() {
   fetch('clearLocalFlightplan').then(function(response) {
     return response.json();
   }).then(function(data) {
-    if (MAP_DEBUG) console.log('[Map] Local flightplan cleared, server has flightplan:', data.hasServerFlightplan);
+    mapLogger.debug('Local flightplan cleared, server has flightplan:', data.hasServerFlightplan);
 
     // If server still has a flightplan from SimBrief, set button ORANGE (static, no pulse)
     if (data.hasServerFlightplan) {
-      console.log('[SimBrief] Server has flightplan ready - setting button ORANGE');
+      simbriefLogger.info('Server has flightplan ready - setting button ORANGE');
       setSyncButtonOrange();
     }
+
+    // Documents-Panel aktualisieren (OFP aus Liste entfernen)
+    if (typeof getDocumentsList === 'function') {
+      getDocumentsList(true);
+    }
   }).catch(function(e) {
-    console.warn('[Map] Error clearing local flightplan:', e);
+    mapLogger.warn('Error clearing local flightplan:', e);
   });
 
   // Release sync button lock and update based on SimBrief ID availability
@@ -17970,14 +18176,14 @@ function removeAllMarkersAndClearServer() {
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
       var source = window.aircraftPositionInitialized ? 'live' : 'cached';
       map.setView(new L.LatLng(lat, lng));
-      console.log('[Map] All markers deleted - centered on aircraft (' + source + ') at:', lat, lng);
+      mapLogger.debug('All markers deleted - centered on aircraft (' + source + ') at:', lat, lng);
     } else {
       window.centerOnAircraftPending = true;
-      console.log('[Map] All markers deleted - aircraft centering deferred (invalid coordinates)');
+      mapLogger.warn('All markers deleted - aircraft centering deferred (invalid coordinates)');
     }
   } else if (!window.aircraftPositionInitialized && !hasCachedAircraftPosition) {
     window.centerOnAircraftPending = true;
-    console.log('[Map] All markers deleted - aircraft centering deferred (no position data)');
+    mapLogger.debug('All markers deleted - aircraft centering deferred (no position data)');
   }
 
   // Re-activate wind layer if it was active before the animation was cancelled
@@ -17986,7 +18192,7 @@ function removeAllMarkersAndClearServer() {
   if (window.windLayerWasActiveBeforeAnimation && window.initialWindLayerConfig && window.initialWindLayerConfig.layer && !(typeof moverX !== 'undefined' && moverX)) {
     var windLayer = window.initialWindLayerConfig.layer;
     if (typeof map !== 'undefined' && map && !map.hasLayer(windLayer)) {
-      if (MAP_DEBUG) console.log('[Wind] Re-activating wind layer after flightplan deletion');
+      windLogger.debug('Re-activating wind layer after flightplan deletion');
       windLayer.setOpacity(0);
       windLayer.addTo(map);
       setTimeout(function() {
@@ -18040,7 +18246,7 @@ function deleteProcedureMarkers() {
     });
   }
 
-  console.log('[Map] Removed', removedCount, 'procedure markers (DEP/ARR/RWY)');
+  mapLogger.info('Removed', removedCount, 'procedure markers (DEP/ARR/RWY)');
 }
 
 function deleteAllMarkers() {
@@ -18085,7 +18291,7 @@ function deleteAllMarkers() {
   follow = true;
   if (map && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
     map.setView(new L.LatLng(pos_lat, pos_lng));
-    console.log('[Map] All markers deleted - centered on aircraft at:', pos_lat, pos_lng);
+    mapLogger.debug('All markers deleted - centered on aircraft at:', pos_lat, pos_lng);
   }
 }
 
@@ -18116,12 +18322,12 @@ function getStoredWaypointMetadata() {
 }
 
 function loadPoints() {
-  console.log('[loadPoints] Called');
+  mapLogger.debug('Called');
 
   // If flightplan animation is pending, don't load points here
   // The animation will handle displaying waypoints with proper animation
   if (window.flightplanAnimationInProgress) {
-    console.log('[Map] loadPoints skipped - animation will handle waypoint display');
+    mapLogger.warn('loadPoints skipped - animation will handle waypoint display');
     // Still need to set follow=false and enable toggle to prevent aircraft centering
     if (typeof toggle !== 'undefined' && toggle) {
       toggle.enable();
@@ -18133,12 +18339,12 @@ function loadPoints() {
   // NEUES FORMAT: Nutze waypointsData (bereits beim Cache-Restore geladen)
   var coordinates = getJSON("clickedPoints");
   wpNum = 0;
-  console.log('[loadPoints] waypointsData:', waypointsData.length, 'coordinates:', coordinates ? coordinates.length : 'none');
+  mapLogger.debug('waypointsData:', waypointsData.length, 'coordinates:', coordinates ? coordinates.length : 'none');
 
   // Falls waypointsData vorhanden, nutze diese direkt
   if (waypointsData && waypointsData.length > 0) {
     WpBlocked = false;
-    console.log('[loadPoints] Using waypointsData (new format)');
+    mapLogger.debug('Using waypointsData (new format)');
 
     for (var i = 0; i < waypointsData.length; i++) {
       var wp = waypointsData[i];
@@ -18166,7 +18372,7 @@ function loadPoints() {
     // LEGACY FALLBACK: Alte Arrays verwenden
     WpBlocked = false;
     var stored = getStoredWaypointMetadata();
-    console.log('[loadPoints] Using legacy format');
+    mapLogger.debug('Using legacy format');
 
     for (var i = 0; i < coordinates.length; i++) {
       var entry = coordinates[i];
@@ -18254,13 +18460,13 @@ function loadPoints() {
       if (map && (window.aircraftPositionInitialized || hasCachedAircraftPosition) && typeof pos_lat !== 'undefined' && typeof pos_lng !== 'undefined') {
         var source = window.aircraftPositionInitialized ? 'live' : 'cached';
         map.setView(new L.LatLng(pos_lat, pos_lng));
-        if (MAP_DEBUG) console.log('[Map] No waypoints - centered on aircraft (' + source + ') at:', pos_lat, pos_lng);
+        mapLogger.debug('No waypoints - centered on aircraft (' + source + ') at:', pos_lat, pos_lng);
       } else if (!window.aircraftPositionInitialized && !hasCachedAircraftPosition) {
         window.centerOnAircraftPending = true;
-        if (MAP_DEBUG) console.log('[Map] No waypoints - aircraft centering deferred');
+        mapLogger.debug('No waypoints - aircraft centering deferred');
       }
     } else {
-      if (MAP_DEBUG) console.log('[Map] Skipping follow mode activation - flightplan animation/rebuild in progress');
+      mapLogger.debug('Skipping follow mode activation - flightplan animation/rebuild in progress');
     }
   }
 }
@@ -18435,7 +18641,7 @@ function createMiddleMarkers(line) {
 
       pressTimer = setTimeout(function() {
         isLongPress = true;
-        if (MAP_DEBUG) console.log('[Map] Long-press detected on middle marker');
+        mapLogger.debug('Long-press detected on middle marker');
       }, LONG_PRESS_DURATION);
     });
 
@@ -18460,7 +18666,7 @@ function createMiddleMarkers(line) {
         // Safety timeout - auto-reset after 500ms if still true
         setTimeout(function() {
           if (skipNextMapClick === true) {
-            console.warn('[Map Safety] skipNextMapClick stuck after 500ms at middle marker - auto-reset');
+            mapLogger.warn('skipNextMapClick stuck after 500ms at middle marker - auto-reset');
             skipNextMapClick = false;
           }
         }, 500);
@@ -18473,16 +18679,16 @@ function createMiddleMarkers(line) {
             synthetic: true,
           });
         } catch (err) {
-          console.error('[Map] Error firing contextmenu from middle marker long-press:', err);
+          mapLogger.error('Error firing contextmenu from middle marker long-press:', err);
           skipNextMapClick = false;
         }
         setTimeout(function () {
           suppressPolylineClick = false;
         }, 0);
 
-        if (MAP_DEBUG) console.log('[Map] Middle marker waypoint inserted after long-press');
+        mapLogger.debug('Middle marker waypoint inserted after long-press');
       } else {
-        if (MAP_DEBUG) console.log('[Map] Short click on middle marker ignored - long-press required');
+        mapLogger.debug('Short click on middle marker ignored - long-press required');
       }
 
       isLongPress = false;
@@ -18660,11 +18866,11 @@ function hideWpList() {
 function showWpList(force) {
   // EARLY RETURN: Don't show when controller mode is active
   if (moverX) {
-    if (MAP_DEBUG) console.log('[Map] Blocking showWpList - controller mode active');
+    mapLogger.debug('Blocking showWpList - controller mode active');
     return;
   }
 
-  if (MAP_DEBUG) console.log('[Map] showWpList called - force:', force, 'wpNames.length:', wpNames.length);
+  mapLogger.debug('showWpList called - force:', force, 'wpNames.length:', wpNames.length);
 
   var activeCount = 0;
   if (Array.isArray(wpNames) && wpNames.length) {
@@ -18685,7 +18891,7 @@ function showWpList(force) {
     activeCount = Math.max(activeCount, 1);
   }
 
-  if (MAP_DEBUG) console.log('[Map] showWpList - activeCount:', activeCount, 'force:', force);
+  mapLogger.debug('showWpList - activeCount:', activeCount, 'force:', force);
 
   if (activeCount >= 1) {
     wpListOn = true;
@@ -18694,12 +18900,7 @@ function showWpList(force) {
     var containerEl = DOM.overlay;
     var listEl = DOM.overlayList;
 
-    if (MAP_DEBUG) console.log('[Map] showWpList - Elements found:', {
-      overlay: !!overlayEl,
-      banner: !!bannerEl,
-      container: !!containerEl,
-      list: !!listEl
-    });
+    mapLogger.debug('showWpList - Elements found:', { overlay: !!overlayEl, banner: !!bannerEl, container: !!containerEl, list: !!listEl });
 
     // Must set BOTH display and visibility because CSS has display: none
     if (overlayEl) {
@@ -18722,9 +18923,9 @@ function showWpList(force) {
     if (wpMinBtn) wpMinBtn.innerHTML = "_";
     var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "72px";
 
-    if (MAP_DEBUG) console.log('[Map] Waypoint list shown - wpListOn:', wpListOn);
+    mapLogger.debug('Waypoint list shown - wpListOn:', wpListOn);
   } else {
-    if (MAP_DEBUG) console.log('[Map] showWpList - activeCount < 1, not showing panel');
+    mapLogger.debug('showWpList - activeCount < 1, not showing panel');
   }
 }
 
@@ -18851,7 +19052,7 @@ function setPosition(lat, lng) {
     window.localStorage.setItem("mapCenterLat", lat);
     window.localStorage.setItem("mapCenterLng", lng);
   } catch (persistError) {
-    if (MAP_DEBUG) console.log('[Map] Unable to persist aircraft position:', persistError);
+    mapLogger.debug('Unable to persist aircraft position:', persistError);
   }
 
   if (!airplane) {
@@ -18974,33 +19175,33 @@ function getTeleportChangedValues() {
 }
 
 function teleport(lat, lng) {
-  console.log('[Teleport] Button clicked, lat:', lat, 'lng:', lng);
+  teleportLogger.debug('Button clicked, lat:', lat, 'lng:', lng);
 
   // WICHTIG: Werte ZUERST lesen, BEVOR das Popup geschlossen wird!
   teleporting = true;
   var teleportValues = getTeleportChangedValues();
-  console.log('[Teleport] Changed values:', teleportValues);
+  teleportLogger.debug('Changed values:', teleportValues);
 
   // FORCE waypointmode to FALSE to prevent adding to flightplan
   if (typeof waypointmode !== 'undefined') {
     waypointmode = false;
-    console.log('[Teleport] Forced waypointmode = false');
+    teleportLogger.debug('Forced waypointmode = false');
   }
 
   // JETZT Popup schließen und Marker entfernen
-  console.log('[Teleport] Closing popup and cleaning up...');
+  teleportLogger.debug('Closing popup and cleaning up...');
 
   // Reset programmatic popup timestamp to prevent reopening
   if (typeof programmaticPopupTimestamp !== 'undefined') {
     programmaticPopupTimestamp = 0;
-    console.log('[Teleport] Reset programmaticPopupTimestamp');
+    teleportLogger.info('Reset programmaticPopupTimestamp');
   }
 
   map.closePopup();
 
   // Remove newMarker if it exists - FORCE CLEANUP
   if (typeof newMarker !== 'undefined' && newMarker) {
-    console.log('[Teleport] Force removing newMarker from map');
+    teleportLogger.debug('Force removing newMarker from map');
 
     // Remove all event listeners
     if (newMarker.off) {
@@ -19033,24 +19234,24 @@ function teleport(lat, lng) {
   }
 
   // Get ground elevation for the teleport location
-  console.log('[Teleport] Fetching ground elevation...');
+  teleportLogger.debug('Fetching ground elevation...');
   getGroundElevationForPoint(lat, lng).then(function(groundElevMeters) {
-    console.log('[Teleport] Ground elevation:', groundElevMeters, 'meters');
+    teleportLogger.debug('Ground elevation:', groundElevMeters, 'meters');
 
     // Calculate altitude: ground + 10ft (so plane sits on wheels)
     var altitudeFeet;
     if (teleportValues.altitude && teleportValues.altitude > 0) {
       // User specified altitude - use it
       altitudeFeet = teleportValues.altitude;
-      console.log('[Teleport] Using user-specified altitude:', altitudeFeet, 'ft');
+      teleportLogger.debug('Using user-specified altitude:', altitudeFeet, 'ft');
     } else if (groundElevMeters !== null && groundElevMeters !== undefined) {
       // Ground elevation + 10 feet
       altitudeFeet = Math.round(groundElevMeters * 3.28084) + 10;
-      console.log('[Teleport] Calculated altitude (ground + 10ft):', altitudeFeet, 'ft');
+      teleportLogger.debug('Calculated altitude (ground + 10ft):', altitudeFeet, 'ft');
     } else {
       // Kein Fallback - null senden, Server behält aktuelle Altitude
       altitudeFeet = null;
-      console.log('[Teleport] No altitude specified - keeping current altitude');
+      teleportLogger.debug('No altitude specified - keeping current altitude');
     }
 
     // DIREKTER TELEPORT - OHNE PAUSE/SLEW!
@@ -19063,7 +19264,7 @@ function teleport(lat, lng) {
       speed: teleportValues.speed !== undefined ? teleportValues.speed : null
     };
 
-    console.log('[Teleport] Sending teleport command:', data);
+    teleportLogger.debug('Sending teleport command:', data);
     // Send teleport directly to Kneeboard
     postMessageToBridge('map:' + JSON.stringify(data));
 
@@ -19071,7 +19272,7 @@ function teleport(lat, lng) {
     map.invalidateSize();
     teleporting = false;
   }).catch(function(err) {
-    console.error('[Teleport] Error fetching elevation:', err);
+    teleportLogger.error('Error fetching elevation:', err);
 
     // Fallback: use default values
     var data = Object.assign({
@@ -19079,7 +19280,7 @@ function teleport(lat, lng) {
       lng: parseFloat(lng)
     }, teleportValues);
 
-    console.log('[Teleport] Sending teleport command (fallback):', data);
+    teleportLogger.warn('Sending teleport command (fallback):', data);
     postMessageToBridge('map:' + JSON.stringify(data));
 
     map.invalidateSize();
@@ -19088,12 +19289,12 @@ function teleport(lat, lng) {
 
   // Nochmal sicherstellen dass alles weg ist (aggressiv)
   setTimeout(function() {
-    console.log('[Teleport] Delayed cleanup - closing all popups');
+    teleportLogger.debug('Delayed cleanup - closing all popups');
     map.closePopup();
     programmaticPopupTimestamp = 0;
 
     if (typeof newMarker !== 'undefined' && newMarker) {
-      console.log('[Teleport] Delayed cleanup - removing newMarker');
+      teleportLogger.debug('Delayed cleanup - removing newMarker');
       if (newMarker.off) newMarker.off();
       if (newMarker._popup) {
         newMarker.closePopup();
@@ -19132,7 +19333,7 @@ function cancelFlightplanAnimation() {
       clearTimeout(id);
     });
     window.flightplanUISequenceTimeouts = [];
-    if (MAP_DEBUG) console.log('[Map] UI sequence timeouts cleared');
+    mapLogger.debug('UI sequence timeouts cleared');
   }
 
   flightplanAnimationState.inProgress = false;
@@ -19140,7 +19341,7 @@ function cancelFlightplanAnimation() {
   window.flightplanUISequenceInProgress = false; // Also reset UI sequence flag
   WpBlocked = false;
 
-  if (MAP_DEBUG) console.log('[Map] Flugplan-Animation abgebrochen (UI sequence also reset)');
+  mapLogger.debug('Flugplan-Animation abgebrochen (UI sequence also reset)');
 
   // Only re-enable sync button, do NOT activate wind layer here
   // Wind layer will be activated when the NEW animation completes
@@ -19148,7 +19349,7 @@ function cancelFlightplanAnimation() {
   if (window.initialAutoloadComplete) {
     enableSyncButtonIfAllowed('animation cancel');
   } else if (MAP_DEBUG) {
-    console.log('[Map] Skipping sync button enable in cancel - initial autoload not yet complete');
+    mapLogger.info('Skipping sync button enable in cancel - initial autoload not yet complete');
   }
 }
 
@@ -19213,7 +19414,7 @@ function receiveMessage(e) {
         return;
       }
       if (e.data.type === 'pauseConfirmed') {
-        console.log('[Teleport] Pause confirmation received, calling handlePauseConfirmation()');
+        teleportLogger.info('Pause confirmation received, calling handlePauseConfirmation()');
         handlePauseConfirmation(e.data);
         return;
       }
@@ -19305,23 +19506,23 @@ function receiveMessage(e) {
 }
 
 async function processFlightplanMessage(message, skipSourceCheck) {
-  if (MAP_DEBUG) console.log('[Map] processFlightplanMessage called, skipSourceCheck:', skipSourceCheck, 'message length:', message ? message.length : 0);
+  mapLogger.debug('processFlightplanMessage called, skipSourceCheck:', skipSourceCheck, 'message length:', message ? message.length : 0);
 
   // CRITICAL FIX: Parse and check source BEFORE cancelling animation!
   // Otherwise we cancel Scenario 2's render and then ignore the message, leaving 0 markers
   var parsed;
   try {
     parsed = JSON.parse(message);
-    if (MAP_DEBUG) console.log('[Map] Parsed message successfully, keys:', parsed ? Object.keys(parsed) : 'null');
+    mapLogger.debug('Parsed message successfully, keys:', parsed ? Object.keys(parsed) : 'null');
   } catch (e) {
-    if (MAP_DEBUG) console.error('[Map] Failed to parse message:', e);
+    mapLogger.error('Failed to parse message:', e);
     return;
   }
 
   // Skip source check for auto-load (skipSourceCheck=true) to allow server-stored flightplans
   // IMPORTANT: Check this BEFORE cancelling animation to avoid cancelling Scenario 2's render
   if (!skipSourceCheck && parsed && typeof parsed === "object" && parsed.meta && parsed.meta.source === "map") {
-    if (MAP_DEBUG) console.log('[Map] Ignoring flightplan with source=map (not from auto-load) - NOT cancelling animation');
+    mapLogger.debug('Ignoring flightplan with source=map (not from auto-load) - NOT cancelling animation');
     return;
   }
 
@@ -19341,7 +19542,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
   } else {
     flightplan = [];
   }
-  if (MAP_DEBUG) console.log('[Map] processFlightplanMessage: flightplan length:', flightplan ? flightplan.length : 0);
+  mapLogger.debug('processFlightplanMessage: flightplan length:', flightplan ? flightplan.length : 0);
 
   // STAR-Injektion aus Server-Prozeduren DEAKTIVIERT
   // Die Injektion passiert später in initFlightplanPanel/rebuildFlightplanWithProcedures
@@ -19351,7 +19552,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
   if (false && parsed && parsed.procedures && parsed.procedures.star &&
       parsed.procedures.star.waypoints && parsed.procedures.star.waypoints.length > 0) {
     var starWps = parsed.procedures.star.waypoints;
-    if (MAP_DEBUG) console.log('[Map] Injecting', starWps.length, 'STAR waypoints from server procedures');
+    mapLogger.debug('Injecting', starWps.length, 'STAR waypoints from server procedures');
 
     // Sammle existierende Waypoint-Namen um Duplikate zu vermeiden
     var existingStarNames = {};
@@ -19371,7 +19572,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
       // Skip wenn Waypoint bereits existiert (Duplikat-Check)
       if (existingStarNames[name.toUpperCase()]) {
-        if (MAP_DEBUG) console.log('[Map] Skipping duplicate STAR waypoint:', name);
+        mapLogger.debug('Skipping duplicate STAR waypoint:', name);
         return;
       }
 
@@ -19399,7 +19600,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
       var beforeStar = flightplan.slice(0, starInsertIndex);
       var afterStar = flightplan.slice(starInsertIndex);
       flightplan = beforeStar.concat(starEntries).concat(afterStar);
-      if (MAP_DEBUG) console.log('[Map] Flightplan now has', flightplan.length, 'waypoints (with STAR)');
+      mapLogger.debug('Flightplan now has', flightplan.length, 'waypoints (with STAR)');
     }
   }
 
@@ -19409,7 +19610,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
   if (false && parsed && parsed.procedures && parsed.procedures.approach &&
       parsed.procedures.approach.waypoints && parsed.procedures.approach.waypoints.length > 0) {
     var approachWps = parsed.procedures.approach.waypoints;
-    if (MAP_DEBUG) console.log('[Map] Injecting', approachWps.length, 'approach waypoints from server procedures');
+    mapLogger.debug('Injecting', approachWps.length, 'approach waypoints from server procedures');
     
     // Find insertion point: before the last waypoint (destination airport)
     // But after any existing ARR waypoints (STAR waypoints)
@@ -19437,20 +19638,20 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
       // Skip RWY_THRESHOLD - nicht in Route anzeigen
       if (name === 'RWY_THRESHOLD') {
-        if (MAP_DEBUG) console.log('[Map] Skipping RWY_THRESHOLD waypoint');
+        mapLogger.debug('Skipping RWY_THRESHOLD waypoint');
         return;
       }
 
       // Skip wenn Waypoint bereits existiert
       if (existingNames[name.toUpperCase()]) {
-        if (MAP_DEBUG) console.log('[Map] Skipping duplicate approach waypoint:', name);
+        mapLogger.debug('Skipping duplicate approach waypoint:', name);
         return;
       }
 
       // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
       var rwMatch = name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
       if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
-        if (MAP_DEBUG) console.log('[Map] Skipping duplicate runway in approach:', name);
+        mapLogger.debug('Skipping duplicate runway in approach:', name);
         return;
       }
 
@@ -19485,7 +19686,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
       var before = flightplan.slice(0, insertIndex);
       var after = flightplan.slice(insertIndex);
       flightplan = before.concat(approachEntries).concat(after);
-      if (MAP_DEBUG) console.log('[Map] Flightplan now has', flightplan.length, 'waypoints (with approach)');
+      mapLogger.debug('Flightplan now has', flightplan.length, 'waypoints (with approach)');
     }
   }
 
@@ -19493,26 +19694,26 @@ async function processFlightplanMessage(message, skipSourceCheck) {
   // If identical and animation is in progress, skip entirely to prevent cancellation loop
   if (flightplan && flightplan.length && isFlightplanSameAsCurrent(flightplan)) {
     if (window.flightplanUISequenceInProgress || window.flightplanAnimationInProgress) {
-      if (MAP_DEBUG) console.log('[Map] Identical flightplan while animation/UI in progress - skipping entirely (no cancel)');
+      mapLogger.debug('Identical flightplan while animation/UI in progress - skipping entirely (no cancel)');
       return;
     }
   }
 
   // Only cancel animation if we're going to process a NEW/different flightplan
   if (window.flightplanAnimationInProgress) {
-    if (MAP_DEBUG) console.log('[Map] Cancelling current animation to process new flightplan');
+    mapLogger.debug('Cancelling current animation to process new flightplan');
     cancelFlightplanAnimation();
   }
 
   if (flightplan && flightplan.length) {
     // Check if flightplan is different from current waypoints
     if (isFlightplanSameAsCurrent(flightplan)) {
-      if (MAP_DEBUG) console.log("Flightplan is identical to current waypoints, skipping import but handling UI");
+      mapLogger.debug("Flightplan is identical to current waypoints, skipping import but handling UI");
 
       // Note: We already checked flightplanAnimationInProgress above,
       // but check flightplanUISequenceInProgress again in case it was set after extraction
       if (window.flightplanUISequenceInProgress) {
-        if (MAP_DEBUG) console.log('[Map] UI sequence already in progress, skipping duplicate (identical flightplan)');
+        mapLogger.debug('UI sequence already in progress, skipping duplicate (identical flightplan)');
         return;
       }
 
@@ -19522,17 +19723,17 @@ async function processFlightplanMessage(message, skipSourceCheck) {
       var existingLayers = getWaypointLayersSorted();
       existingMarkerCount = existingLayers.length;
 
-      if (MAP_DEBUG) console.log('[Map] Identical flightplan check - existing markers:', existingMarkerCount, ', expected:', flightplan.length);
+      mapLogger.debug('Identical flightplan check - existing markers:', existingMarkerCount, ', expected:', flightplan.length);
 
       if (existingMarkerCount === 0 && flightplan.length > 0) {
         // Markers don't exist! Force creation by resetting fingerprint and calling scheduleFlightplanRender
-        if (MAP_DEBUG) console.log('[Map] No markers exist! Forcing marker creation from identical flightplan...');
+        mapLogger.debug('No markers exist! Forcing marker creation from identical flightplan...');
         currentFlightplanFingerprint = null;  // Reset fingerprint to force re-render
 
         // Hide wind layer during flightplan display
         if (owmWindLayer && map.hasLayer(owmWindLayer)) {
           owmWindLayer.setOpacity(0);
-          if (MAP_DEBUG) console.log('[Map] Wind layer hidden (recreating markers)');
+          mapLogger.debug('Wind layer hidden (recreating markers)');
         }
 
         // Set flags
@@ -19554,7 +19755,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
       // Hide wind layer during flightplan display
       if (owmWindLayer && map.hasLayer(owmWindLayer)) {
         owmWindLayer.setOpacity(0);
-        if (MAP_DEBUG) console.log('[Map] Wind layer hidden (identical flightplan)');
+        mapLogger.debug('Wind layer hidden (identical flightplan)');
       }
 
       // Reset flags so the event chain can run and wind layer can be re-activated
@@ -19567,7 +19768,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
       // Event-basierte UI-Sequenz (v1.24): Startet die Event-Chain
       if (flightplan.length > 1) {
-        if (MAP_DEBUG) console.log('[Map] Starting event-based UI sequence (identical flightplan)');
+        mapLogger.debug('Starting event-based UI sequence (identical flightplan)');
         transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'identical-flightplan');
         preCenterMapOnFlightplan(flightplan, 'identical-flightplan');
         // Emit MARKERS_READY to start the event chain
@@ -19578,7 +19779,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
         if (!window.flightplanUISequenceInProgress && !window.flightplanAnimationInProgress) {
           onFlightplanAnimationComplete();
         } else {
-          if (MAP_DEBUG) console.log('[Map] Skipping onFlightplanAnimationComplete (no waypoints) - sequence in progress');
+          mapLogger.debug('Skipping onFlightplanAnimationComplete (no waypoints) - sequence in progress');
         }
       }
       return;
@@ -19594,19 +19795,14 @@ async function processFlightplanMessage(message, skipSourceCheck) {
     if (typeof toggle !== 'undefined' && toggle && typeof toggle.enable === 'function') {
       toggle.enable();
     }
-    if (MAP_DEBUG) console.log("Follow mode disabled after loading flightplan");
+    mapLogger.debug("Follow mode disabled after loading flightplan");
 
     if (parsed && parsed.meta && typeof parsed.meta === "object") {
       importedFlightplanMeta = parsed.meta;
       if (MAP_DEBUG) {
-        console.log('[Map Debug] importedFlightplanMeta set:', importedFlightplanMeta);
-        console.log('[Map Debug] OFP fields:', {
-          callsign: importedFlightplanMeta.callsign,
-          aircraftType: importedFlightplanMeta.aircraftType,
-          aircraftEquip: importedFlightplanMeta.aircraftEquip,
-          departureTime: importedFlightplanMeta.departureTime,
-          alternateAirport: importedFlightplanMeta.alternateAirport
-        });
+        mapLogger.debug('importedFlightplanMeta set:', importedFlightplanMeta);
+        mapLogger.debug('OFP fields:', { callsign: importedFlightplanMeta.callsign, aircraftType: importedFlightplanMeta.aircraftType, aircraftEquip: importedFlightplanMeta.aircraftEquip, departureTime: importedFlightplanMeta.departureTime, alternateAirport: importedFlightplanMeta.alternateAirport });
+
       }
     } else {
       importedFlightplanMeta = {
@@ -19623,15 +19819,15 @@ async function processFlightplanMessage(message, skipSourceCheck) {
     if (parsed && parsed.ofp && typeof parsed.ofp === "object") {
       importedOFPData = parsed.ofp;
       if (MAP_DEBUG) {
-        console.log('[Map Debug] Full OFP data stored for ETA calculation');
-        console.log('[Map Debug] OFP has Navlog?', !!(importedOFPData.Navlog || importedOFPData.navlog));
+        mapLogger.debug('Full OFP data stored for ETA calculation');
+        mapLogger.debug('OFP has Navlog?', !!(importedOFPData.Navlog || importedOFPData.navlog));
         var navlogFixes = (importedOFPData.Navlog && importedOFPData.Navlog.Fix) || (importedOFPData.navlog && importedOFPData.navlog.fix);
-        console.log('[Map Debug] Navlog fixes count:', navlogFixes ? navlogFixes.length : 0);
+        mapLogger.debug('Navlog fixes count:', navlogFixes ? navlogFixes.length : 0);
       }
     } else {
       importedOFPData = null;
       clearRunwayData();
-      if (MAP_DEBUG) console.log('[Map Debug] No OFP data in message');
+      mapLogger.debug('No OFP data in message');
     }
 
     // Save flightplan metadata and OFP to localStorage
@@ -19644,13 +19840,13 @@ async function processFlightplanMessage(message, skipSourceCheck) {
     // 2. updateRunwayDataFromOFP only sets departure runway (arrival already set)
     // CRITICAL: Both must complete BEFORE animation starts!
     if (importedOFPData && typeof initFlightplanPanel === 'function') {
-      if (MAP_DEBUG) console.log('[Map] Loading: 1. flightplan panel (sets arrivalRunwayData), 2. departure runway');
+      mapLogger.debug('Loading: 1. flightplan panel (sets arrivalRunwayData), 2. departure runway');
       try {
         // First: init panel which sets arrivalRunwayData with correct runway
         await initFlightplanPanel(importedOFPData);
         // Then: load departure runway data (arrival already set by loadArrivalProcedures)
         await updateRunwayDataFromOFP();
-        if (MAP_DEBUG) console.log('[Map] Parallel loading completed (runway + panel)');
+        mapLogger.debug('Parallel loading completed (runway + panel)');
 
         // After panel init, check if we need to inject procedures
         // (only if server didn't already provide them)
@@ -19664,7 +19860,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
         // 1. Inject SID waypoints first (after departure airport)
         if (flightplanPanelState.departure.icao && flightplanPanelState.departure.selectedSid) {
-          if (MAP_DEBUG) console.log('[Map] 1. Injecting SID waypoints from:', flightplanPanelState.departure.selectedSid);
+          mapLogger.debug('1. Injecting SID waypoints from:', flightplanPanelState.departure.selectedSid);
           flightplan = await injectSidWaypointsIntoFlightplan(
             flightplanPanelState.departure.icao,
             flightplanPanelState.departure.selectedSid,
@@ -19676,7 +19872,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
         // 2. Inject STAR waypoints (before destination)
         if (flightplanPanelState.arrival.icao && flightplanPanelState.arrival.selectedStar) {
-          if (MAP_DEBUG) console.log('[Map] 2. Injecting STAR waypoints from:', flightplanPanelState.arrival.selectedStar);
+          mapLogger.debug('2. Injecting STAR waypoints from:', flightplanPanelState.arrival.selectedStar);
           flightplan = await injectStarWaypointsIntoFlightplan(
             flightplanPanelState.arrival.icao,
             flightplanPanelState.arrival.selectedStar,
@@ -19688,7 +19884,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
         // 3. Inject Approach waypoints LAST (after STAR, before destination)
         if (!serverHadApproach && approachWaypointsForFlightpath && approachWaypointsForFlightpath.length > 0) {
-          if (MAP_DEBUG) console.log('[Map] 3. Injecting', approachWaypointsForFlightpath.length, 'approach waypoints');
+          mapLogger.debug('3. Injecting', approachWaypointsForFlightpath.length, 'approach waypoints');
 
           var insertIndex = flightplan.length > 0 ? flightplan.length - 1 : 0;
           var approachEntries = [];
@@ -19714,7 +19910,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
                          approachWaypointsForFlightpath[i].Name || approachWaypointsForFlightpath[i].name || '';
             if (existingNames[wpName.toUpperCase()]) {
               lastCommonWpIndex = i;
-              if (MAP_DEBUG) console.log('[Map] Approach/Flightplan common waypoint at index', i, ':', wpName);
+              mapLogger.debug('Approach/Flightplan common waypoint at index', i, ':', wpName);
               // Nicht break - wir wollen den LETZTEN gemeinsamen finden
             }
           }
@@ -19722,7 +19918,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
           // Starte NACH dem letzten gemeinsamen Waypoint (der ist ja schon im Flightplan)
           var startIndex = lastCommonWpIndex >= 0 ? lastCommonWpIndex + 1 : 0;
           if (MAP_DEBUG) {
-            console.log('[Map] Approach: lastCommonWpIndex=' + lastCommonWpIndex + ', starting from index ' + startIndex);
+            mapLogger.info('Approach: lastCommonWpIndex=' + lastCommonWpIndex + ', starting from index ' + startIndex);
           }
 
           approachWaypointsForFlightpath.slice(startIndex).forEach(function(wp) {
@@ -19732,20 +19928,20 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
             // Skip RWY_THRESHOLD - nicht in Route anzeigen
             if (name === 'RWY_THRESHOLD') {
-              if (MAP_DEBUG) console.log('[Map] Skipping RWY_THRESHOLD waypoint');
+              mapLogger.debug('Skipping RWY_THRESHOLD waypoint');
               return;
             }
 
             // Skip wenn Waypoint bereits existiert (Duplikat-Check)
             if (existingNames[name.toUpperCase()]) {
-              if (MAP_DEBUG) console.log('[Map] Skipping duplicate approach waypoint:', name);
+              mapLogger.debug('Skipping duplicate approach waypoint:', name);
               return;
             }
 
             // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
             var rwMatch = name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
             if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
-              if (MAP_DEBUG) console.log('[Map] Skipping duplicate runway in approach:', name);
+              mapLogger.debug('Skipping duplicate runway in approach:', name);
               return;
             }
 
@@ -19779,16 +19975,16 @@ async function processFlightplanMessage(message, skipSourceCheck) {
             var before = flightplan.slice(0, insertIndex);
             var after = flightplan.slice(insertIndex);
             flightplan = before.concat(approachEntries).concat(after);
-            if (MAP_DEBUG) console.log('[Map] Flightplan now has', flightplan.length, 'waypoints (with approach)');
+            mapLogger.debug('Flightplan now has', flightplan.length, 'waypoints (with approach)');
           }
         }
 
-        if (MAP_DEBUG) console.log('[Map] Final flightplan with all procedures:', flightplan.length, 'waypoints');
+        mapLogger.debug('Final flightplan with all procedures:', flightplan.length, 'waypoints');
       } catch (err) {
-        console.error('[Map] Error initializing Flightplan Panel:', err);
+        mapLogger.error('Error initializing Flightplan Panel:', err);
       }
     } else {
-      console.warn('[Map] Cannot init Flightplan Panel - importedOFPData:', !!importedOFPData, 'initFlightplanPanel:', typeof initFlightplanPanel);
+      mapLogger.warn('Cannot init Flightplan Panel - importedOFPData:', !!importedOFPData, 'initFlightplanPanel:', typeof initFlightplanPanel);
     }
 
     transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'new-flightplan');
@@ -19838,7 +20034,7 @@ var pendingFlightplanTimer = null;
 function scheduleFlightplanRender(flightplanData, delay) {
   // BLOCK rendering when controller mode is active
   if (moverX) {
-    if (MAP_DEBUG) console.log('[Render] BLOCKED - controller mode active (moverX=true)');
+    mapLogger.debug('BLOCKED - controller mode active (moverX=true)');
     return;
   }
 
@@ -19848,7 +20044,7 @@ function scheduleFlightplanRender(flightplanData, delay) {
   function tryRenderFlightplan() {
     // Check again in case controller mode was activated during delay
     if (moverX) {
-      if (MAP_DEBUG) console.log('[Render] BLOCKED in tryRenderFlightplan - controller mode active');
+      mapLogger.debug('BLOCKED in tryRenderFlightplan - controller mode active');
       return;
     }
 
@@ -19868,14 +20064,14 @@ function scheduleFlightplanRender(flightplanData, delay) {
       : 'empty';
 
     if (newFingerprint === currentFlightplanFingerprint) {
-      if (MAP_DEBUG) console.log('[Render] Unchanged, skipping:', newFingerprint);
+      mapLogger.debug('Unchanged, skipping:', newFingerprint);
       if (currentFlightplanState !== FlightplanLoadState.READY) {
         emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'unchanged' });
       }
       return;
     }
 
-    if (MAP_DEBUG) console.log('[Render] New flightplan:', flightplan.length, 'waypoints');
+    mapLogger.debug('New flightplan:', flightplan.length, 'waypoints');
     removeAllMarkers();
     setTimeout(function() {
       setWaypoints(flightplanData);
@@ -20166,19 +20362,13 @@ async function applyFlightplanChanges() {
     window.rebuildingFlightplan = true;
 
     // DEBUG: Log state before commit
-    console.log('[ApplyChanges] PanelState BEFORE commit:', {
-        approach: flightplanPanelState.arrival.selectedApproach,
-        approachTransition: flightplanPanelState.arrival.selectedApproachTransition
-    });
+    flightplanPanelLogger.debug('PanelState BEFORE commit:', { approach: flightplanPanelState.arrival.selectedApproach, approachTransition: flightplanPanelState.arrival.selectedApproachTransition });
 
     // Kopiere aktuelle Auswahl in Committed-State
     commitCurrentSelections();
 
     // DEBUG: Log state after commit
-    console.log('[ApplyChanges] CommittedState AFTER commit:', {
-        approach: flightplanCommittedState.arrival.selectedApproach,
-        approachTransition: flightplanCommittedState.arrival.selectedApproachTransition
-    });
+    flightplanPanelLogger.debug('CommittedState AFTER commit:', { approach: flightplanCommittedState.arrival.selectedApproach, approachTransition: flightplanCommittedState.arrival.selectedApproachTransition });
 
     // Pending zurücksetzen
     flightplanPendingState.hasPendingChanges = false;
@@ -20186,25 +20376,25 @@ async function applyFlightplanChanges() {
     clearPendingHighlights();
 
     // Previews entfernen
-    console.log('[ApplyChanges] Step 1: Clearing previews...');
+    flightplanPanelLogger.debug('Step 1: Clearing previews...');
     clearAllPreviews();
 
     // Haupt-Route mit SID/STAR/Approach neu aufbauen
-    console.log('[ApplyChanges] Step 2: Rebuilding flightplan...');
+    flightplanPanelLogger.debug('Step 2: Rebuilding flightplan...');
     await rebuildFlightplanWithProcedures();
-    console.log('[ApplyChanges] Step 3: Flightplan rebuild complete');
+    flightplanPanelLogger.info('Step 3: Flightplan rebuild complete');
 
     // Alternate-Route separat zeichnen (andere Farbe)
-    console.log('[ApplyChanges] Step 4: Drawing alternate route...');
+    flightplanPanelLogger.debug('Step 4: Drawing alternate route...');
     await drawAlternateRoute();
 
     // Restore map view to prevent unwanted panning
     window.rebuildingFlightplan = false;
     if (savedCenter && savedZoom) {
         map.setView(savedCenter, savedZoom, { animate: false });
-        console.log('[ApplyChanges] Step 5: Restored map view');
+        flightplanPanelLogger.info('Step 5: Restored map view');
     }
-    console.log('[ApplyChanges] Complete!');
+    flightplanPanelLogger.info('Complete!');
 }
 
 /**
@@ -20267,7 +20457,7 @@ function cancelFlightplanChanges() {
     // Alle Previews entfernen
     clearAllPreviews();
 
-    console.log('[FlightplanPanel] Changes cancelled - reverted to committed state');
+    flightplanPanelLogger.debug('Changes cancelled - reverted to committed state');
 }
 
 /**
@@ -20358,11 +20548,11 @@ function drawMissedApproachLine() {
     }
 
     if (!missedApproachWaypoints || missedApproachWaypoints.length === 0) {
-        console.log('[MissedApproach] No waypoints to draw');
+        flightplanPanelLogger.debug('No waypoints to draw');
         return;
     }
 
-    console.log('[MissedApproach] Drawing line with', missedApproachWaypoints.length, 'waypoints');
+    flightplanPanelLogger.debug('Drawing line with', missedApproachWaypoints.length, 'waypoints');
 
     // Finde den letzten ARR-Waypoint (Runway Threshold) als Startpunkt
     var startCoord = null;
@@ -20398,7 +20588,7 @@ function drawMissedApproachLine() {
     });
 
     if (coords.length < 2) {
-        console.log('[MissedApproach] Not enough coordinates to draw line');
+        flightplanPanelLogger.debug('Not enough coordinates to draw line');
         return;
     }
 
@@ -20412,7 +20602,7 @@ function drawMissedApproachLine() {
         lineJoin: 'round'
     }).addTo(map);
 
-    console.log('[MissedApproach] Line drawn with', coords.length, 'points');
+    flightplanPanelLogger.debug('Line drawn with', coords.length, 'points');
 }
 
 /**
@@ -20427,13 +20617,12 @@ async function drawAlternateRoute() {
     }
 
     var altState = flightplanCommittedState.alternate;
-    if (MAP_DEBUG) console.log('[AlternateRoute] State:', altState);
+    flightplanPanelLogger.debug('State:', altState);
 
     if (!altState.icao) {
-        if (MAP_DEBUG) console.log('[AlternateRoute] No ICAO, skipping');
+        flightplanPanelLogger.debug('No ICAO, skipping');
         return;
     }
-
 
     // Waypoints für Alternate sammeln
     var altWaypoints = [];
@@ -20452,7 +20641,7 @@ async function drawAlternateRoute() {
             type: 'departure'
         });
         lastWaypointUsed = true;
-        if (MAP_DEBUG) console.log('[AlternateRoute] Using runway END:', arrivalRunwayData.identifier, arrivalRunwayData.endLat, arrivalRunwayData.endLon);
+        flightplanPanelLogger.debug('Using runway END:', arrivalRunwayData.identifier, arrivalRunwayData.endLat, arrivalRunwayData.endLon);
     }
     // 2. Fallback: Letzter Waypoint der Route (vor Destination)
     else {
@@ -20471,7 +20660,7 @@ async function drawAlternateRoute() {
                     type: 'departure'
                 });
                 lastWaypointUsed = true;
-                if (MAP_DEBUG) console.log('[AlternateRoute] Using last waypoint:', lastLat, lastLng);
+                flightplanPanelLogger.debug('Using last waypoint:', lastLat, lastLng);
             }
         }
     }
@@ -20484,7 +20673,7 @@ async function drawAlternateRoute() {
             type: 'departure'
         });
         lastWaypointUsed = true;
-        if (MAP_DEBUG) console.log('[AlternateRoute] Fallback to runway threshold:', arrivalRunwayData.identifier);
+        flightplanPanelLogger.debug('Fallback to runway threshold:', arrivalRunwayData.identifier);
     }
     // 4. Fallback: Airport-Mittelpunkt
     if (!lastWaypointUsed && flightplanPanelState.arrival.lat && flightplanPanelState.arrival.lng) {
@@ -20494,7 +20683,7 @@ async function drawAlternateRoute() {
             name: destIcao,
             type: 'departure'
         });
-        if (MAP_DEBUG) console.log('[AlternateRoute] Fallback to airport center:', destIcao);
+        flightplanPanelLogger.debug('Fallback to airport center:', destIcao);
     } else if (!lastWaypointUsed && destIcao) {
         // Letzter Fallback: versuche Koordinaten zu laden
         var destAirport = await fetchAirportData(destIcao);
@@ -20506,7 +20695,7 @@ async function drawAlternateRoute() {
                 type: 'departure'
             });
         }
-        if (MAP_DEBUG) console.log('[AlternateRoute] Loaded airport data for:', destIcao);
+        flightplanPanelLogger.debug('Loaded airport data for:', destIcao);
     }
 
     // STAR-Waypoints für Alternate
@@ -20531,7 +20720,7 @@ async function drawAlternateRoute() {
                 });
             }
         } catch (err) {
-            console.warn('[FlightplanPanel] Fehler beim Laden der Alternate STAR:', err);
+            flightplanPanelLogger.warn('Fehler beim Laden der Alternate STAR:', err);
         }
     }
 
@@ -20557,7 +20746,7 @@ async function drawAlternateRoute() {
                 });
             }
         } catch (err) {
-            console.warn('[FlightplanPanel] Fehler beim Laden des Alternate Approach:', err);
+            flightplanPanelLogger.warn('Fehler beim Laden des Alternate Approach:', err);
         }
     }
 
@@ -20583,7 +20772,7 @@ async function drawAlternateRoute() {
     }
 
     // Zeichne Alternate-Route (VIOLETT, gestrichelt)
-    if (MAP_DEBUG) console.log('[AlternateRoute] Collected', altWaypoints.length, 'waypoints');
+    flightplanPanelLogger.debug('Collected', altWaypoints.length, 'waypoints');
 
     if (altWaypoints.length >= 2) {
         var coords = altWaypoints.map(function(wp) {
@@ -20592,10 +20781,10 @@ async function drawAlternateRoute() {
             return c[0] && c[1];
         });
 
-        if (MAP_DEBUG) console.log('[AlternateRoute] Valid coords:', coords.length);
+        flightplanPanelLogger.debug('Valid coords:', coords.length);
 
         if (coords.length >= 2) {
-            if (MAP_DEBUG) console.log('[AlternateRoute] Drawing route from', altWaypoints[0].name, 'to', altWaypoints[altWaypoints.length-1].name);
+            flightplanPanelLogger.debug('Drawing route from', altWaypoints[0].name, 'to', altWaypoints[altWaypoints.length-1].name);
             alternateRouteLayer = L.layerGroup().addTo(map);
 
             // Polyline in Violett
@@ -20637,10 +20826,10 @@ async function animateAlternateRoute(onComplete) {
     }
 
     var altState = flightplanCommittedState.alternate;
-    if (MAP_DEBUG) console.log('[AlternateRoute] Animated draw - State:', altState);
+    flightplanPanelLogger.debug('Animated draw - State:', altState);
 
     if (!altState || !altState.icao) {
-        if (MAP_DEBUG) console.log('[AlternateRoute] No alternate, skipping animation');
+        flightplanPanelLogger.debug('No alternate, skipping animation');
         if (typeof onComplete === 'function') onComplete();
         return;
     }
@@ -20700,7 +20889,7 @@ async function animateAlternateRoute(onComplete) {
                 });
             }
         } catch (err) {
-            console.warn('[AlternateRoute] Error loading STAR:', err);
+            flightplanPanelLogger.warn('Error loading STAR:', err);
         }
     }
 
@@ -20722,7 +20911,7 @@ async function animateAlternateRoute(onComplete) {
                 });
             }
         } catch (err) {
-            console.warn('[AlternateRoute] Error loading Approach:', err);
+            flightplanPanelLogger.warn('Error loading Approach:', err);
         }
     }
 
@@ -20745,10 +20934,10 @@ async function animateAlternateRoute(onComplete) {
         return wp.lat && wp.lng && !isNaN(wp.lat) && !isNaN(wp.lng);
     });
 
-    if (MAP_DEBUG) console.log('[AlternateRoute] Animating', validWaypoints.length, 'waypoints');
+    flightplanPanelLogger.debug('Animating', validWaypoints.length, 'waypoints');
 
     if (validWaypoints.length < 2) {
-        if (MAP_DEBUG) console.log('[AlternateRoute] Not enough waypoints for animation');
+        flightplanPanelLogger.debug('Not enough waypoints for animation');
         if (typeof onComplete === 'function') onComplete();
         return;
     }
@@ -20768,7 +20957,7 @@ async function animateAlternateRoute(onComplete) {
 
     function animateNextSegment() {
         if (currentIndex >= validWaypoints.length) {
-            if (MAP_DEBUG) console.log('[AlternateRoute] Animation complete');
+            flightplanPanelLogger.debug('Animation complete');
             if (typeof onComplete === 'function') onComplete();
             return;
         }
@@ -20960,7 +21149,7 @@ async function fetchNavigraphStatus() {
             return navigraphStatus;
         }
     } catch (err) {
-        console.warn('[FlightplanPanel] Failed to fetch Navigraph status:', err);
+        flightplanPanelLogger.warn('Failed to fetch Navigraph status:', err);
     }
     navigraphStatus = { HasFmsDataSubscription: false, IsDataAvailable: false };
     return navigraphStatus;
@@ -21001,7 +21190,7 @@ async function fetchRunways(icao) {
             return runways;
         }
     } catch (err) {
-        console.error('[fetchRunways] Error:', err);
+        flightplanPanelLogger.error('Error:', err);
     }
 
     return [];
@@ -21034,7 +21223,7 @@ async function fetchSIDs(icao) {
             return sids;
         }
     } catch (err) {
-        console.error('[fetchSIDs] Error:', err);
+        flightplanPanelLogger.error('Error:', err);
     }
 
     return [];
@@ -21067,7 +21256,7 @@ async function fetchSTARs(icao) {
             return stars;
         }
     } catch (err) {
-        console.error('[fetchSTARs] Error:', err);
+        flightplanPanelLogger.error('Error:', err);
     }
 
     return [];
@@ -21100,7 +21289,7 @@ async function fetchApproaches(icao) {
             return approaches;
         }
     } catch (err) {
-        console.error('[fetchApproaches] Error:', err);
+        flightplanPanelLogger.error('Error:', err);
     }
 
     return [];
@@ -21125,7 +21314,7 @@ async function fetchProcedureDetail(icao, procedureName, type, transition, runwa
         var response = await fetch(url);
         return await response.json();
     } catch (err) {
-        console.error('[FlightplanPanel] fetchProcedureDetail error:', err);
+        flightplanPanelLogger.error('fetchProcedureDetail error:', err);
         return null;
     }
 }
@@ -21277,12 +21466,12 @@ function calculatePointFromHeading(lat, lon, heading, distanceNm) {
  * @returns {Array} SIDs die für diese Runway verfügbar sind
  */
 function filterSidsByRunway(sids, runway) {
-    MAP_DEBUG && console.log('[filterSidsByRunway] runway:', runway, 'sids count:', sids ? sids.length : 0);
+    flightplanPanelLogger.debug('runway:', runway, 'sids count:', sids ? sids.length : 0);
 
     if (!runway || !sids || sids.length === 0) return sids;
 
     var runwayNumber = runway.replace(/^RW/i, '');
-    MAP_DEBUG && console.log('[filterSidsByRunway] Looking for runway:', runwayNumber);
+    flightplanPanelLogger.debug('Looking for runway:', runwayNumber);
 
     var sidNamesForRunway = {};
     var sidsWithRunway = {};
@@ -21302,7 +21491,7 @@ function filterSidsByRunway(sids, runway) {
             if (sidRunway === runwayNumber ||
                 sidRunway.replace(/[LRC]$/i, '') === runwayNumber.replace(/[LRC]$/i, '')) {
                 sidNamesForRunway[name] = true;
-                MAP_DEBUG && console.log('[filterSidsByRunway] SID', name, 'matches runway via Runway field:', sidRunway);
+                flightplanPanelLogger.debug('SID', name, 'matches runway via Runway field:', sidRunway);
             }
         }
 
@@ -21316,14 +21505,14 @@ function filterSidsByRunway(sids, runway) {
                 if (transId === runwayNumber ||
                     transId.replace(/[LRCB]$/i, '') === runwayNumber.replace(/[LRCB]$/i, '')) {
                     sidNamesForRunway[name] = true;
-                    MAP_DEBUG && console.log('[filterSidsByRunway] SID', name, 'matches runway via TransitionIdentifier:', transId, 'RouteType:', routeType);
+                    flightplanPanelLogger.debug('SID', name, 'matches runway via TransitionIdentifier:', transId, 'RouteType:', routeType);
                 }
             }
         }
     });
 
-    MAP_DEBUG && console.log('[filterSidsByRunway] SIDs with runway assignment:', Object.keys(sidsWithRunway).length);
-    MAP_DEBUG && console.log('[filterSidsByRunway] SIDs matching selected runway:', Object.keys(sidNamesForRunway).length);
+    flightplanPanelLogger.debug('SIDs with runway assignment:', Object.keys(sidsWithRunway).length);
+    flightplanPanelLogger.debug('SIDs matching selected runway:', Object.keys(sidNamesForRunway).length);
 
     // Finde SIDs die KEINE Runway-Zuordnung haben - diese sind für ALLE Runways verfügbar
     var sidsWithoutRunwayAssignment = {};
@@ -21333,7 +21522,7 @@ function filterSidsByRunway(sids, runway) {
             sidsWithoutRunwayAssignment[name] = true;
         }
     });
-    MAP_DEBUG && console.log('[filterSidsByRunway] SIDs without runway assignment (available for all):', Object.keys(sidsWithoutRunwayAssignment).length);
+    flightplanPanelLogger.debug('SIDs without runway assignment (available for all):', Object.keys(sidsWithoutRunwayAssignment).length);
 
     // KOMBINIERTE FILTERUNG:
     // - SIDs mit passender Runway-Zuordnung
@@ -21343,7 +21532,7 @@ function filterSidsByRunway(sids, runway) {
         return sidNamesForRunway[name] || sidsWithoutRunwayAssignment[name];
     });
 
-    MAP_DEBUG && console.log('[filterSidsByRunway] Final result:', result.length, 'SIDs available for runway', runwayNumber);
+    flightplanPanelLogger.debug('Final result:', result.length, 'SIDs available for runway', runwayNumber);
     return result;
 }
 
@@ -21361,7 +21550,7 @@ function filterStarsByRunway(stars, runway) {
     var starNamesForRunway = {};
     var starsWithRunwayTransition = {};
 
-    MAP_DEBUG && console.log('[filterStarsByRunway] runway:', runway, 'stars count:', stars ? stars.length : 0);
+    flightplanPanelLogger.debug('runway:', runway, 'stars count:', stars ? stars.length : 0);
 
     stars.forEach(function(star) {
         var name = star.Identifier || star.identifier;
@@ -21378,14 +21567,14 @@ function filterStarsByRunway(stars, runway) {
                 if (transId === runwayNumber ||
                     transId.replace(/[LRCB]$/i, '') === runwayNumber.replace(/[LRCB]$/i, '')) {
                     starNamesForRunway[name] = true;
-                    MAP_DEBUG && console.log('[filterStarsByRunway] STAR', name, 'matches runway via TransitionIdentifier:', transId, 'RouteType:', routeType);
+                    flightplanPanelLogger.debug('STAR', name, 'matches runway via TransitionIdentifier:', transId, 'RouteType:', routeType);
                 }
             }
         }
     });
 
-    MAP_DEBUG && console.log('[filterStarsByRunway] STARs with runway assignment:', Object.keys(starsWithRunwayTransition).length);
-    MAP_DEBUG && console.log('[filterStarsByRunway] STARs matching selected runway:', Object.keys(starNamesForRunway).length);
+    flightplanPanelLogger.debug('STARs with runway assignment:', Object.keys(starsWithRunwayTransition).length);
+    flightplanPanelLogger.debug('STARs matching selected runway:', Object.keys(starNamesForRunway).length);
 
     // Finde STARs die KEINE Runway-Zuordnung haben - diese sind für ALLE Runways verfügbar
     var starsWithoutRunwayAssignment = {};
@@ -21395,7 +21584,7 @@ function filterStarsByRunway(stars, runway) {
             starsWithoutRunwayAssignment[name] = true;
         }
     });
-    MAP_DEBUG && console.log('[filterStarsByRunway] STARs without runway assignment (available for all):', Object.keys(starsWithoutRunwayAssignment).length);
+    flightplanPanelLogger.debug('STARs without runway assignment (available for all):', Object.keys(starsWithoutRunwayAssignment).length);
 
     // KOMBINIERTE FILTERUNG:
     // - STARs mit passender Runway-Zuordnung
@@ -21405,7 +21594,7 @@ function filterStarsByRunway(stars, runway) {
         return starNamesForRunway[name] || starsWithoutRunwayAssignment[name];
     });
 
-    MAP_DEBUG && console.log('[filterStarsByRunway] Final result:', result.length, 'STARs available for runway', runwayNumber);
+    flightplanPanelLogger.debug('Final result:', result.length, 'STARs available for runway', runwayNumber);
     return result;
 }
 
@@ -21535,16 +21724,16 @@ function getRunwaysForApproach(approaches, approachId, allRunways) {
 function populateSidDropdown(elementId, sids, selectedValue, filterRunway) {
     var select = document.getElementById(elementId);
     if (!select) {
-        console.error('[populateSidDropdown] Element not found:', elementId);
+        flightplanPanelLogger.error('Element not found:', elementId);
         return null;
     }
 
-    MAP_DEBUG && console.log('[populateSidDropdown]', elementId, '- sids:', sids ? sids.length : 0, 'selected:', selectedValue, 'filterRunway:', filterRunway);
+    flightplanPanelLogger.debug(elementId, '- sids:', sids ? sids.length : 0, 'selected:', selectedValue, 'filterRunway:', filterRunway);
 
     select.innerHTML = '<option value="">-</option>';
 
     if (!sids || sids.length === 0) {
-        MAP_DEBUG && console.warn('[populateSidDropdown]', elementId, '- No SIDs to populate!');
+        flightplanPanelLogger.warn(elementId, '- No SIDs to populate!');
         return null;
     }
 
@@ -21580,8 +21769,8 @@ function populateSidDropdown(elementId, sids, selectedValue, filterRunway) {
         });
     }).sort();
 
-    MAP_DEBUG && console.log('[populateSidDropdown] Filtered SIDs for', filterRunway + ':', sidNames.length, 'of', Object.keys(sidsByName).length);
-    MAP_DEBUG && console.log('[populateSidDropdown] Available SID names:', sidNames.slice(0, 20).join(', '), '...');
+    flightplanPanelLogger.debug('Filtered SIDs for', filterRunway + ':', sidNames.length, 'of', Object.keys(sidsByName).length);
+    flightplanPanelLogger.debug('Available SID names:', sidNames.slice(0, 20).join(', '), '...');
 
     // Try to find matching SID (handles partial matches like "CIND8S" -> "CIND5S")
     var matchedSid = null;
@@ -21620,9 +21809,9 @@ function populateSidDropdown(elementId, sids, selectedValue, filterRunway) {
                 scoredCandidates.sort(function(a, b) { return b.score - a.score; });
                 matchedSid = scoredCandidates[0].name;
 
-                MAP_DEBUG && console.log('[populateSidDropdown] Partial match candidates for', selectedValue + ':',
-                    scoredCandidates.map(function(c) { return c.name + '(score:' + c.score + ')'; }).join(', '));
-                MAP_DEBUG && console.log('[populateSidDropdown] Best match:', selectedValue, '->', matchedSid);
+                flightplanPanelLogger.debug('Partial match candidates for', selectedValue + ':', scoredCandidates.map(function(c) { return c.name + '(score:' + c.score + ')'; }).join(', '));
+
+                flightplanPanelLogger.debug('Best match:', selectedValue, '->', matchedSid);
             }
         }
     }
@@ -21634,7 +21823,7 @@ function populateSidDropdown(elementId, sids, selectedValue, filterRunway) {
         option.textContent = name;
         if (matchedSid && name === matchedSid) {
             option.selected = true;
-            MAP_DEBUG && console.log('[populateSidDropdown] Setting selected:', name);
+            flightplanPanelLogger.debug('Setting selected:', name);
         }
         select.appendChild(option);
     });
@@ -21656,7 +21845,7 @@ function populateStarDropdown(elementId, stars, selectedValue, filterRunway) {
     var select = document.getElementById(elementId);
     if (!select) return null;
 
-    MAP_DEBUG && console.log('[populateStarDropdown]', elementId, '- stars:', stars ? stars.length : 0, 'selected:', selectedValue, 'filterRunway:', filterRunway);
+    flightplanPanelLogger.debug(elementId, '- stars:', stars ? stars.length : 0, 'selected:', selectedValue, 'filterRunway:', filterRunway);
 
     select.innerHTML = '<option value="">-</option>';
 
@@ -21691,7 +21880,7 @@ function populateStarDropdown(elementId, stars, selectedValue, filterRunway) {
         });
     }).sort();
 
-    MAP_DEBUG && console.log('[populateStarDropdown] Filtered STARs for', filterRunway + ':', starNames.length, 'of', Object.keys(starsByName).length);
+    flightplanPanelLogger.debug('Filtered STARs for', filterRunway + ':', starNames.length, 'of', Object.keys(starsByName).length);
 
     // Try to find matching STAR (handles partial matches)
     var matchedStar = null;
@@ -21724,7 +21913,7 @@ function populateStarDropdown(elementId, stars, selectedValue, filterRunway) {
                 });
                 scoredCandidates.sort(function(a, b) { return b.score - a.score; });
                 matchedStar = scoredCandidates[0].name;
-                console.log('[populateStarDropdown] Partial match:', selectedValue, '->', matchedStar);
+                flightplanPanelLogger.debug('Partial match:', selectedValue, '->', matchedStar);
             }
         }
     }
@@ -21791,9 +21980,7 @@ function populateTransitionDropdown(elementId, procedures, procedureName, select
         }
     });
 
-    console.log('[populateTransitionDropdown]', procedureType, procedureName,
-        'routeType filter:', enrouteRouteTypes,
-        'found', transitions.length, 'transitions:', transitions);
+    flightplanPanelLogger.debug(procedureType, procedureName, 'routeType filter:', enrouteRouteTypes, 'found', transitions.length, 'transitions:', transitions);
 
     transitions.sort().forEach(function(transition) {
         var option = document.createElement('option');
@@ -22008,7 +22195,7 @@ async function initFlightplanPanel(ofpData) {
         // Das Flag wird gesetzt damit die Animation weiß, dass eine Alternate-Route gezeichnet werden soll
         window.pendingAlternateRouteDraw = !!(flightplanPanelState.alternate && flightplanPanelState.alternate.icao);
         if (window.pendingAlternateRouteDraw) {
-            console.log('[FlightplanPanel] Alternate route drawing deferred until after main animation');
+            flightplanPanelLogger.debug('Alternate route drawing deferred until after main animation');
         }
 
         // Route EINMAL am Ende zeichnen (wird durch rebuildFlightplanWithProcedures gemacht)
@@ -22016,7 +22203,7 @@ async function initFlightplanPanel(ofpData) {
         clearAllPreviews();
 
     } catch (err) {
-        console.error('[FlightplanPanel] Error during initialization:', err);
+        flightplanPanelLogger.error('Error during initialization:', err);
         flightplanPendingState.isInitialLoad = false;
     }
 }
@@ -22040,21 +22227,21 @@ async function loadDepartureProcedures(icao, ofpData) {
                idNorm.replace(/[LRC]$/, '') === selectedRunwayNorm.replace(/[LRC]$/, '');
     });
 
-    MAP_DEBUG && console.log('[loadDepartureProcedures] OFP runway:', selectedRunway, '-> norm:', selectedRunwayNorm);
-    MAP_DEBUG && console.log('[loadDepartureProcedures] Available runways:', runways.map(function(r) { return r.Identifier || r.identifier; }).join(', '));
+    flightplanPanelLogger.debug('OFP runway:', selectedRunway, '-> norm:', selectedRunwayNorm);
+    flightplanPanelLogger.debug('Available runways:', runways.map(function(r) { return r.Identifier || r.identifier; }).join(', '));
 
     if (matchedRunway) {
         selectedRunway = matchedRunway.Identifier || matchedRunway.identifier;
         flightplanPanelState.departure.selectedRunway = selectedRunway;
-        MAP_DEBUG && console.log('[loadDepartureProcedures] Matched runway:', selectedRunway);
+        flightplanPanelLogger.debug('Matched runway:', selectedRunway);
     } else if (runways.length > 0 && !selectedRunwayNorm) {
         // NUR wenn OFP KEINE Runway hatte, erste nehmen
         selectedRunway = runways[0].Identifier || runways[0].identifier || '';
         flightplanPanelState.departure.selectedRunway = selectedRunway;
-        MAP_DEBUG && console.log('[loadDepartureProcedures] No OFP runway, using first:', selectedRunway);
+        flightplanPanelLogger.debug('No OFP runway, using first:', selectedRunway);
     } else if (runways.length > 0) {
         // OFP hatte Runway aber existiert nicht - Fallback auf ähnlichste Runway
-        MAP_DEBUG && console.log('[loadDepartureProcedures] OFP runway "' + selectedRunwayNorm + '" not found - finding closest match');
+        flightplanPanelLogger.debug('OFP runway "' + selectedRunwayNorm + '" not found - finding closest match');
 
         // Parse requested runway number and designator
         var reqMatch = selectedRunwayNorm.match(/^(\d+)([LRC]?)$/i);
@@ -22091,7 +22278,7 @@ async function loadDepartureProcedures(icao, ofpData) {
         if (bestRunway) {
             selectedRunway = bestRunway.Identifier || bestRunway.identifier;
             flightplanPanelState.departure.selectedRunway = selectedRunway;
-            console.log('[loadDepartureProcedures] Fallback: using runway', selectedRunway, 'instead of', selectedRunwayNorm, '(score:', bestScore + ')');
+            flightplanPanelLogger.warn('Fallback: using runway', selectedRunway, 'instead of', selectedRunwayNorm, '(score:', bestScore + ')');
         } else {
             selectedRunway = '';
             flightplanPanelState.departure.selectedRunway = '';
@@ -22100,10 +22287,10 @@ async function loadDepartureProcedures(icao, ofpData) {
         // Keine Runways verfügbar
         selectedRunway = '';
         flightplanPanelState.departure.selectedRunway = '';
-        MAP_DEBUG && console.log('[loadDepartureProcedures] No runways available for', icao);
+        flightplanPanelLogger.debug('No runways available for', icao);
     }
 
-    MAP_DEBUG && console.log('[loadDepartureProcedures] Final selectedRunway for dropdown:', selectedRunway);
+    flightplanPanelLogger.debug('Final selectedRunway for dropdown:', selectedRunway);
     populateRunwayDropdown('depRunwaySelect', runways, selectedRunway);
 
     // Load SIDs
@@ -22117,14 +22304,14 @@ async function loadDepartureProcedures(icao, ofpData) {
             var name = s.Identifier || s.identifier;
             if (uniqueSidNames.indexOf(name) === -1) uniqueSidNames.push(name);
         });
-        console.log('[loadDepartureProcedures] All unique SID names (' + uniqueSidNames.length + '):', uniqueSidNames.sort().join(', '));
+        flightplanPanelLogger.debug('All unique SID names (' + uniqueSidNames.length + '):', uniqueSidNames.sort().join(', '));
     }
 
     // Filter SIDs by selected runway (analog zu STAR-Filterung in loadArrivalProcedures)
     var filteredSids = filterSidsByRunway(sids, selectedRunway);
 
     // ALWAYS log filtering result for debugging
-    console.log('[SID-Filter] Runway:', selectedRunway, '| Total SIDs:', sids.length, '| Filtered:', filteredSids.length);
+    flightplanPanelLogger.debug('Runway:', selectedRunway, '| Total SIDs:', sids.length, '| Filtered:', filteredSids.length);
 
     // DEBUG: Log filtered SID names
     if (MAP_DEBUG) {
@@ -22133,7 +22320,7 @@ async function loadDepartureProcedures(icao, ofpData) {
             var name = s.Identifier || s.identifier;
             if (filteredSidNames.indexOf(name) === -1) filteredSidNames.push(name);
         });
-        console.log('[loadDepartureProcedures] Filtered SID names (' + filteredSidNames.length + '):', filteredSidNames.sort().join(', '));
+        flightplanPanelLogger.debug('Filtered SID names (' + filteredSidNames.length + '):', filteredSidNames.sort().join(', '));
     }
 
     // Get SID from OFP - check Route field for SID name
@@ -22203,22 +22390,20 @@ async function loadDepartureProcedures(icao, ofpData) {
 async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selectedRunway, flightplanArray) {
     if (!sidName || !icao) return flightplanArray;
 
-    if (MAP_DEBUG) console.log('[Map] Fetching SID waypoints for injection:', icao, sidName, transition, selectedRunway);
+    mapLogger.debug('Fetching SID waypoints for injection:', icao, sidName, transition, selectedRunway);
     var procedureData = await fetchProcedureDetail(icao, sidName, 'SID', transition, selectedRunway);
 
     if (!procedureData || !procedureData.Waypoints || procedureData.Waypoints.length === 0) {
-        if (MAP_DEBUG) console.log('[Map] No SID waypoints to inject');
+        mapLogger.debug('No SID waypoints to inject');
         return flightplanArray;
     }
 
     // DEBUG: Zeige alle Felder des ersten Waypoints um Höhen-Feldnamen zu finden
-    console.log('[SID_DEBUG] API Response - first waypoint fields:', JSON.stringify(procedureData.Waypoints[0], null, 2));
+    flightplanPanelLogger.debug('API Response - first waypoint fields:', JSON.stringify(procedureData.Waypoints[0], null, 2));
 
     // WICHTIG: Waypoints sortieren bevor sie eingefügt werden
     var sortedWaypoints = sortProcedureWaypoints(procedureData.Waypoints);
-    MAP_DEBUG && console.log('[SID_DEBUG] Sorted waypoints:', sortedWaypoints.map(function(wp) {
-        return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || '') + ', Seq:' + (wp.SequenceNumber || '') + ')';
-    }).join(' → '));
+    flightplanPanelLogger.debug('Sorted waypoints:', sortedWaypoints.map(function(wp) { return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || '') + ', Seq:' + (wp.SequenceNumber || '') + ')'; }).join(' → '));
 
     // Sammle existierende Waypoint-Namen um Duplikate zu vermeiden
     // Auch Runway-Varianten normalisieren (RW18, 18, RW18L -> alle gleich behandeln)
@@ -22241,23 +22426,23 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
         var lon = wp.Longitude || wp.longitude;
         var name = wp.Identifier || wp.identifier || 'SID';
 
-        MAP_DEBUG && console.log('[SID_DEBUG] Waypoint ' + idx + ': ' + name + ' lat=' + lat + ' lon=' + lon + ' RouteType=' + wp.RouteType);
+        flightplanPanelLogger.debug('Waypoint ' + idx + ': ' + name + ' lat=' + lat + ' lon=' + lon + ' RouteType=' + wp.RouteType);
 
         // Skip wenn Waypoint bereits existiert oder ungültige Koordinaten
         if (existingNames[name.toUpperCase()]) {
-            MAP_DEBUG && console.log('[SID_DEBUG] SKIPPING duplicate: ' + name);
+            flightplanPanelLogger.debug('SKIPPING duplicate: ' + name);
             return;
         }
 
         // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
         var rwMatch = name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
         if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
-            MAP_DEBUG && console.log('[SID_DEBUG] SKIPPING duplicate runway: ' + name);
+            flightplanPanelLogger.debug('SKIPPING duplicate runway: ' + name);
             return;
         }
 
         if (!lat || !lon || isNaN(lat) || isNaN(lon) || Math.abs(lat) < 0.001) {
-            MAP_DEBUG && console.log('[SID_DEBUG] SKIPPING invalid coords: ' + name + ' lat=' + lat + ' lon=' + lon);
+            flightplanPanelLogger.debug('SKIPPING invalid coords: ' + name + ' lat=' + lat + ' lon=' + lon);
             return;
         }
 
@@ -22276,7 +22461,7 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
             altitude = departureRunwayData.elevation;
         }
         var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || (wp.AltDesc && wp.AltDesc.AltitudeConstraint) || '';
-        console.log('[SID_DEBUG] ' + name + ' altitude=' + altitude + ' | wp keys:', Object.keys(wp).join(','));
+        flightplanPanelLogger.debug('' + name + ' altitude=' + altitude + ' | wp keys:', Object.keys(wp).join(','));
 
         sidEntries.push({
             lat: parseFloat(lat),
@@ -22296,7 +22481,7 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
         var insertIndex = Math.min(1, flightplanArray.length);
         var before = flightplanArray.slice(0, insertIndex);
         var after = flightplanArray.slice(insertIndex);
-        if (MAP_DEBUG) console.log('[SID_DEBUG] Injecting', sidEntries.length, 'SID waypoints at index', insertIndex);
+        flightplanPanelLogger.debug('Injecting', sidEntries.length, 'SID waypoints at index', insertIndex);
         return before.concat(sidEntries).concat(after);
     }
 
@@ -22310,22 +22495,19 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
 async function injectStarWaypointsIntoFlightplan(icao, starName, transition, selectedRunway, flightplanArray) {
     if (!starName || !icao) return flightplanArray;
 
-    if (MAP_DEBUG) console.log('[Map] Fetching STAR waypoints for injection:', icao, starName, transition, selectedRunway);
+    mapLogger.debug('Fetching STAR waypoints for injection:', icao, starName, transition, selectedRunway);
     var procedureData = await fetchProcedureDetail(icao, starName, 'STAR', transition, selectedRunway);
 
     if (!procedureData || !procedureData.Waypoints || procedureData.Waypoints.length === 0) {
-        if (MAP_DEBUG) console.log('[Map] No STAR waypoints to inject');
+        mapLogger.debug('No STAR waypoints to inject');
         return flightplanArray;
     }
 
     // WICHTIG: Waypoints sortieren bevor sie eingefügt werden
-    console.log('[STAR_DEBUG] RAW waypoints from API:', procedureData.Waypoints.map(function(wp) {
-        return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || wp.routeType || '?') + ', Seq:' + (wp.SequenceNumber || wp.sequenceNumber || '?') + ')';
-    }).join(' → '));
+    flightplanPanelLogger.debug('RAW waypoints from API:', procedureData.Waypoints.map(function(wp) { return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || wp.routeType || '?') + ', Seq:' + (wp.SequenceNumber || wp.sequenceNumber || '?') + ')'; }).join(' → '));
+
     var sortedWaypoints = sortProcedureWaypoints(procedureData.Waypoints);
-    console.log('[STAR_DEBUG] SORTED waypoints:', sortedWaypoints.map(function(wp) {
-        return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || wp.routeType || '?') + ', Seq:' + (wp.SequenceNumber || wp.sequenceNumber || '?') + ')';
-    }).join(' → '));
+    flightplanPanelLogger.debug('SORTED waypoints:', sortedWaypoints.map(function(wp) { return (wp.Identifier || wp.identifier) + ' (RT:' + (wp.RouteType || wp.routeType || '?') + ', Seq:' + (wp.SequenceNumber || wp.sequenceNumber || '?') + ')'; }).join(' → '));
 
     // Sammle existierende Waypoint-Namen um Duplikate zu vermeiden
     // Auch Runway-Varianten normalisieren (RW18, 18, RW18L -> alle gleich behandeln)
@@ -22343,7 +22525,7 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
     });
 
     var starEntries = [];
-    MAP_DEBUG && console.log('[STAR_DEBUG] Processing', sortedWaypoints.length, 'waypoints. Existing names:', Object.keys(existingNames).join(', '));
+    flightplanPanelLogger.debug('Processing', sortedWaypoints.length, 'waypoints. Existing names:', Object.keys(existingNames).join(', '));
     sortedWaypoints.forEach(function(wp) {
         var lat = wp.Latitude || wp.latitude;
         var lon = wp.Longitude || wp.longitude;
@@ -22351,14 +22533,14 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
 
         // Skip wenn Waypoint bereits existiert oder ungültige Koordinaten
         if (existingNames[name.toUpperCase()]) {
-            MAP_DEBUG && console.log('[STAR_DEBUG] Skipping duplicate STAR waypoint:', name);
+            flightplanPanelLogger.debug('Skipping duplicate STAR waypoint:', name);
             return;
         }
 
         // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
         var rwMatch = name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
         if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
-            if (MAP_DEBUG) console.log('[Map] Skipping duplicate runway in STAR:', name);
+            mapLogger.debug('Skipping duplicate runway in STAR:', name);
             return;
         }
 
@@ -22387,17 +22569,17 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         existingNames[name.toUpperCase()] = true;
     });
 
-    MAP_DEBUG && console.log('[STAR_DEBUG] Star entries to inject:', starEntries.length);
+    flightplanPanelLogger.debug('Star entries to inject:', starEntries.length);
     if (starEntries.length > 0) {
         // Insert before destination airport (before last element)
         var insertIndex = flightplanArray.length > 0 ? flightplanArray.length - 1 : 0;
         var before = flightplanArray.slice(0, insertIndex);
         var after = flightplanArray.slice(insertIndex);
-        MAP_DEBUG && console.log('[STAR_DEBUG] Injecting', starEntries.length, 'STAR waypoints at index', insertIndex);
+        flightplanPanelLogger.debug('Injecting', starEntries.length, 'STAR waypoints at index', insertIndex);
         return before.concat(starEntries).concat(after);
     }
 
-    MAP_DEBUG && console.log('[STAR_DEBUG] No STAR entries to inject!');
+    flightplanPanelLogger.debug('No STAR entries to inject!');
     return flightplanArray;
 }
 
@@ -22415,8 +22597,8 @@ async function loadArrivalProcedures(icao, ofpData) {
     var selectedRunway = flightplanPanelState.arrival.selectedRunway || '';
     var selectedRunwayNorm = selectedRunway.toUpperCase().replace(/^RW/i, '');
 
-    MAP_DEBUG && console.log('[loadArrivalProcedures] OFP runway:', selectedRunway, '-> norm:', selectedRunwayNorm);
-    MAP_DEBUG && console.log('[loadArrivalProcedures] Available runways:', runways.map(function(r) { return r.Identifier || r.identifier; }).join(', '));
+    flightplanPanelLogger.debug('OFP runway:', selectedRunway, '-> norm:', selectedRunwayNorm);
+    flightplanPanelLogger.debug('Available runways:', runways.map(function(r) { return r.Identifier || r.identifier; }).join(', '));
 
     var matchedRunway = runways.find(function(rwy) {
         var id = (rwy.Identifier || rwy.identifier || '').toUpperCase();
@@ -22428,15 +22610,15 @@ async function loadArrivalProcedures(icao, ofpData) {
     if (matchedRunway) {
         selectedRunway = matchedRunway.Identifier || matchedRunway.identifier;
         flightplanPanelState.arrival.selectedRunway = selectedRunway;
-        MAP_DEBUG && console.log('[loadArrivalProcedures] Matched runway:', selectedRunway);
+        flightplanPanelLogger.debug('Matched runway:', selectedRunway);
     } else if (runways.length > 0 && !selectedRunwayNorm) {
         // NUR wenn OFP KEINE Runway hatte, erste nehmen
         selectedRunway = runways[0].Identifier || runways[0].identifier || '';
         flightplanPanelState.arrival.selectedRunway = selectedRunway;
-        MAP_DEBUG && console.log('[loadArrivalProcedures] No OFP runway, using first:', selectedRunway);
+        flightplanPanelLogger.debug('No OFP runway, using first:', selectedRunway);
     } else if (runways.length > 0) {
         // OFP hatte Runway aber existiert nicht - Fallback auf ähnlichste Runway
-        MAP_DEBUG && console.log('[loadArrivalProcedures] OFP runway "' + selectedRunwayNorm + '" not found - finding closest match');
+        flightplanPanelLogger.debug('OFP runway "' + selectedRunwayNorm + '" not found - finding closest match');
 
         // Parse requested runway number and designator
         var reqMatch = selectedRunwayNorm.match(/^(\d+)([LRC]?)$/i);
@@ -22473,7 +22655,7 @@ async function loadArrivalProcedures(icao, ofpData) {
         if (bestRunway) {
             selectedRunway = bestRunway.Identifier || bestRunway.identifier;
             flightplanPanelState.arrival.selectedRunway = selectedRunway;
-            console.log('[loadArrivalProcedures] Fallback: using runway', selectedRunway, 'instead of', selectedRunwayNorm, '(score:', bestScore + ')');
+            flightplanPanelLogger.warn('Fallback: using runway', selectedRunway, 'instead of', selectedRunwayNorm, '(score:', bestScore + ')');
         } else {
             selectedRunway = '';
             flightplanPanelState.arrival.selectedRunway = '';
@@ -22482,10 +22664,10 @@ async function loadArrivalProcedures(icao, ofpData) {
         // Keine Runways verfügbar
         selectedRunway = '';
         flightplanPanelState.arrival.selectedRunway = '';
-        MAP_DEBUG && console.log('[loadArrivalProcedures] No runways available for', icao);
+        flightplanPanelLogger.debug('No runways available for', icao);
     }
 
-    MAP_DEBUG && console.log('[loadArrivalProcedures] Final selectedRunway for dropdown:', selectedRunway);
+    flightplanPanelLogger.debug('Final selectedRunway for dropdown:', selectedRunway);
     populateRunwayDropdown('arrRunwaySelect', runways, selectedRunway);
 
     // WICHTIG: Runway-Daten laden für Approach-Linie zum Runway-Ende
@@ -22499,12 +22681,12 @@ async function loadArrivalProcedures(icao, ofpData) {
             var rwyData = await fetchRunwayData(icao, selectedRunway);
             if (rwyData) {
                 arrivalRunwayData = rwyData;
-                MAP_DEBUG && console.log('[loadArrivalProcedures] Loaded arrivalRunwayData:', selectedRunway, 'endLat:', rwyData.endLat, 'endLon:', rwyData.endLon);
+                flightplanPanelLogger.debug('Loaded arrivalRunwayData:', selectedRunway, 'endLat:', rwyData.endLat, 'endLon:', rwyData.endLon);
             } else {
-                MAP_DEBUG && console.log('[loadArrivalProcedures] WARNING: Failed to load arrivalRunwayData for', selectedRunway);
+                flightplanPanelLogger.debug('WARNING: Failed to load arrivalRunwayData for', selectedRunway);
             }
         } else {
-            MAP_DEBUG && console.log('[loadArrivalProcedures] Using cached arrivalRunwayData for:', selectedRunway);
+            flightplanPanelLogger.debug('Using cached arrivalRunwayData for:', selectedRunway);
         }
     }
 
@@ -22514,7 +22696,7 @@ async function loadArrivalProcedures(icao, ofpData) {
 
     // WICHTIG: Wenn keine Runway ausgewählt, keine STAR/Approach laden
     if (!selectedRunway) {
-        MAP_DEBUG && console.log('[loadArrivalProcedures] No runway selected - skipping STAR/Approach selection');
+        flightplanPanelLogger.debug('No runway selected - skipping STAR/Approach selection');
         populateStarDropdown('arrStarSelect', [], '');
         populateTransitionDropdown('arrTransitionSelect', [], '', '', 'STAR');
         flightplanPanelState.arrival.selectedStar = '';
@@ -22533,7 +22715,7 @@ async function loadArrivalProcedures(icao, ofpData) {
     var filteredStars = filterStarsByRunway(stars, selectedRunway);
 
     // ALWAYS log filtering result for debugging
-    console.log('[STAR-Filter] Runway:', selectedRunway, '| Total STARs:', stars.length, '| Filtered:', filteredStars.length);
+    flightplanPanelLogger.debug('Runway:', selectedRunway, '| Total STARs:', stars.length, '| Filtered:', filteredStars.length);
 
     // Debug: Log first 5 STARs with their RouteTypes to understand filtering
     var sampleStars = stars.slice(0, 5);
@@ -22542,7 +22724,7 @@ async function loadArrivalProcedures(icao, ofpData) {
         var rt = s.RouteType || s.routeType || '?';
         var rwy = s.Runway || s.runway || 'none';
         var trans = s.TransitionIdentifier || s.transitionIdentifier || '';
-        console.log('[STAR-Sample]', name, '| RouteType:', rt, '| Runway:', rwy, '| Trans:', trans);
+        flightplanPanelLogger.debug(name, '| RouteType:', rt, '| Runway:', rwy, '| Trans:', trans);
     });
 
     // Get STAR from OFP - check Route field for STAR name (last element, e.g., "...BRIXX4")
@@ -22627,7 +22809,7 @@ async function loadArrivalProcedures(icao, ofpData) {
     }
 
     // ALWAYS log approach filtering for debugging
-    console.log('[Approach-Filter] Runway:', selectedRunway, '| Total Approaches:', approaches.length, '| Selected:', selectedApproachId);
+    flightplanPanelLogger.debug('Runway:', selectedRunway, '| Total Approaches:', approaches.length, '| Selected:', selectedApproachId);
 
     populateApproachDropdown('arrApproachSelect', approaches, selectedRunway, selectedApproachId);
     flightplanPanelState.arrival.selectedApproach = selectedApproachId;
@@ -22652,7 +22834,7 @@ async function loadArrivalProcedures(icao, ofpData) {
     // Integrate approach into flightpath - MIT der (ggf. auto-selektierten) Transition
     if (selectedApproachId) {
         var approachTransitionToUse = flightplanPanelState.arrival.selectedApproachTransition || '';
-        console.log('[loadArrivalProcedures] Integrating approach with transition:', approachTransitionToUse);
+        flightplanPanelLogger.debug('Integrating approach with transition:', approachTransitionToUse);
         await integrateApproachIntoFlightpath(icao, selectedApproachId, approachTransitionToUse);
     }
 }
@@ -22703,25 +22885,25 @@ async function loadAlternateProcedures(ofpData) {
     var altApproachSelect = document.getElementById('altApproachSelect');
 
     if (!altRunwaySelect || !altStarSelect || !altApproachSelect) {
-        console.warn('[Alternate] DOM not ready for', altIcao);
+        flightplanPanelLogger.warn('DOM not ready for', altIcao);
         return;
     }
 
     try {
         // Daten laden
-        console.log('[Alternate] Loading procedures for:', altIcao);
+        flightplanPanelLogger.debug('Loading procedures for:', altIcao);
 
         var runways = await fetchRunways(altIcao);
         flightplanPanelState.alternate.runways = runways || [];
-        console.log('[Alternate] Runways:', (runways || []).length);
+        flightplanPanelLogger.debug('Runways:', (runways || []).length);
 
         var stars = await fetchSTARs(altIcao);
         flightplanPanelState.alternate.stars = stars || [];
-        console.log('[Alternate] STARs:', (stars || []).length);
+        flightplanPanelLogger.debug('STARs:', (stars || []).length);
 
         var approaches = await fetchApproaches(altIcao);
         flightplanPanelState.alternate.approaches = approaches || [];
-        console.log('[Alternate] Approaches:', (approaches || []).length);
+        flightplanPanelLogger.debug('Approaches:', (approaches || []).length);
 
         // === AUTO-SELECTION für Alternate (wie bei Arrival) ===
 
@@ -22744,7 +22926,7 @@ async function loadAlternateProcedures(ofpData) {
         populateStarDropdown('altStarSelect', filteredStars, '');
         populateTransitionDropdown('altTransitionSelect', [], '', '', 'STAR');
     } catch (err) {
-        console.error('[Alternate] Error loading procedures:', err);
+        flightplanPanelLogger.error('Error loading procedures:', err);
     }
 }
 
@@ -22800,7 +22982,7 @@ function extractApproachFromNavlog(ofpData) {
                   general.Appr_type || general.appr_type || '';
 
     if (appName) {
-        console.log('[extractApproachFromNavlog] Found in General:', appName);
+        flightplanPanelLogger.debug('Found in General:', appName);
         return appName;
     }
 
@@ -22816,13 +22998,13 @@ function extractApproachFromNavlog(ofpData) {
         if (stage === 'APP' || stage === 'APR' || stage === 'APPROACH') {
             var viaAirway = fix.Via_airway || fix.via_airway || '';
             if (viaAirway) {
-                console.log('[extractApproachFromNavlog] Found in navlog:', viaAirway);
+                flightplanPanelLogger.debug('Found in navlog:', viaAirway);
                 return viaAirway;
             }
         }
     }
 
-    console.log('[extractApproachFromNavlog] No approach found in OFP');
+    flightplanPanelLogger.debug('No approach found in OFP');
     return '';
 }
 
@@ -22848,7 +23030,7 @@ function extractApproachTransitionFromNavlog(ofpData, availableTransitions) {
         var upperAppTrans = appTrans.toUpperCase();
         for (var i = 0; i < availableTransitions.length; i++) {
             if (availableTransitions[i].toUpperCase() === upperAppTrans) {
-                console.log('[extractApproachTransitionFromNavlog] Found in General:', availableTransitions[i]);
+                flightplanPanelLogger.debug('Found in General:', availableTransitions[i]);
                 return availableTransitions[i];
             }
         }
@@ -22872,13 +23054,13 @@ function extractApproachTransitionFromNavlog(ofpData, availableTransitions) {
         if (stage === 'APP' || stage === 'APR' || stage === 'APPROACH') {
             var ident = (fix.Ident || fix.ident || '').toUpperCase();
             if (transitionSet[ident]) {
-                console.log('[extractApproachTransitionFromNavlog] Found in navlog:', transitionSet[ident]);
+                flightplanPanelLogger.debug('Found in navlog:', transitionSet[ident]);
                 return transitionSet[ident];
             }
         }
     }
 
-    console.log('[extractApproachTransitionFromNavlog] No approach transition found in OFP');
+    flightplanPanelLogger.debug('No approach transition found in OFP');
     return '';
 }
 
@@ -22923,7 +23105,7 @@ function extractTransitionFromNavlog(ofpData, type, availableTransitions, proced
                 }
             }
             if (lastSidWaypoint) {
-                console.log('[extractTransitionFromNavlog] SID transition from navlog:', lastSidWaypoint);
+                flightplanPanelLogger.debug('SID transition from navlog:', lastSidWaypoint);
                 return lastSidWaypoint;
             }
         } else if (type === 'STAR') {
@@ -22938,7 +23120,7 @@ function extractTransitionFromNavlog(ofpData, type, availableTransitions, proced
                     var ident = (fix.Ident || fix.ident || '').toUpperCase();
                     // Check if this waypoint matches an available transition
                     if (transitionSet[ident]) {
-                        console.log('[extractTransitionFromNavlog] STAR transition from navlog:', transitionSet[ident]);
+                        flightplanPanelLogger.debug('STAR transition from navlog:', transitionSet[ident]);
                         return transitionSet[ident];
                     }
                 }
@@ -22951,7 +23133,7 @@ function extractTransitionFromNavlog(ofpData, type, availableTransitions, proced
     var routeStr = general.Route || general.route || '';
 
     if (routeStr && procedureName) {
-        console.log('[extractTransitionFromNavlog] Trying to extract from Route string:', routeStr);
+        flightplanPanelLogger.debug('Trying to extract from Route string:', routeStr);
         // Parse route into parts (split by spaces)
         var routeParts = routeStr.toUpperCase().split(/\s+/);
         var procNameUpper = procedureName.toUpperCase();
@@ -22978,7 +23160,7 @@ function extractTransitionFromNavlog(ofpData, type, availableTransitions, proced
                     // Skip airways (Q1-999, J1-999, V1-999, etc.)
                     if (!/^[QJVUTWBAG]\d+$/.test(nextWaypoint) && nextWaypoint !== 'DCT') {
                         if (transitionSet[nextWaypoint]) {
-                            console.log('[extractTransitionFromNavlog] SID transition from Route:', transitionSet[nextWaypoint]);
+                            flightplanPanelLogger.debug('SID transition from Route:', transitionSet[nextWaypoint]);
                             return transitionSet[nextWaypoint];
                         }
                     }
@@ -22991,7 +23173,7 @@ function extractTransitionFromNavlog(ofpData, type, availableTransitions, proced
                     // Skip airways (Q1-999, J1-999, V1-999, etc.)
                     if (!/^[QJVUTWBAG]\d+$/.test(prevWaypoint) && prevWaypoint !== 'DCT') {
                         if (transitionSet[prevWaypoint]) {
-                            console.log('[extractTransitionFromNavlog] STAR transition from Route:', transitionSet[prevWaypoint]);
+                            flightplanPanelLogger.debug('STAR transition from Route:', transitionSet[prevWaypoint]);
                             return transitionSet[prevWaypoint];
                         }
                     }
@@ -23000,7 +23182,7 @@ function extractTransitionFromNavlog(ofpData, type, availableTransitions, proced
         }
     }
 
-    console.log('[extractTransitionFromNavlog] No transition found for', type);
+    flightplanPanelLogger.debug('No transition found for', type);
     return '';
 }
 
@@ -23031,7 +23213,7 @@ function getAvailableTransitions(procedures, procedureName, procedureType) {
             }
         }
     });
-    console.log('[getAvailableTransitions] DEBUG', procedureType, procedureName, 'all RouteTypes:', allRouteTypes);
+    flightplanPanelLogger.debug('DEBUG', procedureType, procedureName, 'all RouteTypes:', allRouteTypes);
 
     var transitions = [];
     procedures.forEach(function(p) {
@@ -23049,8 +23231,8 @@ function getAvailableTransitions(procedures, procedureName, procedureType) {
         }
     });
 
-    console.log('[getAvailableTransitions]', procedureType, procedureName,
-        'enrouteRouteTypes:', enrouteRouteTypes, 'found:', transitions);
+    flightplanPanelLogger.debug(procedureType, procedureName, 'enrouteRouteTypes:', enrouteRouteTypes, 'found:', transitions);
+
     return transitions;
 }
 
@@ -23078,7 +23260,7 @@ function getAvailableApproachTransitions(approaches, approachName) {
         }
     });
 
-    console.log('[getAvailableApproachTransitions]', approachName, 'found:', transitions);
+    flightplanPanelLogger.debug(approachName, 'found:', transitions);
     return transitions;
 }
 
@@ -23091,11 +23273,11 @@ function getAvailableApproachTransitions(approaches, approachName) {
 function populateApproachTransitionDropdown(elementId, transitions, selectedValue) {
     var select = document.getElementById(elementId);
     if (!select) {
-        console.error('[populateApproachTransitionDropdown] Element not found:', elementId);
+        flightplanPanelLogger.error('Element not found:', elementId);
         return;
     }
 
-    console.log('[populateApproachTransitionDropdown]', elementId, '- transitions:', transitions, 'selected:', selectedValue);
+    flightplanPanelLogger.debug(elementId, '- transitions:', transitions, 'selected:', selectedValue);
 
     select.innerHTML = '<option value="">-</option>';
 
@@ -23108,7 +23290,7 @@ function populateApproachTransitionDropdown(elementId, transitions, selectedValu
     var valueToSelect = selectedValue;
     if ((!valueToSelect || valueToSelect === '') && transitions.length > 0) {
         valueToSelect = transitions[0];
-        console.log('[populateApproachTransitionDropdown] Auto-selecting first transition:', valueToSelect);
+        flightplanPanelLogger.debug('Auto-selecting first transition:', valueToSelect);
     }
 
     transitions.forEach(function(t) {
@@ -23126,10 +23308,10 @@ function populateApproachTransitionDropdown(elementId, transitions, selectedValu
         // Update flightplanPanelState with auto-selected transition
         if (elementId === 'arrApproachTransitionSelect') {
             flightplanPanelState.arrival.selectedApproachTransition = valueToSelect;
-            console.log('[populateApproachTransitionDropdown] Updated arrival approach transition state to:', valueToSelect);
+            flightplanPanelLogger.debug('Updated arrival approach transition state to:', valueToSelect);
         } else if (elementId === 'altApproachTransitionSelect') {
             flightplanPanelState.alternate.selectedApproachTransition = valueToSelect;
-            console.log('[populateApproachTransitionDropdown] Updated alternate approach transition state to:', valueToSelect);
+            flightplanPanelLogger.debug('Updated alternate approach transition state to:', valueToSelect);
         }
     }
 }
@@ -23170,7 +23352,7 @@ function autoSelectApproach(approaches, runway) {
         return 0;
     });
 
-    console.log('[autoSelectApproach] Selected:', matchingApproaches[0].Identifier || matchingApproaches[0].identifier);
+    flightplanPanelLogger.debug('Selected:', matchingApproaches[0].Identifier || matchingApproaches[0].identifier);
     return matchingApproaches[0];
 }
 
@@ -23470,7 +23652,7 @@ async function onArrRunwayChange(runwayId) {
             var rwyData = await fetchRunwayData(flightplanPanelState.arrival.icao, actualRunway);
             if (rwyData) {
                 arrivalRunwayData = rwyData;
-                console.log('[onArrRunwayChange] Loaded arrivalRunwayData for Visual', actualRunway);
+                flightplanPanelLogger.info('Loaded arrivalRunwayData for Visual', actualRunway);
             }
         }
 
@@ -23517,7 +23699,7 @@ async function onArrRunwayChange(runwayId) {
         var rwyData = await fetchRunwayData(flightplanPanelState.arrival.icao, runwayId);
         if (rwyData) {
             arrivalRunwayData = rwyData;
-            console.log('[onArrRunwayChange] Loaded arrivalRunwayData for', runwayId);
+            flightplanPanelLogger.info('Loaded arrivalRunwayData for', runwayId);
         }
     }
 
@@ -23588,9 +23770,9 @@ async function onArrRunwayChange(runwayId) {
  * - Zeigt Preview nur bei manueller Änderung
  */
 function onArrApproachChange(approachId) {
-    console.log('[APPROACH_DEBUG] onArrApproachChange called with:', approachId);
-    console.log('[APPROACH_DEBUG] isInitialLoad:', flightplanPendingState.isInitialLoad);
-    console.log('[APPROACH_DEBUG] icao:', flightplanPanelState.arrival.icao);
+    flightplanPanelLogger.debug('onArrApproachChange called with:', approachId);
+    flightplanPanelLogger.debug('isInitialLoad:', flightplanPendingState.isInitialLoad);
+    flightplanPanelLogger.debug('icao:', flightplanPanelState.arrival.icao);
 
     flightplanPanelState.arrival.selectedApproach = approachId;
     flightplanPanelState.arrival.selectedApproachTransition = '';
@@ -23619,7 +23801,7 @@ function onArrApproachChange(approachId) {
             fetchRunwayData(flightplanPanelState.arrival.icao, flightplanPanelState.arrival.selectedRunway).then(function(rwyData) {
                 if (rwyData) {
                     arrivalRunwayData = rwyData;
-                    console.log('[onArrApproachChange] Loaded arrivalRunwayData for changed runway:', flightplanPanelState.arrival.selectedRunway);
+                    flightplanPanelLogger.info('Loaded arrivalRunwayData for changed runway:', flightplanPanelState.arrival.selectedRunway);
                 }
             });
         }
@@ -23644,13 +23826,13 @@ function onArrApproachChange(approachId) {
     flightplanPanelState.arrival.selectedApproachTransition = selectedTransition;
 
     // Nur bei manueller Änderung Preview zeichnen
-    console.log('[APPROACH_DEBUG] About to check isInitialLoad:', flightplanPendingState.isInitialLoad);
+    flightplanPanelLogger.debug('About to check isInitialLoad:', flightplanPendingState.isInitialLoad);
     if (!flightplanPendingState.isInitialLoad) {
-        console.log('[APPROACH_DEBUG] Calling drawApproachPreview with:', flightplanPanelState.arrival.icao, approachId, selectedTransition);
+        flightplanPanelLogger.debug('Calling drawApproachPreview with:', flightplanPanelState.arrival.icao, approachId, selectedTransition);
         markPendingChanges();
         drawApproachPreview(flightplanPanelState.arrival.icao, approachId, selectedTransition);
     } else {
-        console.log('[APPROACH_DEBUG] SKIPPED because isInitialLoad is true!');
+        flightplanPanelLogger.warn('SKIPPED because isInitialLoad is true!');
     }
 }
 
@@ -23930,7 +24112,7 @@ async function drawSidPreview(icao, sidName, transition) {
             }).bindTooltip(tooltip).addTo(sidPreviewLayer);
         });
     } catch (err) {
-        console.error('[FlightplanPanel] Error drawing SID preview:', err);
+        flightplanPanelLogger.error('Error drawing SID preview:', err);
     }
 }
 
@@ -23956,7 +24138,7 @@ async function drawVisualDeparturePreview(icao, runwayId) {
         // Get runway data
         var rwyData = await fetchRunwayData(icao, runwayId);
         if (!rwyData || !rwyData.thresholdLat || !rwyData.thresholdLon) {
-            console.warn('[Visual DEP] No runway data for', icao, runwayId);
+            flightplanPanelLogger.warn('No runway data for', icao, runwayId);
             return;
         }
 
@@ -23993,10 +24175,10 @@ async function drawVisualDeparturePreview(icao, runwayId) {
             weight: 2
         }).bindTooltip('Visual DEP 3nm').addTo(visualDeparturePreviewLayer);
 
-        console.log('[Visual DEP] Drew preview for', icao, runwayId, 'heading:', heading);
+        flightplanPanelLogger.debug('Drew preview for', icao, runwayId, 'heading:', heading);
 
     } catch (err) {
-        console.error('[FlightplanPanel] Error drawing Visual Departure preview:', err);
+        flightplanPanelLogger.error('Error drawing Visual Departure preview:', err);
     }
 }
 
@@ -24026,7 +24208,7 @@ async function drawVisualApproachPreview(icao, runwayId) {
         // Get runway data
         var rwyData = await fetchRunwayData(icao, runwayId);
         if (!rwyData || !rwyData.thresholdLat || !rwyData.thresholdLon) {
-            console.warn('[Visual APPR] No runway data for', icao, runwayId);
+            flightplanPanelLogger.warn('No runway data for', icao, runwayId);
             return;
         }
 
@@ -24063,10 +24245,10 @@ async function drawVisualApproachPreview(icao, runwayId) {
             weight: 2
         }).bindTooltip('Visual APPR 3nm').addTo(visualApproachPreviewLayer);
 
-        console.log('[Visual APPR] Drew preview for', icao, runwayId, 'heading:', runwayHeading);
+        flightplanPanelLogger.debug('Drew preview for', icao, runwayId, 'heading:', runwayHeading);
 
     } catch (err) {
-        console.error('[FlightplanPanel] Error drawing Visual Approach preview:', err);
+        flightplanPanelLogger.error('Error drawing Visual Approach preview:', err);
     }
 }
 
@@ -24159,7 +24341,7 @@ async function drawStarPreview(icao, starName, transition) {
             }).bindTooltip(tooltip).addTo(starPreviewLayer);
         });
     } catch (err) {
-        console.error('[FlightplanPanel] Error drawing STAR preview:', err);
+        flightplanPanelLogger.error('Error drawing STAR preview:', err);
     }
 }
 
@@ -24167,7 +24349,7 @@ async function drawStarPreview(icao, starName, transition) {
  * Draw Approach preview on map
  */
 async function drawApproachPreview(icao, approachName, approachTransition) {
-    console.log('[APPROACH_DEBUG] drawApproachPreview called:', icao, approachName, approachTransition);
+    flightplanPanelLogger.debug('drawApproachPreview called:', icao, approachName, approachTransition);
 
     // Increment request ID to cancel any pending requests
     var currentRequestId = ++approachPreviewRequestId;
@@ -24184,33 +24366,33 @@ async function drawApproachPreview(icao, approachName, approachTransition) {
     }
 
     if (!approachName || !icao) {
-        console.log('[APPROACH_DEBUG] Early return: no approachName or icao');
+        flightplanPanelLogger.debug('Early return: no approachName or icao');
         return;
     }
 
     // Get the selected runway
     var selectedRunway = flightplanPanelState.arrival.selectedRunway || '';
-    console.log('[APPROACH_DEBUG] selectedRunway:', selectedRunway);
+    flightplanPanelLogger.debug('selectedRunway:', selectedRunway);
 
     try {
         // Fetch procedure waypoints with transition and runway
         var procedureData = await fetchProcedureDetail(icao, approachName, 'APPROACH', approachTransition || null, selectedRunway);
-        console.log('[APPROACH_DEBUG] procedureData:', procedureData);
-        console.log('[APPROACH_DEBUG] Waypoints count:', (procedureData && procedureData.Waypoints && procedureData.Waypoints.length) || 0);
+        flightplanPanelLogger.debug('procedureData:', procedureData);
+        flightplanPanelLogger.debug('Waypoints count:', (procedureData && procedureData.Waypoints && procedureData.Waypoints.length) || 0);
 
         // Check if this request is still current (prevent race condition)
         if (currentRequestId !== approachPreviewRequestId) {
-            console.log('[APPROACH_DEBUG] Request cancelled (stale)');
+            flightplanPanelLogger.debug('Request cancelled (stale)');
             return; // A newer request was made, discard this result
         }
 
         if (!procedureData || !procedureData.Waypoints || procedureData.Waypoints.length === 0) {
-            console.log('[APPROACH_DEBUG] No waypoints in procedureData');
+            flightplanPanelLogger.debug('No waypoints in procedureData');
             return;
         }
 
         var sorted = sortProcedureWaypoints(procedureData.Waypoints);
-        console.log('[APPROACH_DEBUG] Sorted waypoints:', sorted.length);
+        flightplanPanelLogger.debug('Sorted waypoints:', sorted.length);
 
         var validWaypoints = sorted.filter(function(wp) {
             var lat = wp.Latitude || wp.latitude;
@@ -24218,7 +24400,7 @@ async function drawApproachPreview(icao, approachName, approachTransition) {
             return lat !== undefined && lat !== null && !isNaN(lat) && lat !== 0 &&
                    lon !== undefined && lon !== null && !isNaN(lon) && lon !== 0;
         });
-        console.log('[APPROACH_DEBUG] Valid waypoints after filter:', validWaypoints.length);
+        flightplanPanelLogger.debug('Valid waypoints after filter:', validWaypoints.length);
 
         // Append runway threshold as final approach point if available
         if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
@@ -24227,13 +24409,13 @@ async function drawApproachPreview(icao, approachName, approachTransition) {
                 Latitude: arrivalRunwayData.thresholdLat,
                 Longitude: arrivalRunwayData.thresholdLon
             });
-            console.log('[APPROACH_DEBUG] Added runway threshold, now:', validWaypoints.length);
+            flightplanPanelLogger.debug('Added runway threshold, now:', validWaypoints.length);
         } else {
-            console.log('[APPROACH_DEBUG] No arrivalRunwayData available');
+            flightplanPanelLogger.debug('No arrivalRunwayData available');
         }
 
         if (validWaypoints.length < 2) {
-            console.log('[APPROACH_DEBUG] Less than 2 waypoints, not drawing');
+            flightplanPanelLogger.debug('Less than 2 waypoints, not drawing');
             return;
         }
 
@@ -24268,7 +24450,7 @@ async function drawApproachPreview(icao, approachName, approachTransition) {
             }).bindTooltip(ident).addTo(approachPreviewLayer);
         });
     } catch (err) {
-        console.error('[FlightplanPanel] Error drawing Approach preview:', err);
+        flightplanPanelLogger.error('Error drawing Approach preview:', err);
     }
 }
 
@@ -24350,7 +24532,7 @@ async function drawAlternateStarPreview(icao, starName, transition) {
             }).bindTooltip(tooltip).addTo(alternateStarPreviewLayer);
         });
     } catch (err) {
-        console.error('[FlightplanPanel] Error drawing Alternate STAR preview:', err);
+        flightplanPanelLogger.error('Error drawing Alternate STAR preview:', err);
     }
 }
 
@@ -24423,7 +24605,7 @@ async function drawAlternateApproachPreview(icao, approachName) {
             }).bindTooltip('[ALT] ' + ident).addTo(alternateApproachPreviewLayer);
         });
     } catch (err) {
-        console.error('[FlightplanPanel] Error drawing Alternate Approach preview:', err);
+        flightplanPanelLogger.error('Error drawing Alternate Approach preview:', err);
     }
 }
 
@@ -24496,7 +24678,7 @@ async function integrateApproachIntoFlightpath(icao, approachName, approachTrans
 
         // Trenne normale Approach-Waypoints von Missed Approach
         var separated = separateMissedApproachWaypoints(sorted);
-        console.log('[integrateApproach] Waypoints - normal:', separated.normal.length, ', missed:', separated.missed.length);
+        flightplanPanelLogger.debug('Waypoints - normal:', separated.normal.length, ', missed:', separated.missed.length);
 
         // Nur normale Waypoints filtern (mit gültigen Koordinaten)
         var validWaypoints = separated.normal.filter(function(wp) {
@@ -24529,12 +24711,12 @@ async function integrateApproachIntoFlightpath(icao, approachName, approachTrans
         }).filter(function(wp) {
             return wp.lat && wp.lng && !isNaN(wp.lat) && !isNaN(wp.lng);
         });
-        console.log('[integrateApproach] Stored', missedApproachWaypoints.length, 'missed approach waypoints');
+        flightplanPanelLogger.debug('Stored', missedApproachWaypoints.length, 'missed approach waypoints');
 
         // NOTE: Waypoints will be injected into flightplan in processFlightplanMessage BEFORE animation
         // No need to update polyline afterwards - it's drawn correctly from the start
     } catch (err) {
-        console.error('[FlightplanPanel] Error integrating approach:', err);
+        flightplanPanelLogger.error('Error integrating approach:', err);
         approachWaypointsForFlightpath = [];
         missedApproachWaypoints = [];
     }
@@ -24563,13 +24745,7 @@ async function rebuildFlightplanWithProcedures() {
     var depState = flightplanCommittedState.departure;
     var arrState = flightplanCommittedState.arrival;
 
-    console.log('[RebuildFlightplan] Starting rebuild with:', {
-        depRunway: depState.selectedRunway,
-        depSid: depState.selectedSid,
-        arrRunway: arrState.selectedRunway,
-        arrStar: arrState.selectedStar,
-        arrApproach: arrState.selectedApproach
-    });
+    flightplanPanelLogger.info('Starting rebuild with:', { depRunway: depState.selectedRunway, depSid: depState.selectedSid, arrRunway: arrState.selectedRunway, arrStar: arrState.selectedStar, arrApproach: arrState.selectedApproach });
 
     // Update the flightplan summary in the UI
     updateFlightplanSummary();
@@ -24590,7 +24766,7 @@ async function rebuildFlightplanWithProcedures() {
         runway: depState.selectedRunway
     };
 
-    console.log('[RebuildFlightplan] SID changed:', sidChanged, '| Current:', depState.selectedSid);
+    flightplanPanelLogger.debug('SID changed:', sidChanged, '| Current:', depState.selectedSid);
 
     // Start with base flightplan - remove old procedure waypoints
     // WICHTIG: Wenn SID nicht geändert wurde, DEP-Waypoints behalten (OFP-Höhen!)
@@ -24610,7 +24786,7 @@ async function rebuildFlightplanWithProcedures() {
         return !isDep && !isArr && !isPureArr;
     });
 
-    console.log('[RebuildFlightplan] Base flightplan:', baseFlightplan.length, 'waypoints (from', flightplan.length, ')');
+    flightplanPanelLogger.debug('Base flightplan:', baseFlightplan.length, 'waypoints (from', flightplan.length, ')');
 
     // 1. Inject SID waypoints if selected (or Visual Departure) - NUR wenn SID geändert wurde
     // ABER: Wenn keine DEP-Waypoints im baseFlightplan sind, trotzdem laden (erster Rebuild)
@@ -24622,7 +24798,7 @@ async function rebuildFlightplanWithProcedures() {
     if (depState.icao && depState.selectedRunway && needsSidInjection) {
         if (isVisualRunway(depState.selectedRunway)) {
             // Visual Departure: Füge 3nm Punkt am Anfang hinzu
-            console.log('[RebuildFlightplan] 1. Injecting Visual Departure:', depState.selectedRunway);
+            flightplanPanelLogger.debug('1. Injecting Visual Departure:', depState.selectedRunway);
             var actualRunway = getRunwayFromVisual(depState.selectedRunway);
             var rwyData = await fetchRunwayData(depState.icao, actualRunway);
             if (rwyData && rwyData.thresholdLat && rwyData.thresholdLon) {
@@ -24643,10 +24819,10 @@ async function rebuildFlightplanWithProcedures() {
                     sourceAtcWaypointType: 'Visual'
                 };
                 baseFlightplan.unshift(visualDepWaypoint);
-                console.log('[RebuildFlightplan] Added Visual DEP point at', endPoint.lat, endPoint.lon);
+                flightplanPanelLogger.debug('Added Visual DEP point at', endPoint.lat, endPoint.lon);
             }
         } else if (depState.selectedSid) {
-            console.log('[RebuildFlightplan] 1. Injecting SID:', depState.selectedSid);
+            flightplanPanelLogger.debug('1. Injecting SID:', depState.selectedSid);
             baseFlightplan = await injectSidWaypointsIntoFlightplan(
                 depState.icao,
                 depState.selectedSid,
@@ -24659,7 +24835,7 @@ async function rebuildFlightplanWithProcedures() {
 
     // 2. Inject STAR waypoints if selected
     if (arrState.icao && arrState.selectedStar && arrState.selectedRunway) {
-        console.log('[RebuildFlightplan] 2. Injecting STAR:', arrState.selectedStar);
+        flightplanPanelLogger.debug('2. Injecting STAR:', arrState.selectedStar);
         baseFlightplan = await injectStarWaypointsIntoFlightplan(
             arrState.icao,
             arrState.selectedStar,
@@ -24671,7 +24847,7 @@ async function rebuildFlightplanWithProcedures() {
 
     // 3. Inject Approach waypoints if selected
     if (arrState.icao && arrState.selectedApproach && arrState.selectedRunway) {
-        console.log('[RebuildFlightplan] 3. Injecting Approach:', arrState.selectedApproach, 'Transition:', arrState.selectedApproachTransition);
+        flightplanPanelLogger.debug('3. Injecting Approach:', arrState.selectedApproach, 'Transition:', arrState.selectedApproachTransition);
         var approachData = await fetchProcedureDetail(
             arrState.icao,
             arrState.selectedApproach,
@@ -24679,7 +24855,7 @@ async function rebuildFlightplanWithProcedures() {
             arrState.selectedApproachTransition,
             arrState.selectedRunway
         );
-        console.log('[RebuildFlightplan] Approach data received:', approachData);
+        flightplanPanelLogger.info('Approach data received:', approachData);
 
         // FIX: API gibt 'Waypoints' zurück (mit großem W), nicht 'waypoints'
         var approachWaypoints = approachData && (approachData.Waypoints || approachData.waypoints);
@@ -24689,8 +24865,7 @@ async function rebuildFlightplanWithProcedures() {
 
             // Trenne normale Approach-Waypoints von Missed Approach (RouteType 3 oder Z)
             var separated = separateMissedApproachWaypoints(sortedWaypoints);
-            console.log('[RebuildFlightplan] Sorted approach waypoints:', sortedWaypoints.length,
-                        '(normal:', separated.normal.length, ', missed:', separated.missed.length, ')');
+            flightplanPanelLogger.debug('Sorted approach waypoints:', sortedWaypoints.length, '(normal:', separated.normal.length, ', missed:', separated.missed.length, ')');
 
             var insertIndex = baseFlightplan.length > 0 ? baseFlightplan.length - 1 : 0;
             var existingNames = {};
@@ -24706,7 +24881,7 @@ async function rebuildFlightplanWithProcedures() {
                              separated.normal[i].Name || separated.normal[i].name || '';
                 if (existingNames[wpName.toUpperCase()]) {
                     lastCommonWpIndex = i;
-                    console.log('[RebuildFlightplan] Approach/Flightplan common waypoint at index', i, ':', wpName);
+                    flightplanPanelLogger.debug('Approach/Flightplan common waypoint at index', i, ':', wpName);
                     // Nicht break - wir wollen den LETZTEN gemeinsamen finden
                 }
             }
@@ -24715,8 +24890,7 @@ async function rebuildFlightplanWithProcedures() {
             var approachWaypointsToProcess = lastCommonWpIndex >= 0
                 ? separated.normal.slice(lastCommonWpIndex + 1)
                 : separated.normal;
-            console.log('[RebuildFlightplan] Approach: lastCommonWpIndex=' + lastCommonWpIndex +
-                        ', processing ' + approachWaypointsToProcess.length + ' normal waypoints');
+            flightplanPanelLogger.debug('Approach: lastCommonWpIndex=' + lastCommonWpIndex + ', processing ' + approachWaypointsToProcess.length + ' normal waypoints');
 
             var approachEntries = [];
             approachWaypointsToProcess.forEach(function(wp) {
@@ -24749,7 +24923,7 @@ async function rebuildFlightplanWithProcedures() {
                 var before = baseFlightplan.slice(0, insertIndex);
                 var after = baseFlightplan.slice(insertIndex);
                 baseFlightplan = before.concat(approachEntries).concat(after);
-                console.log('[RebuildFlightplan] Added', approachEntries.length, 'approach waypoints');
+                flightplanPanelLogger.debug('Added', approachEntries.length, 'approach waypoints');
             }
 
             // Missed Approach Waypoints separat speichern (für separate Linie)
@@ -24763,7 +24937,7 @@ async function rebuildFlightplanWithProcedures() {
             }).filter(function(wp) {
                 return wp.lat && wp.lng && !isNaN(wp.lat) && !isNaN(wp.lng);
             });
-            console.log('[RebuildFlightplan] Stored', missedApproachWaypoints.length, 'missed approach waypoints');
+            flightplanPanelLogger.debug('Stored', missedApproachWaypoints.length, 'missed approach waypoints');
         } else {
             missedApproachWaypoints = [];
         }
@@ -24771,7 +24945,7 @@ async function rebuildFlightplanWithProcedures() {
 
     // 4. Handle Visual Approach (wenn keine normale Approach gewählt aber Visual Runway)
     if (arrState.icao && arrState.selectedRunway && isVisualRunway(arrState.selectedRunway)) {
-        console.log('[RebuildFlightplan] 4. Injecting Visual Approach:', arrState.selectedRunway);
+        flightplanPanelLogger.debug('4. Injecting Visual Approach:', arrState.selectedRunway);
         var actualRunway = getRunwayFromVisual(arrState.selectedRunway);
         var rwyData = await fetchRunwayData(arrState.icao, actualRunway);
         if (rwyData && rwyData.thresholdLat && rwyData.thresholdLon) {
@@ -24804,11 +24978,11 @@ async function rebuildFlightplanWithProcedures() {
 
             baseFlightplan.push(visualApprWaypoint);
             baseFlightplan.push(thresholdWaypoint);
-            console.log('[RebuildFlightplan] Added Visual APPR points');
+            flightplanPanelLogger.debug('Added Visual APPR points');
         }
     }
 
-    console.log('[RebuildFlightplan] Final flightplan:', baseFlightplan.length, 'waypoints');
+    flightplanPanelLogger.debug('Final flightplan:', baseFlightplan.length, 'waypoints');
 
     // Update global flightplan
     flightplan = baseFlightplan;
@@ -24819,11 +24993,11 @@ async function rebuildFlightplanWithProcedures() {
     // Clear existing polylines and ONLY procedure markers (keep enroute waypoints)
     clearAllPolylineLayers();
     deleteProcedureMarkers();
-    console.log('[RebuildFlightplan] Cleared old polylines and procedure markers');
+    flightplanPanelLogger.info('Cleared old polylines and procedure markers');
 
     // Draw alternate route IMMEDIATELY (not deferred)
     if (flightplanCommittedState.alternate && flightplanCommittedState.alternate.icao) {
-        console.log('[RebuildFlightplan] Drawing alternate route immediately');
+        flightplanPanelLogger.debug('Drawing alternate route immediately');
         await drawAlternateRoute();
     }
 
@@ -24917,7 +25091,7 @@ function updateFlightplanSummary() {
 function setWaypoints(flightplanData) {
   // BLOCK when controller mode is active
   if (moverX) {
-    if (MAP_DEBUG) console.log('[setWaypoints] BLOCKED - controller mode active');
+    waypointLogger.debug('BLOCKED - controller mode active');
     return;
   }
 
@@ -24925,7 +25099,7 @@ function setWaypoints(flightplanData) {
   // Dies verhindert doppelte RWY-Waypoints beim Browser-Reload
   var existingWaypoints = getWaypointLayersSorted();
   if (existingWaypoints && existingWaypoints.length > 0) {
-    console.log('[setWaypoints] SKIPPED - ' + existingWaypoints.length + ' waypoints already loaded from cache');
+    waypointLogger.info('SKIPPED - ' + existingWaypoints.length + ' waypoints already loaded from cache');
     // Linien trotzdem neu zeichnen um korrekte Farben zu haben
     drawLines();
     return;
@@ -24949,11 +25123,11 @@ function setWaypoints(flightplanData) {
       if (latDiff > 0.0001 || lngDiff > 0.0001) {
         deduped.push(curr);
       } else {
-        MAP_DEBUG && console.log('[setWaypoints] Removing consecutive duplicate:', curr.name, 'same coords as', prev.name);
+        waypointLogger.debug('Removing consecutive duplicate:', curr.name, 'same coords as', prev.name);
       }
     }
     if (deduped.length !== flightplan.length) {
-      MAP_DEBUG && console.log('[setWaypoints] Deduplicated:', flightplan.length, '->', deduped.length, 'waypoints');
+      waypointLogger.debug('Deduplicated:', flightplan.length, '->', deduped.length, 'waypoints');
       flightplan = deduped;
     }
   }
@@ -24985,15 +25159,9 @@ function setWaypoints(flightplanData) {
   // CRITICAL FIX: Integrate runway data directly into flightplan BEFORE animation
   if (flightplan && flightplan.length > 0) {
     if (departureRunwayData && departureRunwayData.thresholdLat && departureRunwayData.thresholdLon) {
-      if (MAP_DEBUG) console.log('[RWY_DEBUG] Departure runway data:', {
-        runway: departureRunwayData.runway || departureRunwayData.identifier,
-        threshold: [departureRunwayData.thresholdLat, departureRunwayData.thresholdLon],
-        serverEnd: [departureRunwayData.endLat, departureRunwayData.endLon],
-        heading: departureRunwayData.heading,
-        length: departureRunwayData.length
-      });
+      runwayLogger.debug('Departure runway data:', { runway: departureRunwayData.runway || departureRunwayData.identifier, threshold: [departureRunwayData.thresholdLat, departureRunwayData.thresholdLon], serverEnd: [departureRunwayData.endLat, departureRunwayData.endLon], heading: departureRunwayData.heading, length: departureRunwayData.length });
 
-      if (MAP_DEBUG) console.log('[RWY_DEBUG] Using server endpoint:', departureRunwayData.endLat, departureRunwayData.endLon);
+      runwayLogger.debug('Using server endpoint:', departureRunwayData.endLat, departureRunwayData.endLon);
 
       var depRwyName = departureRunwayData.runway || departureRunwayData.identifier || 'RWY';
       // Entferne RW oder RWY Präfix und füge einheitlich RW hinzu
@@ -25009,7 +25177,7 @@ function setWaypoints(flightplanData) {
         // Match RW18, RWY18, 18, RW18_END, RWY18_END etc.
         var wpRwyMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)(?:_END)?$/i);
         if (wpRwyMatch && wpRwyMatch[1].toUpperCase() === depRwyNumber) {
-          if (MAP_DEBUG) console.log('[RWY_DEBUG] Removing duplicate departure runway waypoint:', wp.name);
+          runwayLogger.debug('Removing duplicate departure runway waypoint:', wp.name);
           return false;
         }
         return true;
@@ -25030,8 +25198,8 @@ function setWaypoints(flightplanData) {
         type: 'DEP',
         waypointType: 'DEP'
       };
-      if (MAP_DEBUG) console.log('[RWY_DEBUG] Creating', depRwyName, 'at:', thresholdWp.lat, thresholdWp.lng);
-      if (MAP_DEBUG) console.log('[RWY_DEBUG] Creating', depRwyName + '_END at:', endWp.lat, endWp.lng);
+      runwayLogger.debug('Creating', depRwyName, 'at:', thresholdWp.lat, thresholdWp.lng);
+      runwayLogger.debug('Creating', depRwyName + '_END at:', endWp.lat, endWp.lng);
       flightplan[0] = thresholdWp;
       flightplan.splice(1, 0, endWp);
     }
@@ -25053,7 +25221,7 @@ function setWaypoints(flightplanData) {
         // Match RW08L, RWY08L, 08L, RW08L_END, RWY08L_END etc.
         var wpRwyMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)(?:_END)?$/i);
         if (wpRwyMatch && wpRwyMatch[1].toUpperCase() === arrRwyNumber) {
-          if (MAP_DEBUG) console.log('[RWY_DEBUG] Removing duplicate arrival runway waypoint:', wp.name);
+          runwayLogger.debug('Removing duplicate arrival runway waypoint:', wp.name);
           return false;
         }
         return true;
@@ -25092,13 +25260,13 @@ function setWaypoints(flightplanData) {
 
   // EARLY RETURN if flightplan hasn't changed - skip duplicate animation (Timer-Problem fix)
   if (!flightplanChanged) {
-    if (MAP_DEBUG) console.log('[Map] Flightplan unchanged (same fingerprint: ' + newFingerprint + '), skipping duplicate animation');
+    mapLogger.debug('Flightplan unchanged (same fingerprint: ' + newFingerprint + '), skipping duplicate animation');
     window.flightplanAnimationInProgress = false;
     // Only call onFlightplanAnimationComplete if UI sequence is not running
     if (!window.flightplanUISequenceInProgress) {
       onFlightplanAnimationComplete();
     } else {
-      if (MAP_DEBUG) console.log('[Map] Skipping onFlightplanAnimationComplete (unchanged fingerprint) - UI sequence in progress');
+      mapLogger.debug('Skipping onFlightplanAnimationComplete (unchanged fingerprint) - UI sequence in progress');
     }
     return;
   }
@@ -25125,10 +25293,10 @@ function setWaypoints(flightplanData) {
     if (window.initialWindLayerConfig.markersLayer && map.hasLayer(window.initialWindLayerConfig.markersLayer)) {
       map.removeLayer(window.initialWindLayerConfig.markersLayer);
     }
-    if (MAP_DEBUG) console.log('[Wind] Hidden during animation');
+    windLogger.debug('Hidden during animation');
   }
 
-  if (MAP_DEBUG) console.log('[Waypoints] Animation starting:', flightplan.length, 'waypoints');
+  waypointLogger.debug('Animation starting:', flightplan.length, 'waypoints');
 
   var i = 0;
   var i2 = 0;
@@ -25231,7 +25399,7 @@ function setWaypoints(flightplanData) {
     });
 
     if (rwyExists) {
-      MAP_DEBUG && console.log('[setWaypoints] Runway already in waypointsData, skipping:', normalizedRwyName);
+      waypointLogger.debug('Runway already in waypointsData, skipping:', normalizedRwyName);
     } else {
       waypointsData.push({
         name: normalizedRwyName,
@@ -25245,7 +25413,7 @@ function setWaypoints(flightplanData) {
       runwayNumber: rwyName,
       runwayDesignator: ''
       });
-      MAP_DEBUG && console.log('[setWaypoints] Added RW metadata for:', normalizedRwyName);
+      waypointLogger.debug('Added RW metadata for:', normalizedRwyName);
     }
   }
 
@@ -25260,7 +25428,7 @@ function setWaypoints(flightplanData) {
   setCachedItem("altitudes", altitudes);
   setCachedItem("atbls", atbls);
 
-  if (MAP_DEBUG) console.log('[Map] Starting sequenced animation with', flightplan.length, 'waypoints');
+  mapLogger.debug('Starting sequenced animation with', flightplan.length, 'waypoints');
 
   // v1.47: Zentrierung entfernt - passiert jetzt in executeFlightplanPath() VOR scheduleFlightplanRender()
 
@@ -25270,7 +25438,7 @@ function setWaypoints(flightplanData) {
   var forceBulkMode = window.skipFlightplanAnimation;
   window.skipFlightplanAnimation = false; // Reset flag
   if (flightplan.length > bulkThreshold || forceBulkMode) {
-    if (MAP_DEBUG) console.log('[Map] Using bulk loading -', forceBulkMode ? 'forced (apply changes)' : 'large flightplan (' + flightplan.length + ' waypoints)');
+    mapLogger.debug('Using bulk loading -', forceBulkMode ? 'forced (apply changes)' : 'large flightplan (' + flightplan.length + ' waypoints)');
 
     // Add all waypoints at once without animation
     // arrivalRunwayData aus Cache ist bereits geladen, daher zuerst prüfen
@@ -25287,7 +25455,7 @@ function setWaypoints(flightplanData) {
       // Entferne existierende Runway-Duplikate (RW13L, RW13L_END etc.)
       bulkFlightplan = bulkFlightplan.filter(function(wp) {
         if (wp.name === normalizedRwyName || wp.name === normalizedRwyName + '_END') {
-          MAP_DEBUG && console.log('[Bulk] Removing duplicate runway waypoint:', wp.name);
+          waypointLogger.debug('Removing duplicate runway waypoint:', wp.name);
           return false;
         }
         return true;
@@ -25300,7 +25468,7 @@ function setWaypoints(flightplanData) {
         waypointType: 'RWY',
         altitude: arrivalRunwayData.elevation || 0
       });
-      MAP_DEBUG && console.log('[Bulk] Added runway END with type RWY');
+      waypointLogger.debug('Added runway END with type RWY');
     }
 
     bulkFlightplan.forEach(function(entry, index) {
@@ -25340,7 +25508,7 @@ function setWaypoints(flightplanData) {
     });
 
     // Complete immediately without animation
-    if (MAP_DEBUG) console.log('[Map] Bulk loading complete');
+    mapLogger.debug('Bulk loading complete');
     // Nicht einblenden wenn Controller Modus aktiv
     if (flightplan.length > 0 && !moverX) {
       showWpList(true);
@@ -25357,7 +25525,7 @@ function setWaypoints(flightplanData) {
     setTimeout(function() {
       updateElevationProfile()
         .then(function(elevationResult) {
-          console.log('[Map] Elevation profile ready:', elevationResult);
+          mapLogger.info('Elevation profile ready:', elevationResult);
           // Center map on route (but not during rebuild - preserve user's view)
           if (flightplan.length > 1 && elevationResult.panelVisible && !window.rebuildingFlightplan) {
             var flightplanCoords = flightplan.map(function(entry) {
@@ -25373,16 +25541,16 @@ function setWaypoints(flightplanData) {
             map.fitBounds(routeBounds, fitBoundsOptions);
           }
           // v1.24: Event-basiert statt direkter Aufruf
-          console.log('[Map] Bulk mode complete, emitting MARKERS_READY');
+          mapLogger.info('Bulk mode complete, emitting MARKERS_READY');
           emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'bulk-mode' });
         })
         .catch(function(error) {
-          console.error('[Map] Elevation profile update failed:', error);
+          mapLogger.error('Elevation profile update failed:', error);
           emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'bulk-mode-error' });
         });
     }, 50);
 
-    if (MAP_DEBUG) console.log('[Map] setWaypoints completed (bulk mode).');
+    mapLogger.debug('setWaypoints completed (bulk mode).');
     return; // Skip animated version for large flightplans
   }
 
@@ -25414,7 +25582,7 @@ function setWaypoints(flightplanData) {
     // Auch RW13L_END entfernen falls vorhanden
     flightplanForAnimation = flightplanForAnimation.filter(function(wp) {
       if (wp.name === normalizedRwyName || wp.name === normalizedRwyName + '_END') {
-        MAP_DEBUG && console.log('[setWaypoints] Removing duplicate runway waypoint:', wp.name, 'at', wp.lat, wp.lng);
+        waypointLogger.debug('Removing duplicate runway waypoint:', wp.name, 'at', wp.lat, wp.lng);
         return false;
       }
       return true;
@@ -25427,25 +25595,25 @@ function setWaypoints(flightplanData) {
       waypointType: 'RWY',
       altitude: arrivalRunwayData.elevation || 0
     });
-    MAP_DEBUG && console.log('[setWaypoints] Added runway END with type RWY:', arrivalRunwayData.endLat, arrivalRunwayData.endLon, 'total waypoints:', flightplanForAnimation.length);
+    waypointLogger.debug('Added runway END with type RWY:', arrivalRunwayData.endLat, arrivalRunwayData.endLon, 'total waypoints:', flightplanForAnimation.length);
   }
 
   animateFlightplanRoute(flightplanForAnimation, function onAnimationComplete() {
-    if (MAP_DEBUG) console.log('[Map] Synchronized animation complete');
+    mapLogger.debug('Synchronized animation complete');
 
     // Update waypoint list and recreate polylines with proper runway END coordinates
     // buildCoordinateArrays() includes runway END from arrivalRunwayData
     try {
       drawLines();
-      MAP_DEBUG && console.log('[AnimRoute] Waypoint list and polylines updated via drawLines()');
+      mapLogger.debug('Waypoint list and polylines updated via drawLines()');
 
       // Draw missed approach line if waypoints are available
       if (typeof drawMissedApproachLine === 'function') {
         drawMissedApproachLine();
-        MAP_DEBUG && console.log('[AnimRoute] Missed approach line drawn');
+        mapLogger.debug('Missed approach line drawn');
       }
     } catch (e) {
-      console.error('[AnimRoute] Error updating waypoint list:', e);
+      mapLogger.error('Error updating waypoint list:', e);
     }
 
     // Nicht einblenden wenn Controller Modus aktiv
@@ -25470,17 +25638,17 @@ function setWaypoints(flightplanData) {
     // Alternate-Animation starten, danach Elevation Profile
     if (window.pendingAlternateRouteDraw && typeof animateAlternateRoute === 'function') {
       window.pendingAlternateRouteDraw = false;
-      if (MAP_DEBUG) console.log('[Animation] Starting alternate route animation');
+      mapLogger.debug('Starting alternate route animation');
       animateAlternateRoute(function() {
-        if (MAP_DEBUG) console.log('[Animation] Alternate complete, showing elevation');
+        mapLogger.debug('Alternate complete, showing elevation');
         requestAnimationFrame(function() {
           updateElevationProfile()
             .then(function(elevationResult) {
-              if (MAP_DEBUG) console.log('[Elevation] Profile ready:', elevationResult.panelVisible);
+              elevationLogger.debug('Profile ready:', elevationResult.panelVisible);
               emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-complete' });
             })
             .catch(function(error) {
-              console.warn('[Elevation] Update error:', error);
+              elevationLogger.warn('Update error:', error);
               emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-error' });
             });
         });
@@ -25488,27 +25656,27 @@ function setWaypoints(flightplanData) {
     } else {
       // Kein Alternate - direkt Elevation Profile
       requestAnimationFrame(function() {
-        if (MAP_DEBUG) console.log('[Waypoints] Animation complete, updating elevation');
+        waypointLogger.debug('Animation complete, updating elevation');
         updateElevationProfile()
           .then(function(elevationResult) {
-            if (MAP_DEBUG) console.log('[Elevation] Profile ready:', elevationResult.panelVisible);
+            elevationLogger.debug('Profile ready:', elevationResult.panelVisible);
             emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-complete' });
           })
           .catch(function(error) {
-            console.warn('[Elevation] Update error:', error);
+            elevationLogger.warn('Update error:', error);
             emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'animation-error' });
           });
       });
     }
   });
 
-  if (MAP_DEBUG) console.log('[Map] setWaypoints completed. Synchronized animation scheduled.');
+  mapLogger.debug('setWaypoints completed. Synchronized animation scheduled.');
 }
 
 function postMessageToBridge(message) {
   toggle.disable();
 
-  console.log('[Bridge] Processing message:', message);
+  bridgeLogger.debug('Processing message:', message);
 
   // Parse message format and call appropriate API endpoint
   if (message.startsWith('map:')) {
@@ -25525,11 +25693,11 @@ function postMessageToBridge(message) {
     return;
   }
 
-  console.warn('[Bridge] Unknown message format:', message);
+  bridgeLogger.warn('Unknown message format:', message);
 }
 
 function handleTeleportAPI(data) {
-  console.log('[Bridge] Handling teleport request:', data);
+  bridgeLogger.debug('Handling teleport request:', data);
 
   fetch('http://localhost:815/api/simconnect/teleport', {
     method: 'POST',
@@ -25538,15 +25706,15 @@ function handleTeleportAPI(data) {
   })
   .then(response => response.json())
   .then(result => {
-    console.log('[Bridge] Teleport response:', result);
+    bridgeLogger.debug('Teleport response:', result);
   })
   .catch(error => {
-    console.error('[Bridge] Teleport request failed:', error);
+    bridgeLogger.error('Teleport request failed:', error);
   });
 }
 
 function handleFrequencyAPI(data) {
-  console.log('[Bridge] Handling frequency request:', data);
+  bridgeLogger.debug('Handling frequency request:', data);
 
   fetch('http://localhost:815/api/simconnect/radio/frequency', {
     method: 'POST',
@@ -25555,10 +25723,10 @@ function handleFrequencyAPI(data) {
   })
   .then(response => response.json())
   .then(result => {
-    console.log('[Bridge] Frequency response:', result);
+    bridgeLogger.debug('Frequency response:', result);
   })
   .catch(error => {
-    console.error('[Bridge] Frequency request failed:', error);
+    bridgeLogger.error('Frequency request failed:', error);
   });
 }
 
@@ -25578,7 +25746,7 @@ function showFrequencyContextMenu(x, y, frequency, callsign, mode, alignLeft) {
   var adfButtonsRow = document.getElementById('adfButtonsRow');
 
   if (!menu || !title) {
-    console.warn('[Frequency Menu] Context menu elements not found');
+    freqLogger.warn('Context menu elements not found');
     return;
   }
 
@@ -25692,14 +25860,14 @@ function hideFrequencyContextMenu() {
  */
 function setComFrequency(comIndex, isActive) {
   if (!frequencyContextMenuData || !frequencyContextMenuData.frequency) {
-    console.warn('[Frequency Menu] No frequency data available');
+    freqLogger.warn('No frequency data available');
     hideFrequencyContextMenu();
     return;
   }
 
   var frequencyMHz = parseFloat(frequencyContextMenuData.frequency);
   if (isNaN(frequencyMHz)) {
-    console.warn('[Frequency Menu] Invalid frequency:', frequencyContextMenuData.frequency);
+    freqLogger.warn('Invalid frequency:', frequencyContextMenuData.frequency);
     hideFrequencyContextMenu();
     return;
   }
@@ -25718,7 +25886,7 @@ function setComFrequency(comIndex, isActive) {
 
   var message = 'setFrequency:' + JSON.stringify(payload);
 
-  if (FREQ_DEBUG) console.log('[Frequency Menu] Setting COM' + comIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyMHz + ' MHz');
+  freqLogger.debug('Setting COM' + comIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyMHz + ' MHz');
 
   // Send to MSFS Kneeboard
   postMessageToBridge(message);
@@ -25760,14 +25928,14 @@ function showAdfFrequencyMenu(event, frequencyKHz, navaidName) {
  */
 function setNavFrequency(navIndex, isActive) {
   if (!frequencyContextMenuData || !frequencyContextMenuData.frequency) {
-    console.warn('[Frequency Menu] No frequency data available');
+    freqLogger.warn('No frequency data available');
     hideFrequencyContextMenu();
     return;
   }
 
   var frequencyMHz = parseFloat(frequencyContextMenuData.frequency);
   if (isNaN(frequencyMHz)) {
-    console.warn('[Frequency Menu] Invalid frequency:', frequencyContextMenuData.frequency);
+    freqLogger.warn('Invalid frequency:', frequencyContextMenuData.frequency);
     hideFrequencyContextMenu();
     return;
   }
@@ -25783,8 +25951,8 @@ function setNavFrequency(navIndex, isActive) {
   };
 
   var message = 'setFrequency:' + JSON.stringify(payload);
-  console.log('[Frequency] Setting NAV' + navIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyMHz + ' MHz (Hz: ' + frequencyHz + ')');
-  console.log('[Frequency] Full payload:', JSON.stringify(payload));
+  freqLogger.debug('Setting NAV' + navIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyMHz + ' MHz (Hz: ' + frequencyHz + ')');
+  freqLogger.debug('Full payload:', JSON.stringify(payload));
   postMessageToBridge(message);
   hideFrequencyContextMenu();
 }
@@ -25796,14 +25964,14 @@ function setNavFrequency(navIndex, isActive) {
  */
 function setAdfFrequency(adfIndex, isActive) {
   if (!frequencyContextMenuData || !frequencyContextMenuData.frequency) {
-    console.warn('[Frequency Menu] No frequency data available');
+    freqLogger.warn('No frequency data available');
     hideFrequencyContextMenu();
     return;
   }
 
   var frequencyKHz = parseFloat(frequencyContextMenuData.frequency);
   if (isNaN(frequencyKHz)) {
-    console.warn('[Frequency Menu] Invalid frequency:', frequencyContextMenuData.frequency);
+    freqLogger.warn('Invalid frequency:', frequencyContextMenuData.frequency);
     hideFrequencyContextMenu();
     return;
   }
@@ -25820,7 +25988,7 @@ function setAdfFrequency(adfIndex, isActive) {
   };
 
   var message = 'setFrequency:' + JSON.stringify(payload);
-  console.log('[Frequency] Setting ADF' + adfIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyKHz + ' kHz');
+  freqLogger.debug('Setting ADF' + adfIndex + ' ' + radioType.toLowerCase() + ' to ' + frequencyKHz + ' kHz');
   postMessageToBridge(message);
   hideFrequencyContextMenu();
 }
@@ -26196,14 +26364,8 @@ function buildNavlogFlightplanPayload() {
     // WICHTIG: source muss immer "map" sein für interne broadcasts
     meta.source = "map";
   }
-  if (MAP_DEBUG) console.log('[Map Debug] Broadcasting meta:', meta);
-  if (MAP_DEBUG) console.log('[Map Debug] Broadcasting OFP fields:', {
-    callsign: meta.callsign,
-    aircraftType: meta.aircraftType,
-    aircraftEquip: meta.aircraftEquip,
-    departureTime: meta.departureTime,
-    alternateAirport: meta.alternateAirport
-  });
+  mapLogger.debug('Broadcasting meta:', meta);
+  mapLogger.debug('Broadcasting OFP fields:', { callsign: meta.callsign, aircraftType: meta.aircraftType, aircraftEquip: meta.aircraftEquip, departureTime: meta.departureTime, alternateAirport: meta.alternateAirport });
 
   // CRITICAL FIX: Include full OFP object for ETA calculation in navlog.js
   var payload = {
@@ -26214,9 +26376,9 @@ function buildNavlogFlightplanPayload() {
 
   if (importedOFPData && typeof importedOFPData === "object") {
     payload.ofp = importedOFPData;
-    if (MAP_DEBUG) console.log('[Map Debug] Including OFP data in broadcast for ETA calculation');
+    mapLogger.debug('Including OFP data in broadcast for ETA calculation');
   } else {
-    if (MAP_DEBUG) console.log('[Map Debug] No OFP data available for broadcast');
+    mapLogger.debug('No OFP data available for broadcast');
   }
 
   return payload;
@@ -26230,7 +26392,7 @@ function broadcastNavlogWaypoints() {
       window.postMessage(message, "*");
     }
   } catch (err) {
-    console.warn("Map: Unable to broadcast navlog payload:", err);
+    navlogMapLogger.warn("Map: Unable to broadcast navlog payload:", err);
   }
 }
 
@@ -26247,10 +26409,10 @@ function broadcastNavlogReset() {
     var message = "Flightplan:" + JSON.stringify(resetPayload);
     if (typeof window !== "undefined" && typeof window.postMessage === "function") {
       window.postMessage(message, "*");
-      console.log("[Map] Navlog reset broadcast sent");
+      mapLogger.info("Navlog reset broadcast sent");
     }
   } catch (err) {
-    console.warn("Map: Unable to broadcast navlog reset:", err);
+    navlogMapLogger.warn("Map: Unable to broadcast navlog reset:", err);
   }
 
   // Also clear navlog data on server
@@ -26259,14 +26421,14 @@ function broadcastNavlogReset() {
     fetch(clearUrl, { method: "GET" })
       .then(function(res) {
         if (res.ok) {
-          console.log("[Map] Navlog server data cleared");
+          mapLogger.info("Navlog server data cleared");
         }
       })
       .catch(function(err) {
-        console.warn("[Map] Failed to clear navlog server data:", err);
+        mapLogger.warn("Failed to clear navlog server data:", err);
       });
   } catch (err) {
-    console.warn("[Map] Error clearing navlog server data:", err);
+    mapLogger.warn("Error clearing navlog server data:", err);
   }
 }
 
@@ -26378,6 +26540,12 @@ function listControllers() {
   if (!listUl) {
     return;
   }
+  // Piloten-Suchleiste entfernen falls vorhanden (beim Wechsel Piloten → Zonen)
+  var pilotSearch = list.querySelector('.pilot-search-container');
+  if (pilotSearch) {
+    pilotSearch.remove();
+  }
+  if (listUl) listUl._pilotListenersBound = false;
   listUl.innerHTML = "";
   // Nur anzeigen wenn nicht minimiert
   if (!controllerListMinimized) {
@@ -26555,7 +26723,7 @@ function listControllers() {
       var callsign = item.id;
 
       if (!frequency) {
-        console.warn('[Frequency Menu] No frequency data on element');
+        freqLogger.warn('No frequency data on element');
         return;
       }
 
@@ -26566,7 +26734,7 @@ function listControllers() {
   // Long-press handler for touch AND mouse devices (Kneeboard + desktop compatibility)
   // Using native addEventListener instead of jQuery delegation for MSFS Coherent GT compatibility
   var listItems = listUl.querySelectorAll('.kneeboard-list-item');
-  if (FREQ_DEBUG) console.log('[Frequency Menu] Found ' + listItems.length + ' list items for long-press handlers');
+  freqLogger.debug('Found ' + listItems.length + ' list items for long-press handlers');
   listItems.forEach(function(item) {
     var freqLongPressTimer = null;
     var freqLongPressTriggered = false;
@@ -26576,7 +26744,7 @@ function listControllers() {
 
     // Mousedown / Touchstart - start long press timer
     item.addEventListener('mousedown', function(e) {
-      if (FREQ_DEBUG) console.log('[Frequency Menu] mousedown on item:', item.id, 'button:', e.button);
+      freqLogger.debug('mousedown on item:', item.id, 'button:', e.button);
       if (e.button !== 0) return; // Only left mouse button
       e.preventDefault(); // Prevent text selection
       freqLongPressTriggered = false;
@@ -26586,7 +26754,7 @@ function listControllers() {
       var callsign = item.id;
 
       freqLongPressTimer = setTimeout(function() {
-        if (FREQ_DEBUG) console.log('[Frequency Menu] Long press timer fired! frequency:', frequency, 'callsign:', callsign);
+        freqLogger.debug('Long press timer fired! frequency:', frequency, 'callsign:', callsign);
         freqLongPressTriggered = true;
         if (frequency) {
           showFrequencyContextMenu(freqStartX, freqStartY, frequency, callsign);
@@ -26616,7 +26784,7 @@ function listControllers() {
         var dx = Math.abs(e.pageX - freqStartX);
         var dy = Math.abs(e.pageY - freqStartY);
         if (dx > FREQ_MOVE_THRESHOLD || dy > FREQ_MOVE_THRESHOLD) {
-          if (FREQ_DEBUG) console.log('[Frequency Menu] Cancelled due to movement:', dx, dy);
+          freqLogger.debug('Cancelled due to movement:', dx, dy);
           clearTimeout(freqLongPressTimer);
           freqLongPressTimer = null;
         }
@@ -26637,7 +26805,7 @@ function listControllers() {
 
     // Cancel long press on release
     var cancelLongPress = function(e) {
-      if (FREQ_DEBUG) console.log('[Frequency Menu] cancelLongPress called, event:', e.type, 'timer active:', !!freqLongPressTimer);
+      freqLogger.debug('cancelLongPress called, event:', e.type, 'timer active:', !!freqLongPressTimer);
       if (freqLongPressTimer) {
         clearTimeout(freqLongPressTimer);
         freqLongPressTimer = null;
@@ -26653,7 +26821,7 @@ function listControllers() {
     // Block click event after long press (prevents list item toggle)
     item.addEventListener('click', function(e) {
       if (freqLongPressTriggered) {
-        if (FREQ_DEBUG) console.log('[Frequency Menu] Blocking click after long press');
+        freqLogger.debug('Blocking click after long press');
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -26675,13 +26843,13 @@ function calculateOptimalListCount() {
 
   var containerHeight = list.clientHeight;
   var headerHeight = 60;
-  var itemHeight = 45;
+  var itemHeight = 28;
   var showMoreHeight = 40;
 
   var availableHeight = containerHeight - headerHeight - showMoreHeight;
   var count = Math.floor(availableHeight / itemHeight);
 
-  return Math.max(5, count);
+  return Math.max(15, count);
 }
 
 function attachStationListHandler() {
@@ -26780,7 +26948,7 @@ function attachNavaidLongPressHandlers(listRoot) {
   if (!listRoot) return;
 
   var listItems = listRoot.querySelectorAll('.kneeboard-list-item[data-navfrequency]');
-  if (FREQ_DEBUG) console.log('[Frequency Menu] Found ' + listItems.length + ' navaid items with frequencies for long-press handlers');
+  freqLogger.debug('Found ' + listItems.length + ' navaid items with frequencies for long-press handlers');
 
   listItems.forEach(function(item) {
     var navLongPressTimer = null;
@@ -26802,7 +26970,7 @@ function attachNavaidLongPressHandlers(listRoot) {
       var callsignText = callsign ? callsign.textContent : item.id;
 
       navLongPressTimer = setTimeout(function() {
-        if (FREQ_DEBUG) console.log('[Frequency Menu] Long press timer fired! frequency:', frequency, 'mode:', freqMode, 'callsign:', callsignText);
+        freqLogger.debug('Long press timer fired! frequency:', frequency, 'mode:', freqMode, 'callsign:', callsignText);
         navLongPressTriggered = true;
         if (frequency) {
           showFrequencyContextMenu(navStartX, navStartY, frequency, callsignText, freqMode);
@@ -26869,7 +27037,7 @@ function attachNavaidLongPressHandlers(listRoot) {
     // Block click event after long press (prevents list item toggle)
     item.addEventListener('click', function(e) {
       if (navLongPressTriggered) {
-        if (MAP_DEBUG) console.log('[NAV Frequency] Blocking click after long press');
+        freqLogger.debug('Blocking click after long press');
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -27000,6 +27168,11 @@ function moreNavaids() {
 function moreReportingPoints() {
   reportingPointsCounter = reportingPointsCounter + 10;
   listNavaids();
+}
+
+function morePilots() {
+  pilotsVisibleCount = pilotsVisibleCount + 20;
+  listPilots();
 }
 
 function buildStationListItem(domId, lookupDomId, title, subtitle, navFrequency, navFrequencyMode) {
@@ -27159,22 +27332,22 @@ function listNavaids() {
       var navFrequency = null;
       var navFrequencyMode = null;
       if (FREQ_DEBUG && navaidType === 2) {
-        console.log('[Frequency Menu] NDB navaid:', title, 'type:', navaidType, 'frequency:', JSON.stringify(element2.properties.frequency));
+        freqLogger.debug('NDB navaid:', title, 'type:', navaidType, 'frequency:', JSON.stringify(element2.properties.frequency));
       }
       if (element2.properties.frequency && element2.properties.frequency.value) {
         var freqUnit = element2.properties.frequency.unit;
-        if (FREQ_DEBUG) console.log('[Frequency Menu] Navaid', title, 'type:', navaidType, 'freqUnit:', freqUnit, 'freqValue:', element2.properties.frequency.value);
+        freqLogger.debug('Navaid', title, 'type:', navaidType, 'freqUnit:', freqUnit, 'freqValue:', element2.properties.frequency.value);
         // VOR-based navaids (types 3-8) and TACAN (type 1) use NAV radio (MHz, unit=2)
         if (freqUnit === 2 && (navaidType >= 3 && navaidType <= 8 || navaidType === 1)) {
           navFrequency = element2.properties.frequency.value;
           navFrequencyMode = 'nav';
-          if (FREQ_DEBUG) console.log('[Frequency Menu] -> VOR/TACAN mode for', title);
+          freqLogger.debug('-> VOR/TACAN mode for', title);
         }
         // NDB (type 2) uses ADF radio (kHz, unit=1)
         else if (freqUnit === 1 && navaidType === 2) {
           navFrequency = Math.ceil(element2.properties.frequency.value);
           navFrequencyMode = 'adf';
-          if (FREQ_DEBUG) console.log('[Frequency Menu] -> NDB/ADF mode for', title, 'freq:', navFrequency);
+          freqLogger.debug('-> NDB/ADF mode for', title, 'freq:', navFrequency);
         }
       }
       htmlChunks.push(
@@ -27396,7 +27569,7 @@ function fetchOpenAipData(config) {
       openAipLastRenderedKey[type] = cacheKey;
       render(features);
     } catch (err) {
-      console.error("Failed to load " + type, err);
+      mapLogger.error("Failed to load " + type, err);
     }
   };
   xhr.send(null);
@@ -28136,16 +28309,16 @@ function onPopupOpenReportingPoint(e) {
 // Get ground elevation for a single point (returns elevation in meters)
 async function getGroundElevationForPoint(lat, lng) {
   try {
-    console.log('[getGroundElevationForPoint] Requesting elevation for:', lat, lng);
+    elevationLogger.debug('Requesting elevation for:', lat, lng);
     var results = await getElevationData([[lat, lng]]);
-    console.log('[getGroundElevationForPoint] Results:', results);
+    elevationLogger.debug('Results:', results);
     if (results && results.length > 0 && results[0].elevation !== undefined) {
-      console.log('[getGroundElevationForPoint] Returning elevation:', results[0].elevation, 'meters');
+      elevationLogger.debug('Returning elevation:', results[0].elevation, 'meters');
       return results[0].elevation; // Returns meters
     }
-    console.log('[getGroundElevationForPoint] No valid elevation in results');
+    elevationLogger.debug('No valid elevation in results');
   } catch (error) {
-    console.warn('[getGroundElevationForPoint] Error:', error);
+    elevationLogger.warn('Error:', error);
   }
   return null;
 }
@@ -28179,28 +28352,28 @@ function appendWaypoint(lat, lng) {
   if (isAirportType) {
     // Airport - use airport elevation directly
     var airportAltitude = currentTempWPElevation || 0;
-    if (MAP_DEBUG) console.log('[appendWaypoint] Airport waypoint, using elevation:', airportAltitude, 'ft');
+    waypointLogger.debug('Airport waypoint, using elevation:', airportAltitude, 'ft');
     wpNames.push(capturedTempWPName);
     wpTypes.push(capturedTempWPType);
     altitudes.push(String(airportAltitude));
     finishAppendWaypoint(lat, lng, activePopup);
   } else {
     // Non-airport - FIRST fetch ground elevation, THEN create waypoint
-    console.log('[appendWaypoint] Non-airport waypoint, fetching ground elevation for:', lat, lng);
+    waypointLogger.debug('Non-airport waypoint, fetching ground elevation for:', lat, lng);
     getGroundElevationForPoint(lat, lng).then(function(groundElevMeters) {
-      console.log('[appendWaypoint] Ground elevation received:', groundElevMeters, 'meters');
+      waypointLogger.info('Ground elevation received:', groundElevMeters, 'meters');
       var altitudeFeet = 1000; // Default fallback
       if (groundElevMeters !== null && groundElevMeters !== undefined) {
         altitudeFeet = Math.round(groundElevMeters * 3.28084) + 1000; // Ground + 1000 ft
       }
-      console.log('[appendWaypoint] Setting altitude to:', altitudeFeet, 'ft (ground + 1000)');
+      waypointLogger.debug('Setting altitude to:', altitudeFeet, 'ft (ground + 1000)');
       // Now push all arrays with correct altitude
       wpNames.push(capturedTempWPName);
       wpTypes.push(capturedTempWPType);
       altitudes.push(String(altitudeFeet));
       finishAppendWaypoint(lat, lng, activePopup);
     }).catch(function(err) {
-      console.error('[appendWaypoint] Error fetching elevation:', err);
+      waypointLogger.error('Error fetching elevation:', err);
       // Fallback: create waypoint with 1000 ft
       wpNames.push(capturedTempWPName);
       wpTypes.push(capturedTempWPType);
@@ -28297,12 +28470,12 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     } else if (configs.elevationProfile.isResizing) {
       config = configs.elevationProfile;
       isElevationResizing = true;
-      if (MAP_DEBUG) console.log('[Map] onMouseMove - Elevation resizing detected!');
+      mapLogger.debug('onMouseMove - Elevation resizing detected!');
     }
 
     if (!config) {
       if (MAP_DEBUG && (configs.overlay.isResizing || configs.controller.isResizing || configs.metar.isResizing || configs.elevationProfile.isResizing)) {
-        console.log('[Map] onMouseMove - NO config found despite isResizing flags!');
+        mapLogger.debug('onMouseMove - NO config found despite isResizing flags!');
       }
       return;
     }
@@ -28319,7 +28492,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       if (newHeight < minH) newHeight = minH;
       if (newHeight > maxH) newHeight = maxH;
 
-      if (MAP_DEBUG && isElevationResizing) console.log('[Map] Setting elevation height to:', newHeight, 'element:', config.element.id);
+      if (isElevationResizing) mapLogger.debug('Setting elevation height to:', newHeight, 'element:', config.element.id);
       // CRITICAL: Use setProperty with priority 'important' to override flex layout!
       config.element.style.setProperty('height', newHeight + 'px', 'important');
       config.element.style.setProperty('flex', '0 0 auto', 'important');
@@ -28351,7 +28524,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
         }
       }
 
-      if (MAP_DEBUG && isElevationResizing) console.log('[Map] After setting - element.style.height:', config.element.style.height);
+      if (isElevationResizing) mapLogger.debug('After setting - element.style.height:', config.element.style.height);
     } else {
       // Horizontal resizing (width)
       var deltaX = e.clientX - config.startX;
@@ -28526,16 +28699,11 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       e.preventDefault();
       e.stopPropagation();
 
-      if (MAP_DEBUG) console.log('[Map] startMouseResize called for element:', config.element.id);
+      mapLogger.debug('startMouseResize called for element:', config.element.id);
 
       config.isResizing = true;
 
-      if (MAP_DEBUG) console.log('[Map] Set config.isResizing = true, checking globals:', {
-        overlay: configs.overlay.isResizing,
-        controller: configs.controller.isResizing,
-        metar: configs.metar.isResizing,
-        elevation: configs.elevationProfile.isResizing
-      });
+      mapLogger.debug('Set config.isResizing = true, checking globals:', { overlay: configs.overlay.isResizing, controller: configs.controller.isResizing, metar: configs.metar.isResizing, elevation: configs.elevationProfile.isResizing });
 
       if (config.isVertical) {
         config.startY = e.clientY;
@@ -28584,7 +28752,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       // COMBINED mousedown handler for BOTH resize AND double-click detection
       config.handle.addEventListener('mousedown', function(e) {
         mouseDownTime = Date.now();
-        if (MAP_DEBUG) console.log('[Map] Mousedown on elevation grabbar at:', mouseDownTime);
+        mapLogger.debug('Mousedown on elevation grabbar at:', mouseDownTime);
 
         // Also start resize (from startMouseResize function)
         e.preventDefault();
@@ -28610,7 +28778,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
           configs.elevationProfile.startY = e.clientY;
           configs.elevationProfile.startHeight = config.element.offsetHeight;
           document.body.style.cursor = 'ns-resize';
-          if (MAP_DEBUG) console.log('[Map] VERTICAL resize started, startY:', configs.elevationProfile.startY, 'startHeight:', configs.elevationProfile.startHeight, 'isResizing:', configs.elevationProfile.isResizing);
+          mapLogger.debug('VERTICAL resize started, startY:', configs.elevationProfile.startY, 'startHeight:', configs.elevationProfile.startHeight, 'isResizing:', configs.elevationProfile.isResizing);
         } else {
           configs.elevationProfile.startX = e.clientX;
           configs.elevationProfile.startWidth = config.element.offsetWidth;
@@ -28633,14 +28801,14 @@ function finishAppendWaypoint(lat, lng, activePopup) {
         var clickDuration = now - mouseDownTime;
         var timeSinceLastClick = now - lastMouseUp;
 
-        if (MAP_DEBUG) console.log('[Map] Mouseup - clickDuration:', clickDuration, 'timeSinceLastClick:', timeSinceLastClick);
+        mapLogger.debug('Mouseup - clickDuration:', clickDuration, 'timeSinceLastClick:', timeSinceLastClick);
 
         // Only count as click if it was quick (< 200ms) and not a drag
         if (clickDuration < 200) {
-          if (MAP_DEBUG) console.log('[Map] Quick click detected');
+          mapLogger.debug('Quick click detected');
           // Double-click detected if two clicks within 400ms
           if (timeSinceLastClick < 400 && timeSinceLastClick > 0) {
-            if (MAP_DEBUG) console.log('[Map] Double-click detected on elevation profile grabbar - calling toggle');
+            mapLogger.debug('Double-click detected on elevation profile grabbar - calling toggle');
             e.preventDefault();
             e.stopPropagation();
 
@@ -28657,11 +28825,11 @@ function finishAppendWaypoint(lat, lng, activePopup) {
             toggleElevationCanvas();
             lastMouseUp = 0; // Reset to prevent triple-click triggering
           } else {
-            if (MAP_DEBUG) console.log('[Map] First click, waiting for second');
+            mapLogger.debug('First click, waiting for second');
             lastMouseUp = now;
           }
         } else {
-          if (MAP_DEBUG) console.log('[Map] Click too slow, probably a drag');
+          mapLogger.debug('Click too slow, probably a drag');
         }
       });
 
@@ -28682,7 +28850,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
         if (tapDuration < 200) {
           // Double-tap detected if two taps within 400ms
           if (timeSinceLastTap < 400 && timeSinceLastTap > 0) {
-            if (MAP_DEBUG) console.log('[Map] Double-tap detected on elevation profile grabbar');
+            mapLogger.debug('Double-tap detected on elevation profile grabbar');
             e.preventDefault();
             e.stopPropagation();
 
@@ -28711,7 +28879,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     }
 
     // Debug-Log
-    if (MAP_DEBUG) console.log('Resize handle setup for:', config.element.id, 'Handle found:', !!config.handle);
+    mapLogger.debug('Resize handle setup for:', config.element.id, 'Handle found:', !!config.handle);
   }
 
   var initialized = false;
@@ -28752,12 +28920,12 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     var metarFound = !!configs.metar.element && !!configs.metar.handle;
     var elevationProfileFound = !!configs.elevationProfile.element && !!configs.elevationProfile.handle;
 
-    if (MAP_DEBUG) console.log('Resize check - Overlay:', overlayFound, 'Controller:', controllerFound, 'Metar:', metarFound, 'ElevationProfile:', elevationProfileFound);
+    mapLogger.debug('Resize check - Overlay:', overlayFound, 'Controller:', controllerFound, 'Metar:', metarFound, 'ElevationProfile:', elevationProfileFound);
 
     // Wenn mindestens einer gefunden, als initialisiert markieren
     if (overlayFound || controllerFound || metarFound || elevationProfileFound) {
       initialized = true;
-      if (MAP_DEBUG) console.log('Resize functionality initialized successfully');
+      mapLogger.debug('Resize functionality initialized successfully');
     }
   }
 
@@ -28815,13 +28983,13 @@ function finishAppendWaypoint(lat, lng, activePopup) {
 
   // Expose re-initialization function for page reload/tab switch
   window.reinitializePanelResizeHandles = function() {
-    if (MAP_DEBUG) console.log('[Map] Re-initializing panel resize handles...');
+    mapLogger.debug('Re-initializing panel resize handles...');
     // Reset initialized flag to allow re-initialization of elevation profile resize
     initialized = false;
     initializeResize();
     // Also reinitialize kneeboard panels
     initializePanelResize();
-    if (MAP_DEBUG) console.log('[Map] Panel resize handles re-initialized successfully');
+    mapLogger.debug('Panel resize handles re-initialized successfully');
   };
 })();
 
@@ -28882,7 +29050,7 @@ function updateAircraftPositionOnRoute(lat, lng, alt) {
   // if (MAP_DEBUG) console.log('[Map] waypointLayers.length:', waypointLayers.length);
   if (waypointLayers.length < 2) {
     aircraftPositionOnRoute = null;
-    if (MAP_DEBUG) console.log('[Map] Not enough waypoints, setting aircraftPositionOnRoute to null');
+    mapLogger.debug('Not enough waypoints, setting aircraftPositionOnRoute to null');
     return;
   }
 
@@ -28899,7 +29067,7 @@ function updateAircraftPositionOnRoute(lat, lng, alt) {
   // Need at least 2 valid waypoints after filtering
   if (routeCoords.length < 2) {
     aircraftPositionOnRoute = null;
-    console.log('[Map] Not enough valid waypoints after filtering, setting aircraftPositionOnRoute to null');
+    mapLogger.debug('Not enough valid waypoints after filtering, setting aircraftPositionOnRoute to null');
     return;
   }
 
@@ -28971,7 +29139,7 @@ function updateAircraftPositionOnRoute(lat, lng, alt) {
     if (cachedElevationData.groundElevations && cachedElevationData.distances) {
       var groundElevMeters = interpolateGroundElevation(distNm, cachedElevationData.groundElevations, cachedElevationData.distances);
       altitudeToUse = groundElevMeters * 3.28084; // Convert meters to feet
-      if (MAP_DEBUG) console.log('[Map] No live data - using ground elevation:', groundElevMeters, 'm =', altitudeToUse.toFixed(0), 'ft');
+      mapLogger.debug('No live data - using ground elevation:', groundElevMeters, 'm =', altitudeToUse.toFixed(0), 'ft');
     }
   }
 
@@ -28980,12 +29148,12 @@ function updateAircraftPositionOnRoute(lat, lng, alt) {
     distance: distanceAlongRoute,
     altitude: altitudeToUse
   };
-  if (MAP_DEBUG) console.log('[Map] aircraftPositionOnRoute set to:', aircraftPositionOnRoute);
+  mapLogger.debug('aircraftPositionOnRoute set to:', aircraftPositionOnRoute);
 
   // Redraw elevation profile if visible
-  if (MAP_DEBUG) console.log('[Map] elevationProfileVisible:', elevationProfileVisible, 'cachedElevationData.groundElevations:', !!cachedElevationData.groundElevations);
+  mapLogger.debug('elevationProfileVisible:', elevationProfileVisible, 'cachedElevationData.groundElevations:', !!cachedElevationData.groundElevations);
   if (elevationProfileVisible && cachedElevationData.groundElevations) {
-    if (MAP_DEBUG) console.log('[Map] Calling redrawElevationCanvas()');
+    mapLogger.debug('Calling redrawElevationCanvas()');
     redrawElevationCanvas();
   }
 }
@@ -29070,20 +29238,20 @@ function showElevationProfile() {
   var controllerVisible = controllerEl && controllerEl.style.visibility === 'visible';
 
   if (moverX || controllerVisible) {
-    console.log('[Map] BLOCKED showElevationProfile - moverX=' + moverX + ', controllerVisible=' + controllerVisible);
+    mapLogger.warn('BLOCKED showElevationProfile - moverX=' + moverX + ', controllerVisible=' + controllerVisible);
     return;
   }
 
   // EARLY RETURN: Don't show during flightplan animation/UI sequence
   if (window.flightplanAnimationInProgress || window.flightplanUISequenceInProgress) {
-    if (MAP_DEBUG) console.log('[Map] Deferring elevation profile - animation/UI sequence in progress');
+    mapLogger.debug('Deferring elevation profile - animation/UI sequence in progress');
     return;
   }
 
   // Check if we have at least 2 waypoints
   var waypointLayers = getWaypointLayersSorted();
   if (waypointLayers.length < 2) {
-    if (MAP_DEBUG) console.log('[Map] Cannot show elevation profile: need at least 2 waypoints');
+    mapLogger.debug('Cannot show elevation profile: need at least 2 waypoints');
     hideElevationProfile();
     return;
   }
@@ -29104,7 +29272,7 @@ function showElevationProfile() {
       // Minimize button zurücksetzen
       var minimizeBtn = document.getElementById('elevationMinimize');
       if (minimizeBtn) minimizeBtn.innerHTML = '_';
-      if (MAP_DEBUG) console.log('[Map] Reset collapsed state when showing elevation profile');
+      mapLogger.debug('Reset collapsed state when showing elevation profile');
     }
 
     // Set default height if not set or too small
@@ -29114,7 +29282,7 @@ function showElevationProfile() {
       var defaultHeight = minHeight;
       section.style.setProperty('height', defaultHeight + 'px', 'important');
       section.style.setProperty('flex', '0 0 auto', 'important');
-      if (MAP_DEBUG) console.log('[Map] Set default elevation panel height:', defaultHeight);
+      mapLogger.debug('Set default elevation panel height:', defaultHeight);
     }
 
     // Ensure resize handle is initialized
@@ -29132,7 +29300,7 @@ function showElevationProfile() {
     // Setup wrapper and canvas - use setTimeout to ensure layout is calculated
     setTimeout(function() {
       var wrapperInner = document.querySelector('.elevation-canvas-wrapper');
-      if (MAP_DEBUG) console.log('[Map] showElevationProfile - wrapper found:', !!wrapperInner, 'canvas found:', !!elevationCanvas);
+      mapLogger.debug('showElevationProfile - wrapper found:', !!wrapperInner, 'canvas found:', !!elevationCanvas);
       if (wrapperInner && elevationCanvas) {
         // Force browser to recalculate layout first
         void wrapperInner.offsetHeight;
@@ -29150,10 +29318,10 @@ function showElevationProfile() {
           elevationCanvas.width = canvasWidth;
           elevationCanvas.height = Math.floor(canvasHeight);
           elevationCtx = elevationCanvas.getContext('2d');
-          if (MAP_DEBUG) console.log('[Map] Canvas pixel dimensions set:', elevationCanvas.width, 'x', elevationCanvas.height);
+          mapLogger.debug('Canvas pixel dimensions set:', elevationCanvas.width, 'x', elevationCanvas.height);
         }
       } else {
-        console.error('[Map] Wrapper or canvas not found!');
+        mapLogger.error('Wrapper or canvas not found!');
       }
     }, 50);
 
@@ -29225,7 +29393,7 @@ function toggleElevationCanvas() {
   var now = Date.now();
   // Prevent double-toggle within 100ms
   if (now - elevationLastToggleTime < 100) {
-    if (MAP_DEBUG) console.log('[Map] Toggle called too soon, ignoring');
+    mapLogger.debug('Toggle called too soon, ignoring');
     return;
   }
   elevationLastToggleTime = now;
@@ -29274,7 +29442,7 @@ function toggleElevationCanvas() {
     if (minimizeBtn) {
       minimizeBtn.innerHTML = '+';
     }
-    if (MAP_DEBUG) console.log('[Map] Elevation canvas collapsed to 70px, minimizeBtn:', minimizeBtn ? 'found' : 'NOT FOUND');
+    mapLogger.debug('Elevation canvas collapsed to 70px, minimizeBtn:', minimizeBtn ? 'found' : 'NOT FOUND');
   } else {
     // Expand: Restore height and show canvas
     wrapper.classList.remove('collapsed');
@@ -29285,7 +29453,7 @@ function toggleElevationCanvas() {
     if (minimizeBtn) {
       minimizeBtn.innerHTML = '_';
     }
-    if (MAP_DEBUG) console.log('[Map] Elevation canvas expanded, minimizeBtn:', minimizeBtn ? 'found' : 'NOT FOUND');
+    mapLogger.debug('Elevation canvas expanded, minimizeBtn:', minimizeBtn ? 'found' : 'NOT FOUND');
 
     // Recalculate canvas dimensions and redraw after expansion
     setTimeout(function() {
@@ -29411,7 +29579,7 @@ function initElevationZoom() {
   addTrackedEventListener(elevationCanvas, 'click', function(e) {
     // Don't process clicks if we were dragging
     if (elevationZoom.isDragging) {
-      if (MAP_DEBUG) console.log('[Map] Click ignored - was dragging');
+      mapLogger.debug('Click ignored - was dragging');
       return;
     }
 
@@ -29419,8 +29587,8 @@ function initElevationZoom() {
     var mouseX = e.clientX - rect.left;
     var mouseY = e.clientY - rect.top;
 
-    if (MAP_DEBUG) console.log('[Map] Elevation canvas click at:', mouseX, mouseY);
-    if (MAP_DEBUG) console.log('[Map] Click areas count:', elevationWaypointClickAreas.length);
+    mapLogger.debug('Elevation canvas click at:', mouseX, mouseY);
+    mapLogger.debug('Click areas count:', elevationWaypointClickAreas.length);
 
     // No transformation needed - click areas are already in screen space
     // since xScale() and yScale() now apply the zoom transformation
@@ -29434,20 +29602,20 @@ function initElevationZoom() {
 
       if (distance <= wp.radius) {
         // Found a waypoint click - open its popup
-        if (MAP_DEBUG) console.log('[Map] Waypoint click detected - waypointIndex:', wp.waypointIndex);
+        mapLogger.debug('Waypoint click detected - waypointIndex:', wp.waypointIndex);
         var waypointLayers = getWaypointLayersSorted();
-        if (MAP_DEBUG) console.log('[Map] Waypoint layers count:', waypointLayers.length);
+        mapLogger.debug('Waypoint layers count:', waypointLayers.length);
 
         if (waypointLayers[wp.waypointIndex]) {
           var layer = waypointLayers[wp.waypointIndex];
-          if (MAP_DEBUG) console.log('[Map] Opening popup for waypoint', wp.waypointIndex);
+          mapLogger.debug('Opening popup for waypoint', wp.waypointIndex);
           // Only open popup if it's not already open
           if (!layer.isPopupOpen()) {
             programmaticPopupTimestamp = Date.now();
             layer.openPopup();
           }
         } else {
-          console.warn('[Map] No layer found at index', wp.waypointIndex, '(total layers:', waypointLayers.length + ')');
+          mapLogger.warn('No layer found at index', wp.waypointIndex, '(total layers:', waypointLayers.length + ')');
         }
         break;
       }
@@ -29471,7 +29639,7 @@ async function getElevationData(coordinates) {
   var now = Date.now();
   if (now < elevationApiCooldownUntil) {
     var remainingSecs = Math.ceil((elevationApiCooldownUntil - now) / 1000);
-    if (MAP_DEBUG) console.log('[Elevation] In cooldown, ' + remainingSecs + 's remaining');
+    elevationLogger.debug('In cooldown, ' + remainingSecs + 's remaining');
     return null;
   }
 
@@ -29479,7 +29647,7 @@ async function getElevationData(coordinates) {
   var timeSinceLastCall = now - elevationApiLastCall;
   if (timeSinceLastCall < elevationApiMinDelay) {
     var waitTime = elevationApiMinDelay - timeSinceLastCall;
-    if (MAP_DEBUG) console.log('[Elevation] Rate limiting, waiting ' + waitTime + 'ms');
+    elevationLogger.debug('Rate limiting, waiting ' + waitTime + 'ms');
     await new Promise(resolve => setTimeout(resolve, waitTime));
   }
 
@@ -29516,18 +29684,18 @@ async function getElevationData(coordinates) {
         var cacheData = JSON.parse(cached);
         var cacheAge = Date.now() - cacheData.timestamp;
         if (cacheAge < 7 * 24 * 60 * 60 * 1000) { // 7 days in milliseconds
-          if (MAP_DEBUG) console.log('Using cached elevation data');
+          mapLogger.debug('Using cached elevation data');
           // Validate cached data - first elevation should be reasonable (> 0 for most places)
           if (cacheData.results && cacheData.results.length > 0 && cacheData.results[0].elevation !== undefined) {
             return cacheData.results;
           } else {
-            console.log('Cached elevation data invalid, refetching');
+            elevationLogger.warn('Cached elevation data invalid, refetching');
             localStorage.removeItem(cacheKey);
           }
         }
       }
     } catch (e) {
-      console.warn('Cache read error:', e);
+      cacheLogger.warn('Cache read error:', e);
     }
 
     // Zeitstempel für Rate-Limiting setzen
@@ -29544,11 +29712,11 @@ async function getElevationData(coordinates) {
     });
 
     if (!response.ok) {
-      console.warn('Elevation API returned:', response.status);
+      elevationLogger.warn('Elevation API returned:', response.status);
       // Bei 429 (Too Many Requests) Cooldown aktivieren
       if (response.status === 429) {
         elevationApiCooldownUntil = Date.now() + elevationApiCooldownDuration;
-        console.warn('[Elevation] 429 received - entering ' + (elevationApiCooldownDuration/1000) + 's cooldown');
+        elevationLogger.warn('429 received - entering ' + (elevationApiCooldownDuration/1000) + 's cooldown');
       }
       return null;
     }
@@ -29562,12 +29730,12 @@ async function getElevationData(coordinates) {
         results: data.results
       }));
     } catch (e) {
-      console.warn('Cache write error:', e);
+      cacheLogger.warn('Cache write error:', e);
     }
 
     return data.results;
   } catch (error) {
-    console.error('Error fetching elevation data:', error);
+    elevationLogger.error('Error fetching elevation data:', error);
     return null;
   }
 }
@@ -29631,7 +29799,7 @@ function initializeElevationCanvas() {
   if (!elevationCanvas) {
     elevationCanvas = document.getElementById('elevationCanvas');
     if (!elevationCanvas) {
-      console.error('[Map] Elevation canvas element not found');
+      mapLogger.error('Elevation canvas element not found');
       return null;
     }
   }
@@ -29639,7 +29807,7 @@ function initializeElevationCanvas() {
   // Always refresh context to prevent stale references after tab reloads
   elevationCtx = elevationCanvas.getContext('2d');
   if (!elevationCtx) {
-    console.error('[Map] Failed to get 2D context from elevation canvas');
+    mapLogger.error('Failed to get 2D context from elevation canvas');
     return null;
   }
 
@@ -29699,7 +29867,7 @@ function setupElevationCanvasDimensions() {
     });
     resizeObserver.observe(section);
     section._resizeObserverAttached = true;
-    if (MAP_DEBUG) console.log('[Map] ResizeObserver attached to elevation profile section');
+    mapLogger.debug('ResizeObserver attached to elevation profile section');
   }
 
   // Force reflow to ensure layout is current
@@ -29864,8 +30032,8 @@ function drawGroundProfile(ctx, groundElevations, distances, xScale, yScale, dim
 
   // Validate array lengths match
   if (groundElevations.length !== distances.length) {
-    console.error("Array length mismatch in drawGroundProfile: groundElevations=" + groundElevations.length +
-                 ", distances=" + distances.length);
+    elevationLogger.error("Array length mismatch in drawGroundProfile: groundElevations=" + groundElevations.length + ", distances=" + distances.length);
+
     return;
   }
 
@@ -29954,7 +30122,7 @@ function drawWaypointProfile(ctx, waypointData, xScale, yScale, zoomScale) {
       waypointIndex: layerIdx
     });
 
-    if (MAP_DEBUG) console.log('[Map] Added click area for waypoint', i, '- layerIdx:', layerIdx, 'position:', x, y, 'name:', wp.name);
+    mapLogger.debug('Added click area for waypoint', i, '- layerIdx:', layerIdx, 'position:', x, y, 'name:', wp.name);
 
     // Check if this is the active/target waypoint (targetMarker can be string or number)
     var isActiveWaypoint = (parseInt(targetMarker) >= 0 && parseInt(targetMarker) === layerIdx);
@@ -30061,7 +30229,7 @@ function drawAircraftPosition(ctx, aircraftPos, xScale, yScale, dimensions, stat
   // Prüfe ob Position außerhalb des sichtbaren Bereichs ist
   var isOutsideRoute = aircraftDistRaw < 0 || aircraftDistRaw > stats.maxDist;
 
-  if (MAP_DEBUG) console.log('[Map] drawAircraftPosition - raw distance:', aircraftPos.distance, 'm =', aircraftDistRaw.toFixed(1), 'nm, x:', x, 'altitude:', aircraftAltFeet.toFixed(0), 'ft (', aircraftAltMeters.toFixed(0), 'm), y:', y, 'outsideRoute:', isOutsideRoute);
+  mapLogger.debug('drawAircraftPosition - raw distance:', aircraftPos.distance, 'm =', aircraftDistRaw.toFixed(1), 'nm, x:', x, 'altitude:', aircraftAltFeet.toFixed(0), 'ft (', aircraftAltMeters.toFixed(0), 'm), y:', y, 'outsideRoute:', isOutsideRoute);
 
   // Draw vertical dashed line from bottom of chart to aircraft position
   var bottomY = yScale(stats.minGroundElev);
@@ -30173,7 +30341,7 @@ function drawElevationProfile(groundElevations, waypointData, distances, retryCo
       }, 100 * (retryCount + 1));
       return;
     } else {
-      console.error('[Map] Elevation canvas has no size after 5 retries');
+      mapLogger.error('Elevation canvas has no size after 5 retries');
       return;
     }
   }
@@ -30267,12 +30435,12 @@ function drawElevationProfile(groundElevations, waypointData, distances, retryCo
     drawWaypointProfile(elevationCtx, waypointData, xScaleFlightPath, yScale, elevationZoom.scale);
 
     // Draw aircraft position if available and startline is active
-    if (MAP_DEBUG) console.log('[Map] Checking aircraft position - aircraftPositionOnRoute:', aircraftPositionOnRoute, 'startlineShow:', startlineShow);
+    mapLogger.debug('Checking aircraft position - aircraftPositionOnRoute:', aircraftPositionOnRoute, 'startlineShow:', startlineShow);
     if (aircraftPositionOnRoute !== null && aircraftPositionOnRoute !== undefined) {
-      if (MAP_DEBUG) console.log('[Map] Drawing aircraft position on elevation profile');
+      mapLogger.debug('Drawing aircraft position on elevation profile');
       drawAircraftPosition(elevationCtx, aircraftPositionOnRoute, xScaleFlightPath, yScale, dimensions, stats, groundElevations, distances);
     } else {
-      if (MAP_DEBUG) console.log('[Map] NOT drawing aircraft position - aircraftPositionOnRoute null?:', aircraftPositionOnRoute === null, 'startlineShow false?:', startlineShow === false);
+      mapLogger.debug('NOT drawing aircraft position - aircraftPositionOnRoute null?:', aircraftPositionOnRoute === null, 'startlineShow false?:', startlineShow === false);
     }
 
     // Draw zoom indicator
@@ -30294,7 +30462,7 @@ function drawElevationProfile(groundElevations, waypointData, distances, retryCo
     // Update elevation info display
     updateElevationInfo(stats.minGroundElev, stats.maxElev, stats.maxFlightElev, stats.maxDist);
   } catch (e) {
-    console.error('[Map] Error rendering elevation profile:', e);
+    mapLogger.error('Error rendering elevation profile:', e);
     elevationCtx.font = '14px Roboto-Light';
     elevationCtx.fillStyle = '#ff0000';
     elevationCtx.textAlign = 'center';
@@ -30352,9 +30520,9 @@ function updateElevationProfileDebounced(delay) {
 }
 
 async function updateElevationProfileImmediate() {
-  if (MAP_DEBUG) console.log('[Map] updateElevationProfileImmediate called');
+  mapLogger.debug('updateElevationProfileImmediate called');
   var waypointLayers = getWaypointLayersSorted();
-  if (MAP_DEBUG) console.log('[Map] Waypoint layers:', waypointLayers.length, 'Layer on map:', map && elevationProfileLayer && map.hasLayer(elevationProfileLayer), 'Panel visible:', elevationProfileVisible);
+  mapLogger.debug('Waypoint layers:', waypointLayers.length, 'Layer on map:', map && elevationProfileLayer && map.hasLayer(elevationProfileLayer), 'Panel visible:', elevationProfileVisible);
 
   // Validate waypoint array synchronization
   // Note: A difference of exactly 1 is allowed because the runway END point
@@ -30363,16 +30531,16 @@ async function updateElevationProfileImmediate() {
   var nameDiff = typeof wpNames !== 'undefined' ? Math.abs(waypointLayers.length - wpNames.length) : 0;
 
   if (altDiff > 1) {
-    console.warn('[Map] Waypoint array synchronization issue: layers=' + waypointLayers.length +
-                ', altitudes=' + altitudes.length);
+    mapLogger.warn('Waypoint array synchronization issue: layers=' + waypointLayers.length + ', altitudes=' + altitudes.length);
+
   }
   if (nameDiff > 1) {
-    console.warn('[Map] Waypoint array synchronization issue: layers=' + waypointLayers.length +
-                ', wpNames=' + wpNames.length);
+    mapLogger.warn('Waypoint array synchronization issue: layers=' + waypointLayers.length + ', wpNames=' + wpNames.length);
+
   }
 
   if (waypointLayers.length < 2) {
-    if (MAP_DEBUG) console.log('[Map] Need at least 2 waypoints for elevation profile (have ' + waypointLayers.length + ')');
+    mapLogger.debug('Need at least 2 waypoints for elevation profile (have ' + waypointLayers.length + ')');
     // Hide the elevation profile panel
     hideElevationProfile();
     return { success: true, panelVisible: false, reason: 'insufficient_waypoints' };
@@ -30384,12 +30552,12 @@ async function updateElevationProfileImmediate() {
   var controllerVisible = controllerEl && controllerEl.style.visibility === 'visible';
 
   if (moverX || controllerVisible) {
-    if (MAP_DEBUG) console.log('[Map] BLOCKED updateElevationProfileImmediate - controller mode active');
+    mapLogger.debug('BLOCKED updateElevationProfileImmediate - controller mode active');
     return { success: true, panelVisible: false, reason: 'controller_mode_active' };
   }
 
   if (map && elevationProfileLayer && map.hasLayer(elevationProfileLayer) && !elevationProfileVisible) {
-    if (MAP_DEBUG) console.log('[Map] Auto-showing elevation profile (layer active, 2+ waypoints)');
+    mapLogger.debug('Auto-showing elevation profile (layer active, 2+ waypoints)');
     var section = document.getElementById('elevationProfileSection');
     if (section) {
       section.style.display = 'block';
@@ -30408,7 +30576,7 @@ async function updateElevationProfileImmediate() {
         var defaultHeight = minHeight;
         section.style.setProperty('height', defaultHeight + 'px', 'important');
         section.style.setProperty('flex', '0 0 auto', 'important');
-        if (MAP_DEBUG) console.log('[Map] Set default elevation panel height:', defaultHeight);
+        mapLogger.debug('Set default elevation panel height:', defaultHeight);
       }
 
       // Setup wrapper and canvas - SYNCHRON setzen (kein setTimeout!)
@@ -30423,10 +30591,10 @@ async function updateElevationProfileImmediate() {
       // Force reflow nach display:block um korrekte Dimensionen zu erhalten
       void section.offsetHeight;
 
-      if (MAP_DEBUG) console.log('[Map] updateElevationProfileImmediate - wrapper found:', !!wrapper, 'canvas found:', !!elevationCanvas);
+      mapLogger.debug('updateElevationProfileImmediate - wrapper found:', !!wrapper, 'canvas found:', !!elevationCanvas);
       if (wrapper && elevationCanvas) {
         var wrapperRect = wrapper.getBoundingClientRect();
-        if (MAP_DEBUG) console.log('[Map] Wrapper rect:', wrapperRect.width, 'x', wrapperRect.height);
+        mapLogger.debug('Wrapper rect:', wrapperRect.width, 'x', wrapperRect.height);
         if (wrapperRect.width > 0 && wrapperRect.height > 0) {
           elevationCanvas.width = Math.floor(wrapperRect.width);
           elevationCanvas.height = Math.floor(wrapperRect.height);
@@ -30438,19 +30606,19 @@ async function updateElevationProfileImmediate() {
           elevationCanvas.width = Math.floor(secRect.width);
           elevationCanvas.height = Math.floor(canvasHeight);
           elevationCtx = elevationCanvas.getContext('2d');
-          if (MAP_DEBUG) console.log('[Map] Wrapper rect fallback:', secRect.width, 'x', canvasHeight);
+          mapLogger.debug('Wrapper rect fallback:', secRect.width, 'x', canvasHeight);
         }
       }
 
       // Reset zoom only when loading a NEW flight plan (not just showing the panel)
       if (window.flightplanJustChanged) {
-        if (MAP_DEBUG) console.log('[Map] Resetting elevation zoom for new flight plan');
+        mapLogger.debug('Resetting elevation zoom for new flight plan');
         elevationZoom.scale = 1.0;
         elevationZoom.offsetX = 0;
         elevationZoom.offsetY = 0;
         window.flightplanJustChanged = false; // Clear flag
       } else {
-        if (MAP_DEBUG) console.log('[Map] Preserving elevation zoom (flight plan unchanged)');
+        mapLogger.debug('Preserving elevation zoom (flight plan unchanged)');
       }
 
       // Trigger map resize - MOVED to Promise resolution below
@@ -30467,7 +30635,7 @@ async function updateElevationProfileImmediate() {
 
     // Validate coordinates
     if (!latlng || latlng.lat === undefined || latlng.lng === undefined) {
-      console.warn('[Map] Skipping waypoint ' + index + ' with invalid coordinates:', latlng);
+      mapLogger.warn('Skipping waypoint ' + index + ' with invalid coordinates:', latlng);
       return; // Skip this waypoint
     }
 
@@ -30491,7 +30659,7 @@ async function updateElevationProfileImmediate() {
 
   // Validate we have enough valid waypoints after filtering
   if (routeCoordinates.length < 2) {
-    console.warn('[Map] Not enough valid waypoints after filtering (have ' + routeCoordinates.length + ')');
+    mapLogger.warn('Not enough valid waypoints after filtering (have ' + routeCoordinates.length + ')');
     hideElevationProfile();
     return { success: true, panelVisible: false, reason: 'insufficient_valid_waypoints' };
   }
@@ -30531,7 +30699,7 @@ async function updateElevationProfileImmediate() {
   }
 
   // Fetch elevation data
-  if (MAP_DEBUG) console.log('Fetching elevation data for ' + interpolatedCoords.length + ' points...');
+  mapLogger.debug('Fetching elevation data for ' + interpolatedCoords.length + ' points...');
   var groundElevations = await getElevationData(interpolatedCoords);
 
   // Sample distances to match sampled coordinates (same step as getElevationData uses)
@@ -30546,10 +30714,10 @@ async function updateElevationProfileImmediate() {
   if (lastIdx > 0 && sampledDists.length > 0 && sampledDists[sampledDists.length - 1] !== interpolatedDists[lastIdx]) {
     sampledDists.push(interpolatedDists[lastIdx]);
   }
-  if (MAP_DEBUG) console.log('[Map] Sampled distances: ' + sampledDists.length + ' (step=' + step + ', original=' + interpolatedDists.length + ')');
+  mapLogger.debug('Sampled distances: ' + sampledDists.length + ' (step=' + step + ', original=' + interpolatedDists.length + ')');
 
   if (!groundElevations) {
-    console.warn('Could not fetch elevation data, using zero elevation fallback');
+    elevationLogger.warn('Could not fetch elevation data, using zero elevation fallback');
     // Use fallback with zero elevation - match sampledDists length
     groundElevations = sampledDists.map(function() {
       return { elevation: 0 };
@@ -30638,7 +30806,7 @@ var updateElevationProfile = scheduleElevationUpdate;
       } else {
         // No flightplan - don't save map position (use aircraft position on reload)
         settings.map = null;
-        if (MAP_DEBUG) console.log('[Map] Not saving map position - no flightplan');
+        mapLogger.debug('Not saving map position - no flightplan');
       }
     }
 
@@ -30677,11 +30845,11 @@ var updateElevationProfile = scheduleElevationUpdate;
             var parsed = JSON.parse(existingSettings);
             if (parsed && parsed.panels && parsed.panels.controller && parsed.panels.controller.panelState) {
               savedPanelState = parsed.panels.controller.panelState;
-              if (MAP_DEBUG) console.log('[Map] Preserving existing panelState from localStorage:', savedPanelState);
+              mapLogger.debug('Preserving existing panelState from localStorage:', savedPanelState);
             }
           }
         } catch (e) {
-          console.error('[Map] Failed to preserve panelState:', e);
+          mapLogger.error('Failed to preserve panelState:', e);
         }
       }
 
@@ -30689,7 +30857,7 @@ var updateElevationProfile = scheduleElevationUpdate;
         visible: false,  // IMMER false - Controller Panel soll beim Laden NIE aktiv sein
         panelState: savedPanelState || ''  // Save current panel type (vatsim, ivao, airports, navaids, reportingPoints)
       };
-      if (MAP_DEBUG) console.log('[Map] Saving controller panel state:', savedPanelState, ', visible: always false');
+      mapLogger.debug('Saving controller panel state:', savedPanelState, ', visible: always false');
     }
 
     var metarEl = document.getElementById('metarContainer');
@@ -30737,12 +30905,12 @@ var updateElevationProfile = scheduleElevationUpdate;
                 settings.layers.activeLayers.push(layerName);
               }
             } catch (e) {
-              console.warn('Error checking layer "' + layerName + '":', e);
+              mapLogger.warn('Error checking layer "' + layerName + '":', e);
             }
           }
         }
       } catch (e) {
-        console.error('Error collecting active layers:', e);
+        mapLogger.error('Error collecting active layers:', e);
       }
     }
 
@@ -30754,10 +30922,10 @@ var updateElevationProfile = scheduleElevationUpdate;
     try {
       var settings = collectMapSettings();
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-      if (MAP_DEBUG) console.log('Map settings saved:', settings);
+      mapLogger.debug('Map settings saved:', settings);
       return true;
     } catch (e) {
-      console.error('Failed to save map settings:', e);
+      mapLogger.error('Failed to save map settings:', e);
       return false;
     }
   }
@@ -30767,15 +30935,15 @@ var updateElevationProfile = scheduleElevationUpdate;
     try {
       var settingsJson = localStorage.getItem(SETTINGS_KEY);
       if (!settingsJson) {
-        MAP_DEBUG && console.log('No saved map settings found');
+        mapLogger.debug('No saved map settings found');
         return null;
       }
 
       var settings = JSON.parse(settingsJson);
-      if (MAP_DEBUG) console.log('Loaded map settings:', settings);
+      mapLogger.debug('Loaded map settings:', settings);
       return settings;
     } catch (e) {
-      console.error('Failed to load map settings:', e);
+      mapLogger.error('Failed to load map settings:', e);
       return null;
     }
   }
@@ -30828,7 +30996,7 @@ var updateElevationProfile = scheduleElevationUpdate;
               map.addLayer(polyline);
             }
           }
-          if (MAP_DEBUG) console.log('[Map] Restored flight path with', polylinepoints.length, 'points');
+          mapLogger.debug('Restored flight path with', polylinepoints.length, 'points');
         }
       }
 
@@ -30836,19 +31004,19 @@ var updateElevationProfile = scheduleElevationUpdate;
       // If a flightplan exists, center on first waypoint instead
       if (typeof map !== 'undefined' && map) {
         if (settings.map && MAP_DEBUG) {
-          console.log('[Map] Settings map center/zoom:', settings.map.center, settings.map.zoom);
+          mapLogger.debug('Settings map center/zoom:', settings.map.center, settings.map.zoom);
         }
         function applyMapPositionWhenReady() {
           // Wait for autoload check to complete
           if (window.autoloadCheckInProgress) {
-            if (MAP_DEBUG) console.log('[Map] Waiting for autoload check to complete before applying map position...');
+            mapLogger.debug('Waiting for autoload check to complete before applying map position...');
             setTimeout(applyMapPositionWhenReady, 200);
             return;
           }
 
           // Skip if flightplan animation is in progress - fitBounds will handle centering
           if (window.flightplanAnimationInProgress) {
-            if (MAP_DEBUG) console.log('[Map] Skipping saved map position - flightplan animation will center the map');
+            mapLogger.debug('Skipping saved map position - flightplan animation will center the map');
             return;
           }
 
@@ -30858,7 +31026,7 @@ var updateElevationProfile = scheduleElevationUpdate;
           // If flightplan exists, center on FIRST waypoint (user choice: option 1)
           if (hasFlightplan) {
             var firstWp = flightplan[0];
-            if (MAP_DEBUG) console.log('[Map] Centering on first waypoint:', firstWp.name || 'WP1', 'at', firstWp.lat, firstWp.lng);
+            mapLogger.debug('Centering on first waypoint:', firstWp.name || 'WP1', 'at', firstWp.lat, firstWp.lng);
             map.setView([firstWp.lat, firstWp.lng], savedZoom);
             return;
           }
@@ -30866,7 +31034,7 @@ var updateElevationProfile = scheduleElevationUpdate;
           // No flightplan - always center on aircraft position (live, cached, or fallback)
           var source = window.aircraftPositionInitialized ? 'live' : (hasCachedAircraftPosition ? 'cached' : 'fallback');
           map.setView([pos_lat, pos_lng], savedZoom);
-          if (MAP_DEBUG) console.log('[Map] No flightplan - centered on aircraft (' + source + ') at', pos_lat, pos_lng);
+          mapLogger.debug('No flightplan - centered on aircraft (' + source + ') at', pos_lat, pos_lng);
         }
 
         setTimeout(applyMapPositionWhenReady, 100);
@@ -30899,7 +31067,7 @@ var updateElevationProfile = scheduleElevationUpdate;
 
             // Restore panel state and trigger data loading
             if (shouldShow) {
-              if (MAP_DEBUG) console.log('[Map] Restoring controller panel state in applyMapSettings:', settings.panels.controller.panelState);
+              mapLogger.debug('Restoring controller panel state in applyMapSettings:', settings.panels.controller.panelState);
               panelState = settings.panels.controller.panelState;
               moverX = true;
 
@@ -30971,16 +31139,16 @@ var updateElevationProfile = scheduleElevationUpdate;
                     setControlZonesEnabled(false);
                     break;
                 }
-                if (MAP_DEBUG) console.log('[Map] Panel header set to:', controllerHeader.innerHTML);
+                mapLogger.debug('Panel header set to:', controllerHeader.innerHTML);
               }
 
               // Trigger data loading immediately (map is ready now)
-              if (MAP_DEBUG) console.log('[Map] Loading data for panel state:', panelState);
+              mapLogger.debug('Loading data for panel state:', panelState);
               if (panelState === 'vatsim' || panelState === 'ivao') {
-                if (MAP_DEBUG) console.log('[Map] Calling getVatsimData()');
+                mapLogger.debug('Calling getVatsimData()');
                 getVatsimData();
               } else if (panelState === 'airports' || panelState === 'navaids' || panelState === 'reportingPoints') {
-                if (MAP_DEBUG) console.log('[Map] Calling getWPData() and listNavaids()');
+                mapLogger.debug('Calling getWPData() and listNavaids()');
                 getWPData();
                 listNavaids();
               }
@@ -30996,7 +31164,7 @@ var updateElevationProfile = scheduleElevationUpdate;
         // Unabhängig davon ob settings.panels.controller existiert oder nicht
         if (typeof toggle10 !== 'undefined') {
           toggle10.state('radio');
-          if (MAP_DEBUG) console.log('[Map] Controller button forced to radio state on load (applyMapSettings)');
+          mapLogger.debug('Controller button forced to radio state on load (applyMapSettings)');
         }
 
         if (settings.panels.metar) {
@@ -31031,7 +31199,7 @@ var updateElevationProfile = scheduleElevationUpdate;
           if (wrapper && elevationEl) {
             wrapper.classList.remove('collapsed');
             elevationEl.classList.remove('elevation-collapsed');
-            if (MAP_DEBUG) console.log('[Map] Elevation canvas always starts expanded');
+            mapLogger.debug('Elevation canvas always starts expanded');
           }
         }
       }
@@ -31044,7 +31212,7 @@ var updateElevationProfile = scheduleElevationUpdate;
 
         // Validate scale
         if (scale < 1.0 || scale > 10.0) {
-          console.warn('[Map] Invalid saved zoom scale:', scale, '- resetting to 1.0');
+          mapLogger.warn('Invalid saved zoom scale:', scale, '- resetting to 1.0');
           scale = 1.0;
           offsetX = 0;
           offsetY = 0;
@@ -31057,7 +31225,7 @@ var updateElevationProfile = scheduleElevationUpdate;
         var maxOffsetY = estimatedCanvasHeight * (scale - 1);
 
         if (Math.abs(offsetX) > maxOffsetX * 2 || Math.abs(offsetY) > maxOffsetY * 2) {
-          console.warn('[Map] Invalid saved zoom offsets:', offsetX, offsetY, '- resetting to 0');
+          mapLogger.warn('Invalid saved zoom offsets:', offsetX, offsetY, '- resetting to 0');
           offsetX = 0;
           offsetY = 0;
         }
@@ -31066,7 +31234,7 @@ var updateElevationProfile = scheduleElevationUpdate;
         elevationZoom.offsetX = offsetX;
         elevationZoom.offsetY = offsetY;
 
-        if (MAP_DEBUG) console.log('[Map] Restored elevation zoom - scale:', scale, 'offset:', offsetX, offsetY);
+        mapLogger.debug('Restored elevation zoom - scale:', scale, 'offset:', offsetX, offsetY);
       }
 
       // Apply active layers
@@ -31086,7 +31254,7 @@ var updateElevationProfile = scheduleElevationUpdate;
                     map.removeLayer(layer);
                   }
                 } catch (e) {
-                  console.warn('Failed to remove layer:', layerName, e);
+                  mapLogger.warn('Failed to remove layer:', layerName, e);
                 }
               }
             }
@@ -31098,7 +31266,7 @@ var updateElevationProfile = scheduleElevationUpdate;
               // Check if layer exists in registry
               if (!layerRegistry[layerName]) {
                 skippedLayers.push(layerName);
-                console.warn('Layer "' + layerName + '" not found in registry (might have been removed from config)');
+                mapLogger.warn('Layer "' + layerName + '" not found in registry (might have been removed from config)');
                 continue;
               }
 
@@ -31110,7 +31278,7 @@ var updateElevationProfile = scheduleElevationUpdate;
                   layerName.toLowerCase().indexOf('wind') !== -1 ||
                   layerName.toLowerCase().indexOf('openweathermap') !== -1 ||
                   (typeof owmWindLayer !== 'undefined' && layerRegistry[layerName] === owmWindLayer)) {
-                if (MAP_DEBUG) console.log('[Map] Skipping wind layer "' + layerName + '" in applyMapSettings - will be activated after flightplan load');
+                mapLogger.debug('Skipping wind layer "' + layerName + '" in applyMapSettings - will be activated after flightplan load');
                 continue;
               }
 
@@ -31122,27 +31290,27 @@ var updateElevationProfile = scheduleElevationUpdate;
                   appliedLayers.push(layerName);
                 } else {
                   skippedLayers.push(layerName);
-                  console.warn('Layer "' + layerName + '" is invalid or not a valid Leaflet layer');
+                  mapLogger.warn('Layer "' + layerName + '" is invalid or not a valid Leaflet layer');
                 }
               } catch (e) {
                 skippedLayers.push(layerName);
-                console.error('Failed to add layer "' + layerName + '":', e);
+                mapLogger.error('Failed to add layer "' + layerName + '":', e);
               }
             }
 
-            if (MAP_DEBUG) console.log('Applied active layers:', appliedLayers);
+            mapLogger.debug('Applied active layers:', appliedLayers);
             if (skippedLayers.length > 0) {
-              console.log('Skipped layers (not found or invalid):', skippedLayers);
+              mapLogger.warn('Skipped layers (not found or invalid):', skippedLayers);
             }
           } catch (e) {
-            console.error('Error applying active layers:', e);
+            mapLogger.error('Error applying active layers:', e);
           }
         }, 300);
       }
 
-      if (MAP_DEBUG) console.log('Map settings applied successfully');
+      mapLogger.debug('Map settings applied successfully');
     } catch (e) {
-      console.error('Failed to apply map settings:', e);
+      mapLogger.error('Failed to apply map settings:', e);
     }
   }
 
@@ -31162,7 +31330,7 @@ var updateElevationProfile = scheduleElevationUpdate;
       map.on('moveend', function() {
         // Don't autosave position if no flightplan (aircraft should stay centered)
         if (typeof flightplan === 'undefined' || !flightplan || flightplan.length === 0) {
-          if (MAP_DEBUG) console.log('[Map] Skipping autosave - no flightplan (aircraft tracking mode)');
+          mapLogger.debug('Skipping autosave - no flightplan (aircraft tracking mode)');
           return;
         }
         scheduleAutosave();
@@ -31191,12 +31359,12 @@ var updateElevationProfile = scheduleElevationUpdate;
 
   // Apply ONLY panel visibility from settings (can be done before map is ready)
   function applyPanelVisibilityOnly(settings) {
-    if (MAP_DEBUG) console.log('[Map] applyPanelVisibilityOnly called, settings:', settings);
+    mapLogger.debug('applyPanelVisibilityOnly called, settings:', settings);
     if (!settings || !settings.panels) {
-      if (MAP_DEBUG) console.log('[Map] No settings or no panels - returning');
+      mapLogger.debug('No settings or no panels - returning');
       return;
     }
-    if (MAP_DEBUG) console.log('[Map] Settings panels:', settings.panels);
+    mapLogger.debug('Settings panels:', settings.panels);
 
     try {
       // Overlay panel
@@ -31214,13 +31382,13 @@ var updateElevationProfile = scheduleElevationUpdate;
 
       // Controller panel
       if (settings.panels.controller && typeof settings.panels.controller.visible !== 'undefined') {
-        if (MAP_DEBUG) console.log('[Map] Controller panel settings:', settings.panels.controller);
+        mapLogger.debug('Controller panel settings:', settings.panels.controller);
         var controllerEl = document.getElementById('controllerContainer');
         var controllerList = document.getElementById('controllerList');
         if (controllerEl) {
           // Controller Panel soll NIEMALS beim Laden aktiv sein
           // Egal was in den Settings steht - immer hidden starten
-          if (MAP_DEBUG) console.log('[Map] Controller panel - forcing hidden on load (never restore as active)');
+          mapLogger.debug('Controller panel - forcing hidden on load (never restore as active)');
 
           var shouldShow = false;
           controllerEl.style.visibility = 'hidden';
@@ -31230,7 +31398,7 @@ var updateElevationProfile = scheduleElevationUpdate;
 
           // NIEMALS das Panel beim Laden wiederherstellen
           if (shouldShow) {
-            if (MAP_DEBUG) console.log('[Map] Restoring controller panel state:', settings.panels.controller.panelState);
+            mapLogger.debug('Restoring controller panel state:', settings.panels.controller.panelState);
             panelState = settings.panels.controller.panelState;
             moverX = true;
 
@@ -31304,17 +31472,17 @@ var updateElevationProfile = scheduleElevationUpdate;
                   setControlZonesEnabled(false);
                   break;
               }
-              if (MAP_DEBUG) console.log('[Map] Panel header set to:', controllerHeader.innerHTML);
+              mapLogger.debug('Panel header set to:', controllerHeader.innerHTML);
             }
 
             // Schedule data loading after map is fully initialized
             setTimeout(function() {
-              if (MAP_DEBUG) console.log('[Map] Loading data for panel state:', panelState);
+              mapLogger.debug('Loading data for panel state:', panelState);
               if (panelState === 'vatsim' || panelState === 'ivao') {
-                if (MAP_DEBUG) console.log('[Map] Calling getVatsimData()');
+                mapLogger.debug('Calling getVatsimData()');
                 getVatsimData();
               } else if (panelState === 'airports' || panelState === 'navaids' || panelState === 'reportingPoints') {
-                if (MAP_DEBUG) console.log('[Map] Calling getWPData() and listNavaids()');
+                mapLogger.debug('Calling getWPData() and listNavaids()');
                 getWPData();
                 listNavaids();
               }
@@ -31323,7 +31491,7 @@ var updateElevationProfile = scheduleElevationUpdate;
             // Panel not visible - ensure radio button is in "radio" state and control zones are disabled
             if (typeof toggle10 !== 'undefined') toggle10.state('radio');
             setControlZonesEnabled(false);
-            if (MAP_DEBUG) console.log('[Map] Panel not restored - forcing radio state');
+            mapLogger.debug('Panel not restored - forcing radio state');
           }
         }
       }
@@ -31332,7 +31500,7 @@ var updateElevationProfile = scheduleElevationUpdate;
       // Unabhängig davon ob settings.panels.controller existiert oder nicht
       if (typeof toggle10 !== 'undefined') {
         toggle10.state('radio');
-        if (MAP_DEBUG) console.log('[Map] Controller button forced to radio state on load');
+        mapLogger.debug('Controller button forced to radio state on load');
       }
 
       // METAR panel
@@ -31347,7 +31515,7 @@ var updateElevationProfile = scheduleElevationUpdate;
       // The elevation profile is now only shown when flightplan animation completes
       // and NOT when controller mode is active
     } catch (e) {
-      console.error('Error applying panel visibility:', e);
+      mapLogger.error('Error applying panel visibility:', e);
     }
   }
 
@@ -31374,7 +31542,7 @@ var updateElevationProfile = scheduleElevationUpdate;
         // Setup autosave
         setupAutosave();
 
-        if (MAP_DEBUG) console.log('Map settings system initialized');
+        mapLogger.debug('Map settings system initialized');
       }
     }, 100);
 
@@ -31392,7 +31560,7 @@ var updateElevationProfile = scheduleElevationUpdate;
     collect: collectMapSettings,
     clear: function() {
       localStorage.removeItem(SETTINGS_KEY);
-      if (MAP_DEBUG) console.log('Map settings cleared');
+      mapLogger.debug('Map settings cleared');
     }
   };
 
@@ -31613,7 +31781,7 @@ var PanelPositionManager = (function() {
                 positions = JSON.parse(stored);
             }
         } catch (e) {
-            console.warn('Failed to load panel positions:', e);
+            mapLogger.warn('Failed to load panel positions:', e);
         }
     }
 
@@ -31621,7 +31789,7 @@ var PanelPositionManager = (function() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
         } catch (e) {
-            console.warn('Failed to save panel positions:', e);
+            mapLogger.warn('Failed to save panel positions:', e);
         }
     }
 
@@ -31875,7 +32043,7 @@ function startSimConnectPolling() {
     clearInterval(simConnectPollingInterval);
   }
 
-  console.log('[SimConnect] Starting position polling');
+  simconnectLogger.info('Starting position polling');
   fetchSimConnectPosition(); // Initial fetch
   simConnectPollingInterval = setInterval(fetchSimConnectPosition, simConnectPollRate);
 }
@@ -31884,7 +32052,7 @@ function stopSimConnectPolling() {
   if (simConnectPollingInterval) {
     clearInterval(simConnectPollingInterval);
     simConnectPollingInterval = null;
-    console.log('[SimConnect] Position polling stopped');
+    simconnectLogger.info('Position polling stopped');
   }
 }
 
@@ -31897,7 +32065,7 @@ function fetchSimConnectPosition() {
       if (data.connected && data.flightLoaded && data.latitude !== undefined && data.longitude !== undefined) {
         if (!simConnectConnectionStatus) {
           simConnectConnectionStatus = true;
-          console.log('[SimConnect] Connected to simulator');
+          simconnectLogger.info('Connected to simulator');
           updateSimConnectStatusUI(true);
         }
         updateAircraftPositionFromSimConnect(data);
@@ -31905,14 +32073,14 @@ function fetchSimConnectPosition() {
       } else {
         if (simConnectConnectionStatus) {
           simConnectConnectionStatus = false;
-          console.log('[SimConnect] Disconnected from simulator' + (data.connected && !data.flightLoaded ? ' (no flight loaded)' : ''));
+          simconnectLogger.info('Disconnected from simulator' + (data.connected && !data.flightLoaded ? ' (no flight loaded)' : ''));
           updateSimConnectStatusUI(false);
         }
       }
     })
     .catch(function(error) {
       if (simConnectConnectionStatus) {
-        console.warn('[SimConnect] Fetch error:', error);
+        simconnectLogger.warn('Fetch error:', error);
         simConnectConnectionStatus = false;
         updateSimConnectStatusUI(false);
       }
@@ -31926,9 +32094,8 @@ function updateAircraftPositionFromSimConnect(data) {
   var hdg = parseFloat(data.heading);
   var spd = parseFloat(data.indicatedAirspeed);  // IAS, not ground speed
 
-
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    console.warn('[SimConnect] Invalid position:', data);
+    simconnectLogger.warn('Invalid position:', data);
     return;
   }
 

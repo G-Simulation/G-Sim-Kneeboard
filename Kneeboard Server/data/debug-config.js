@@ -39,11 +39,10 @@ var DEBUG_MANAGER = (function() {
       var saved = localStorage.getItem('debugConfig');
       if (saved) {
         localConfig = JSON.parse(saved);
-        console.log('[DEBUG] Loaded config from localStorage', localConfig);
         return true;
       }
     } catch(e) {
-      console.warn('[DEBUG] Failed to load from localStorage:', e);
+      // Silent fail - localStorage nicht verfügbar
     }
     return false;
   }
@@ -51,9 +50,8 @@ var DEBUG_MANAGER = (function() {
   function saveToLocalStorage() {
     try {
       localStorage.setItem('debugConfig', JSON.stringify(localConfig));
-      console.log('[DEBUG] Config saved to localStorage');
     } catch(e) {
-      console.warn('[DEBUG] Failed to save to localStorage:', e);
+      // Silent fail - localStorage nicht verfügbar
     }
   }
 
@@ -66,11 +64,10 @@ var DEBUG_MANAGER = (function() {
       .then(function(config) {
         localConfig = config;
         saveToLocalStorage();
-        console.log('[DEBUG] Loaded config from server', config);
         return true;
       })
       .catch(function(err) {
-        console.warn('[DEBUG] Failed to load from server:', err);
+        // Silent fail - Server nicht erreichbar
         return false;
       });
   }
@@ -82,7 +79,6 @@ var DEBUG_MANAGER = (function() {
     
     if (typeof DEBUG_CONFIG !== 'undefined') {
       Object.assign(DEBUG_CONFIG, localConfig);
-      console.log('[DEBUG] Applied to DEBUG_CONFIG', DEBUG_CONFIG);
     }
   }
 
@@ -111,7 +107,7 @@ var DEBUG_MANAGER = (function() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ [category]: enabled })
     }).catch(function(err) {
-      console.warn('[DEBUG] Failed to save to server:', err);
+      // Silent fail
     });
   }
 
@@ -138,8 +134,8 @@ var DEBUG_MANAGER = (function() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newConfig)
-    }).catch(function(err) {
-      console.warn('[DEBUG] Failed to save to server:', err);
+    }).catch(function() {
+      // Silent fail
     });
   }
 

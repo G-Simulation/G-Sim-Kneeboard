@@ -110,6 +110,24 @@
         } catch (e) {
             // Silent fail für Coherent GT Kompatibilität
         }
+
+        // Errors und Warnings automatisch an Server weiterleiten (Log-Datei)
+        if (level === 'ERROR' || level === 'WARN') {
+            try {
+                var msgParts = Array.prototype.slice.call(args);
+                var msg = msgParts.map(function(a) {
+                    return typeof a === 'object' ? JSON.stringify(a) : String(a);
+                }).join(' ');
+                var serverUrl = (typeof window !== 'undefined' && window.SERVER_URL) || 'http://localhost:815';
+                fetch(serverUrl + '/api/log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ level: level, module: module, message: msg })
+                }).catch(function() {});
+            } catch (e2) {
+                // Silent fail
+            }
+        }
     }
 
     // ========================================================================
@@ -144,13 +162,20 @@
         var config = {
             enabled: options.enabled !== false,
             minLevel: options.minLevel || 'INFO',
-            prefix: options.prefix || moduleName
+            prefix: options.prefix || moduleName,
+            debugConfigKey: options.debugConfigKey || null
         };
 
         moduleSettings[moduleName] = config;
 
         return {
-            debug: function() { log('DEBUG', config.prefix, arguments); },
+            debug: function() {
+                // Wenn debugConfigKey gesetzt ist, nur loggen wenn DEBUG_CONFIG[key] true ist
+                if (config.debugConfigKey && typeof DEBUG_CONFIG !== 'undefined') {
+                    if (!DEBUG_CONFIG[config.debugConfigKey]) return;
+                }
+                log('DEBUG', config.prefix, arguments);
+            },
             info: function() { log('INFO', config.prefix, arguments); },
             warn: function() { log('WARN', config.prefix, arguments); },
             error: function() { log('ERROR', config.prefix, arguments); },

@@ -7,6 +7,11 @@
 // Use centralized DEBUG_CONFIG if available
 var OFP_MAPPING_DEBUG = (typeof DEBUG_CONFIG !== 'undefined' && DEBUG_CONFIG.NAVLOG) || false;
 
+// Zentraler Logger
+var ofpLogger = (typeof KneeboardLogger !== 'undefined')
+  ? KneeboardLogger.createLogger('OFP', { minLevel: 'DEBUG', debugConfigKey: 'NAVLOG' })
+  : { info: function(){}, warn: function(){}, error: function(){}, debug: function(){} };
+
 var OFP_NAVLOG_MAPPING = {
 
     // ========================================
@@ -438,13 +443,13 @@ var OFP_NAVLOG_MAPPING = {
         source: 'General.Initial_altitude',
         sourceAlt: ['General.initial_altitude', 'General.Initial_alt', 'General.initial_alt', 'General.Avg_altitude', 'General.avg_altitude'],
         parse: function(value) {
-            OFP_MAPPING_DEBUG && console.log('[OFP DEBUG] Cruise-Alt raw value:', value, 'type:', typeof value);
+            ofpLogger.debug('Cruise-Alt raw value:', value, 'type:', typeof value);
             var alt = parseInt(value);
             if (isNaN(alt)) return null;
             var fl = Math.round(alt / 100);
             var flStr = String(fl);
             while (flStr.length < 3) flStr = '0' + flStr;
-            OFP_MAPPING_DEBUG && console.log('[OFP DEBUG] Cruise-Alt result: FL' + flStr);
+            ofpLogger.debug('Cruise-Alt result: FL' + flStr);
             return 'FL' + flStr;
         },
         enabled: true
@@ -584,7 +589,7 @@ var OFP_COMPUTED_FIELDS = {
             if (isSidFix) {
                 var via = fix.Via_airway || fix.via_airway || fix.Via || fix.via;
                 if (via) {
-                    OFP_MAPPING_DEBUG && console.log('[OFP Computed] Found SID:', via, 'at fix:', fix.Ident || fix.ident);
+                    ofpLogger.debug('Found SID:', via, 'at fix:', fix.Ident || fix.ident);
                     return via;
                 }
             }
@@ -614,7 +619,7 @@ var OFP_COMPUTED_FIELDS = {
             // und es ist NICHT die SID (die SID steht am Anfang)
             if (isSidStar && via) {
                 starName = via;
-                OFP_MAPPING_DEBUG && console.log('[OFP Computed] Found potential STAR:', via, 'at fix:', fix.Ident || fix.ident);
+                ofpLogger.debug('Found potential STAR:', via, 'at fix:', fix.Ident || fix.ident);
             }
 
             // Wenn wir auf einen Fix ohne Is_sid_star stoßen, sind wir aus der STAR raus
@@ -637,15 +642,15 @@ var OFP_COMPUTED_FIELDS = {
 
             // Wenn STAR-Name gleich SID-Name, dann keine separate STAR
             if (sidName && starName === sidName) {
-                OFP_MAPPING_DEBUG && console.log('[OFP Computed] STAR same as SID, likely no STAR in flight plan');
+                ofpLogger.debug('STAR same as SID, likely no STAR in flight plan');
                 return null;
             }
 
-            OFP_MAPPING_DEBUG && console.log('[OFP Computed] Final STAR:', starName);
+            ofpLogger.debug('Final STAR:', starName);
             return starName;
         }
 
-        OFP_MAPPING_DEBUG && console.log('[OFP Computed] No STAR found');
+        ofpLogger.debug('No STAR found');
         return null;
     },
 

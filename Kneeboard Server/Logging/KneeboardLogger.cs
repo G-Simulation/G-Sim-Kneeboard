@@ -285,6 +285,143 @@ namespace Kneeboard_Server.Logging
             Error("SimConnect", ex);
         }
 
+        // Boundaries (VATSIM, IVAO, TRACON, VATSpy)
+        public static void Boundaries(string message)
+        {
+            Log(Level.INFO, "Boundaries", message);
+        }
+
+        public static void BoundariesDebug(string message)
+        {
+            Log(Level.DEBUG, "Boundaries", message);
+        }
+
+        public static void BoundariesError(string message)
+        {
+            Log(Level.ERROR, "Boundaries", message);
+        }
+
+        public static void BoundariesError(Exception ex)
+        {
+            Error("Boundaries", ex);
+        }
+
+        // Cache (OpenAIP, elevation, baselayer)
+        public static void Cache(string message)
+        {
+            Log(Level.INFO, "Cache", message);
+        }
+
+        public static void CacheDebug(string message)
+        {
+            Log(Level.DEBUG, "Cache", message);
+        }
+
+        public static void CacheError(string message)
+        {
+            Log(Level.ERROR, "Cache", message);
+        }
+
+        public static void CacheError(Exception ex)
+        {
+            Error("Cache", ex);
+        }
+
+        // Persistence (flightplan save/load)
+        public static void Persistence(string message)
+        {
+            Log(Level.INFO, "Persistence", message);
+        }
+
+        public static void PersistenceDebug(string message)
+        {
+            Log(Level.DEBUG, "Persistence", message);
+        }
+
+        public static void PersistenceError(string message)
+        {
+            Log(Level.ERROR, "Persistence", message);
+        }
+
+        public static void PersistenceError(Exception ex)
+        {
+            Error("Persistence", ex);
+        }
+
+        // Elevation
+        public static void Elevation(string message)
+        {
+            Log(Level.INFO, "Elevation", message);
+        }
+
+        public static void ElevationDebug(string message)
+        {
+            Log(Level.DEBUG, "Elevation", message);
+        }
+
+        public static void ElevationError(string message)
+        {
+            Log(Level.ERROR, "Elevation", message);
+        }
+
+        public static void ElevationError(Exception ex)
+        {
+            Error("Elevation", ex);
+        }
+
+        // Proxy (Wind, DFS, OFM, Nominatim, OpenAIP)
+        public static void Proxy(string message)
+        {
+            Log(Level.INFO, "Proxy", message);
+        }
+
+        public static void ProxyDebug(string message)
+        {
+            Log(Level.DEBUG, "Proxy", message);
+        }
+
+        public static void ProxyError(string message)
+        {
+            Log(Level.ERROR, "Proxy", message);
+        }
+
+        public static void ProxyError(Exception ex)
+        {
+            Error("Proxy", ex);
+        }
+
+        // UI (InformationForm, Panel)
+        public static void UI(string message)
+        {
+            Log(Level.INFO, "UI", message);
+        }
+
+        public static void UIError(string message)
+        {
+            Log(Level.ERROR, "UI", message);
+        }
+
+        public static void UIError(Exception ex)
+        {
+            Error("UI", ex);
+        }
+
+        // Startup
+        public static void Startup(string message)
+        {
+            Log(Level.INFO, "Startup", message);
+        }
+
+        public static void StartupDebug(string message)
+        {
+            Log(Level.DEBUG, "Startup", message);
+        }
+
+        public static void StartupError(string message)
+        {
+            Log(Level.ERROR, "Startup", message);
+        }
+
         // ========================================================================
         // CLIENT LOG FORWARDING
         // ========================================================================

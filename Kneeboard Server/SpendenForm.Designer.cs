@@ -77,7 +77,7 @@ namespace Kneeboard_Server
             this.versionLabel.Name = "versionLabel";
             this.versionLabel.Size = new System.Drawing.Size(280, 16);
             this.versionLabel.TabIndex = 26;
-            this.versionLabel.Text = "Version: 2.0.0.0";
+            this.versionLabel.Text = "Version: 2.0.0";
             this.versionLabel.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // supportTextLabel
