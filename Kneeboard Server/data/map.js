@@ -3346,10 +3346,10 @@ async function updateRunwayDataFromOFP() {
     var origin = importedOFPData.Origin || importedOFPData.origin;
     var destination = importedOFPData.Destination || importedOFPData.destination;
 
-    var depIcao = origin?.Icao_code || origin?.icao_code || origin?.icao;
-    var depRunway = origin?.Plan_rwy || origin?.plan_rwy;
-    var arrIcao = destination?.Icao_code || destination?.icao_code || destination?.icao;
-    var arrRunway = destination?.Plan_rwy || destination?.plan_rwy;
+    var depIcao = (origin && origin.Icao_code) || (origin && origin.icao_code) || (origin && origin.icao);
+    var depRunway = (origin && origin.Plan_rwy) || (origin && origin.plan_rwy);
+    var arrIcao = (destination && destination.Icao_code) || (destination && destination.icao_code) || (destination && destination.icao);
+    var arrRunway = (destination && destination.Plan_rwy) || (destination && destination.plan_rwy);
 
     // Fetch departure runway (always from OFP)
     var depData = await fetchRunwayData(depIcao, depRunway);
@@ -13432,8 +13432,8 @@ function buildCoordinateArrays() {
 
   // Only add origin airport coords when NOT animating (animation draws point by point)
   if (!isAnimating && origin && !departureRunwayData) {
-    var airportLat = origin?.Airport_latitude || origin?.airport_latitude || origin?.Latitude || origin?.latitude;
-    var airportLon = origin?.Airport_longitude || origin?.airport_longitude || origin?.Longitude || origin?.longitude;
+    var airportLat = (origin && origin.Airport_latitude) || (origin && origin.airport_latitude) || (origin && origin.Latitude) || (origin && origin.latitude);
+    var airportLon = (origin && origin.Airport_longitude) || (origin && origin.airport_longitude) || (origin && origin.Longitude) || (origin && origin.longitude);
     if (airportLat && airportLon) {
       pushUnique(coordsArray, [parseFloat(airportLat), parseFloat(airportLon)]);
       pushUnique(coordsArrayDEP, [parseFloat(airportLat), parseFloat(airportLon)]);
@@ -13482,8 +13482,8 @@ function buildCoordinateArrays() {
   // Fallback nur wenn keine ARR-Waypoints existieren
   if (!isAnimating && destination && coordsArrayARR.length === 0) {
     // Fallback: Destination-Koordinaten wenn keine ARR/RWY-Waypoints
-    var destLat = destination?.Airport_latitude || destination?.airport_latitude || destination?.Latitude || destination?.latitude;
-    var destLon = destination?.Airport_longitude || destination?.airport_longitude || destination?.Longitude || destination?.longitude;
+    var destLat = (destination && destination.Airport_latitude) || (destination && destination.airport_latitude) || (destination && destination.Latitude) || (destination && destination.latitude);
+    var destLon = (destination && destination.Airport_longitude) || (destination && destination.airport_longitude) || (destination && destination.Longitude) || (destination && destination.longitude);
     if (destLat && destLon) {
       pushUnique(coordsArrayARR, [parseFloat(destLat), parseFloat(destLon)]);
     }
@@ -18524,7 +18524,6 @@ function minimizeWpList() {
       }
     }
     if (overlayEl) {
-      overlayEl.style.height = "50vh";
       overlayEl.style.minHeight = "17vh";
       overlayEl.style.overflow = "hidden";
       overlayEl.classList.remove('minimized');
@@ -18564,7 +18563,6 @@ function minimizeControllerList() {
       controllerListSum.style.visibility = "visible";
     }
     if (controllerContainer) {
-      controllerContainer.style.height = "50vh";
       controllerContainer.style.maxHeight = "60vh";
       controllerContainer.style.minHeight = "17vh";
       controllerContainer.style.overflow = "hidden";
@@ -19992,45 +19990,46 @@ function updateApplyButtonState() {
  */
 function highlightPendingDropdowns() {
     // Check departure
+    var el;
     if (flightplanPanelState.departure.selectedRunway !== flightplanCommittedState.departure.selectedRunway) {
-        document.getElementById('depRunwaySelect')?.classList.add('has-pending');
+        el = document.getElementById('depRunwaySelect'); if (el) el.classList.add('has-pending');
     }
     if (flightplanPanelState.departure.selectedSid !== flightplanCommittedState.departure.selectedSid) {
-        document.getElementById('depSidSelect')?.classList.add('has-pending');
+        el = document.getElementById('depSidSelect'); if (el) el.classList.add('has-pending');
     }
     if (flightplanPanelState.departure.selectedTransition !== flightplanCommittedState.departure.selectedTransition) {
-        document.getElementById('depTransitionSelect')?.classList.add('has-pending');
+        el = document.getElementById('depTransitionSelect'); if (el) el.classList.add('has-pending');
     }
 
     // Check arrival
     if (flightplanPanelState.arrival.selectedRunway !== flightplanCommittedState.arrival.selectedRunway) {
-        document.getElementById('arrRunwaySelect')?.classList.add('has-pending');
+        el = document.getElementById('arrRunwaySelect'); if (el) el.classList.add('has-pending');
     }
     if (flightplanPanelState.arrival.selectedStar !== flightplanCommittedState.arrival.selectedStar) {
-        document.getElementById('arrStarSelect')?.classList.add('has-pending');
+        el = document.getElementById('arrStarSelect'); if (el) el.classList.add('has-pending');
     }
     if (flightplanPanelState.arrival.selectedTransition !== flightplanCommittedState.arrival.selectedTransition) {
-        document.getElementById('arrTransitionSelect')?.classList.add('has-pending');
+        el = document.getElementById('arrTransitionSelect'); if (el) el.classList.add('has-pending');
     }
     if (flightplanPanelState.arrival.selectedApproach !== flightplanCommittedState.arrival.selectedApproach) {
-        document.getElementById('arrApproachSelect')?.classList.add('has-pending');
+        el = document.getElementById('arrApproachSelect'); if (el) el.classList.add('has-pending');
     }
     if (flightplanPanelState.arrival.selectedApproachTransition !== flightplanCommittedState.arrival.selectedApproachTransition) {
-        document.getElementById('arrApproachTransitionSelect')?.classList.add('has-pending');
+        el = document.getElementById('arrApproachTransitionSelect'); if (el) el.classList.add('has-pending');
     }
 
     // Check alternate
     if (flightplanPanelState.alternate.selectedRunway !== flightplanCommittedState.alternate.selectedRunway) {
-        document.getElementById('altRunwaySelect')?.classList.add('has-pending');
+        el = document.getElementById('altRunwaySelect'); if (el) el.classList.add('has-pending');
     }
     if (flightplanPanelState.alternate.selectedStar !== flightplanCommittedState.alternate.selectedStar) {
-        document.getElementById('altStarSelect')?.classList.add('has-pending');
+        el = document.getElementById('altStarSelect'); if (el) el.classList.add('has-pending');
     }
     if (flightplanPanelState.alternate.selectedTransition !== flightplanCommittedState.alternate.selectedTransition) {
-        document.getElementById('altTransitionSelect')?.classList.add('has-pending');
+        el = document.getElementById('altTransitionSelect'); if (el) el.classList.add('has-pending');
     }
     if (flightplanPanelState.alternate.selectedApproach !== flightplanCommittedState.alternate.selectedApproach) {
-        document.getElementById('altApproachSelect')?.classList.add('has-pending');
+        el = document.getElementById('altApproachSelect'); if (el) el.classList.add('has-pending');
     }
 }
 
@@ -22197,8 +22196,8 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
         // Altitude aus Navigraph-Daten extrahieren
         // Navigraph API nutzt verschiedene Feldnamen je nach Version
         var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude ||
-                       wp.AltitudeDescription?.altitude1 || wp.altitudeDescription?.altitude1 ||
-                       wp.Waypoint?.Altitude1 || 0;
+                       (wp.AltitudeDescription && wp.AltitudeDescription.altitude1) || (wp.altitudeDescription && wp.altitudeDescription.altitude1) ||
+                       (wp.Waypoint && wp.Waypoint.Altitude1) || 0;
 
         // Auch AltDesc prüfen (Navigraph manchmal als separate Struktur)
         if (altitude === 0 && wp.AltDesc) {
@@ -22208,7 +22207,7 @@ async function injectSidWaypointsIntoFlightplan(icao, sidName, transition, selec
         if (altitude === 0 && rwMatch && departureRunwayData && departureRunwayData.elevation) {
             altitude = departureRunwayData.elevation;
         }
-        var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || wp.AltDesc?.AltitudeConstraint || '';
+        var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || (wp.AltDesc && wp.AltDesc.AltitudeConstraint) || '';
         console.log('[SID_DEBUG] ' + name + ' altitude=' + altitude + ' | wp keys:', Object.keys(wp).join(','));
 
         sidEntries.push({
@@ -24129,7 +24128,7 @@ async function drawApproachPreview(icao, approachName, approachTransition) {
         // Fetch procedure waypoints with transition and runway
         var procedureData = await fetchProcedureDetail(icao, approachName, 'APPROACH', approachTransition || null, selectedRunway);
         console.log('[APPROACH_DEBUG] procedureData:', procedureData);
-        console.log('[APPROACH_DEBUG] Waypoints count:', procedureData?.Waypoints?.length || 0);
+        console.log('[APPROACH_DEBUG] Waypoints count:', (procedureData && procedureData.Waypoints && procedureData.Waypoints.length) || 0);
 
         // Check if this request is still current (prevent race condition)
         if (currentRequestId !== approachPreviewRequestId) {
@@ -24870,6 +24869,27 @@ function setWaypoints(flightplanData) {
   // Use parameter if provided, otherwise fallback to global
   var flightplan = flightplanData || [];
 
+  // DEDUPE: Entferne aufeinanderfolgende Duplikate basierend auf Koordinaten (Toleranz 0.0001°)
+  if (flightplan && flightplan.length > 1) {
+    var deduped = [flightplan[0]];
+    for (var i = 1; i < flightplan.length; i++) {
+      var prev = deduped[deduped.length - 1];
+      var curr = flightplan[i];
+      var latDiff = Math.abs((prev.lat || 0) - (curr.lat || 0));
+      var lngDiff = Math.abs((prev.lng || 0) - (curr.lng || 0));
+      // Skip if coordinates are nearly identical (within ~11m)
+      if (latDiff > 0.0001 || lngDiff > 0.0001) {
+        deduped.push(curr);
+      } else {
+        MAP_DEBUG && console.log('[setWaypoints] Removing consecutive duplicate:', curr.name, 'same coords as', prev.name);
+      }
+    }
+    if (deduped.length !== flightplan.length) {
+      MAP_DEBUG && console.log('[setWaypoints] Deduplicated:', flightplan.length, '->', deduped.length, 'waypoints');
+      flightplan = deduped;
+    }
+  }
+
   // Helper function to calculate destination from start point, bearing, and distance
   function calculateDestination(lat, lon, bearingDeg, distanceNm) {
     var R = 3440.065; // Earth radius in nautical miles
@@ -24913,12 +24933,13 @@ function setWaypoints(flightplanData) {
       depRwyName = 'RW' + depRwyName;
 
       // WICHTIG: Entferne existierende Runway-Duplikate aus dem Flightplan
-      // (z.B. RW18 aus SID-Waypoints, wenn wir gleich RW18 als Threshold setzen)
+      // (z.B. RW18 oder RW18_END aus SID-Waypoints, wenn wir gleich RW18 als Threshold setzen)
       var depRwyNumber = depRwyName.replace(/^RW/i, '').toUpperCase();
       flightplan = flightplan.filter(function(wp, idx) {
         if (idx === 0) return true; // Erster Waypoint wird sowieso ersetzt
         if (!wp.name) return true;
-        var wpRwyMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
+        // Match RW18, RWY18, 18, RW18_END, RWY18_END etc.
+        var wpRwyMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)(?:_END)?$/i);
         if (wpRwyMatch && wpRwyMatch[1].toUpperCase() === depRwyNumber) {
           if (MAP_DEBUG) console.log('[RWY_DEBUG] Removing duplicate departure runway waypoint:', wp.name);
           return false;
@@ -24955,13 +24976,14 @@ function setWaypoints(flightplanData) {
       arrRwyName = 'RW' + arrRwyName;
 
       // WICHTIG: Entferne existierende Arrival-Runway-Duplikate aus dem Flightplan
-      // (z.B. RW08L aus STAR/Approach-Waypoints)
+      // (z.B. RW08L oder RW08L_END aus STAR/Approach-Waypoints)
       var arrRwyNumber = arrRwyName.replace(/^RW/i, '').toUpperCase();
       var lastIdx = flightplan.length - 1;
       flightplan = flightplan.filter(function(wp, idx) {
         if (idx === lastIdx) return true; // Letzter Waypoint wird sowieso ersetzt
         if (!wp.name) return true;
-        var wpRwyMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
+        // Match RW08L, RWY08L, 08L, RW08L_END, RWY08L_END etc.
+        var wpRwyMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)(?:_END)?$/i);
         if (wpRwyMatch && wpRwyMatch[1].toUpperCase() === arrRwyNumber) {
           if (MAP_DEBUG) console.log('[RWY_DEBUG] Removing duplicate arrival runway waypoint:', wp.name);
           return false;
@@ -25192,10 +25214,21 @@ function setWaypoints(flightplanData) {
       var rwyName = arrivalRunwayData.runway || arrivalRunwayData.identifier || 'RWY';
       // Entferne RW oder RWY Präfix und füge einheitlich RW hinzu
       rwyName = rwyName.replace(/^RWY?/i, '');
+      var normalizedRwyName = 'RW' + rwyName;
+
+      // Entferne existierende Runway-Duplikate (RW13L, RW13L_END etc.)
+      bulkFlightplan = bulkFlightplan.filter(function(wp) {
+        if (wp.name === normalizedRwyName || wp.name === normalizedRwyName + '_END') {
+          MAP_DEBUG && console.log('[Bulk] Removing duplicate runway waypoint:', wp.name);
+          return false;
+        }
+        return true;
+      });
+
       bulkFlightplan.push({
         lat: arrivalRunwayData.endLat,
         lng: arrivalRunwayData.endLon,
-        name: 'RW' + rwyName,
+        name: normalizedRwyName,
         waypointType: 'RWY',
         altitude: arrivalRunwayData.elevation || 0
       });
@@ -25310,8 +25343,9 @@ function setWaypoints(flightplanData) {
 
     // WICHTIG: Entferne existierenden Runway-Waypoint mit gleichem Namen (Threshold → END Ersetzung)
     // Dies verhindert dass RW13L 2x erscheint (einmal als Threshold, einmal als END)
+    // Auch RW13L_END entfernen falls vorhanden
     flightplanForAnimation = flightplanForAnimation.filter(function(wp) {
-      if (wp.name === normalizedRwyName) {
+      if (wp.name === normalizedRwyName || wp.name === normalizedRwyName + '_END') {
         MAP_DEBUG && console.log('[setWaypoints] Removing duplicate runway waypoint:', wp.name, 'at', wp.lat, wp.lng);
         return false;
       }

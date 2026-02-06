@@ -353,6 +353,55 @@ namespace Kneeboard_Server
         public string values = "";
         public long valuesTimestamp = 0;
 
+        /// <summary>
+        /// Finds a file using case-insensitive matching on Windows.
+        /// Returns the actual file path if found, null otherwise.
+        /// </summary>
+        private static string FindFileCaseInsensitive(string filePath)
+        {
+            // First try exact match (fast path)
+            if (File.Exists(filePath))
+            {
+                return filePath;
+            }
+
+            // Case-insensitive fallback
+            try
+            {
+                string directory = Path.GetDirectoryName(filePath);
+                string fileName = Path.GetFileName(filePath);
+
+                // Check for empty filename
+                if (string.IsNullOrEmpty(fileName))
+                {
+                    Console.WriteLine("[FindFile] Empty filename, returning null");
+                    return null;
+                }
+
+                if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+                {
+                    Console.WriteLine($"[FindFile] Directory not found: {directory}");
+                    return null;
+                }
+
+                // Find file with case-insensitive comparison
+                string[] files = Directory.GetFiles(directory);
+                foreach (string file in files)
+                {
+                    if (Path.GetFileName(file).Equals(fileName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return file;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[FindFile] Exception: {ex.Message}");
+            }
+
+            return null;
+        }
+
 
 
         public int Port
@@ -392,11 +441,14 @@ namespace Kneeboard_Server
         {
             Console.WriteLine($"[EmbedIO] Creating WebServer on port {_port} with root: {_rootDirectory}");
 
+            // Listen on all interfaces (requires admin or netsh urlacl)
             var server = new WebServer(o => o
-                .WithUrlPrefix($"http://localhost:{_port}/")
+                .WithUrlPrefix($"http://*:{_port}/")
                 .WithMode(HttpListenerMode.EmbedIO))
                 .WithCors()
                 .WithModule(new ActionModule("/", HttpVerbs.Any, ProcessRequestAsync));
+
+            Console.WriteLine($"[EmbedIO] Server listening on http://*:{_port}/");
 
             // Note: Static files are handled in ProcessRequestAsync
             // No need for separate StaticFolder module
@@ -6808,23 +6860,31 @@ namespace Kneeboard_Server
                 try
                 {
                     string headCommand = ctx.Request.Url.AbsolutePath.Substring(1);
+                    Console.WriteLine($"[HEAD] Request for: {headCommand}");
+
                     // Replace forward slashes with backslashes for Windows path compatibility
                     headCommand = headCommand.Replace('/', '\\');
                     string headFilePath = Path.Combine(_rootDirectory, headCommand);
+                    Console.WriteLine($"[HEAD] Full path: {headFilePath}");
 
-                    if (System.IO.File.Exists(headFilePath))
+                    // Case-insensitive file lookup
+                    string actualFilePath = FindFileCaseInsensitive(headFilePath);
+
+                    if (actualFilePath != null)
                     {
+                        Console.WriteLine($"[HEAD] File found: {actualFilePath}");
                         response.StatusCode = (int)HttpStatusCode.OK;
-                        response.ContentType = _mimeTypeMappings.TryGetValue(Path.GetExtension(headFilePath), out string headMime) ? headMime : "application/octet-stream";
-                        // response.ContentLength = new FileInfo(headFilePath).Length;  // EmbedIO sets this automatically
+                        response.ContentType = _mimeTypeMappings.TryGetValue(Path.GetExtension(actualFilePath), out string headMime) ? headMime : "application/octet-stream";
                     }
                     else
                     {
+                        Console.WriteLine($"[HEAD] File NOT found: {headCommand}");
                         response.StatusCode = (int)HttpStatusCode.NotFound;
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    Console.WriteLine($"[HEAD] Exception: {ex.Message}");
                     response.StatusCode = (int)HttpStatusCode.NotFound;
                 }
                 return;
@@ -6833,7 +6893,7 @@ namespace Kneeboard_Server
             string command = ctx.Request.Url.AbsolutePath;
 
             command = command.Substring(1);
-            //Console.WriteLine("Command: " + command);
+            Console.WriteLine($"[HTTP] {ctx.Request.HttpMethod} /{command}");
 
             if (string.IsNullOrEmpty(command))
             {
