@@ -42,6 +42,11 @@ namespace Kneeboard_Server
         public static string simbriefOFPData;
         public static string cachedSimbriefTimeGenerated = null;
 
+        // SimBrief AppData-Verzeichnis für OFP-Downloads (Schreibrechte ohne Admin)
+        public static readonly string simbriefDataDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Gsimulations", "Kneeboard Server", "Simbrief");
+
         // Background SimBrief sync
         private static System.Threading.Timer simbriefBackgroundTimer;
         private static readonly object simbriefSyncLock = new object();
@@ -676,9 +681,9 @@ namespace Kneeboard_Server
                     string simbriefOFP = ofpNode.InnerText;
 
                     // Simbrief Ordner erstellen falls nicht vorhanden
-                    if (!Directory.Exists(folderpath + @"\Simbrief"))
+                    if (!Directory.Exists(simbriefDataDir))
                     {
-                        Directory.CreateDirectory(folderpath + @"\Simbrief");
+                        Directory.CreateDirectory(simbriefDataDir);
                     }
 
                     // PDF herunterladen
@@ -686,7 +691,7 @@ namespace Kneeboard_Server
                     {
                         client.DownloadFile(
                             new Uri("https://www.simbrief.com/ofp/flightplans/" + simbriefOFP),
-                            folderpath + @"\Simbrief\OFP.pdf"
+                            Path.Combine(simbriefDataDir, "OFP.pdf")
                         );
                     }
 
@@ -825,7 +830,7 @@ namespace Kneeboard_Server
             try
             {
                 // 1. Pfad zum OFP PDF definieren
-                string ofpPath = folderpath + @"\Simbrief\OFP.pdf";
+                string ofpPath = Path.Combine(simbriefDataDir, "OFP.pdf");
 
                 // 2. Überprüfen ob Datei existiert
                 if (!System.IO.File.Exists(ofpPath))
@@ -1702,6 +1707,14 @@ namespace Kneeboard_Server
             
             //MessageBox.Show(folderpath);
             LoadDocumentState();
+            // OFP PDF zur Dokumentenliste hinzufügen, falls Datei existiert aber nicht in der Liste ist
+            if (System.IO.File.Exists(Path.Combine(simbriefDataDir, "OFP.pdf")))
+            {
+                if (AddSimbriefOFPToDocumentList())
+                {
+                    SaveDocumentState();
+                }
+            }
             EnsureDefaultManualsExist();
 
             // Autostart und SimBrief werden jetzt im First-Start Wizard abgefragt
@@ -2596,16 +2609,16 @@ namespace Kneeboard_Server
                                 reader.Close();
                             }
 
-                            if (!Directory.Exists(folderpath + @"\Simbrief"))
+                            if (!Directory.Exists(simbriefDataDir))
                             {
-                                Directory.CreateDirectory(folderpath + @"\Simbrief");
+                                Directory.CreateDirectory(simbriefDataDir);
                             }
 
                             if (System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
                             {
                                 using (System.Net.WebClient client = new System.Net.WebClient())
                                 {
-                                    client.DownloadFile(new Uri("https://www.simbrief.com/ofp/flightplans/" + simbriefOFP), folderpath + @"\Simbrief\OFP.pdf");
+                                    client.DownloadFile(new Uri("https://www.simbrief.com/ofp/flightplans/" + simbriefOFP), Path.Combine(simbriefDataDir, "OFP.pdf"));
                                     simbriefDownloaded = true;
                                 }
                             }
@@ -3158,6 +3171,61 @@ namespace Kneeboard_Server
                         Console.WriteLine($"[SimBrief] Using cached flightplan (timestamp {cachedSimbriefTimeGenerated} unchanged)");
                         // SID/STAR Waypoints auch bei cached flightplan anreichern
                         flightplan = EnrichFlightplanWithProceduresAsync(flightplan).GetAwaiter().GetResult();
+
+                        // OFP PDF herunterladen falls nicht vorhanden, und zur Document-Liste hinzufügen
+                        if (instance != null)
+                        {
+                            try
+                            {
+                                // OFP PDF herunterladen falls nicht vorhanden
+                                if (!System.IO.File.Exists(Path.Combine(simbriefDataDir, "OFP.pdf")))
+                                {
+                                    var cachedOfpNode = xmlDoc.DocumentElement.SelectSingleNode("/OFP/files/pdf/link");
+                                    if (cachedOfpNode != null && System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
+                                    {
+                                        if (!Directory.Exists(simbriefDataDir))
+                                            Directory.CreateDirectory(simbriefDataDir);
+
+                                        using (System.Net.WebClient client = new System.Net.WebClient())
+                                        {
+                                            client.DownloadFile(new Uri("https://www.simbrief.com/ofp/flightplans/" + cachedOfpNode.InnerText), Path.Combine(simbriefDataDir, "OFP.pdf"));
+                                        }
+                                        Console.WriteLine("[SimBrief syncFlightplan] OFP PDF downloaded (cached path)");
+                                    }
+                                }
+
+                                // Zur Document-Liste hinzufügen
+                                if (System.IO.File.Exists(Path.Combine(simbriefDataDir, "OFP.pdf")))
+                                {
+                                    if (instance.InvokeRequired)
+                                    {
+                                        instance.BeginInvoke(new Action(() =>
+                                        {
+                                            if (instance.AddSimbriefOFPToDocumentList())
+                                            {
+                                                instance.UpdateFileList();
+                                                instance.SaveDocumentState();
+                                                Console.WriteLine("[SimBrief syncFlightplan] OFP PDF added to document list (cached path)");
+                                            }
+                                        }));
+                                    }
+                                    else
+                                    {
+                                        if (instance.AddSimbriefOFPToDocumentList())
+                                        {
+                                            instance.UpdateFileList();
+                                            instance.SaveDocumentState();
+                                            Console.WriteLine("[SimBrief syncFlightplan] OFP PDF added to document list (cached path)");
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ofpEx)
+                            {
+                                Console.WriteLine($"[SimBrief syncFlightplan] OFP PDF error (cached path): {ofpEx.Message}");
+                            }
+                        }
+
                         return flightplan;
                     }
 
@@ -3221,6 +3289,51 @@ namespace Kneeboard_Server
 
                         Console.WriteLine("[OFP Debug syncFlightplan] Combined flightplan created, length: " + (flightplan != null ? flightplan.Length.ToString() : "null"));
                         reader.Close();
+                    }
+
+                    // OFP PDF herunterladen und zur Dokumentenliste hinzufügen
+                    if (!string.IsNullOrEmpty(simbriefOFPLink) && System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
+                    {
+                        try
+                        {
+                            if (!Directory.Exists(simbriefDataDir))
+                            {
+                                Directory.CreateDirectory(simbriefDataDir);
+                            }
+
+                            using (System.Net.WebClient client = new System.Net.WebClient())
+                            {
+                                client.DownloadFile(new Uri("https://www.simbrief.com/ofp/flightplans/" + simbriefOFPLink), Path.Combine(simbriefDataDir, "OFP.pdf"));
+                            }
+
+                            if (instance != null)
+                            {
+                                if (instance.InvokeRequired)
+                                {
+                                    instance.BeginInvoke(new Action(() =>
+                                    {
+                                        if (instance.AddSimbriefOFPToDocumentList())
+                                        {
+                                            instance.UpdateFileList();
+                                            instance.SaveDocumentState();
+                                        }
+                                    }));
+                                }
+                                else
+                                {
+                                    if (instance.AddSimbriefOFPToDocumentList())
+                                    {
+                                        instance.UpdateFileList();
+                                        instance.SaveDocumentState();
+                                    }
+                                }
+                                Console.WriteLine("[SimBrief syncFlightplan] OFP PDF added to document list");
+                            }
+                        }
+                        catch (Exception ofpEx)
+                        {
+                            Console.WriteLine($"[SimBrief syncFlightplan] OFP PDF download error: {ofpEx.Message}");
+                        }
                     }
                 }
                 catch (System.Net.WebException webEx)

@@ -479,6 +479,28 @@ function applyMappedValuesToNavlog(mappedValues) {
 }
 
 /**
+ * Extrahiert Wind-Daten aus einem METAR-String
+ * @returns {object|null} { dir: string, spd: string } oder null
+ */
+function extractWindFromMetar(metar) {
+	if (!metar || typeof metar !== 'string') return null;
+	var match = metar.match(/\b(\d{3}|VRB)(\d{2,3})(G\d{2,3})?KT\b/i);
+	if (!match) return null;
+	return { dir: match[1], spd: match[2] };
+}
+
+/**
+ * Extrahiert Temperatur aus einem METAR-String
+ * @returns {string|null} Temperatur als String (z.B. "-5" oder "22") oder null
+ */
+function extractTempFromMetar(metar) {
+	if (!metar || typeof metar !== 'string') return null;
+	var match = metar.match(/\s(M?\d{2})\/(M?\d{2})\s/);
+	if (!match) return null;
+	return match[1].replace('M', '-');
+}
+
+/**
  * Reichert Waypoints mit OFP Navlog Fix-Daten an (Wetter, Fuel, etc.)
  */
 function enrichWaypointsWithOFP(waypoints, ofpData) {
@@ -508,6 +530,8 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 	// Daten auf Waypoints anwenden
 	var matchCount = 0;
 	var noMatchList = [];
+	var lastMatchedFix = null;
+	var lastMatchedIndex = -1;
 	for (var w = 0; w < waypoints.length; w++) {
 		var wp = waypoints[w];
 		var wpName = wp.name || wp.Name || wp.ident || wp.Ident || '';
@@ -515,6 +539,8 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 			var matchingFix = fixByIdent[wpName.toUpperCase()];
 			if (matchingFix) {
 				matchCount++;
+				lastMatchedFix = matchingFix;
+				lastMatchedIndex = w;
 				// Wind
 				if (matchingFix.Wind_dir !== undefined) wp.Wind_dir = matchingFix.Wind_dir;
 				else if (matchingFix.wind_dir !== undefined) wp.Wind_dir = matchingFix.wind_dir;
@@ -615,19 +641,11 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 			if (firstWpName === originIcao || firstWpName.indexOf(originIcao) === 0) {
 				var metar = originData.Metar || originData.metar;
 				if (metar) {
-					// Wind aus METAR extrahieren: z.B. "VRB01KT" oder "25010G15KT" oder "24015KT"
-					var windMatch = metar.match(/\b(\d{3}|VRB)(\d{2,3})(G\d{2,3})?KT\b/i);
-					if (windMatch) {
-						var windDir = windMatch[1];
-						var windSpd = windMatch[2];
-
-						if (windDir === 'VRB') {
-							firstWp.Wind_dir = 'VRB';
-						} else {
-							firstWp.Wind_dir = windDir;
-						}
-						firstWp.Wind_spd = windSpd;
-						NAVLOG_DEBUG && console.log('[OFP Enrichment] Departure airport', firstWpName, 'wind from METAR:', windDir + '°/' + windSpd + 'kt');
+					var wind = extractWindFromMetar(metar);
+					if (wind) {
+						firstWp.Wind_dir = wind.dir;
+						firstWp.Wind_spd = wind.spd;
+						NAVLOG_DEBUG && console.log('[OFP Enrichment] Departure airport', firstWpName, 'wind from METAR:', wind.dir + '/' + wind.spd + 'kt');
 					}
 				}
 
@@ -659,6 +677,178 @@ function enrichWaypointsWithOFP(waypoints, ofpData) {
 				}
 				// Groundspeed am Boden = 0
 				if (firstWp.Groundspeed === undefined) firstWp.Groundspeed = '0';
+			}
+		}
+	}
+
+	// === ARRIVAL / APPROACH WAYPOINTS: Fallback-Enrichment ===
+	// Für Approach-Waypoints und den Zielflughafen die kein OFP-Match haben
+	if (waypoints.length > 1 && lastMatchedFix) {
+		var destData = ofpData.Destination || ofpData.destination;
+		var timesData = ofpData.Times || ofpData.times;
+
+		// Gesamtflugzeit in Minuten (für ETA-Berechnung)
+		var totalFlightMinutes = 0;
+		if (timesData) {
+			var estEnroute = timesData.Est_time_enroute || timesData.est_time_enroute;
+			if (estEnroute) {
+				totalFlightMinutes = Math.floor(parseInt(estEnroute) / 60);
+			}
+		}
+
+		// Letzte bekannte kumulative Zeit und Fuel aus dem letzten gematchten Fix
+		var lastTimeTotal = parseFloat(lastMatchedFix.Time_total || lastMatchedFix.time_total || '0');
+		var lastFuelRem = parseFloat(
+			lastMatchedFix.Fuel_plan_onboard || lastMatchedFix.fuel_plan_onboard ||
+			lastMatchedFix.Fuel_rem || lastMatchedFix.fuel_rem || '0'
+		);
+		var lastFuelFlow = parseFloat(
+			lastMatchedFix.Fuel_flow || lastMatchedFix.fuel_flow || '0'
+		);
+
+		// Anzahl der unenriched Waypoints nach dem letzten Match
+		var unenrichedCount = 0;
+		for (var u = lastMatchedIndex + 1; u < waypoints.length; u++) {
+			var uWp = waypoints[u];
+			if (!uWp.Wind_dir && !uWp.Groundspeed) {
+				unenrichedCount++;
+			}
+		}
+
+		// Verbleibende Flugzeit nach dem letzten gematchten Fix
+		var remainingMinutes = totalFlightMinutes - lastTimeTotal;
+		if (remainingMinutes < 0) remainingMinutes = 0;
+
+		// ETE pro Approach-Leg (gleichmäßig aufteilen)
+		var etePerLeg = unenrichedCount > 0 ? Math.round(remainingMinutes / unenrichedCount) : 0;
+
+		var approachLegCounter = 0;
+		for (var a = lastMatchedIndex + 1; a < waypoints.length; a++) {
+			var apWp = waypoints[a];
+			var apWpName = (apWp.name || apWp.Name || apWp.ident || '').toUpperCase();
+			var isLastWaypoint = (a === waypoints.length - 1);
+
+			// Nur unenriched Waypoints behandeln
+			if (apWp.Wind_dir || apWp.Groundspeed) continue;
+
+			approachLegCounter++;
+			var cumulativeMinutes = lastTimeTotal + (etePerLeg * approachLegCounter);
+
+			if (isLastWaypoint) {
+				// === LETZTER WAYPOINT (Zielflughafen/RWY) ===
+				// Wind aus Destination METAR extrahieren
+				if (destData && !apWp.Wind_dir && !apWp.Wind_spd) {
+					var destMetar = destData.Metar || destData.metar;
+					if (destMetar) {
+						var destWind = extractWindFromMetar(destMetar);
+						if (destWind) {
+							apWp.Wind_dir = destWind.dir;
+							apWp.Wind_spd = destWind.spd;
+							NAVLOG_DEBUG && console.log('[OFP Enrichment] Arrival airport', apWpName,
+								'wind from METAR:', destWind.dir + '/' + destWind.spd + 'kt');
+						}
+						// Temperature aus METAR
+						if (!apWp.Oat) {
+							var destTemp = extractTempFromMetar(destMetar);
+							if (destTemp) {
+								apWp.Oat = destTemp;
+							}
+						}
+					}
+				}
+				// Elevation als Altitude
+				if (destData) {
+					var destElev = destData.Elevation || destData.elevation;
+					if (destElev && apWp.altitude === undefined) {
+						apWp.altitude = destElev;
+					}
+				}
+				// Groundspeed am Boden = 0
+				if (apWp.Groundspeed === undefined) apWp.Groundspeed = '0';
+				// ETE für das letzte Leg
+				if (apWp.Ete === undefined) apWp.Ete = String(etePerLeg);
+				// Time_total = Gesamtflugzeit
+				if (apWp.Time_total === undefined) apWp.Time_total = String(totalFlightMinutes);
+				if (apWp.Eta === undefined) apWp.Eta = String(totalFlightMinutes);
+				// Fuel Burn und Remaining
+				if (apWp.Fuel_burn === undefined && lastFuelFlow > 0 && etePerLeg > 0) {
+					apWp.Fuel_burn = String(Math.round(lastFuelFlow * (etePerLeg / 60)));
+				}
+				if (apWp.Fuel_rem === undefined) {
+					var totalBurnRemaining = lastFuelFlow > 0 ? Math.round(lastFuelFlow * (remainingMinutes / 60)) : 0;
+					var landingFuel = Math.round(lastFuelRem - totalBurnRemaining);
+					if (landingFuel < 0) landingFuel = 0;
+					apWp.Fuel_rem = String(landingFuel);
+				}
+				if (apWp.Fuel_flow === undefined && lastFuelFlow > 0) {
+					apWp.Fuel_flow = String(Math.round(lastFuelFlow));
+				}
+				// Magnetic variation: carry forward
+				if (apWp.Mag_var === undefined) {
+					var lastMagVar = lastMatchedFix.Mag_var || lastMatchedFix.mag_var;
+					if (lastMagVar === undefined && lastMatchedFix.Track_true !== undefined && lastMatchedFix.Track_mag !== undefined) {
+						lastMagVar = parseFloat(lastMatchedFix.Track_true) - parseFloat(lastMatchedFix.Track_mag);
+					}
+					if (lastMagVar !== undefined) {
+						apWp.Mag_var = lastMagVar;
+					}
+				}
+				NAVLOG_DEBUG && console.log('[OFP Enrichment] Arrival enriched:', apWpName,
+					'Wind:', apWp.Wind_dir, '/', apWp.Wind_spd,
+					'Fuel_rem:', apWp.Fuel_rem, 'Alt:', apWp.altitude);
+
+			} else {
+				// === APPROACH WAYPOINTS (zwischen letztem Match und Zielflughafen) ===
+				// Wind/Temp: Carry forward from last matched fix
+				if (apWp.Wind_dir === undefined) {
+					apWp.Wind_dir = lastMatchedFix.Wind_dir || lastMatchedFix.wind_dir;
+				}
+				if (apWp.Wind_spd === undefined) {
+					apWp.Wind_spd = lastMatchedFix.Wind_spd || lastMatchedFix.wind_spd;
+				}
+				if (apWp.Oat === undefined) {
+					apWp.Oat = lastMatchedFix.Oat || lastMatchedFix.oat;
+				}
+				// Ground Speed: carry forward
+				if (apWp.Groundspeed === undefined) {
+					apWp.Groundspeed = lastMatchedFix.Groundspeed || lastMatchedFix.groundspeed ||
+						lastMatchedFix.Ground_spd || lastMatchedFix.ground_spd;
+				}
+				// ETE for this leg
+				if (apWp.Ete === undefined) {
+					apWp.Ete = String(etePerLeg);
+				}
+				// Cumulative time
+				if (apWp.Time_total === undefined) {
+					apWp.Time_total = String(Math.round(cumulativeMinutes));
+				}
+				if (apWp.Eta === undefined) {
+					apWp.Eta = String(Math.round(cumulativeMinutes));
+				}
+				// Fuel: incremental burn per leg
+				if (apWp.Fuel_burn === undefined && lastFuelFlow > 0 && etePerLeg > 0) {
+					apWp.Fuel_burn = String(Math.round(lastFuelFlow * (etePerLeg / 60)));
+				}
+				if (apWp.Fuel_rem === undefined && lastFuelRem > 0) {
+					var burnSoFar = lastFuelFlow > 0 ? lastFuelFlow * ((etePerLeg * approachLegCounter) / 60) : 0;
+					apWp.Fuel_rem = String(Math.round(lastFuelRem - burnSoFar));
+				}
+				if (apWp.Fuel_flow === undefined && lastFuelFlow > 0) {
+					apWp.Fuel_flow = String(Math.round(lastFuelFlow));
+				}
+				// Magnetic variation: carry forward
+				if (apWp.Mag_var === undefined) {
+					var lastMagVar2 = lastMatchedFix.Mag_var || lastMatchedFix.mag_var;
+					if (lastMagVar2 === undefined && lastMatchedFix.Track_true !== undefined && lastMatchedFix.Track_mag !== undefined) {
+						lastMagVar2 = parseFloat(lastMatchedFix.Track_true) - parseFloat(lastMatchedFix.Track_mag);
+					}
+					if (lastMagVar2 !== undefined) {
+						apWp.Mag_var = lastMagVar2;
+					}
+				}
+				NAVLOG_DEBUG && console.log('[OFP Enrichment] Approach enriched:', apWpName,
+					'Wind:', apWp.Wind_dir, '/', apWp.Wind_spd,
+					'GS:', apWp.Groundspeed, 'ETE:', apWp.Ete);
 			}
 		}
 	}

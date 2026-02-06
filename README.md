@@ -209,6 +209,16 @@ Copyright (c) 2021-2026 G-Simulations / Patrick Moses
 
 Siehe [LICENSE](LICENSE) für Details und Drittanbieter-Lizenzen.
 
+## Unterstützung
+
+G-Sim Kneeboard ist ein kostenloses Projekt, das mit Leidenschaft in meiner Freizeit entwickelt wird.
+
+Server-Hosting, die Website und die laufende Weiterentwicklung verursachen jedoch reale Kosten. Deine Spende hilft, dieses Projekt am Leben zu halten und neue Features zu ermöglichen. Jeder Beitrag – egal wie klein – fließt direkt in das Projekt und wird sehr geschätzt.
+
+Vielen Dank für deine Unterstützung!
+
+[![PayPal Spenden](https://img.shields.io/badge/PayPal-Spenden-blue?logo=paypal)](https://www.paypal.com/donate/?hosted_button_id=AJAFN6YQACS3S)
+
 ## Autor
 
 Moses / Gsimulations
