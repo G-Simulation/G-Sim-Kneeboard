@@ -61,22 +61,29 @@ namespace Kneeboard_Server
             this.panelStatusLabel = new System.Windows.Forms.Label();
             this.panelPathLabel = new System.Windows.Forms.Label();
             this.installPanelButton = new System.Windows.Forms.Button();
+            this.serialGroupBox = new System.Windows.Forms.GroupBox();
+            this.serialNumberInput = new System.Windows.Forms.TextBox();
+            this.serialStatusLabel = new System.Windows.Forms.Label();
+            this.updateGroupBox = new System.Windows.Forms.GroupBox();
+            this.autoUpdateCheckbox = new System.Windows.Forms.CheckBox();
+            this.checkForUpdatesButton = new System.Windows.Forms.Button();
+            this.supportLink = new System.Windows.Forms.LinkLabel();
             this.startupGroupBox.SuspendLayout();
             this.idsGroupBox.SuspendLayout();
             this.cacheGroupBox.SuspendLayout();
             this.navigraphGroupBox.SuspendLayout();
             this.elevationGroupBox.SuspendLayout();
-            this.supportLink = new System.Windows.Forms.LinkLabel();
             this.panelGroupBox.SuspendLayout();
+            this.serialGroupBox.SuspendLayout();
+            this.updateGroupBox.SuspendLayout();
             this.SuspendLayout();
             // 
             // closeButton
             // 
-            this.closeButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.closeButton.BackColor = System.Drawing.SystemColors.Window;
             this.closeButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.closeButton.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.closeButton.Location = new System.Drawing.Point(226, 8);
+            this.closeButton.Location = new System.Drawing.Point(462, 8);
             this.closeButton.Name = "closeButton";
             this.closeButton.Size = new System.Drawing.Size(23, 23);
             this.closeButton.TabIndex = 24;
@@ -88,9 +95,9 @@ namespace Kneeboard_Server
             // 
             this.label1.Font = new System.Drawing.Font("Segoe UI", 14.25F, System.Drawing.FontStyle.Bold);
             this.label1.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.label1.Location = new System.Drawing.Point(12, 8);
+            this.label1.Location = new System.Drawing.Point(12, 29);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(208, 25);
+            this.label1.Size = new System.Drawing.Size(466, 25);
             this.label1.TabIndex = 25;
             this.label1.Text = "Kneeboard Server";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -99,9 +106,9 @@ namespace Kneeboard_Server
             // 
             this.Version.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.Version.ForeColor = System.Drawing.SystemColors.ControlDarkDark;
-            this.Version.Location = new System.Drawing.Point(12, 33);
+            this.Version.Location = new System.Drawing.Point(12, 54);
             this.Version.Name = "Version";
-            this.Version.Size = new System.Drawing.Size(208, 16);
+            this.Version.Size = new System.Drawing.Size(466, 16);
             this.Version.TabIndex = 26;
             this.Version.Text = "Version: 2.0.0.0";
             this.Version.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -111,9 +118,9 @@ namespace Kneeboard_Server
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
             this.label2.Font = new System.Drawing.Font("Segoe UI", 8.25F);
             this.label2.ForeColor = System.Drawing.SystemColors.ControlDarkDark;
-            this.label2.Location = new System.Drawing.Point(12, 636);
+            this.label2.Location = new System.Drawing.Point(12, 478);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(230, 16);
+            this.label2.Size = new System.Drawing.Size(466, 16);
             this.label2.TabIndex = 28;
             this.label2.Text = "Gsimulations - 2021";
             this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -122,9 +129,9 @@ namespace Kneeboard_Server
             // 
             this.linkLabel1.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
             this.linkLabel1.Font = new System.Drawing.Font("Segoe UI", 8.25F);
-            this.linkLabel1.Location = new System.Drawing.Point(12, 652);
+            this.linkLabel1.Location = new System.Drawing.Point(12, 494);
             this.linkLabel1.Name = "linkLabel1";
-            this.linkLabel1.Size = new System.Drawing.Size(230, 16);
+            this.linkLabel1.Size = new System.Drawing.Size(466, 16);
             this.linkLabel1.TabIndex = 29;
             this.linkLabel1.TabStop = true;
             this.linkLabel1.Text = "support@gsimulations.com";
@@ -277,7 +284,7 @@ namespace Kneeboard_Server
             this.startupGroupBox.Controls.Add(this.minimized);
             this.startupGroupBox.Controls.Add(this.folderpathInput);
             this.startupGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.startupGroupBox.Location = new System.Drawing.Point(12, 55);
+            this.startupGroupBox.Location = new System.Drawing.Point(12, 80);
             this.startupGroupBox.Name = "startupGroupBox";
             this.startupGroupBox.Size = new System.Drawing.Size(230, 110);
             this.startupGroupBox.TabIndex = 50;
@@ -290,7 +297,7 @@ namespace Kneeboard_Server
             this.idsGroupBox.Controls.Add(this.VatsimCidInput);
             this.idsGroupBox.Controls.Add(this.IvaoVidInput);
             this.idsGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.idsGroupBox.Location = new System.Drawing.Point(12, 170);
+            this.idsGroupBox.Location = new System.Drawing.Point(12, 195);
             this.idsGroupBox.Name = "idsGroupBox";
             this.idsGroupBox.Size = new System.Drawing.Size(230, 100);
             this.idsGroupBox.TabIndex = 51;
@@ -303,7 +310,7 @@ namespace Kneeboard_Server
             this.cacheGroupBox.Controls.Add(this.maxCacheSizeInput);
             this.cacheGroupBox.Controls.Add(this.clearCacheButton);
             this.cacheGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.cacheGroupBox.Location = new System.Drawing.Point(12, 275);
+            this.cacheGroupBox.Location = new System.Drawing.Point(12, 300);
             this.cacheGroupBox.Name = "cacheGroupBox";
             this.cacheGroupBox.Size = new System.Drawing.Size(230, 72);
             this.cacheGroupBox.TabIndex = 52;
@@ -316,7 +323,7 @@ namespace Kneeboard_Server
             this.navigraphGroupBox.Controls.Add(this.navigraphStatusLabel);
             this.navigraphGroupBox.Controls.Add(this.navigraphLoginButton);
             this.navigraphGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.navigraphGroupBox.Location = new System.Drawing.Point(12, 353);
+            this.navigraphGroupBox.Location = new System.Drawing.Point(12, 378);
             this.navigraphGroupBox.Name = "navigraphGroupBox";
             this.navigraphGroupBox.Size = new System.Drawing.Size(230, 65);
             this.navigraphGroupBox.TabIndex = 54;
@@ -330,7 +337,7 @@ namespace Kneeboard_Server
             this.elevationGroupBox.Controls.Add(this.downloadSrtmButton);
             this.elevationGroupBox.Controls.Add(this.elevationStatusLabel);
             this.elevationGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.elevationGroupBox.Location = new System.Drawing.Point(12, 518);
+            this.elevationGroupBox.Location = new System.Drawing.Point(248, 175);
             this.elevationGroupBox.Name = "elevationGroupBox";
             this.elevationGroupBox.Size = new System.Drawing.Size(230, 115);
             this.elevationGroupBox.TabIndex = 55;
@@ -393,7 +400,7 @@ namespace Kneeboard_Server
             this.panelGroupBox.Controls.Add(this.panelPathLabel);
             this.panelGroupBox.Controls.Add(this.installPanelButton);
             this.panelGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.panelGroupBox.Location = new System.Drawing.Point(12, 423);
+            this.panelGroupBox.Location = new System.Drawing.Point(248, 80);
             this.panelGroupBox.Name = "panelGroupBox";
             this.panelGroupBox.Size = new System.Drawing.Size(230, 90);
             this.panelGroupBox.TabIndex = 56;
@@ -441,84 +448,111 @@ namespace Kneeboard_Server
             this.installPanelButton.Text = "Install Panel";
             this.installPanelButton.UseVisualStyleBackColor = true;
             this.installPanelButton.Click += new System.EventHandler(this.InstallPanelButton_Click);
-            //
+            // 
             // serialGroupBox
-            //
-            this.serialGroupBox.Controls.Add(this.serialNumberLabel);
+            // 
             this.serialGroupBox.Controls.Add(this.serialNumberInput);
             this.serialGroupBox.Controls.Add(this.serialStatusLabel);
             this.serialGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.serialGroupBox.Location = new System.Drawing.Point(12, 638);
+            this.serialGroupBox.Location = new System.Drawing.Point(248, 295);
             this.serialGroupBox.Name = "serialGroupBox";
-            this.serialGroupBox.Size = new System.Drawing.Size(230, 70);
+            this.serialGroupBox.Size = new System.Drawing.Size(230, 60);
             this.serialGroupBox.TabIndex = 58;
             this.serialGroupBox.TabStop = false;
-            this.serialGroupBox.Text = "Seriennummer";
-            //
-            // serialNumberLabel
-            //
-            this.serialNumberLabel.AutoSize = true;
-            this.serialNumberLabel.ForeColor = System.Drawing.SystemColors.ControlText;
-            this.serialNumberLabel.Location = new System.Drawing.Point(7, 18);
-            this.serialNumberLabel.Name = "serialNumberLabel";
-            this.serialNumberLabel.Size = new System.Drawing.Size(78, 13);
-            this.serialNumberLabel.TabIndex = 0;
-            this.serialNumberLabel.Text = "Seriennummer:";
-            //
+            this.serialGroupBox.Text = "License Key";
+            // 
             // serialNumberInput
-            //
-            this.serialNumberInput.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            // 
+            this.serialNumberInput.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.serialNumberInput.ForeColor = System.Drawing.SystemColors.ControlText;
-            this.serialNumberInput.Location = new System.Drawing.Point(10, 35);
+            this.serialNumberInput.Location = new System.Drawing.Point(10, 19);
             this.serialNumberInput.Name = "serialNumberInput";
             this.serialNumberInput.Size = new System.Drawing.Size(210, 20);
             this.serialNumberInput.TabIndex = 1;
             this.serialNumberInput.TextChanged += new System.EventHandler(this.SerialNumberInput_TextChanged);
-            //
+            // 
             // serialStatusLabel
-            //
+            // 
             this.serialStatusLabel.AutoSize = true;
             this.serialStatusLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold);
             this.serialStatusLabel.ForeColor = System.Drawing.Color.Gray;
-            this.serialStatusLabel.Location = new System.Drawing.Point(92, 18);
+            this.serialStatusLabel.Location = new System.Drawing.Point(10, 42);
             this.serialStatusLabel.Name = "serialStatusLabel";
             this.serialStatusLabel.Size = new System.Drawing.Size(0, 13);
             this.serialStatusLabel.TabIndex = 2;
-            //
+            // 
+            // updateGroupBox
+            // 
+            this.updateGroupBox.Controls.Add(this.autoUpdateCheckbox);
+            this.updateGroupBox.Controls.Add(this.checkForUpdatesButton);
+            this.updateGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
+            this.updateGroupBox.Location = new System.Drawing.Point(248, 361);
+            this.updateGroupBox.Name = "updateGroupBox";
+            this.updateGroupBox.Size = new System.Drawing.Size(230, 65);
+            this.updateGroupBox.TabIndex = 59;
+            this.updateGroupBox.TabStop = false;
+            this.updateGroupBox.Text = "Updates";
+            // 
+            // autoUpdateCheckbox
+            // 
+            this.autoUpdateCheckbox.AutoSize = true;
+            this.autoUpdateCheckbox.Checked = true;
+            this.autoUpdateCheckbox.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.autoUpdateCheckbox.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.autoUpdateCheckbox.Location = new System.Drawing.Point(10, 19);
+            this.autoUpdateCheckbox.Name = "autoUpdateCheckbox";
+            this.autoUpdateCheckbox.Size = new System.Drawing.Size(122, 17);
+            this.autoUpdateCheckbox.TabIndex = 0;
+            this.autoUpdateCheckbox.Text = "Auto-check updates";
+            this.autoUpdateCheckbox.UseVisualStyleBackColor = true;
+            this.autoUpdateCheckbox.CheckedChanged += new System.EventHandler(this.AutoUpdateCheckbox_CheckedChanged);
+            // 
+            // checkForUpdatesButton
+            // 
+            this.checkForUpdatesButton.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.checkForUpdatesButton.Location = new System.Drawing.Point(10, 39);
+            this.checkForUpdatesButton.Name = "checkForUpdatesButton";
+            this.checkForUpdatesButton.Size = new System.Drawing.Size(210, 23);
+            this.checkForUpdatesButton.TabIndex = 1;
+            this.checkForUpdatesButton.Text = "Check for updates";
+            this.checkForUpdatesButton.UseVisualStyleBackColor = true;
+            this.checkForUpdatesButton.Click += new System.EventHandler(this.CheckForUpdatesButton_Click);
+            // 
             // supportLink
-            //
+            // 
             this.supportLink.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
-            this.supportLink.Font = new System.Drawing.Font("Segoe UI", 8.25F);
-            this.supportLink.Location = new System.Drawing.Point(12, 743);
+            this.supportLink.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.supportLink.LinkColor = System.Drawing.SystemColors.Highlight;
+            this.supportLink.Location = new System.Drawing.Point(8, 448);
             this.supportLink.Name = "supportLink";
-            this.supportLink.Size = new System.Drawing.Size(230, 16);
+            this.supportLink.Size = new System.Drawing.Size(470, 30);
             this.supportLink.TabIndex = 57;
             this.supportLink.TabStop = true;
             this.supportLink.Text = "♥ Support this project";
             this.supportLink.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            this.supportLink.LinkColor = System.Drawing.SystemColors.Highlight;
             this.supportLink.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.SupportLink_LinkClicked);
-            //
+            // 
             // InformationForm
-            //
+            // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Window;
-            this.ClientSize = new System.Drawing.Size(254, 770);
+            this.ClientSize = new System.Drawing.Size(490, 519);
+            this.Controls.Add(this.closeButton);
+            this.Controls.Add(this.updateGroupBox);
             this.Controls.Add(this.serialGroupBox);
             this.Controls.Add(this.elevationGroupBox);
+            this.Controls.Add(this.supportLink);
             this.Controls.Add(this.panelGroupBox);
             this.Controls.Add(this.navigraphGroupBox);
             this.Controls.Add(this.cacheGroupBox);
             this.Controls.Add(this.idsGroupBox);
             this.Controls.Add(this.startupGroupBox);
-            this.Controls.Add(this.supportLink);
             this.Controls.Add(this.linkLabel1);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.Version);
             this.Controls.Add(this.label1);
-            this.Controls.Add(this.closeButton);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.Name = "InformationForm";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
@@ -538,6 +572,8 @@ namespace Kneeboard_Server
             this.panelGroupBox.PerformLayout();
             this.serialGroupBox.ResumeLayout(false);
             this.serialGroupBox.PerformLayout();
+            this.updateGroupBox.ResumeLayout(false);
+            this.updateGroupBox.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -578,8 +614,10 @@ namespace Kneeboard_Server
         private System.Windows.Forms.Button installPanelButton;
         private System.Windows.Forms.LinkLabel supportLink;
         private System.Windows.Forms.GroupBox serialGroupBox;
-        private System.Windows.Forms.Label serialNumberLabel;
         private System.Windows.Forms.TextBox serialNumberInput;
         private System.Windows.Forms.Label serialStatusLabel;
+        private System.Windows.Forms.GroupBox updateGroupBox;
+        private System.Windows.Forms.CheckBox autoUpdateCheckbox;
+        private System.Windows.Forms.Button checkForUpdatesButton;
     }
 }

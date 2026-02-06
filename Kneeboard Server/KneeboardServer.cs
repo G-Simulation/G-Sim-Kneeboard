@@ -1017,19 +1017,137 @@ namespace Kneeboard_Server
             saveButton.FlatAppearance.MouseOverBackColor = System.Drawing.Color.Transparent;
             editButton.FlatAppearance.MouseOverBackColor = System.Drawing.Color.Transparent;
 
-            //Update message event - Fully automatic update configuration
-            AutoUpdater.CheckForUpdateEvent += AutoUpdaterOnCheckForUpdateEvent;
-            AutoUpdater.RunUpdateAsAdmin = true;
-            AutoUpdater.DownloadPath = System.IO.Path.GetTempPath();
-            AutoUpdater.Mandatory = true;
-            AutoUpdater.UpdateMode = Mode.ForcedDownload;
-            AutoUpdater.Start("https://github.com/G-Simulation/G-Sim-Kneeboard-Server/releases/latest/download/Kneeboard_version.xml");
+            // Check for updates via GitHub Releases API, use AutoUpdater for download/install
+            if (Properties.Settings.Default.autoUpdateCheck)
+            {
+                CheckForGitHubUpdate();
+            }
         }
 
         //Update check
 
         bool updateAvailable = false;
         bool simConnectConnected = false;
+        private string pendingUpdateUrl = null;
+
+        public async void CheckForGitHubUpdate(bool manual = false)
+        {
+            try
+            {
+                if (manual)
+                {
+                    Invoke(new Action(() =>
+                    {
+                        UpdateMessage.Visible = true;
+                        UpdateMessage.Text = " Checking for updates...";
+                        UpdateMessage.BackColor = SystemColors.MenuHighlight;
+                    }));
+                }
+
+                using (var client = new System.Net.Http.HttpClient())
+                {
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd("KneeboardServer");
+
+                    var response = await client.GetStringAsync(
+                        "https://api.github.com/repos/G-Simulation/G-Sim-Kneeboard-Server/releases/latest");
+
+                    dynamic release = Newtonsoft.Json.JsonConvert.DeserializeObject(response);
+                    string tagName = release.tag_name;
+                    string latestVersion = ((string)tagName).TrimStart('v');
+
+                    var currentVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                    var remoteVersion = new Version(latestVersion);
+
+                    if (remoteVersion > new Version(currentVersion.Major, currentVersion.Minor, currentVersion.Build))
+                    {
+                        // Find the Setup.zip download URL from release assets
+                        string downloadUrl = null;
+                        foreach (var asset in release.assets)
+                        {
+                            string name = asset.name.ToString();
+                            if (name.EndsWith("-Setup.zip"))
+                            {
+                                downloadUrl = asset.browser_download_url;
+                                break;
+                            }
+                        }
+
+                        if (downloadUrl != null)
+                        {
+                            pendingUpdateUrl = $"https://github.com/G-Simulation/G-Sim-Kneeboard-Server/releases/tag/v{latestVersion}";
+
+                            // Generate temporary XML for AutoUpdater and start download
+                            Invoke(new Action(() => StartAutoUpdater(latestVersion, downloadUrl)));
+                        }
+                    }
+                    else if (manual)
+                    {
+                        Invoke(new Action(() =>
+                        {
+                            UpdateMessage.Visible = true;
+                            UpdateMessage.Text = $" You are up to date (v{currentVersion.Major}.{currentVersion.Minor}.{currentVersion.Build})";
+                            UpdateMessage.BackColor = Color.Green;
+                        }));
+
+                        // Hide after 3 seconds
+                        await System.Threading.Tasks.Task.Delay(3000);
+                        Invoke(new Action(() =>
+                        {
+                            if (!updateAvailable)
+                            {
+                                UpdateMessage.Visible = false;
+                                UpdateStatusBar();
+                            }
+                        }));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Update check failed: {ex.Message}");
+                if (manual)
+                {
+                    Invoke(new Action(() =>
+                    {
+                        UpdateMessage.Visible = true;
+                        UpdateMessage.Text = " Update check failed. No internet?";
+                        UpdateMessage.BackColor = Color.Red;
+                    }));
+
+                    await System.Threading.Tasks.Task.Delay(3000);
+                    Invoke(new Action(() =>
+                    {
+                        if (!updateAvailable)
+                        {
+                            UpdateMessage.Visible = false;
+                            UpdateStatusBar();
+                        }
+                    }));
+                }
+            }
+        }
+
+        private void StartAutoUpdater(string version, string downloadUrl)
+        {
+            // Create temporary XML that AutoUpdater expects
+            string xmlContent = $"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                $"<item>\n" +
+                $"    <version>{version}</version>\n" +
+                $"    <url>{downloadUrl}</url>\n" +
+                $"    <mandatory>false</mandatory>\n" +
+                $"    <executable>Kneeboard Server.msi</executable>\n" +
+                $"</item>";
+
+            string xmlPath = Path.Combine(Path.GetTempPath(), "Kneeboard_version.xml");
+            System.IO.File.WriteAllText(xmlPath, xmlContent);
+
+            AutoUpdater.CheckForUpdateEvent += AutoUpdaterOnCheckForUpdateEvent;
+            AutoUpdater.RunUpdateAsAdmin = true;
+            AutoUpdater.DownloadPath = Path.GetTempPath();
+            AutoUpdater.Mandatory = true;
+            AutoUpdater.UpdateMode = Mode.ForcedDownload;
+            AutoUpdater.Start("file://" + xmlPath);
+        }
 
         private void AutoUpdaterOnCheckForUpdateEvent(UpdateInfoEventArgs args)
         {
@@ -1048,12 +1166,10 @@ namespace Kneeboard_Server
                     UpdateMessage.BackColor = Color.Orange;
                     updateAvailable = true;
 
-                    // Automatically download and install the update
                     try
                     {
                         if (AutoUpdater.DownloadUpdate(args))
                         {
-                            // Update downloaded successfully, application will restart
                             Application.Exit();
                         }
                     }
@@ -1074,7 +1190,6 @@ namespace Kneeboard_Server
             }
             else
             {
-                // Fehler beim Update-Check (z.B. keine Internetverbindung)
                 Console.WriteLine($"Update check failed: {args.Error.Message}");
                 UpdateMessage.Visible = false;
                 UpdateStatusBar();
@@ -1610,10 +1725,6 @@ namespace Kneeboard_Server
                 }
                 notifyIcon.ShowBalloonTip(1000);
             }
-
-            // DEBUG: Timestamp zurücksetzen zum Testen - ENTFERNEN VOR RELEASE!
-            Properties.Settings.Default.lastDonationShown = DateTime.MinValue;
-            Properties.Settings.Default.Save();
 
             // Spenden-Dialog 1x pro Tag anzeigen (wenn keine gültige Seriennummer)
             bool serialValid = InformationForm.IsSerialValid(Properties.Settings.Default.serialNumber);
@@ -3532,7 +3643,10 @@ namespace Kneeboard_Server
 
         private void statusBox_Click(object sender, EventArgs e)
         {
-            // Auto-update handles downloads automatically
+            if (pendingUpdateUrl != null && updateAvailable)
+            {
+                try { System.Diagnostics.Process.Start(pendingUpdateUrl); } catch { }
+            }
         }
 
         private void treeView1_DoubleClick(object sender, EventArgs e)

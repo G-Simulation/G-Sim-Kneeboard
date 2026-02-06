@@ -117,4 +117,13 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="supportTextLabel.Text" xml:space="preserve">
+    <value>Gsimulations Kneeboard is a free project built with passion in my spare time.
+
+However, server hosting, the website, and ongoing development come with real costs.
+
+Your donation helps keep this project alive and enables new features. Every contribution – no matter how small – goes directly into the project and is greatly appreciated.
+
+Thank you for your support!</value>
+  </data>
 </root>

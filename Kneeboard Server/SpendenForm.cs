@@ -28,35 +28,9 @@ namespace Kneeboard_Server
             InitializeComponent();
         }
 
-        private void SpendenForm_Load(object sender, EventArgs e)
-        {
-            if (Owner != null)
-            {
-                Location = new Point(
-                    Owner.Location.X + Owner.Width / 2 - Width / 2,
-                    Owner.Location.Y + Owner.Height / 2 - Height / 2);
-            }
-            versionLabel.Text = "Version: " + Assembly.GetExecutingAssembly().GetName().Version.ToString();
-
-            // QR-Code laden
-            try
-            {
-                byte[] qrBytes = Convert.FromBase64String(QrBase64);
-                var ms = new MemoryStream(qrBytes);
-                qrPictureBox.Image = Image.FromStream(ms);
-            }
-            catch
-            {
-                // QR-Code konnte nicht geladen werden - kein Problem
-            }
-        }
-
         private void SpendenForm_Paint(object sender, PaintEventArgs e)
         {
-            using (var pen = new Pen(SystemColors.Highlight, 2))
-            {
-                e.Graphics.DrawRectangle(pen, 1, 1, ClientSize.Width - 2, ClientSize.Height - 2);
-            }
+
         }
 
         private void CloseButton_Click(object sender, EventArgs e)

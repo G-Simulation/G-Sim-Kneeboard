@@ -465,5 +465,17 @@ namespace Kneeboard_Server.Properties {
                 this["serialNumber"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool autoUpdateCheck {
+            get {
+                return ((bool)(this["autoUpdateCheck"]));
+            }
+            set {
+                this["autoUpdateCheck"] = value;
+            }
+        }
     }
 }

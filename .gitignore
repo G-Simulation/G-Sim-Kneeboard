@@ -317,6 +317,9 @@ FodyWeavers.xsd
 # OpenAIP cache
 Kneeboard Server/cache/
 
+# Internal tools (serial generator etc.)
+tools/generate_serial.py
+
 # Kneeboard Server specific ignores
 Kneeboard Server/bin/x64/Debug/Kneeboard Server.exe
 Kneeboard Server/bin/x64/Debug/Kneeboard Server.exe.CodeAnalysisLog.xml

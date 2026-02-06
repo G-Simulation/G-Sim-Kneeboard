@@ -90,6 +90,9 @@ namespace Kneeboard_Server
                 serialNumberInput.Text = serial;
             }
             UpdateSerialStatus();
+
+            // Load auto-update setting
+            autoUpdateCheckbox.Checked = Properties.Settings.Default.autoUpdateCheck;
         }
 
         private void InformationForm_Load(object sender, EventArgs e)
@@ -752,12 +755,12 @@ namespace Kneeboard_Server
             }
             else if (IsSerialValid(serial))
             {
-                serialStatusLabel.Text = "Gültig";
+                serialStatusLabel.Text = "Valid";
                 serialStatusLabel.ForeColor = System.Drawing.Color.Green;
             }
             else
             {
-                serialStatusLabel.Text = "Ungültig";
+                serialStatusLabel.Text = "Invalid";
                 serialStatusLabel.ForeColor = System.Drawing.Color.Red;
             }
         }
@@ -804,6 +807,25 @@ namespace Kneeboard_Server
             string expectedCheck = checksum.ToString("X4");
 
             return checkPart == expectedCheck;
+        }
+
+        #endregion
+
+        #region Updates
+
+        private void AutoUpdateCheckbox_CheckedChanged(object sender, EventArgs e)
+        {
+            Properties.Settings.Default.autoUpdateCheck = autoUpdateCheckbox.Checked;
+            Properties.Settings.Default.Save();
+        }
+
+        private void CheckForUpdatesButton_Click(object sender, EventArgs e)
+        {
+            var mainForm = Owner as Kneeboard_Server;
+            if (mainForm != null)
+            {
+                mainForm.CheckForGitHubUpdate(manual: true);
+            }
         }
 
         #endregion
