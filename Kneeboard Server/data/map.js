@@ -180,7 +180,7 @@ var DEBUG_CONFIG = {
   ATIS: false,
 
   KNEEBOARD: false,
-  FLIGHTPLANPANEL: true,
+  FLIGHTPLANPANEL: false,
   PERF: false,
   FORMULAS: false,
   BRIDGE: false,
@@ -14056,16 +14056,14 @@ function getConstraintBadgeHtml(constraint) {
   if (!constraint) return '';
 
   var normalized = constraint.toUpperCase().trim();
-  var badgeClass = 'fp-wp-constraint';
 
-  if (normalized === 'AT' || normalized === '@') {
-    return '<span class="' + badgeClass + ' fp-constraint-at">AT</span>';
-  } else if (normalized === 'ABOVE' || normalized === 'A' || normalized === '+') {
-    return '<span class="' + badgeClass + ' fp-constraint-above">+</span>';
+  if (normalized === 'ABOVE' || normalized === 'A' || normalized === '+') {
+    return '<span class="fp-wp-constraint fp-constraint-above">A</span>';
   } else if (normalized === 'BELOW' || normalized === 'B' || normalized === '-') {
-    return '<span class="' + badgeClass + ' fp-constraint-below">-</span>';
+    return '<span class="fp-wp-constraint fp-constraint-below">B</span>';
   }
 
+  // AT and BETWEEN: no extra badge needed (AT = exact, BETWEEN shows both altitudes)
   return '';
 }
 
@@ -14080,7 +14078,7 @@ function formatAltitudeDisplay(altitude) {
   }
 
   var altValue = parseFloat(altitude);
-  if (isNaN(altValue)) return '';
+  if (isNaN(altValue) || altValue === 0) return '';
 
   if (altValue >= 18000) {
     return 'FL' + Math.round(altValue / 100);
@@ -14215,18 +14213,32 @@ function updateWaypointList(waypointLayers, coordinatesArray) {
         bearingStr = "" + Math.round(bearing);
       }
 
-      // Build altitude string with constraint badge
+      // Build altitude string with constraint prefix (e.g. A10000ft, B3000ft, AT5000ft)
       var altitudeStr = formatAltitudeDisplay(nextAltitude);
-      var constraintBadge = getConstraintBadgeHtml(nextAtbl);
+      var altitudeHtml = '';
+      if (altitudeStr) {
+        var nextWpData = waypointsData[nextOriginalIndex];
+        var constraint = nextAtbl;
+        if (constraint === 'AB' && nextWpData && nextWpData.altitude2) {
+          var alt2Str = formatAltitudeDisplay(nextWpData.altitude2);
+          altitudeHtml = alt2Str + '-' + altitudeStr;
+        } else {
+          var prefix = '';
+          if (constraint === 'A' || constraint === '+') { prefix = 'A'; }
+          else if (constraint === 'B' || constraint === '-') { prefix = 'B'; }
+          else if (constraint === 'AT' || constraint === '@') { prefix = 'AT'; }
+          altitudeHtml = prefix + altitudeStr;
+        }
+      }
 
       // Build distance string
       var distanceStr = parseFloat(segmentDistance).toFixed(0) + 'nm';
 
-      // Build info row with new styling - no separators, CSS grid handles spacing
+      // Build info row with new styling
       infoRowHtml = '<div class="fp-wp-info">' +
         '<span class="fp-wp-bearing">' + bearingStr + DEGREE_SYMBOL + '</span>' +
         '<span class="fp-wp-distance">' + distanceStr + '</span>' +
-        '<span class="fp-wp-altitude">' + (altitudeStr ? altitudeStr + constraintBadge : '&nbsp;') + '</span>' +
+        '<span class="fp-wp-altitude">' + (altitudeHtml || '&nbsp;') + '</span>' +
         '</div>';
     }
 
@@ -19687,19 +19699,32 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
       if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
         // Altitude aus Navigraph-Daten extrahieren (Altitude1 ist die primäre Höhe)
-        // Fallback auf Runway-Elevation wenn 0
+        // Fallback auf Runway-Elevation NUR für Runway-Waypoints (nicht für Intermediate Fixes)
         var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
-        if (altitude === 0 && arrivalRunwayData && arrivalRunwayData.elevation) {
+        if (altitude === 0 && rwMatch && arrivalRunwayData && arrivalRunwayData.elevation) {
           altitude = arrivalRunwayData.elevation;
         }
+        var altitude2 = wp.Altitude2 || wp.altitude2 || 0;
         var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || '';
+        // Map ARINC 424 altitude_description codes
+        var atbl = '';
+        if (altConstraint === '+' || altConstraint === 'AT_OR_ABOVE') {
+          atbl = 'A';
+        } else if (altConstraint === '-' || altConstraint === 'AT_OR_BELOW' || altConstraint === 'B') {
+          atbl = 'B';
+        } else if (altConstraint === '@' || altConstraint === 'AT') {
+          atbl = 'AT';
+        } else if (altConstraint === 'J' || altConstraint === 'V') {
+          atbl = 'AB';
+        }
 
         approachEntries.push({
           lat: parseFloat(lat),
           lng: parseFloat(lon),
           name: name,
           altitude: altitude,
-          atbl: altConstraint === 'AT_OR_ABOVE' ? 'A' : altConstraint === 'AT_OR_BELOW' ? 'B' : '',
+          altitude2: altitude2,
+          atbl: atbl,
           waypointType: 'ARR',
           sourceAtcWaypointType: 'Approach',
           arrivalProcedure: parsed.procedures.approach.name || ''
@@ -20015,18 +20040,33 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
             if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
               // Altitude aus Navigraph-Daten extrahieren (Altitude1 ist die primäre Höhe)
+              // Fallback auf Runway-Elevation NUR für Runway-Waypoints
               var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
-              if (altitude === 0 && arrivalRunwayData && arrivalRunwayData.elevation) {
+              if (altitude === 0 && rwMatch && arrivalRunwayData && arrivalRunwayData.elevation) {
                 altitude = arrivalRunwayData.elevation;
               }
+              var altitude2 = wp.Altitude2 || wp.altitude2 || 0;
               var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || '';
+              // Map ARINC 424 altitude_description codes
+              var atbl = '';
+              if (altConstraint === '+' || altConstraint === 'AT_OR_ABOVE') {
+                atbl = 'A';
+              } else if (altConstraint === '-' || altConstraint === 'AT_OR_BELOW' || altConstraint === 'B') {
+                atbl = 'B';
+              } else if (altConstraint === '@' || altConstraint === 'AT') {
+                atbl = 'AT';
+              } else if (altConstraint === 'J' || altConstraint === 'V') {
+                // Between: at or above altitude2, at or below altitude1
+                atbl = 'AB';
+              }
 
               approachEntries.push({
                 lat: parseFloat(lat),
                 lng: parseFloat(lon),
                 name: name,
                 altitude: altitude,
-                atbl: altConstraint === 'AT_OR_ABOVE' ? 'A' : altConstraint === 'AT_OR_BELOW' ? 'B' : '',
+                altitude2: altitude2,
+                atbl: atbl,
                 waypointType: 'ARR',
                 sourceAtcWaypointType: 'Approach',
                 arrivalProcedure: flightplanPanelState.arrival.selectedApproach || ''
@@ -22769,14 +22809,27 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         if (altitude === 0 && rwMatch && arrivalRunwayData && arrivalRunwayData.elevation) {
             altitude = arrivalRunwayData.elevation;
         }
+        var altitude2 = wp.Altitude2 || wp.altitude2 || 0;
         var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || '';
+        // Map ARINC 424 altitude_description codes
+        var atbl = '';
+        if (altConstraint === '+' || altConstraint === 'AT_OR_ABOVE') {
+          atbl = 'A';
+        } else if (altConstraint === '-' || altConstraint === 'AT_OR_BELOW' || altConstraint === 'B') {
+          atbl = 'B';
+        } else if (altConstraint === '@' || altConstraint === 'AT') {
+          atbl = 'AT';
+        } else if (altConstraint === 'J' || altConstraint === 'V') {
+          atbl = 'AB';
+        }
 
         starEntries.push({
             lat: parseFloat(lat),
             lng: parseFloat(lon),
             name: name,
             altitude: altitude,
-            atbl: altConstraint === 'AT_OR_ABOVE' ? 'A' : altConstraint === 'AT_OR_BELOW' ? 'B' : '',
+            altitude2: altitude2,
+            atbl: atbl,
             waypointType: 'ARR',
             sourceAtcWaypointType: 'STAR',
             arrivalProcedure: starName || ''
@@ -25094,7 +25147,7 @@ async function integrateApproachIntoFlightpath(icao, approachName, approachTrans
 
         // Trenne normale Approach-Waypoints von Missed Approach
         var separated = separateMissedApproachWaypoints(sorted);
-        flightplanPanelLogger.debug('Waypoints - normal:', separated.normal.length, ', missed:', separated.missed.length);
+        flightplanPanelLogger.info('Waypoints - normal:', separated.normal.length, ', missed:', separated.missed.length);
 
         // Nur normale Waypoints filtern (mit gültigen Koordinaten)
         var validWaypoints = separated.normal.filter(function(wp) {
@@ -25327,13 +25380,20 @@ async function rebuildFlightplanWithProcedures() {
                 if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
                     var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
                     var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || '';
+                    // Map ARINC 424 altitude_description codes to A/B markers
+                    var atbl = '';
+                    if (altConstraint === '+' || altConstraint === 'AT_OR_ABOVE' || altConstraint === 'J' || altConstraint === 'V') {
+                        atbl = 'A';
+                    } else if (altConstraint === '-' || altConstraint === 'AT_OR_BELOW' || altConstraint === 'B') {
+                        atbl = 'B';
+                    }
 
                     approachEntries.push({
                         lat: parseFloat(lat),
                         lng: parseFloat(lon),
                         name: name,
                         altitude: altitude,
-                        atbl: altConstraint === 'AT_OR_ABOVE' ? 'A' : altConstraint === 'AT_OR_BELOW' ? 'B' : '',
+                        atbl: atbl,
                         waypointType: 'ARR',
                         sourceAtcWaypointType: 'Approach',
                         arrivalProcedure: arrState.selectedApproach || ''
@@ -25749,6 +25809,7 @@ function setWaypoints(flightplanData) {
       name: '',
       type: 'User',
       altitude: 0,
+      altitude2: 0,
       atbl: '',
       sourceType: '',
       departureProcedure: '',
@@ -25760,10 +25821,20 @@ function setWaypoints(flightplanData) {
 
     // Altitude
     wpData.altitude = entry.altitude ? parseInt(parseFloat(entry.altitude).toFixed(0)) : 0;
+    wpData.altitude2 = entry.altitude2 ? parseInt(parseFloat(entry.altitude2).toFixed(0)) : 0;
 
-    // At/Above/Below restriction
+    // At/Above/Below/Between restriction
     if (entry.atbl) {
-      wpData.atbl = entry.atbl === "AT_OR_ABOVE" ? "A" : (entry.atbl === "AT_OR_BELOW" ? "B" : "");
+      var rawAtbl = entry.atbl;
+      if (rawAtbl === 'A' || rawAtbl === '+' || rawAtbl === 'AT_OR_ABOVE') {
+        wpData.atbl = 'A';
+      } else if (rawAtbl === 'B' || rawAtbl === '-' || rawAtbl === 'AT_OR_BELOW') {
+        wpData.atbl = 'B';
+      } else if (rawAtbl === 'AT' || rawAtbl === '@') {
+        wpData.atbl = 'AT';
+      } else if (rawAtbl === 'AB' || rawAtbl === 'J' || rawAtbl === 'V') {
+        wpData.atbl = 'AB';
+      }
     }
 
     // Waypoint name and type
@@ -32382,7 +32453,7 @@ function initializePanelResize() {
                 delta = -delta;
             }
 
-            var newWidth = Math.max(200, Math.min(600, startWidth + delta));
+            var newWidth = Math.max(200, startWidth + delta);
             panel.style.width = newWidth + 'px';
         });
 

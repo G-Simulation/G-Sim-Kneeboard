@@ -3170,12 +3170,6 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     font-family: "Roboto-Light", sans-serif;
 }
 
-/* Flightplan Panel - Fixed width for proper layout */
-.kneeboard-panel.flightplan-panel {
-    width: 280px;
-    min-width: 260px;
-    max-width: 400px;
-}
 
 .kneeboard-panel:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -4180,7 +4174,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 /* Waypoint Row - Single line grid layout */
 .fp-wp-row {
-    display: grid;
+    display: inline-grid;
     grid-template-columns: 3vw 3vw 4vw auto 2vw;
     align-items: center;
     gap: 6px;
@@ -4253,50 +4247,32 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     background-color: #e8f4f8;
 }
 
-/* Waypoint Info (Bearing/Distance/Altitude) - display:contents makes children direct grid items */
+/* Waypoint Info (Bearing/Distance/Altitude) - flex layout with fixed widths */
 .fp-wp-info {
+    display: flex;
     font-family: "Roboto Mono", monospace;
     font-size: 10px;
     color: #555;
+    justify-content: center;
+    gap: 0;
 }
 
 span.fp-wp-bearing {
-    padding-right: 2vw;
+    width: 8em;
+    text-align: center;
 }
 
 span.fp-wp-distance {
-    padding-right: 2vw;
+    width: 8em;
+    text-align: center;
 }
 
 span.fp-wp-altitude {
-
+    width: 8em;
+    text-align: center; 
 }
 
-/* Altitude Constraints - Compact */
-.fp-wp-constraint {
-    padding: 0 3px;
-    border-radius: 2px;
-    font-size: 7px;
-    font-weight: 700;
-    margin-left: 2px;
-    color: white;
-}
-
-.fp-constraint-at {
-    background-color: var(--dark);
-}
-
-.fp-constraint-above {
-    background-color: #28a745;
-}
-
-.fp-constraint-below {
-    background-color: #fd7e14;
-}
-
-.fp-constraint-between {
-    background-color: #17a2b8;
-}
+/* Altitude Constraints - no longer used, prefix is plain text now */
 
 /* Summary Footer - Matching header style */
 .fp-summary {
