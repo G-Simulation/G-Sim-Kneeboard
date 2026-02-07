@@ -345,10 +345,82 @@
     <None Include="Resources\add-document.png" />
     <None Include="Resources\refresh-86.png" />
   </ItemGroup>
-  <!-- Kneeboard Panel Package - Content Items für MSI + xcopy für Debug -->
+  <!-- Kneeboard Panel Package - Explizite Einträge nötig für .vdproj ContentFiles (Wildcards werden ignoriert) -->
   <ItemGroup>
-    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\**\*.*">
-      <Link>Kneeboard\gsimulations-kneeboard\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\manifest.json">
+      <Link>Kneeboard\gsimulations-kneeboard\manifest.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\layout.json">
+      <Link>Kneeboard\gsimulations-kneeboard\layout.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\ContentInfo\gsimulations-kneeboard\Thumbnail.jpg">
+      <Link>Kneeboard\gsimulations-kneeboard\ContentInfo\gsimulations-kneeboard\Thumbnail.jpg</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\InGamePanels\gsim_kneeboard_panel.spb">
+      <Link>Kneeboard\gsimulations-kneeboard\InGamePanels\gsim_kneeboard_panel.spb</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\icons\toolbar\ICON_TOOLBAR_KNEEBOARD.svg">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\icons\toolbar\ICON_TOOLBAR_KNEEBOARD.svg</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\InGamePanels\Kneeboard\Assets\Logo.png">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\InGamePanels\Kneeboard\Assets\Logo.png</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\InGamePanels\Kneeboard\index.html">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\InGamePanels\Kneeboard\index.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\InGamePanels\Kneeboard\panel.js">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\InGamePanels\Kneeboard\panel.js</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\Assets\app-icon.svg">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\Assets\app-icon.svg</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\Assets\Logo.png">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\Assets\Logo.png</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\GsimKneeboard.css">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\GsimKneeboard.css</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\GsimKneeboard.css.map">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\GsimKneeboard.css.map</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\GsimKneeboard.js">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\GsimKneeboard.js</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\GsimKneeboard.js.map">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\GsimKneeboard.js.map</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\html_ui\icons\toolbar\ICON_TOOLBAR_KNEEBOARD.svg">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\html_ui\icons\toolbar\ICON_TOOLBAR_KNEEBOARD.svg</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\html_ui\InGamePanels\Kneeboard\Assets\Logo.png">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\html_ui\InGamePanels\Kneeboard\Assets\Logo.png</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\html_ui\InGamePanels\Kneeboard\index.html">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\html_ui\InGamePanels\Kneeboard\index.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\html_ui\InGamePanels\Kneeboard\panel.js">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\html_ui\InGamePanels\Kneeboard\panel.js</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Kneeboard\Packages\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\InGamePanels\gsim_kneeboard_panel.xml">
+      <Link>Kneeboard\gsimulations-kneeboard\html_ui\efb_ui\efb_apps\Kneeboard\InGamePanels\gsim_kneeboard_panel.xml</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

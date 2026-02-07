@@ -445,6 +445,7 @@ namespace Kneeboard_Server.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("01/01/0001 00:00:00")]
         public global::System.DateTime lastDonationShown {
             get {
                 return ((global::System.DateTime)(this["lastDonationShown"]));

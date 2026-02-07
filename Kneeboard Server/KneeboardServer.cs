@@ -1741,7 +1741,15 @@ namespace Kneeboard_Server
 
             // Spenden-Dialog 1x pro Tag anzeigen (wenn keine gültige Seriennummer)
             bool serialValid = InformationForm.IsSerialValid(Properties.Settings.Default.serialNumber);
-            DateTime lastShown = Properties.Settings.Default.lastDonationShown;
+            DateTime lastShown;
+            try
+            {
+                lastShown = Properties.Settings.Default.lastDonationShown;
+            }
+            catch
+            {
+                lastShown = DateTime.MinValue;
+            }
             if (!serialValid && (lastShown == DateTime.MinValue || lastShown.Date < DateTime.Now.Date))
             {
                 var spendenForm = new SpendenForm();
@@ -1750,12 +1758,51 @@ namespace Kneeboard_Server
                 Properties.Settings.Default.Save();
             }
 
+            // Panel-Check nach dem Laden: Shown-Event nutzen, damit das Fenster sichtbar ist
+            this.Shown += (s, ev2) => CheckAndPromptPanelInstall();
+
             myServer = new SimpleHTTPServer(folderpath + @"\data", Convert.ToInt32(port), this);
             KneeboardLogger.Server("Server is running on this port: " + myServer.Port.ToString());
             statusBox.BackColor = SystemColors.MenuHighlight;
             serverRun = true;
             UpdateStatusBar();
             UpdateFileList();
+        }
+
+        /// <summary>
+        /// Prüft ob das MSFS Panel installiert ist. Falls nicht, wird das Settings-Fenster geöffnet.
+        /// </summary>
+        private void CheckAndPromptPanelInstall()
+        {
+            try
+            {
+                if (!PanelDeploymentService.SourceExists())
+                    return; // Keine Quelldateien vorhanden, nichts zu tun
+
+                var installations = MsfsPathDetector.DetectMsfsInstallations();
+                bool panelInstalled = false;
+
+                foreach (var install in installations)
+                {
+                    var info = MsfsPathDetector.GetInstalledPackageInfo(install.CommunityPath);
+                    if (info.IsInstalled)
+                    {
+                        panelInstalled = true;
+                        break;
+                    }
+                }
+
+                if (!panelInstalled)
+                {
+                    KneeboardLogger.Server("MSFS Panel not installed - opening settings...");
+                    var settingsForm = new InformationForm();
+                    settingsForm.ShowDialog(this);
+                }
+            }
+            catch (Exception ex)
+            {
+                KneeboardLogger.Error("PanelCheck", $"Error checking panel status: {ex.Message}");
+            }
         }
 
         private void Close_Click(object sender, EventArgs e)

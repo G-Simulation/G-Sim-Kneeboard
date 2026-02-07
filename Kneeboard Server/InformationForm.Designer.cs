@@ -447,6 +447,7 @@ namespace Kneeboard_Server
             this.installPanelButton.TabIndex = 3;
             this.installPanelButton.Text = "Install Panel";
             this.installPanelButton.UseVisualStyleBackColor = true;
+            this.installPanelButton.Click += new System.EventHandler(this.InstallPanelButton_Click);
             // 
             // serialGroupBox
             // 

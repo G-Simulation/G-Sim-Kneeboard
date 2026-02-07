@@ -496,24 +496,22 @@ namespace Kneeboard_Server
                 var installations = MsfsPathDetector.DetectMsfsInstallations();
                 string communityPath;
 
-                if (installations.Count == 0)
+                // Immer Auswahldialog mit erkannten Installationen + Browse-Option anzeigen
+                var items = installations.Select(i => $"{i.Version} ({i.Variant}): {i.CommunityPath}").ToList();
+                items.Add("Browse... (manuell auswählen)");
+
+                string selected = ShowSelectionDialog("MSFS Community Ordner wählen", items.ToArray());
+                if (selected == null) return;
+
+                if (selected == "Browse... (manuell auswählen)")
                 {
-                    // No MSFS detected → let user browse
                     communityPath = MsfsPathDetector.BrowseForCommunityFolder();
                     if (string.IsNullOrEmpty(communityPath))
                         return;
                 }
-                else if (installations.Count == 1)
-                {
-                    communityPath = installations[0].CommunityPath;
-                }
                 else
                 {
-                    // Multiple installations → let user pick
-                    var items = installations.Select(i => $"{i.Version} ({i.Variant}): {i.CommunityPath}").ToArray();
-                    string selected = ShowSelectionDialog("Select MSFS Installation", items);
-                    if (selected == null) return;
-                    int idx = Array.IndexOf(items, selected);
+                    int idx = items.IndexOf(selected);
                     communityPath = installations[idx].CommunityPath;
                 }
 
