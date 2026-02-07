@@ -18732,8 +18732,16 @@ function createMiddleMarkers(line) {
   // Only show overlayListSum if we have at least 2 waypoints (1 segment)
   var overlayListSumEl = DOM.overlayListSum;
   if (latlngs.length >= 2) {
+    // Calculate total distance from ALL waypoint layers (complete route incl. DEP + ARR)
+    var allWaypoints = getWaypointLayersSorted();
+    var totalDist = 0;
+    for (var w = 1; w < allWaypoints.length; w++) {
+      var prevLL = allWaypoints[w - 1].getLatLng();
+      var currLL = allWaypoints[w].getLatLng();
+      totalDist += calculateDistance(prevLL.lat, prevLL.lng, currLL.lat, currLL.lng, "N");
+    }
     var _olsEl = DOM.overlayListSum;
-    if (_olsEl) _olsEl.insertAdjacentHTML("beforeend", "<b>Total:</b >&nbsp;" + gesDist.toFixed(2) + " nm");
+    if (_olsEl) _olsEl.insertAdjacentHTML("beforeend", "<b>Total:</b>&nbsp;" + totalDist.toFixed(2) + " nm");
     if (overlayListSumEl) overlayListSumEl.style.display = "";
   } else {
     if (overlayListSumEl) overlayListSumEl.style.display = "none";
@@ -20007,7 +20015,6 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
             if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
               // Altitude aus Navigraph-Daten extrahieren (Altitude1 ist die primäre Höhe)
-              // Fallback auf Runway-Elevation wenn 0
               var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
               if (altitude === 0 && arrivalRunwayData && arrivalRunwayData.elevation) {
                 altitude = arrivalRunwayData.elevation;
