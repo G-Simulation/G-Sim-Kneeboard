@@ -1,0 +1,89 @@
+{
+  "content": [
+    {
+      "path": "contentinfo/gsimulations-kneeboard/thumbnail.jpg",
+      "size": 7005,
+      "date": 134082443170000000
+    },
+    {
+      "path": "html_ui/efb_ui/efb_apps/kneeboard/assets/app-icon.svg",
+      "size": 2006,
+      "date": 134149010270000000
+    },
+    {
+      "path": "html_ui/efb_ui/efb_apps/kneeboard/assets/logo.png",
+      "size": 15489,
+      "date": 134149010270000000
+    },
+    {
+      "path": "html_ui/efb_ui/efb_apps/kneeboard/gsimkneeboard.css",
+      "size": 1255,
+      "date": 134149010270000000
+    },
+    {
+      "path": "html_ui/efb_ui/efb_apps/kneeboard/gsimkneeboard.css.map",
+      "size": 5182,
+      "date": 134149010270000000
+    },
+    {
+      "path": "html_ui/efb_ui/efb_apps/kneeboard/gsimkneeboard.js",
+      "size": 155369,
+      "date": 134149010270000000
+    },
+    {
+      "path": "html_ui/efb_ui/efb_apps/kneeboard/gsimkneeboard.js.map",
+      "size": 387044,
+      "date": 134149010270000000
+    },
+    {
+      "path": "html_ui/efb_ui/efb_apps/kneeboard/html_ui/icons/toolbar/icon_toolbar_kneeboard.svg",
+      "size": 2006,
+      "date": 134149010270000000
+    },
+    {
+      "path": "html_ui/efb_ui/efb_apps/kneeboard/html_ui/ingamepanels/kneeboard/assets/logo.png",
+      "size": 15489,
+      "date": 134149010270000000
+    },
+    {
+      "path": "html_ui/efb_ui/efb_apps/kneeboard/html_ui/ingamepanels/kneeboard/index.html",
+      "size": 4405,
+      "date": 134149010270000000
+    },
+    {
+      "path": "html_ui/efb_ui/efb_apps/kneeboard/html_ui/ingamepanels/kneeboard/panel.js",
+      "size": 6357,
+      "date": 134149010270000000
+    },
+    {
+      "path": "html_ui/efb_ui/efb_apps/kneeboard/ingamepanels/gsim_kneeboard_panel.xml",
+      "size": 611,
+      "date": 134149010270000000
+    },
+    {
+      "path": "html_ui/icons/toolbar/icon_toolbar_kneeboard.svg",
+      "size": 2006,
+      "date": 132579869800000000
+    },
+    {
+      "path": "html_ui/ingamepanels/kneeboard/assets/logo.png",
+      "size": 15489,
+      "date": 134148044380000000
+    },
+    {
+      "path": "html_ui/ingamepanels/kneeboard/index.html",
+      "size": 4405,
+      "date": 134148044380000000
+    },
+    {
+      "path": "html_ui/ingamepanels/kneeboard/panel.js",
+      "size": 6357,
+      "date": 134148044380000000
+    },
+    {
+      "path": "ingamepanels/gsim_kneeboard_panel.spb",
+      "size": 672,
+      "date": 134087463780000001
+    }
+  ]
+}
