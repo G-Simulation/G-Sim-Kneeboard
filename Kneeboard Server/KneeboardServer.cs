@@ -1707,13 +1707,14 @@ namespace Kneeboard_Server
             
             //MessageBox.Show(folderpath);
             LoadDocumentState();
-            // OFP PDF zur Dokumentenliste hinzufügen, aber nur wenn ein Flugplan aktiv ist
-            if (!string.IsNullOrEmpty(flightplan) && System.IO.File.Exists(Path.Combine(simbriefDataDir, "OFP.pdf")))
+
+            // OFP ist ein Runtime-Dokument - IMMER aus dem persistierten State entfernen.
+            // Es wird automatisch wieder hinzugefügt wenn der User einen SimBrief-Sync startet
+            // oder der Background-Sync einen neuen Flugplan findet.
+            if (RemoveSimbriefOFPFromDocumentList())
             {
-                if (AddSimbriefOFPToDocumentList())
-                {
-                    SaveDocumentState();
-                }
+                SaveDocumentState();
+                KneeboardLogger.SimBrief("OFP removed from restored document state (runtime document)");
             }
             EnsureDefaultManualsExist();
 

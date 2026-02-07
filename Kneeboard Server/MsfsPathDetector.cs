@@ -82,9 +82,14 @@ namespace Kneeboard_Server
             try
             {
                 if (!File.Exists(cfgPath))
+                {
+                    KneeboardLogger.Info("MsfsDetect", $"{version} {variant}: UserCfg.opt not found at {cfgPath}");
                     return;
+                }
 
                 string communityPath = ParseUserCfgOpt(cfgPath);
+                KneeboardLogger.Info("MsfsDetect", $"{version} {variant}: CommunityPath={communityPath ?? "null"}");
+
                 if (!string.IsNullOrEmpty(communityPath) && Directory.Exists(communityPath))
                 {
                     // Duplikat-Check (Store und Steam können auf denselben Ordner zeigen)
@@ -98,7 +103,16 @@ namespace Kneeboard_Server
                             Variant = variant,
                             CommunityPath = communityPath
                         });
+                        KneeboardLogger.Info("MsfsDetect", $"{version} {variant}: Added ({communityPath})");
                     }
+                    else
+                    {
+                        KneeboardLogger.Info("MsfsDetect", $"{version} {variant}: Skipped (duplicate path)");
+                    }
+                }
+                else
+                {
+                    KneeboardLogger.Info("MsfsDetect", $"{version} {variant}: Community folder does not exist: {communityPath}");
                 }
             }
             catch (Exception ex)
@@ -119,6 +133,38 @@ namespace Kneeboard_Server
                 string packagesPath = match.Groups[1].Value;
                 return Path.Combine(packagesPath, "Community");
             }
+            return null;
+        }
+
+        /// <summary>
+        /// Erkennt exe.xml Pfade für MSFS 2024 und 2020 (Store und Steam).
+        /// Gibt null zurück wenn keine exe.xml gefunden wurde.
+        /// </summary>
+        public static string DetectExeXmlPath2024()
+        {
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string roamingAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
+            string storePath = Path.Combine(localAppData, @"Packages\Microsoft.Limitless_8wekyb3d8bbwe\LocalCache\exe.xml");
+            if (File.Exists(storePath)) return storePath;
+
+            string steamPath = Path.Combine(roamingAppData, @"Microsoft Flight Simulator 2024\exe.xml");
+            if (File.Exists(steamPath)) return steamPath;
+
+            return null;
+        }
+
+        public static string DetectExeXmlPath2020()
+        {
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string roamingAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
+            string storePath = Path.Combine(localAppData, @"Packages\Microsoft.FlightSimulator_8wekyb3d8bbwe\LocalCache\exe.xml");
+            if (File.Exists(storePath)) return storePath;
+
+            string steamPath = Path.Combine(roamingAppData, @"Microsoft Flight Simulator\exe.xml");
+            if (File.Exists(steamPath)) return steamPath;
+
             return null;
         }
 

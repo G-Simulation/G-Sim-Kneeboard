@@ -4064,7 +4064,6 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     align-items: center;
     gap: 4px;
     min-width: 0;
-    overflow: hidden;
 }
 
 /* Full-width for Transition selector */
@@ -4106,8 +4105,8 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     background-position: right 6px center;
     padding-right: 18px;
     transition: border-color 0.15s, box-shadow 0.15s;
-    overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .fp-dropdown:hover {
@@ -4444,6 +4443,37 @@ span.fp-wp-altitude {
     content: "...";
     position: absolute;
     right: 10px;
+}
+
+/* Custom Select Dropdown (Coherent GT Workaround) */
+.custom-select-dropdown {
+    position: fixed;
+    z-index: 20000;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: "Roboto", sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--fontDark);
+}
+
+.custom-select-option {
+    padding: 4px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.custom-select-option:hover {
+    background: var(--light, #e3f2fd);
+}
+
+.custom-select-option.selected {
+    background: var(--dark, #1976d2);
+    color: #fff;
 }
 
 /* Preview Legend (optional) */

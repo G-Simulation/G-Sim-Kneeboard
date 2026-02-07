@@ -478,5 +478,17 @@ namespace Kneeboard_Server.Properties {
                 this["autoUpdateCheck"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool ofpHiddenByUser {
+            get {
+                return ((bool)(this["ofpHiddenByUser"]));
+            }
+            set {
+                this["ofpHiddenByUser"] = value;
+            }
+        }
     }
 }

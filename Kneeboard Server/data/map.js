@@ -180,7 +180,7 @@ var DEBUG_CONFIG = {
   ATIS: false,
 
   KNEEBOARD: false,
-  FLIGHTPLANPANEL: false,
+  FLIGHTPLANPANEL: true,
   PERF: false,
   FORMULAS: false,
   BRIDGE: false,
@@ -6033,9 +6033,18 @@ function initMapPage() {
     cacheLogger.info('Restored runway data - DEP:', !!departureRunwayData, 'ARR:', !!arrivalRunwayData);
   }
 
-  // Restore flightplan metadata
-  importedFlightplanMeta = getCachedItem("importedFlightplanMeta") || null;
-  importedOFPData = getCachedItem("importedOFPData") || null;  // Load OFP data for ETA calculation
+  // Restore flightplan metadata (nur wenn auch Waypoints existieren)
+  if (wpNames.length > 0) {
+    importedFlightplanMeta = getCachedItem("importedFlightplanMeta") || null;
+    importedOFPData = getCachedItem("importedOFPData") || null;  // Load OFP data for ETA calculation
+  } else {
+    // Kein Flugplan vorhanden - OFP-Daten nicht wiederherstellen und Cache bereinigen
+    importedFlightplanMeta = null;
+    importedOFPData = null;
+    setCachedItem("importedFlightplanMeta", null);
+    setCachedItem("importedOFPData", null);
+    cacheLogger.debug('No waypoints in cache - cleared stale OFP data');
+  }
 
   var cachedTargetMarker = getCachedItem("targetMarker");
   if (cachedTargetMarker !== null) {
@@ -8668,10 +8677,12 @@ function updatePilotsLayer() {
 // Hilfsfunktion: Erstellt einen einzelnen Pilot-Marker mit allen Events
 function createPilotMarker(pilot, category, military) {
   var icon = createPilotIcon(pilot.heading, category, pilot._network, military, pilot.id, pilot.callsign);
+  var isKfr = pilot.callsign && pilot.callsign.indexOf('KFR') === 0;
+  var isFav = isPilotFavorite(pilot.id, pilot._network, pilot.callsign);
 
   var marker = L.marker([pilot.latitude, pilot.longitude], {
     icon: icon,
-    title: pilot.callsign,
+    title: (isFav && !isKfr) ? pilot.callsign : '',
     pane: 'pilotsPane' // Use custom pane for higher z-index
   });
 
@@ -8683,8 +8694,8 @@ function createPilotMarker(pilot, category, military) {
     maxWidth: 300
   });
 
-  // Favoriten: Callsign permanent als Label anzeigen
-  if (isPilotFavorite(pilot.id, pilot._network, pilot.callsign)) {
+  // Favoriten: Callsign permanent als Label anzeigen (nicht für KFR)
+  if (isFav && !isKfr) {
     marker.bindTooltip(pilot.callsign, {
       permanent: true,
       direction: 'right',
@@ -16092,8 +16103,9 @@ function drawLines() {
 
   // Initialize Flightplan Panel with cached OFP data (if available)
   // This handles the case when the page is reloaded with a cached flightplan
+  // WICHTIG: Nur wenn auch Waypoints existieren - sonst wird ein OFP ohne Flugplan angezeigt
   setTimeout(function() {
-    if (importedOFPData && typeof initFlightplanPanel === 'function') {
+    if (importedOFPData && typeof initFlightplanPanel === 'function' && wpNames.length > 0) {
       mapLogger.debug('Initializing Flightplan Panel with CACHED OFP data');
       try {
         initFlightplanPanel(importedOFPData).catch(function(err) {
@@ -17127,13 +17139,8 @@ function mout() {
   }
   measureToolStateBeforePanel = null; // Reset state
 
-  // Restore elevation profile if it was visible before panel opened
-  if (elevationProfileStateBeforePanel === true) {
-    var wpLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
-    if (wpLayers.length >= 2) {
-      showElevationProfile();
-    }
-  }
+  // Save elevation profile state before resetting (needed in deferred restore)
+  var shouldRestoreElevation = elevationProfileStateBeforePanel === true;
   elevationProfileStateBeforePanel = null; // Reset state
 
   // Restore flightplan panel if it was visible before controller mode
@@ -17201,7 +17208,22 @@ function mout() {
         deleteBtn.style.pointerEvents = 'auto';
         deleteBtn.style.opacity = '1';
       }
+
+      // Restore elevation profile AFTER waypoint layers are back on the map
+      // (getWaypointLayersSorted() only returns layers currently on the map)
+      if (shouldRestoreElevation) {
+        var wpLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
+        if (wpLayers.length >= 2) {
+          showElevationProfile();
+        }
+      }
     }, 0);
+  } else if (shouldRestoreElevation) {
+    // No flight path layers to restore, but elevation profile was visible
+    var wpLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
+    if (wpLayers.length >= 2) {
+      showElevationProfile();
+    }
   }
 
   // Update LayerControl UI to show "Off"
@@ -19744,6 +19766,13 @@ async function processFlightplanMessage(message, skipSourceCheck) {
           window.initialWindLayerConfig.initialActivationDone = false;
         }
 
+        // Controller-Modus automatisch beenden wenn Flightplan geladen wird
+        if (moverX) {
+          mapLogger.debug('Ending controller mode - flightplan recreate requested');
+          mout();
+          setControlZonesEnabled(false);
+        }
+
         // Create markers using the normal render path
         transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'recreate-markers');
         preCenterMapOnFlightplan(flightplan, 'recreate-markers');
@@ -19764,6 +19793,13 @@ async function processFlightplanMessage(message, skipSourceCheck) {
       window.flightplanUISequenceInProgress = true;
       if (window.initialWindLayerConfig) {
         window.initialWindLayerConfig.initialActivationDone = false;
+      }
+
+      // Controller-Modus automatisch beenden wenn Flightplan geladen wird
+      if (moverX) {
+        mapLogger.debug('Ending controller mode - identical flightplan event chain');
+        mout();
+        setControlZonesEnabled(false);
       }
 
       // Event-basierte UI-Sequenz (v1.24): Startet die Event-Chain
@@ -19887,6 +19923,30 @@ async function processFlightplanMessage(message, skipSourceCheck) {
           mapLogger.debug('3. Injecting', approachWaypointsForFlightpath.length, 'approach waypoints');
 
           var insertIndex = flightplan.length > 0 ? flightplan.length - 1 : 0;
+
+          // Remove route waypoints closer to destination than the approach entry fix
+          // (e.g. airport VOR/DME that would cause a zigzag back to the approach)
+          var entryFix = approachWaypointsForFlightpath[0];
+          var entryLat = entryFix && (entryFix.Latitude || entryFix.latitude);
+          var entryLon = entryFix && (entryFix.Longitude || entryFix.longitude);
+          var destWp = flightplan.length > 0 ? flightplan[flightplan.length - 1] : null;
+          if (entryLat && entryLon && destWp && destWp.lat && destWp.lng) {
+              var entryDistToDest = map.distance([entryLat, entryLon], [destWp.lat, destWp.lng]);
+              while (insertIndex > 1) {
+                  var prevWp = flightplan[insertIndex - 1];
+                  if (!prevWp || !prevWp.lat || !prevWp.lng) break;
+                  var prevDist = map.distance([prevWp.lat, prevWp.lng], [destWp.lat, destWp.lng]);
+                  if (prevDist < entryDistToDest) {
+                      mapLogger.info('Removing', prevWp.name, '- closer to dest than approach entry (' +
+                          (prevDist * 0.000539957).toFixed(1), 'NM)');
+                      flightplan.splice(insertIndex - 1, 1);
+                      insertIndex--;
+                  } else {
+                      break;
+                  }
+              }
+          }
+
           var approachEntries = [];
 
           // Sammle existierende Waypoint-Namen um Duplikate zu vermeiden
@@ -19985,6 +20045,13 @@ async function processFlightplanMessage(message, skipSourceCheck) {
       }
     } else {
       mapLogger.warn('Cannot init Flightplan Panel - importedOFPData:', !!importedOFPData, 'initFlightplanPanel:', typeof initFlightplanPanel);
+    }
+
+    // Controller-Modus automatisch beenden wenn Flightplan geladen wird
+    if (moverX) {
+      mapLogger.debug('Ending controller mode - flightplan load requested');
+      mout();
+      setControlZonesEnabled(false);
     }
 
     transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'new-flightplan');
@@ -20177,7 +20244,8 @@ var flightplanPanelState = {
         selectedStar: '',
         selectedTransition: '',
         selectedApproach: ''
-    }
+    },
+    ofpData: null  // Stored OFP data for smart transition selection
 };
 
 // Pending State - Aktuelle Dropdown-Auswahl (noch nicht übernommen)
@@ -20394,6 +20462,23 @@ async function applyFlightplanChanges() {
         map.setView(savedCenter, savedZoom, { animate: false });
         flightplanPanelLogger.info('Step 5: Restored map view');
     }
+
+    // Step 6: Repopulate dropdowns with ALL options (reverse-filter may have limited them)
+    var arrCommitted = flightplanCommittedState.arrival;
+    populateRunwayDropdown('arrRunwaySelect', flightplanPanelState.arrival.runways || [], arrCommitted.selectedRunway);
+    var arrFilteredStars = filterStarsByRunway(flightplanPanelState.arrival.stars || [], arrCommitted.selectedRunway);
+    populateStarDropdown('arrStarSelect', arrFilteredStars, arrCommitted.selectedStar);
+    populateTransitionDropdown('arrTransitionSelect', arrFilteredStars, arrCommitted.selectedStar, arrCommitted.selectedTransition, 'STAR');
+    populateApproachDropdown('arrApproachSelect', flightplanPanelState.arrival.approaches || [], arrCommitted.selectedRunway, arrCommitted.selectedApproach);
+    var arrApproachTransitions = getAvailableApproachTransitions(flightplanPanelState.arrival.approaches || [], arrCommitted.selectedApproach);
+    populateApproachTransitionDropdown('arrApproachTransitionSelect', arrApproachTransitions, arrCommitted.selectedApproachTransition);
+
+    var depCommitted = flightplanCommittedState.departure;
+    populateRunwayDropdown('depRunwaySelect', flightplanPanelState.departure.runways || [], depCommitted.selectedRunway);
+    var depFilteredSids = filterSidsByRunway(flightplanPanelState.departure.sids || [], depCommitted.selectedRunway);
+    populateSidDropdown('depSidSelect', depFilteredSids, depCommitted.selectedSid);
+    populateTransitionDropdown('depTransitionSelect', depFilteredSids, depCommitted.selectedSid, depCommitted.selectedTransition, 'SID');
+
     flightplanPanelLogger.info('Complete!');
 }
 
@@ -20402,52 +20487,64 @@ async function applyFlightplanChanges() {
  */
 function cancelFlightplanChanges() {
     // === DEPARTURE zurücksetzen ===
-    flightplanPanelState.departure.selectedRunway = flightplanCommittedState.departure.selectedRunway;
-    flightplanPanelState.departure.selectedSid = flightplanCommittedState.departure.selectedSid;
-    flightplanPanelState.departure.selectedTransition = flightplanCommittedState.departure.selectedTransition;
+    var depCommitted = flightplanCommittedState.departure;
+    flightplanPanelState.departure.selectedRunway = depCommitted.selectedRunway;
+    flightplanPanelState.departure.selectedSid = depCommitted.selectedSid;
+    flightplanPanelState.departure.selectedTransition = depCommitted.selectedTransition;
 
-    // Departure-Dropdowns auf committed Werte setzen
-    var depRunwaySelect = document.getElementById('depRunwaySelect');
-    if (depRunwaySelect) depRunwaySelect.value = flightplanCommittedState.departure.selectedRunway;
-    var depSidSelect = document.getElementById('depSidSelect');
-    if (depSidSelect) depSidSelect.value = flightplanCommittedState.departure.selectedSid;
-    var depTransitionSelect = document.getElementById('depTransitionSelect');
-    if (depTransitionSelect) depTransitionSelect.value = flightplanCommittedState.departure.selectedTransition;
+    // Departure-Dropdowns: OPTIONS repopulieren + committed Werte setzen
+    populateRunwayDropdown('depRunwaySelect', flightplanPanelState.departure.runways || [], depCommitted.selectedRunway);
+    var depFilteredSids = filterSidsByRunway(flightplanPanelState.departure.sids || [], depCommitted.selectedRunway);
+    populateSidDropdown('depSidSelect', depFilteredSids, depCommitted.selectedSid);
+    if (depCommitted.selectedSid) {
+        var depTransitions = getAvailableTransitions(depFilteredSids, depCommitted.selectedSid, 'SID');
+        populateTransitionDropdown('depTransitionSelect', depFilteredSids, depCommitted.selectedSid, depCommitted.selectedTransition, 'SID');
+    } else {
+        populateTransitionDropdown('depTransitionSelect', [], '', '', 'SID');
+    }
 
     // === ARRIVAL zurücksetzen ===
-    flightplanPanelState.arrival.selectedRunway = flightplanCommittedState.arrival.selectedRunway;
-    flightplanPanelState.arrival.selectedStar = flightplanCommittedState.arrival.selectedStar;
-    flightplanPanelState.arrival.selectedTransition = flightplanCommittedState.arrival.selectedTransition;
-    flightplanPanelState.arrival.selectedApproach = flightplanCommittedState.arrival.selectedApproach;
-    flightplanPanelState.arrival.selectedApproachTransition = flightplanCommittedState.arrival.selectedApproachTransition;
+    var arrCommitted = flightplanCommittedState.arrival;
+    flightplanPanelState.arrival.selectedRunway = arrCommitted.selectedRunway;
+    flightplanPanelState.arrival.selectedStar = arrCommitted.selectedStar;
+    flightplanPanelState.arrival.selectedTransition = arrCommitted.selectedTransition;
+    flightplanPanelState.arrival.selectedApproach = arrCommitted.selectedApproach;
+    flightplanPanelState.arrival.selectedApproachTransition = arrCommitted.selectedApproachTransition;
 
-    // Arrival-Dropdowns auf committed Werte setzen
-    var arrRunwaySelect = document.getElementById('arrRunwaySelect');
-    if (arrRunwaySelect) arrRunwaySelect.value = flightplanCommittedState.arrival.selectedRunway;
-    var arrStarSelect = document.getElementById('arrStarSelect');
-    if (arrStarSelect) arrStarSelect.value = flightplanCommittedState.arrival.selectedStar;
-    var arrTransitionSelect = document.getElementById('arrTransitionSelect');
-    if (arrTransitionSelect) arrTransitionSelect.value = flightplanCommittedState.arrival.selectedTransition;
-    var arrApproachSelect = document.getElementById('arrApproachSelect');
-    if (arrApproachSelect) arrApproachSelect.value = flightplanCommittedState.arrival.selectedApproach;
-    var arrApproachTransitionSelect = document.getElementById('arrApproachTransitionSelect');
-    if (arrApproachTransitionSelect) arrApproachTransitionSelect.value = flightplanCommittedState.arrival.selectedApproachTransition;
+    // Arrival-Dropdowns: OPTIONS repopulieren + committed Werte setzen
+    populateRunwayDropdown('arrRunwaySelect', flightplanPanelState.arrival.runways || [], arrCommitted.selectedRunway);
+    var arrFilteredStars = filterStarsByRunway(flightplanPanelState.arrival.stars || [], arrCommitted.selectedRunway);
+    populateStarDropdown('arrStarSelect', arrFilteredStars, arrCommitted.selectedStar);
+    if (arrCommitted.selectedStar) {
+        populateTransitionDropdown('arrTransitionSelect', arrFilteredStars, arrCommitted.selectedStar, arrCommitted.selectedTransition, 'STAR');
+    } else {
+        populateTransitionDropdown('arrTransitionSelect', [], '', '', 'STAR');
+    }
+    populateApproachDropdown('arrApproachSelect', flightplanPanelState.arrival.approaches || [], arrCommitted.selectedRunway, arrCommitted.selectedApproach);
+    if (arrCommitted.selectedApproach) {
+        var arrApproachTrans = getAvailableApproachTransitions(flightplanPanelState.arrival.approaches || [], arrCommitted.selectedApproach);
+        populateApproachTransitionDropdown('arrApproachTransitionSelect', arrApproachTrans, arrCommitted.selectedApproachTransition);
+    } else {
+        populateApproachTransitionDropdown('arrApproachTransitionSelect', [], '');
+    }
 
     // === ALTERNATE zurücksetzen ===
-    flightplanPanelState.alternate.selectedRunway = flightplanCommittedState.alternate.selectedRunway;
-    flightplanPanelState.alternate.selectedStar = flightplanCommittedState.alternate.selectedStar;
-    flightplanPanelState.alternate.selectedTransition = flightplanCommittedState.alternate.selectedTransition;
-    flightplanPanelState.alternate.selectedApproach = flightplanCommittedState.alternate.selectedApproach;
+    var altCommitted = flightplanCommittedState.alternate;
+    flightplanPanelState.alternate.selectedRunway = altCommitted.selectedRunway;
+    flightplanPanelState.alternate.selectedStar = altCommitted.selectedStar;
+    flightplanPanelState.alternate.selectedTransition = altCommitted.selectedTransition;
+    flightplanPanelState.alternate.selectedApproach = altCommitted.selectedApproach;
 
-    // Alternate-Dropdowns auf committed Werte setzen
-    var altRunwaySelect = document.getElementById('altRunwaySelect');
-    if (altRunwaySelect) altRunwaySelect.value = flightplanCommittedState.alternate.selectedRunway;
-    var altStarSelect = document.getElementById('altStarSelect');
-    if (altStarSelect) altStarSelect.value = flightplanCommittedState.alternate.selectedStar;
-    var altTransitionSelect = document.getElementById('altTransitionSelect');
-    if (altTransitionSelect) altTransitionSelect.value = flightplanCommittedState.alternate.selectedTransition;
-    var altApproachSelect = document.getElementById('altApproachSelect');
-    if (altApproachSelect) altApproachSelect.value = flightplanCommittedState.alternate.selectedApproach;
+    // Alternate-Dropdowns: OPTIONS repopulieren + committed Werte setzen
+    populateRunwayDropdown('altRunwaySelect', flightplanPanelState.alternate.runways || [], altCommitted.selectedRunway);
+    var altFilteredStars = filterStarsByRunway(flightplanPanelState.alternate.stars || [], altCommitted.selectedRunway);
+    populateStarDropdown('altStarSelect', altFilteredStars, altCommitted.selectedStar);
+    if (altCommitted.selectedStar) {
+        populateTransitionDropdown('altTransitionSelect', altFilteredStars, altCommitted.selectedStar, altCommitted.selectedTransition, 'STAR');
+    } else {
+        populateTransitionDropdown('altTransitionSelect', [], '', '', 'STAR');
+    }
+    populateApproachDropdown('altApproachSelect', flightplanPanelState.alternate.approaches || [], altCommitted.selectedRunway, altCommitted.selectedApproach);
 
     // Pending zurücksetzen
     flightplanPendingState.hasPendingChanges = false;
@@ -21103,9 +21200,9 @@ function sortProcedureWaypoints(list) {
     if (!Array.isArray(list)) return [];
     var seqKeys = ['SequenceNumber', 'sequenceNumber', 'Sequence', 'sequence', 'LegSequence', 'legSequence', 'LegId', 'legId', 'Index', 'index', 'Order', 'order'];
     var routeOrder = {
-        '4': 0, '5': 1, '6': 2, // SID
-        '1': 0, '2': 1, '3': 2, // STAR conventional
-        'A': 0, 'F': 1, 'Z': 2  // Approach
+        '4': 0, '5': 1, '6': 2,                    // SID: Runway Trans, Common, Enroute Trans
+        '1': 0, '2': 1, '3': 2,                    // STAR: Enroute Trans, Common, Runway Trans
+        'A': 0, 'I': 1, 'D': 2, 'F': 3, 'Z': 4   // Approach: Transition, Initial, Intermediate, Final, Missed
     };
 
     return list
@@ -21320,13 +21417,111 @@ async function fetchProcedureDetail(icao, procedureName, type, transition, runwa
 }
 
 /**
+ * Custom Select Dropdown - Coherent GT Workaround
+ * Native <select> popups don't open in MSFS toolbar panels.
+ * This intercepts clicks and shows a custom div-based dropdown instead.
+ */
+function initCustomSelectDropdowns() {
+    var activeDropdown = null;
+
+    function closeDropdown() {
+        if (activeDropdown) {
+            activeDropdown.remove();
+            activeDropdown = null;
+        }
+    }
+
+    document.addEventListener('mousedown', function(e) {
+        var select = e.target.closest ? e.target.closest('.fp-dropdown') : null;
+        if (!select && e.target && e.target.classList && e.target.classList.contains('fp-dropdown')) {
+            select = e.target;
+        }
+
+        // Click outside - close dropdown
+        if (!select) {
+            if (activeDropdown && !activeDropdown.contains(e.target)) {
+                closeDropdown();
+            }
+            return;
+        }
+
+        // Don't open if disabled or loading
+        if (select.disabled || select.classList.contains('loading')) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Toggle: close if already open for this select
+        if (activeDropdown && activeDropdown._forSelect === select) {
+            closeDropdown();
+            return;
+        }
+
+        closeDropdown();
+
+        // Build options list from the <select>
+        var options = select.querySelectorAll('option');
+        if (!options || options.length === 0) return;
+
+        var dropdown = document.createElement('div');
+        dropdown.className = 'custom-select-dropdown';
+        dropdown._forSelect = select;
+
+        for (var i = 0; i < options.length; i++) {
+            var opt = options[i];
+            var item = document.createElement('div');
+            item.className = 'custom-select-option';
+            item.setAttribute('data-value', opt.value);
+            item.textContent = opt.textContent;
+            if (opt.value === select.value) {
+                item.classList.add('selected');
+            }
+            item.addEventListener('mousedown', function(ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                var val = this.getAttribute('data-value');
+                select.value = val;
+                if (typeof select.onchange === 'function') {
+                    select.onchange();
+                }
+                closeDropdown();
+            });
+            dropdown.appendChild(item);
+        }
+
+        // Position below (or above) the select
+        var rect = select.getBoundingClientRect();
+        dropdown.style.left = rect.left + 'px';
+        dropdown.style.width = Math.max(rect.width, 120) + 'px';
+
+        document.body.appendChild(dropdown);
+
+        // Check if there's enough space below
+        var dropdownHeight = dropdown.offsetHeight;
+        if (rect.bottom + dropdownHeight > window.innerHeight && rect.top > dropdownHeight) {
+            dropdown.style.top = (rect.top - dropdownHeight) + 'px';
+        } else {
+            dropdown.style.top = rect.bottom + 'px';
+        }
+
+        // Scroll selected option into view
+        var selectedItem = dropdown.querySelector('.custom-select-option.selected');
+        if (selectedItem) {
+            selectedItem.scrollIntoView({ block: 'nearest' });
+        }
+
+        activeDropdown = dropdown;
+    });
+}
+
+/**
  * Populate a dropdown with options
  */
 function populateDropdown(elementId, items, labelProperty, selectedValue) {
     var select = document.getElementById(elementId);
     if (!select) return;
 
-    select.innerHTML = '<option value="">-</option>';
+    select.innerHTML = '<option value="">None</option>';
 
     if (!items || items.length === 0) return;
 
@@ -21355,7 +21550,7 @@ function populateRunwayDropdown(elementId, runways, selectedValue) {
     var select = document.getElementById(elementId);
     if (!select) return;
 
-    select.innerHTML = '<option value="">-</option>';
+    select.innerHTML = '<option value="">None</option>';
 
     // Wenn keine Runways vorhanden, alle Selektoren in der Section deaktivieren
     var hasRunways = runways && runways.length > 0;
@@ -21557,9 +21752,9 @@ function filterStarsByRunway(stars, runway) {
         var routeType = String(star.RouteType || star.routeType || '');
         var transId = (star.TransitionIdentifier || star.transitionIdentifier || '').replace(/^RW/i, '');
 
-        // ARINC 424 STAR Route Types: 3=Runway Trans (conv), 5=RNAV Runway Trans, 6=Runway Trans (alt)
-        // RouteType 3, 5 und 6 sind Runway Transitions
-        if (routeType === '3' || routeType === '5' || routeType === '6') {
+        // ARINC 424 STAR Route Types: 3=Runway Trans (conv), 6=RNAV Runway Trans
+        // RouteType 5 ist RNAV Common Route, NICHT Runway Transition!
+        if (routeType === '3' || routeType === '6') {
             // Prüfe ob TransitionIdentifier eine Runway ist (z.B. "08L", "26B")
             var isRunwayIdentifier = /^\d{2}[LRCB]?$/i.test(transId);
             if (isRunwayIdentifier) {
@@ -21730,7 +21925,7 @@ function populateSidDropdown(elementId, sids, selectedValue, filterRunway) {
 
     flightplanPanelLogger.debug(elementId, '- sids:', sids ? sids.length : 0, 'selected:', selectedValue, 'filterRunway:', filterRunway);
 
-    select.innerHTML = '<option value="">-</option>';
+    select.innerHTML = '<option value="">None</option>';
 
     if (!sids || sids.length === 0) {
         flightplanPanelLogger.warn(elementId, '- No SIDs to populate!');
@@ -21847,7 +22042,7 @@ function populateStarDropdown(elementId, stars, selectedValue, filterRunway) {
 
     flightplanPanelLogger.debug(elementId, '- stars:', stars ? stars.length : 0, 'selected:', selectedValue, 'filterRunway:', filterRunway);
 
-    select.innerHTML = '<option value="">-</option>';
+    select.innerHTML = '<option value="">None</option>';
 
     if (!stars || stars.length === 0) return null;
 
@@ -22042,17 +22237,27 @@ function populateApproachDropdown(elementId, approaches, runway, selectedValue) 
         // Normalize runway format (remove "RW" prefix if present)
         var normalizedRunway = runway.replace(/^RW/i, '');
 
+        // Debug: Log alle Approaches vor dem Filter
+        flightplanPanelLogger.debug('Approach filter - runway:', normalizedRunway,
+            'all approaches:', approachList.map(function(a) {
+                var extractedRwy = a.Identifier.substring(1).replace(/-?[A-Z]$/i, '');
+                return a.Identifier + '(' + a.Type + ') → rwy:' + extractedRwy;
+            }).join(', '));
+
         approachList = approachList.filter(function(app) {
-            // Extract runway from identifier: R12LZ -> 12L, I30L -> 30L
-            // Approach identifiers: [Type letter][Runway][Suffix]
-            // Type: R=RNAV, I=ILS, V=VOR, N=NDB, L=LOC, etc.
+            // Extract runway from identifier: R12LZ -> 12L, I30L -> 30L, I09-Y -> 09
+            // Approach identifiers: [Type letter][Runway][-][Suffix]
+            // Type: R=RNAV, I=ILS, V=VOR, N=NDB, L=LOC, T=TACAN, etc.
+            // Suffix may be separated by dash (e.g., I09-Y, I09-Z)
             var id = app.Identifier;
-            // Extract runway number from identifier (skip first letter which is type)
-            var approachRunway = id.substring(1).replace(/[A-Z]$/i, ''); // "R12LZ" -> "12L"
+            // Extract runway: skip type letter, remove trailing dash+suffix or just suffix
+            var approachRunway = id.substring(1).replace(/-?[A-Z]$/i, ''); // "I09-Y" -> "09", "R12LZ" -> "12L"
 
             return approachRunway === normalizedRunway ||
                    approachRunway.replace(/[LRC]$/i, '') === normalizedRunway.replace(/[LRC]$/i, '');
         });
+
+        flightplanPanelLogger.debug('Approach filter result:', approachList.length, 'approaches for runway', normalizedRunway);
     }
 
     approachList.forEach(function(app) {
@@ -22060,8 +22265,8 @@ function populateApproachDropdown(elementId, approaches, runway, selectedValue) 
         var id = app.Identifier;
         var type = app.Type;
 
-        // Display format: "ILS 30L" or "RNAV 12L Z"
-        var displayRunway = id.substring(1); // Remove type prefix
+        // Display format: "ILS 09 Y" or "RNAV 12L Z"
+        var displayRunway = id.substring(1).replace(/-/g, ' '); // "09-Y" -> "09 Y"
         option.value = id;
         option.textContent = type + ' ' + displayRunway;
 
@@ -22110,6 +22315,9 @@ async function initFlightplanPanel(ofpData) {
     if (!ofpData) {
         return;
     }
+
+    // Store OFP data for smart transition selection later
+    flightplanPanelState.ofpData = ofpData;
 
     try {
         // Initial-Load Flag setzen - verhindert Preview während Laden
@@ -22819,10 +23027,14 @@ async function loadArrivalProcedures(icao, ofpData) {
     if (selectedApproachId) {
         var availableApproachTransitions = getAvailableApproachTransitions(approaches, selectedApproachId);
         ofpApproachTransition = extractApproachTransitionFromNavlog(ofpData, availableApproachTransitions);
-        // populateApproachTransitionDropdown macht jetzt Auto-Select wenn ofpApproachTransition leer ist
-        // und aktualisiert automatisch flightplanPanelState.arrival.selectedApproachTransition
+
+        // Smart selection: If no OFP transition found, pick geographically closest
+        if (!ofpApproachTransition && availableApproachTransitions.length > 1) {
+            ofpApproachTransition = await selectBestApproachTransition(
+                icao, selectedApproachId, availableApproachTransitions, selectedRunway, ofpData);
+        }
+
         populateApproachTransitionDropdown('arrApproachTransitionSelect', availableApproachTransitions, ofpApproachTransition);
-        // State nur setzen wenn OFP Transition vorhanden war (sonst hat populateApproachTransitionDropdown bereits auto-selected)
         if (ofpApproachTransition) {
             flightplanPanelState.arrival.selectedApproachTransition = ofpApproachTransition;
         }
@@ -23046,7 +23258,7 @@ function extractApproachTransitionFromNavlog(ofpData, availableTransitions) {
     var navlog = ofpData.Navlog || ofpData.navlog || {};
     var fixes = navlog.Fix || navlog.fix || [];
 
-    // Look for approach fix in navlog (stage = 'APP' or similar)
+    // First pass: Look for approach fix in navlog (stage = 'APP' or similar)
     for (var j = fixes.length - 1; j >= 0; j--) {
         var fix = fixes[j];
         var stage = (fix.Stage || fix.stage || '').toUpperCase();
@@ -23054,13 +23266,41 @@ function extractApproachTransitionFromNavlog(ofpData, availableTransitions) {
         if (stage === 'APP' || stage === 'APR' || stage === 'APPROACH') {
             var ident = (fix.Ident || fix.ident || '').toUpperCase();
             if (transitionSet[ident]) {
-                flightplanPanelLogger.debug('Found in navlog:', transitionSet[ident]);
+                flightplanPanelLogger.debug('Found approach transition in navlog (APP stage):', transitionSet[ident]);
                 return transitionSet[ident];
             }
         }
     }
 
-    flightplanPanelLogger.debug('No approach transition found in OFP');
+    // Second pass: SimBrief uses DSC/ARR stages, not APP
+    // Search descent/arrival fixes for a waypoint matching a known transition
+    for (var k = fixes.length - 1; k >= 0; k--) {
+        var fix2 = fixes[k];
+        var stage2 = (fix2.Stage || fix2.stage || '').toUpperCase();
+
+        if (stage2 === 'DSC' || stage2 === 'DESCENT' || stage2 === 'ARR' || stage2 === 'ARRIVAL') {
+            var ident2 = (fix2.Ident || fix2.ident || '').toUpperCase();
+            if (transitionSet[ident2]) {
+                flightplanPanelLogger.debug('Found approach transition in navlog (DSC/ARR stage):', transitionSet[ident2]);
+                return transitionSet[ident2];
+            }
+        }
+    }
+
+    // Third pass: Check Via_airway fields in descent fixes (SimBrief may store transition as VIA)
+    for (var m = fixes.length - 1; m >= 0; m--) {
+        var fix3 = fixes[m];
+        var stage3 = (fix3.Stage || fix3.stage || '').toUpperCase();
+        if (stage3 === 'DSC' || stage3 === 'ARR') {
+            var via = (fix3.Via_airway || fix3.via_airway || '').toUpperCase();
+            if (via && transitionSet[via]) {
+                flightplanPanelLogger.debug('Found approach transition in navlog (Via_airway):', transitionSet[via]);
+                return transitionSet[via];
+            }
+        }
+    }
+
+    flightplanPanelLogger.debug('No approach transition found in OFP. Available:', availableTransitions.join(', '));
     return '';
 }
 
@@ -23265,6 +23505,157 @@ function getAvailableApproachTransitions(approaches, approachName) {
 }
 
 /**
+ * Get the last enroute waypoint before the destination from OFP navlog
+ * Used for smart approach transition selection (pick geographically closest)
+ * @param {Object} ofpData - The OFP data object
+ * @returns {{ lat: number, lng: number, name: string } | null}
+ */
+function getLastEnrouteWaypoint(ofpData) {
+    if (!ofpData) return null;
+    var navlog = ofpData.Navlog || ofpData.navlog || {};
+    var fixes = navlog.Fix || navlog.fix || [];
+    if (!fixes || fixes.length === 0) return null;
+
+    // Get destination ICAO and coordinates to skip airport-area fixes
+    var dest = ofpData.Destination || ofpData.destination || {};
+    var destIcao = (dest.Icao_code || dest.icao_code || '').toUpperCase();
+    var destLat = parseFloat(dest.Pos_lat || dest.pos_lat || 0);
+    var destLng = parseFloat(dest.Pos_long || dest.pos_long || 0);
+
+    // Fallback: use flightplanPanelState arrival coordinates
+    if (!destLat || !destLng) {
+        destLat = flightplanPanelState.arrival.lat || 0;
+        destLng = flightplanPanelState.arrival.lng || 0;
+    }
+
+    // Get origin ICAO too
+    var orig = ofpData.Origin || ofpData.origin || {};
+    var origIcao = (orig.Icao_code || orig.icao_code || '').toUpperCase();
+
+    // Stages that are part of the approach/arrival phase (skip these)
+    var approachStages = { 'ARR': true, 'APP': true, 'APR': true, 'APPROACH': true, 'ARRIVAL': true };
+
+    // Min distance from destination: 5 NM (9260m) to skip airport VOR/DME fixes
+    var minDistMeters = 9260;
+
+    // Iterate from end, find last enroute/descent waypoint BEFORE approach phase
+    for (var i = fixes.length - 1; i >= 0; i--) {
+        var fix = fixes[i];
+        var stage = (fix.Stage || fix.stage || '').toUpperCase();
+        var isDestination = (fix.Is_apt_dest || fix.is_apt_dest) === '1';
+        var isOrigin = (fix.Is_apt_orig || fix.is_apt_orig) === '1';
+        var ident = (fix.Ident || fix.ident || '').toUpperCase();
+
+        // Skip destination, origin, and approach-phase fixes
+        if (isDestination || isOrigin) continue;
+        if (approachStages[stage]) continue;
+        if (destIcao && ident === destIcao) continue;
+        if (origIcao && ident === origIcao) continue;
+
+        var lat = parseFloat(fix.Pos_lat || fix.pos_lat || fix.Latitude || fix.latitude || 0);
+        var lng = parseFloat(fix.Pos_long || fix.pos_long || fix.Longitude || fix.longitude || 0);
+        var name = fix.Ident || fix.ident || '';
+
+        if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+            // Skip waypoints too close to destination (< 5 NM) - e.g. airport VOR/DME
+            if (destLat && destLng) {
+                var distToDest = map.distance([lat, lng], [destLat, destLng]);
+                if (distToDest < minDistMeters) {
+                    flightplanPanelLogger.info('Skipping', name, '- too close to destination:', (distToDest * 0.000539957).toFixed(1), 'NM');
+                    continue;
+                }
+            }
+            flightplanPanelLogger.info('Last enroute waypoint:', name, 'at', lat.toFixed(4), lng.toFixed(4), '(stage:', stage + ')');
+            return { lat: lat, lng: lng, name: name };
+        }
+    }
+    return null;
+}
+
+/**
+ * Select the best approach transition based on geographic proximity
+ * Fetches all transition procedures in parallel and picks the one
+ * whose first waypoint is closest to the last OFP enroute waypoint
+ * @param {string} icao - Airport ICAO
+ * @param {string} approachId - Approach identifier (e.g., "I09-Y")
+ * @param {Array<string>} transitions - Available transition identifiers
+ * @param {string} runway - Selected runway
+ * @param {Object} ofpData - OFP data (optional, falls back to flightplanPanelState.ofpData)
+ * @returns {Promise<string>} Best transition identifier
+ */
+async function selectBestApproachTransition(icao, approachId, transitions, runway, ofpData) {
+    if (!transitions || transitions.length === 0) return '';
+    if (transitions.length === 1) return transitions[0];
+
+    var effectiveOfp = ofpData || flightplanPanelState.ofpData;
+    var lastWp = getLastEnrouteWaypoint(effectiveOfp);
+    if (!lastWp) {
+        flightplanPanelLogger.debug('No OFP waypoint - using first transition:', transitions[0]);
+        return transitions[0];
+    }
+
+    try {
+        // Fetch all transitions in parallel
+        var fetchPromises = transitions.map(function(trans) {
+            return fetchProcedureDetail(icao, approachId, 'APPROACH', trans, runway)
+                .then(function(data) {
+                    return { transition: trans, data: data };
+                })
+                .catch(function() {
+                    return { transition: trans, data: null };
+                });
+        });
+
+        var results = await Promise.all(fetchPromises);
+
+        var bestTransition = transitions[0];
+        var bestDistance = Infinity;
+
+        results.forEach(function(result) {
+            if (!result.data || !result.data.Waypoints || result.data.Waypoints.length === 0) {
+                flightplanPanelLogger.debug('Transition', result.transition, '- no waypoints returned');
+                return;
+            }
+
+            var sorted = sortProcedureWaypoints(result.data.Waypoints);
+            // Find first waypoint with valid coordinates (should be the transition entry fix)
+            var firstWp = null;
+            var firstWpName = '';
+            for (var i = 0; i < sorted.length; i++) {
+                var lat = parseFloat(sorted[i].Latitude || sorted[i].latitude || 0);
+                var lon = parseFloat(sorted[i].Longitude || sorted[i].longitude || 0);
+                if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
+                    firstWp = { lat: lat, lng: lon };
+                    firstWpName = sorted[i].WaypointIdentifier || sorted[i].Identifier || sorted[i].identifier || '?';
+                    break;
+                }
+            }
+            if (!firstWp) {
+                flightplanPanelLogger.debug('Transition', result.transition, '- no waypoint with valid coordinates');
+                return;
+            }
+
+            var dist = map.distance([lastWp.lat, lastWp.lng], [firstWp.lat, firstWp.lng]);
+            var distNm = (dist * 0.000539957).toFixed(1);
+            flightplanPanelLogger.info('VIA', result.transition, '-> entry fix:', firstWpName,
+                '(' + firstWp.lat.toFixed(4) + ',' + firstWp.lng.toFixed(4) + ')',
+                'dist to', lastWp.name + ':', distNm, 'NM');
+
+            if (dist < bestDistance) {
+                bestDistance = dist;
+                bestTransition = result.transition;
+            }
+        });
+
+        flightplanPanelLogger.info('Best VIA:', bestTransition, '(' + (bestDistance * 0.000539957).toFixed(1), 'NM from', lastWp.name + ')');
+        return bestTransition;
+    } catch (err) {
+        flightplanPanelLogger.error('selectBestApproachTransition error:', err);
+        return transitions[0];
+    }
+}
+
+/**
  * Populate the approach transition dropdown
  * @param {string} elementId - The dropdown element ID
  * @param {Array<string>} transitions - List of transition identifiers
@@ -23279,7 +23670,7 @@ function populateApproachTransitionDropdown(elementId, transitions, selectedValu
 
     flightplanPanelLogger.debug(elementId, '- transitions:', transitions, 'selected:', selectedValue);
 
-    select.innerHTML = '<option value="">-</option>';
+    select.innerHTML = '<option value="">None</option>';
 
     if (!transitions || transitions.length === 0) {
         return;
@@ -23331,8 +23722,8 @@ function autoSelectApproach(approaches, runway) {
     // Filter approaches that match the runway
     var matchingApproaches = approaches.filter(function(app) {
         var id = app.Identifier || app.identifier || '';
-        // Extract runway from identifier: R12LZ -> 12L, I30L -> 30L
-        var approachRunway = id.substring(1).replace(/[A-Z]$/i, '');
+        // Extract runway from identifier: R12LZ -> 12L, I30L -> 30L, I09-Y -> 09
+        var approachRunway = id.substring(1).replace(/-?[A-Z]$/i, '');
 
         return approachRunway === normalizedRunway ||
                approachRunway.replace(/[LRC]$/i, '') === normalizedRunway.replace(/[LRC]$/i, '');
@@ -23746,6 +24137,19 @@ async function onArrRunwayChange(runwayId) {
         flightplanPanelState.arrival.approaches, runwayId, selectedApproachId);
     flightplanPanelState.arrival.selectedApproach = selectedApproachId;
 
+    // Smart approach transition selection for the new approach
+    var availableApproachTransitions = getAvailableApproachTransitions(flightplanPanelState.arrival.approaches, selectedApproachId);
+    var selectedApproachTransition = '';
+    if (availableApproachTransitions.length > 1) {
+        var icao = flightplanPanelState.arrival.icao;
+        selectedApproachTransition = await selectBestApproachTransition(
+            icao, selectedApproachId, availableApproachTransitions, runwayId, flightplanPanelState.ofpData);
+    } else if (availableApproachTransitions.length === 1) {
+        selectedApproachTransition = availableApproachTransitions[0];
+    }
+    populateApproachTransitionDropdown('arrApproachTransitionSelect', availableApproachTransitions, selectedApproachTransition);
+    flightplanPanelState.arrival.selectedApproachTransition = selectedApproachTransition;
+
     // Nur bei manueller Änderung Preview zeichnen
     if (!flightplanPendingState.isInitialLoad) {
         markPendingChanges();
@@ -23760,7 +24164,7 @@ async function onArrRunwayChange(runwayId) {
             drawStarPreview(flightplanPanelState.arrival.icao, '', '');
         }
         if (selectedApproachId) {
-            drawApproachPreview(flightplanPanelState.arrival.icao, selectedApproachId, flightplanPanelState.arrival.selectedApproachTransition);
+            drawApproachPreview(flightplanPanelState.arrival.icao, selectedApproachId, selectedApproachTransition);
         }
     }
 }
@@ -23769,7 +24173,7 @@ async function onArrRunwayChange(runwayId) {
  * Handle approach selection change
  * - Zeigt Preview nur bei manueller Änderung
  */
-function onArrApproachChange(approachId) {
+async function onArrApproachChange(approachId) {
     flightplanPanelLogger.debug('onArrApproachChange called with:', approachId);
     flightplanPanelLogger.debug('isInitialLoad:', flightplanPendingState.isInitialLoad);
     flightplanPanelLogger.debug('icao:', flightplanPanelState.arrival.icao);
@@ -23813,12 +24217,17 @@ function onArrApproachChange(approachId) {
         }
     }
 
-    // Load and populate approach transitions
+    // Load and populate approach transitions with smart selection
     var approaches = flightplanPanelState.arrival.approaches || [];
     var availableTransitions = getAvailableApproachTransitions(approaches, approachId);
+    var icao = flightplanPanelState.arrival.icao;
+    var runway = flightplanPanelState.arrival.selectedRunway;
 
     var selectedTransition = '';
-    if (availableTransitions.length > 0) {
+    if (availableTransitions.length > 1) {
+        // Smart selection: pick geographically closest transition
+        selectedTransition = await selectBestApproachTransition(icao, approachId, availableTransitions, runway);
+    } else if (availableTransitions.length === 1) {
         selectedTransition = availableTransitions[0];
     }
 
@@ -24747,9 +25156,6 @@ async function rebuildFlightplanWithProcedures() {
 
     flightplanPanelLogger.info('Starting rebuild with:', { depRunway: depState.selectedRunway, depSid: depState.selectedSid, arrRunway: arrState.selectedRunway, arrStar: arrState.selectedStar, arrApproach: arrState.selectedApproach });
 
-    // Update the flightplan summary in the UI
-    updateFlightplanSummary();
-
     // Clear all preview layers since we're now showing the committed route
     clearAllPreviews();
 
@@ -24867,33 +25273,43 @@ async function rebuildFlightplanWithProcedures() {
             var separated = separateMissedApproachWaypoints(sortedWaypoints);
             flightplanPanelLogger.debug('Sorted approach waypoints:', sortedWaypoints.length, '(normal:', separated.normal.length, ', missed:', separated.missed.length, ')');
 
+            // Sammle alle Approach-Waypoint-Namen (zum Entfernen aus Base-Flightplan)
+            var approachWpNames = {};
+            separated.normal.forEach(function(wp) {
+                var name = wp.Identifier || wp.identifier || wp.Name || wp.name || '';
+                if (name && name !== 'RWY_THRESHOLD') {
+                    approachWpNames[name.toUpperCase()] = true;
+                }
+            });
+
+            // Entferne OFP-Waypoints aus dem Base-Flightplan die auch im Approach vorkommen
+            // Diese werden durch die Approach-Prozedur mit korrekter Reihenfolge ersetzt
+            var removedFromBase = [];
+            baseFlightplan = baseFlightplan.filter(function(wp) {
+                if (!wp.name) return true;
+                var wpType = (wp.waypointType || '').toUpperCase();
+                // DEP-Waypoints nie entfernen
+                if (wpType.indexOf('DEP') === 0) return true;
+                // Destination (letzter Waypoint) nie entfernen
+                if (approachWpNames[wp.name.toUpperCase()] && wpType !== 'DEST') {
+                    removedFromBase.push(wp.name);
+                    return false;
+                }
+                return true;
+            });
+            if (removedFromBase.length > 0) {
+                flightplanPanelLogger.debug('Removed', removedFromBase.length, 'OFP waypoints that overlap with approach:', removedFromBase.join(', '));
+            }
+
             var insertIndex = baseFlightplan.length > 0 ? baseFlightplan.length - 1 : 0;
             var existingNames = {};
             baseFlightplan.forEach(function(wp) {
                 if (wp.name) existingNames[wp.name.toUpperCase()] = true;
             });
 
-            // ZIGZAG FIX v2: Finde den LETZTEN gemeinsamen Waypoint zwischen Flightplan und Approach
-            // Nur Approach-Waypoints NACH diesem Punkt hinzufügen (nur normale, nicht missed)
-            var lastCommonWpIndex = -1;
-            for (var i = 0; i < separated.normal.length; i++) {
-                var wpName = separated.normal[i].Identifier || separated.normal[i].identifier ||
-                             separated.normal[i].Name || separated.normal[i].name || '';
-                if (existingNames[wpName.toUpperCase()]) {
-                    lastCommonWpIndex = i;
-                    flightplanPanelLogger.debug('Approach/Flightplan common waypoint at index', i, ':', wpName);
-                    // Nicht break - wir wollen den LETZTEN gemeinsamen finden
-                }
-            }
-
-            // Starte NACH dem letzten gemeinsamen Waypoint (der ist ja schon im Flightplan)
-            var approachWaypointsToProcess = lastCommonWpIndex >= 0
-                ? separated.normal.slice(lastCommonWpIndex + 1)
-                : separated.normal;
-            flightplanPanelLogger.debug('Approach: lastCommonWpIndex=' + lastCommonWpIndex + ', processing ' + approachWaypointsToProcess.length + ' normal waypoints');
-
+            // Alle Approach-Waypoints hinzufügen (in sortierter Reihenfolge: Transition → Initial → Intermediate → Final)
             var approachEntries = [];
-            approachWaypointsToProcess.forEach(function(wp) {
+            separated.normal.forEach(function(wp) {
                 var lat = wp.Latitude || wp.latitude;
                 var lon = wp.Longitude || wp.longitude;
                 var name = wp.Identifier || wp.identifier || wp.Name || wp.name || 'APPR';
@@ -24918,12 +25334,13 @@ async function rebuildFlightplanWithProcedures() {
                     existingNames[name.toUpperCase()] = true;
                 }
             });
+            flightplanPanelLogger.debug('Approach: processing', separated.normal.length, 'waypoints, added', approachEntries.length, 'entries');
 
             if (approachEntries.length > 0) {
                 var before = baseFlightplan.slice(0, insertIndex);
                 var after = baseFlightplan.slice(insertIndex);
                 baseFlightplan = before.concat(approachEntries).concat(after);
-                flightplanPanelLogger.debug('Added', approachEntries.length, 'approach waypoints');
+                flightplanPanelLogger.debug('Added', approachEntries.length, 'approach waypoints at index', insertIndex);
             }
 
             // Missed Approach Waypoints separat speichern (für separate Linie)
@@ -25008,6 +25425,9 @@ async function rebuildFlightplanWithProcedures() {
     window.pendingAlternateRouteDraw = false;
     window.skipFlightplanAnimation = true;  // Skip animation, use bulk mode
     scheduleFlightplanRender(flightplan);
+
+    // Update flightplan summary AFTER render (markers need time to be created)
+    setTimeout(updateFlightplanSummary, 600);
 }
 
 /**
@@ -32005,6 +32425,7 @@ if (document.readyState === 'loading') {
         PanelPositionManager.init();
         initializePanelResize();
         handleLayerControlToggle();
+        initCustomSelectDropdowns();
 
         // WICHTIG: Elevation Profile immer im expanded-Zustand starten!
         var wrapper = document.querySelector('.elevation-canvas-wrapper');
@@ -32021,6 +32442,7 @@ if (document.readyState === 'loading') {
     PanelPositionManager.init();
     initializePanelResize();
     handleLayerControlToggle();
+    initCustomSelectDropdowns();
 
     // WICHTIG: Elevation Profile immer im expanded-Zustand starten!
     var wrapper = document.querySelector('.elevation-canvas-wrapper');

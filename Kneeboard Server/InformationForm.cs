@@ -42,10 +42,8 @@ namespace Kneeboard_Server
                 minimized.Checked = false;
             }
 
-            if (Properties.Settings.Default.exeXmlPath != "")
-            {
-                folderpathInput.Text = Properties.Settings.Default.exeXmlPath;
-            }
+            // Auto-detect exe.xml paths
+            UpdateExeXmlStatus();
 
             if (Properties.Settings.Default.simbriefId != "")
             {
@@ -61,6 +59,9 @@ namespace Kneeboard_Server
             {
                 IvaoVidInput.Text = Properties.Settings.Default.ivaoVid;
             }
+
+            // Update ID status labels
+            UpdateIdStatusLabels();
 
             // Load max cache size setting (0 = unlimited)
             long maxCacheSize = Properties.Settings.Default.maxCacheSizeMB;
@@ -140,18 +141,9 @@ namespace Kneeboard_Server
         {
             try
             {
-                if (simStart.Checked == true && Properties.Settings.Default.exeXmlPath != "")
-                {
-                    Properties.Settings.Default.simStart = true;
-                    Properties.Settings.Default.Save();
-                    Kneeboard_Server.WriteExeXML();
-                }
-                else
-                {
-                    Properties.Settings.Default.simStart = false;
-                    Properties.Settings.Default.Save();
-                    Kneeboard_Server.WriteExeXML();
-                }
+                Properties.Settings.Default.simStart = simStart.Checked;
+                Properties.Settings.Default.Save();
+                Kneeboard_Server.WriteExeXML();
             }
             catch
             {
@@ -181,23 +173,61 @@ namespace Kneeboard_Server
             }
         }
 
-        private void folderpathInput_MouseDown(object sender, MouseEventArgs e)
+        private void UpdateExeXmlStatus()
+        {
+            string path2024 = MsfsPathDetector.DetectExeXmlPath2024();
+            string path2020 = MsfsPathDetector.DetectExeXmlPath2020();
+
+            if (path2024 != null)
+            {
+                exeXml2024Input.Text = path2024;
+                exeXml2024Input.ForeColor = System.Drawing.Color.Green;
+            }
+            else
+            {
+                exeXml2024Input.Text = "Nicht erkannt";
+                exeXml2024Input.ForeColor = System.Drawing.Color.Gray;
+            }
+
+            if (path2020 != null)
+            {
+                exeXml2020Input.Text = path2020;
+                exeXml2020Input.ForeColor = System.Drawing.Color.Green;
+            }
+            else
+            {
+                exeXml2020Input.Text = "Nicht erkannt";
+                exeXml2020Input.ForeColor = System.Drawing.Color.Gray;
+            }
+        }
+
+        private void ExeXml2024Input_MouseDown(object sender, MouseEventArgs e)
+        {
+            BrowseForExeXml(exeXml2024Input);
+        }
+
+        private void ExeXml2020Input_MouseDown(object sender, MouseEventArgs e)
+        {
+            BrowseForExeXml(exeXml2020Input);
+        }
+
+        private void BrowseForExeXml(System.Windows.Forms.TextBox targetInput)
         {
             try
             {
-                OpenFileDialog openFileDialog1 = new OpenFileDialog
+                var openFileDialog = new OpenFileDialog
                 {
-                    Filter = "XML files (*.xml)|*.xml|All files (*.*)|*.*"
+                    Filter = "XML files (*.xml)|*.xml|All files (*.*)|*.*",
+                    FileName = "exe.xml"
                 };
 
-                if (openFileDialog1.ShowDialog() == DialogResult.OK)
+                if (openFileDialog.ShowDialog() == DialogResult.OK &&
+                    openFileDialog.FileName.EndsWith("exe.xml"))
                 {
-                    if (folderpathInput.Text != openFileDialog1.FileName && (openFileDialog1.FileName.EndsWith("exe.xml") == true))
-                    {
-                        folderpathInput.Text = openFileDialog1.FileName;
-                        Properties.Settings.Default.exeXmlPath = folderpathInput.Text;
-                        Properties.Settings.Default.Save();
-                    }
+                    targetInput.Text = openFileDialog.FileName;
+                    targetInput.ForeColor = System.Drawing.Color.Green;
+                    Properties.Settings.Default.exeXmlPath = openFileDialog.FileName;
+                    Properties.Settings.Default.Save();
                 }
             }
             catch
@@ -212,18 +242,63 @@ namespace Kneeboard_Server
             Properties.Settings.Default.Save();
             // Restart background SimBrief sync with new ID
             Kneeboard_Server.StartBackgroundSimbriefSync();
+            UpdateIdStatusLabels();
         }
 
         private void VatsimCidInput_TextChanged(object sender, EventArgs e)
         {
             Properties.Settings.Default.vatsimCid = VatsimCidInput.Text;
             Properties.Settings.Default.Save();
+            UpdateIdStatusLabels();
         }
 
         private void IvaoVidInput_TextChanged(object sender, EventArgs e)
         {
             Properties.Settings.Default.ivaoVid = IvaoVidInput.Text;
             Properties.Settings.Default.Save();
+            UpdateIdStatusLabels();
+        }
+
+        private void UpdateIdStatusLabels()
+        {
+            // SimBrief
+            string simbriefId = SimbriefIdInput.Text;
+            if (!string.IsNullOrEmpty(simbriefId) && simbriefId != "SimBrief ID or Username")
+            {
+                simbriefStatusLabel.Text = "OK";
+                simbriefStatusLabel.ForeColor = System.Drawing.Color.Green;
+            }
+            else
+            {
+                simbriefStatusLabel.Text = "---";
+                simbriefStatusLabel.ForeColor = System.Drawing.Color.Gray;
+            }
+
+            // VATSIM
+            string vatsimCid = VatsimCidInput.Text;
+            if (!string.IsNullOrEmpty(vatsimCid) && vatsimCid != "VATSIM CID")
+            {
+                vatsimStatusLabel.Text = "OK";
+                vatsimStatusLabel.ForeColor = System.Drawing.Color.Green;
+            }
+            else
+            {
+                vatsimStatusLabel.Text = "---";
+                vatsimStatusLabel.ForeColor = System.Drawing.Color.Gray;
+            }
+
+            // IVAO
+            string ivaoVid = IvaoVidInput.Text;
+            if (!string.IsNullOrEmpty(ivaoVid) && ivaoVid != "IVAO VID")
+            {
+                ivaoStatusLabel.Text = "OK";
+                ivaoStatusLabel.ForeColor = System.Drawing.Color.Green;
+            }
+            else
+            {
+                ivaoStatusLabel.Text = "---";
+                ivaoStatusLabel.ForeColor = System.Drawing.Color.Gray;
+            }
         }
 
         private void ClearCacheButton_Click(object sender, EventArgs e)
@@ -452,24 +527,53 @@ namespace Kneeboard_Server
                     return;
                 }
 
-                // Use first detected installation (or saved path)
-                var install = installations[0];
-                var info = MsfsPathDetector.GetInstalledPackageInfo(install.CommunityPath);
+                // Status für alle erkannten Installationen zusammenfassen
+                int installedCount = 0;
+                int needsUpdateCount = 0;
+                var statusParts = new System.Collections.Generic.List<string>();
 
-                if (info.IsInstalled)
+                foreach (var inst in installations)
                 {
-                    if (PanelDeploymentService.NeedsUpdate(install.CommunityPath))
+                    var info = MsfsPathDetector.GetInstalledPackageInfo(inst.CommunityPath);
+                    string shortVersion = inst.Version.Replace("MSFS ", "");
+                    if (info.IsInstalled)
                     {
-                        panelStatusLabel.Text = $"Update available (v{info.Version})";
-                        panelStatusLabel.ForeColor = Color.Orange;
-                        installPanelButton.Text = "Update Panel";
+                        installedCount++;
+                        if (PanelDeploymentService.NeedsUpdate(inst.CommunityPath))
+                        {
+                            needsUpdateCount++;
+                            statusParts.Add($"{shortVersion}: v{info.Version}!");
+                        }
+                        else
+                        {
+                            statusParts.Add($"{shortVersion}: v{info.Version}");
+                        }
                     }
                     else
                     {
-                        panelStatusLabel.Text = $"Installed (v{info.Version})";
-                        panelStatusLabel.ForeColor = Color.Green;
-                        installPanelButton.Text = "Reinstall Panel";
+                        statusParts.Add($"{shortVersion}: ---");
                     }
+                }
+
+                panelPathLabel.Text = string.Join("  |  ", statusParts);
+
+                if (needsUpdateCount > 0)
+                {
+                    panelStatusLabel.Text = "Update available";
+                    panelStatusLabel.ForeColor = Color.Orange;
+                    installPanelButton.Text = "Update Panel";
+                }
+                else if (installedCount == installations.Count)
+                {
+                    panelStatusLabel.Text = "Installed";
+                    panelStatusLabel.ForeColor = Color.Green;
+                    installPanelButton.Text = "Reinstall Panel";
+                }
+                else if (installedCount > 0)
+                {
+                    panelStatusLabel.Text = "Partially installed";
+                    panelStatusLabel.ForeColor = Color.Orange;
+                    installPanelButton.Text = "Install Panel";
                 }
                 else
                 {
@@ -478,7 +582,6 @@ namespace Kneeboard_Server
                     installPanelButton.Text = "Install Panel";
                 }
 
-                panelPathLabel.Text = $"{install.Version} {install.Variant}: {install.CommunityPath}";
                 installPanelButton.Enabled = true;
             }
             catch (Exception ex)
@@ -494,26 +597,9 @@ namespace Kneeboard_Server
             try
             {
                 var installations = MsfsPathDetector.DetectMsfsInstallations();
-                string communityPath;
 
-                // Immer Auswahldialog mit erkannten Installationen + Browse-Option anzeigen
-                var items = installations.Select(i => $"{i.Version} ({i.Variant}): {i.CommunityPath}").ToList();
-                items.Add("Browse... (manuell auswählen)");
-
-                string selected = ShowSelectionDialog("MSFS Community Ordner wählen", items.ToArray());
-                if (selected == null) return;
-
-                if (selected == "Browse... (manuell auswählen)")
-                {
-                    communityPath = MsfsPathDetector.BrowseForCommunityFolder();
-                    if (string.IsNullOrEmpty(communityPath))
-                        return;
-                }
-                else
-                {
-                    int idx = items.IndexOf(selected);
-                    communityPath = installations[idx].CommunityPath;
-                }
+                var selectedPaths = ShowInstallDialog(installations);
+                if (selectedPaths == null || selectedPaths.Count == 0) return;
 
                 installPanelButton.Enabled = false;
                 installPanelButton.Text = "Installing...";
@@ -528,15 +614,40 @@ namespace Kneeboard_Server
                         panelStatusLabel.Text = status;
                 });
 
-                await Task.Run(() => PanelDeploymentService.DeployPanel(communityPath, progress));
+                int successCount = 0;
+                var errors = new System.Collections.Generic.List<string>();
 
-                // Save the path
-                Properties.Settings.Default.communityFolderPath = communityPath;
-                Properties.Settings.Default.Save();
+                foreach (var communityPath in selectedPaths)
+                {
+                    try
+                    {
+                        await Task.Run(() => PanelDeploymentService.DeployPanel(communityPath, progress));
+                        successCount++;
+
+                        // Save last used path
+                        Properties.Settings.Default.communityFolderPath = communityPath;
+                        Properties.Settings.Default.Save();
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add($"{communityPath}: {ex.Message}");
+                    }
+                }
 
                 UpdatePanelStatus();
-                MessageBox.Show("Kneeboard Panel successfully installed!", "MSFS Panel",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                if (errors.Count > 0)
+                {
+                    MessageBox.Show(
+                        $"{successCount} von {selectedPaths.Count} Installation(en) erfolgreich.\n\nFehler:\n{string.Join("\n", errors)}",
+                        "MSFS Panel", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                else
+                {
+                    MessageBox.Show(
+                        $"Kneeboard Panel erfolgreich in {successCount} Ordner installiert!",
+                        "MSFS Panel", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
             }
             catch (Exception ex)
             {
@@ -551,31 +662,97 @@ namespace Kneeboard_Server
             }
         }
 
-        private string ShowSelectionDialog(string title, string[] items)
+        private System.Collections.Generic.List<string> ShowInstallDialog(System.Collections.Generic.List<MsfsInstallation> installations)
         {
             using (var form = new Form())
             {
-                form.Text = title;
-                form.Size = new Size(450, 180);
+                form.Text = "MSFS Community Ordner wählen";
                 form.StartPosition = FormStartPosition.CenterParent;
                 form.FormBorderStyle = FormBorderStyle.FixedDialog;
                 form.MaximizeBox = false;
                 form.MinimizeBox = false;
 
-                var combo = new System.Windows.Forms.ComboBox
+                var checkboxes = new System.Collections.Generic.List<System.Windows.Forms.CheckBox>();
+                int yPos = 12;
+
+                foreach (var inst in installations)
                 {
-                    DropDownStyle = ComboBoxStyle.DropDownList,
-                    Location = new Point(12, 20),
-                    Size = new Size(410, 21)
+                    var info = MsfsPathDetector.GetInstalledPackageInfo(inst.CommunityPath);
+                    string status = info.IsInstalled ? $" [v{info.Version} installiert]" : "";
+
+                    var cb = new System.Windows.Forms.CheckBox
+                    {
+                        Text = $"{inst.Version} ({inst.Variant}){status}",
+                        Tag = inst.CommunityPath,
+                        Location = new Point(12, yPos),
+                        Size = new Size(420, 20),
+                        Checked = true,
+                        Font = new Font("Segoe UI", 8.5F)
+                    };
+                    checkboxes.Add(cb);
+                    form.Controls.Add(cb);
+
+                    var pathLabel = new System.Windows.Forms.Label
+                    {
+                        Text = inst.CommunityPath,
+                        Location = new Point(28, yPos + 19),
+                        Size = new Size(410, 14),
+                        Font = new Font("Segoe UI", 7F),
+                        ForeColor = SystemColors.ControlDarkDark
+                    };
+                    form.Controls.Add(pathLabel);
+                    yPos += 40;
+                }
+
+                // Manuell-Option
+                var manualCb = new System.Windows.Forms.CheckBox
+                {
+                    Text = "Anderer Pfad:",
+                    Location = new Point(12, yPos),
+                    Size = new Size(100, 20),
+                    Checked = false,
+                    Font = new Font("Segoe UI", 8.5F)
                 };
-                combo.Items.AddRange(items);
-                combo.SelectedIndex = 0;
+                form.Controls.Add(manualCb);
+
+                var manualPathBox = new System.Windows.Forms.TextBox
+                {
+                    Location = new Point(115, yPos),
+                    Size = new Size(270, 22),
+                    Enabled = false
+                };
+                form.Controls.Add(manualPathBox);
+
+                var browseButton = new System.Windows.Forms.Button
+                {
+                    Text = "...",
+                    Location = new Point(390, yPos - 1),
+                    Size = new Size(35, 24),
+                    FlatStyle = FlatStyle.Flat,
+                    ForeColor = SystemColors.Highlight,
+                    Enabled = false
+                };
+                browseButton.Click += (s, ev) =>
+                {
+                    var path = MsfsPathDetector.BrowseForCommunityFolder();
+                    if (!string.IsNullOrEmpty(path))
+                        manualPathBox.Text = path;
+                };
+                form.Controls.Add(browseButton);
+
+                manualCb.CheckedChanged += (s, ev) =>
+                {
+                    manualPathBox.Enabled = manualCb.Checked;
+                    browseButton.Enabled = manualCb.Checked;
+                };
+
+                yPos += 40;
 
                 var okButton = new System.Windows.Forms.Button
                 {
                     Text = "OK",
                     DialogResult = DialogResult.OK,
-                    Location = new Point(266, 60),
+                    Location = new Point(266, yPos),
                     Size = new Size(75, 23)
                 };
 
@@ -583,15 +760,28 @@ namespace Kneeboard_Server
                 {
                     Text = "Cancel",
                     DialogResult = DialogResult.Cancel,
-                    Location = new Point(347, 60),
+                    Location = new Point(347, yPos),
                     Size = new Size(75, 23)
                 };
 
-                form.Controls.AddRange(new Control[] { combo, okButton, cancelButton });
+                form.Controls.AddRange(new Control[] { okButton, cancelButton });
                 form.AcceptButton = okButton;
                 form.CancelButton = cancelButton;
+                form.Size = new Size(450, yPos + 65);
 
-                return form.ShowDialog(this) == DialogResult.OK ? combo.SelectedItem?.ToString() : null;
+                if (form.ShowDialog(this) != DialogResult.OK)
+                    return null;
+
+                var selectedPaths = new System.Collections.Generic.List<string>();
+                foreach (var cb in checkboxes)
+                {
+                    if (cb.Checked)
+                        selectedPaths.Add(cb.Tag.ToString());
+                }
+                if (manualCb.Checked && !string.IsNullOrEmpty(manualPathBox.Text))
+                    selectedPaths.Add(manualPathBox.Text);
+
+                return selectedPaths.Count > 0 ? selectedPaths : null;
             }
         }
 

@@ -620,17 +620,11 @@ namespace Kneeboard_Server.Navigraph
                     break;
             }
 
-            List<ProcedureLeg> legs;
-            if (procType == ProcedureType.Approach)
-            {
-                var (diagLegs, _) = _dbService.GetProcedureLegsWithDebug(icao, procedureName, procType);
-                legs = diagLegs;
-                Log($"[Navigraph] GetProcedureDetail: Using DIAG for Approach, got {legs.Count} legs");
-            }
-            else
-            {
-                legs = _dbService.GetProcedureLegs(icao, procedureName, procType, transition, runway);
-            }
+            // Use GetProcedureLegs for ALL procedure types - it has proper route_type filtering
+            // For Approaches with a transition, it includes RouteType 'A' legs for that transition
+            // GetProcedureLegsWithDebug always filters out 'A' (transitions) which loses approach waypoints!
+            List<ProcedureLeg> legs = _dbService.GetProcedureLegs(icao, procedureName, procType, transition, runway);
+            Log($"[Navigraph] GetProcedureDetail: {procType} {procedureName} trans='{transition}' rwy='{runway}' -> {legs.Count} legs");
 
             // For SIDs/STARs, filter to single path to avoid drawing multiple runway transitions
             // Pass both transition AND runway so filtering can select the correct runway transition
@@ -783,6 +777,17 @@ namespace Kneeboard_Server.Navigraph
                 if (routeType == "2" || routeType == "5") return 1;
                 if (routeType == "3" || routeType == "6") return 2;
                 return 3;
+            }
+
+            // Approach: A=Transition, I=Initial, D=Intermediate, F=Final, Z=Missed
+            if (type == ProcedureType.Approach)
+            {
+                if (routeType == "A") return 0;
+                if (routeType == "I") return 1;
+                if (routeType == "D") return 2;
+                if (routeType == "F") return 3;
+                if (routeType == "Z") return 4;
+                return 5;
             }
 
             return 0;

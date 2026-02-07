@@ -640,14 +640,23 @@ namespace Kneeboard_Server.Navigraph
                                 else if (procId.StartsWith("V")) appType = "VOR";
                                 else if (procId.StartsWith("N")) appType = "NDB";
                                 else if (procId.StartsWith("R")) appType = "RNAV";
+                                else if (procId.StartsWith("T")) appType = "TACAN";
                                 else if (procId.StartsWith("D")) appType = "VOR/DME";
+                                else if (procId.StartsWith("S")) appType = "VORTAC";
+                                else if (procId.StartsWith("P")) appType = "GPS";
+                                else if (procId.StartsWith("H")) appType = "RNP";
+                                else if (procId.StartsWith("X")) appType = "LDA";
+                                else if (procId.StartsWith("B")) appType = "LOC/BC";
 
-                                // Extract runway from procedure identifier (e.g., "I12L" -> "12L", "R30RZ" -> "30R")
+                                // Extract runway from procedure identifier (e.g., "I12L" -> "12L", "R30RZ" -> "30R", "I09-Y" -> "09")
                                 string runway = "";
                                 if (procId.Length > 1)
                                 {
-                                    // Remove first char (approach type) and trailing suffix (Y, Z, etc.)
-                                    runway = procId.Substring(1).TrimEnd('Y', 'Z', 'A', 'B', 'C');
+                                    runway = procId.Substring(1);
+                                    // Handle dash-separated suffix (e.g., "09-Y" -> "09")
+                                    var dashIdx = runway.IndexOf('-');
+                                    if (dashIdx > 0) runway = runway.Substring(0, dashIdx);
+                                    else runway = runway.TrimEnd('Y', 'Z', 'A', 'B', 'C');
                                 }
 
                                 approachDict[key] = new ApproachSummary
