@@ -326,6 +326,5 @@ Kneeboard Server/bin/x64/Debug/Kneeboard Server.exe.CodeAnalysisLog.xml
 Kneeboard Server/bin/x64/Debug/cache/
 Kneeboard Server/obj/
 
-# Keep Setup files for releases (DO NOT IGNORE)
-# !Kneeboard Server Setup/Debug/Kneeboard Server.msi
-# !Kneeboard Server Setup/Debug/setup.exe
+# Installer files (too large for GitHub)
+*.msi
