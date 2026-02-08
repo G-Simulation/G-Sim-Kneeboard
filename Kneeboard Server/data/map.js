@@ -14267,6 +14267,12 @@ function updateWaypointList(waypointLayers, coordinatesArray) {
 
   var totalWaypoints = visibleLayers.length;
 
+  // Show/hide fixed route header
+  var routeHeader = document.getElementById('fpRouteHeader');
+  if (routeHeader) {
+    routeHeader.style.display = totalWaypoints > 0 ? '' : 'none';
+  }
+
   visibleLayers.forEach(function (layer, visibleIndex) {
     var originalIndex = visibleIndices[visibleIndex];
 
@@ -14935,6 +14941,16 @@ function drawLines() {
       var alt1 = 0;
       var alt = parseFloat(altitude).toFixed(0);
       var vel = parseFloat(speed).toFixed(0);
+
+      // Only show overlay2 when SimConnect data is valid
+      var altNum = parseFloat(alt);
+      var velNum = parseFloat(vel);
+      var dataValid = altNum < 99999 && velNum < 9999 && altNum > -999 && velNum > -999 && heading <= 360;
+      if (!dataValid) {
+        if (DOM.overlay2) DOM.overlay2.style.display = 'none';
+        return;
+      }
+      if (DOM.overlay2) DOM.overlay2.style.display = '';
       var times = "";
 
       if (startlineShow == true && nwp1_lat !== undefined && nwp1_lng !== undefined && nlat !== undefined && nlng !== undefined) {
@@ -20357,10 +20373,16 @@ function scheduleFlightplanRender(flightplanData, delay) {
     }
 
     mapLogger.debug('New flightplan:', flightplan.length, 'waypoints');
-    removeAllMarkers();
-    setTimeout(function() {
+    // During rebuild: skip the delay to avoid flicker (markers disappear then reappear)
+    if (window.rebuildingFlightplan) {
+      removeAllMarkers();
       setWaypoints(flightplanData);
-    }, 50);
+    } else {
+      removeAllMarkers();
+      setTimeout(function() {
+        setWaypoints(flightplanData);
+      }, 50);
+    }
   }
 
   pendingFlightplanTimer = setTimeout(tryRenderFlightplan, ms);
@@ -20723,12 +20745,13 @@ async function applyFlightplanChanges() {
     flightplanPanelLogger.debug('Step 4: Drawing alternate route...');
     await drawAlternateRoute();
 
-    // Restore map view to prevent unwanted panning
-    window.rebuildingFlightplan = false;
-    if (savedCenter && savedZoom) {
-        map.setView(savedCenter, savedZoom, { animate: false });
-        flightplanPanelLogger.info('Step 5: Restored map view');
-    }
+    // Keep rebuildingFlightplan=true until rendering is fully complete
+    // This prevents fitBounds/panTo during async rendering (timeouts in scheduleFlightplanRender)
+    // The flag will be cleared after a delay that covers all render timeouts
+    setTimeout(function() {
+        window.rebuildingFlightplan = false;
+        flightplanPanelLogger.info('Step 5: Rebuild flag cleared');
+    }, 500);
 
     // Step 6: Repopulate dropdowns with ALL options (reverse-filter may have limited them)
     var arrCommitted = flightplanCommittedState.arrival;
@@ -26097,8 +26120,6 @@ async function rebuildFlightplanWithProcedures() {
     window.skipFlightplanAnimation = true;  // Skip animation, use bulk mode
     scheduleFlightplanRender(flightplan);
 
-    // Update flightplan summary AFTER render (markers need time to be created)
-    setTimeout(updateFlightplanSummary, 600);
 }
 
 /**
@@ -26108,9 +26129,6 @@ async function rebuildFlightplanWithProcedures() {
 async function rebuildFlightplanFromSelections() {
     var depState = flightplanPanelState.departure;
     var arrState = flightplanPanelState.arrival;
-
-    // Update the flightplan summary in the UI
-    updateFlightplanSummary();
 
     // NOTE: Full flightplan rebuild (replacing SID/STAR waypoints in the route) is complex
     // For now, the preview layers show the selected procedures visually
@@ -26124,55 +26142,6 @@ async function rebuildFlightplanFromSelections() {
 
     // For now, we keep the preview layers visible to show the selected procedures
     // They will automatically update when the user changes selections
-}
-
-/**
- * Update the flightplan summary in the footer
- */
-function updateFlightplanSummary() {
-    var totalDistEl = document.getElementById('fpTotalDistance');
-    var estTimeEl = document.getElementById('fpEstTime');
-
-    if (!totalDistEl || !estTimeEl) return;
-
-    // Calculate total distance from current route
-    var totalDistance = 0;
-    var coordinateData = typeof buildCoordinatesFromWaypointLayers === 'function'
-        ? buildCoordinatesFromWaypointLayers()
-        : null;
-
-    if (coordinateData && coordinateData.coordinatesArray && coordinateData.coordinatesArray.length > 1) {
-        var coords = coordinateData.coordinatesArray;
-        for (var i = 0; i < coords.length - 1; i++) {
-            if (coords[i] && coords[i + 1]) {
-                totalDistance += calculateDistance(
-                    coords[i][0], coords[i][1],
-                    coords[i + 1][0], coords[i + 1][1],
-                    'N'
-                );
-            }
-        }
-    }
-
-    // Get cruise speed from OFP if available
-    var cruiseSpeed = 450; // Default TAS in knots
-    if (importedOFPData) {
-        var general = importedOFPData.General || importedOFPData.general;
-        if (general) {
-            var avgWind = parseFloat(general.Avg_wind_comp || general.avg_wind_comp) || 0;
-            var tas = parseFloat(general.Cruise_tas || general.cruise_tas) || 450;
-            cruiseSpeed = tas + avgWind; // Ground speed approximation
-        }
-    }
-
-    // Calculate estimated time
-    var estTimeMinutes = (totalDistance / cruiseSpeed) * 60;
-    var hours = Math.floor(estTimeMinutes / 60);
-    var minutes = Math.round(estTimeMinutes % 60);
-
-    // Format display
-    totalDistEl.textContent = Math.round(totalDistance) + ' nm';
-    estTimeEl.textContent = hours + 'h ' + (minutes < 10 ? '0' : '') + minutes + 'm';
 }
 
 // ========================================

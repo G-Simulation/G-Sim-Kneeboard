@@ -58,6 +58,17 @@
     <!-- ROUTE SECTION -->
     <div class="fp-section fp-route">
         <div class="fp-section-header">ROUTE</div>
+        <div id="fpRouteHeader" class="fp-route-header" style="display:none;">
+            <div class="fp-wp-row">
+                <span class="fp-wp-icon"></span>
+                <span class="fp-wp-ident">IDENT</span>
+                <span class="fp-wp-extra">AWY</span>
+                <span class="fp-wp-bearing">HDG</span>
+                <span class="fp-wp-distance">DIST</span>
+                <span class="fp-wp-altitude">ALT</span>
+                <span style="width:20px"></span>
+            </div>
+        </div>
         <div class="kneeboard-panel-content" id="overlayList">
             <ul class="kneeboard-panel-list fp-waypoint-list" id="overlayContent"></ul>
         </div>
@@ -149,10 +160,6 @@
         </button>
     </div>
 
-    <!-- SUMMARY FOOTER -->
-    <div class="kneeboard-panel-footer fp-summary" id="overlayListSum">
-        <span id="fpTotalDistance">--</span> | <span id="fpEstTime">--</span>
-    </div>
 </div>
 <div id="controllerContainer" class="kneeboard-panel resize-right" style="visibility: hidden;">
     <div class="resize-handle"></div>
@@ -195,11 +202,10 @@
 		</div>
 	</div>
 	<div id="banner" style="text-align: center;">
-		<div id="overlay2">
+		<div id="overlay2" style="display: none;">
 			<table class="overlay2Table" style='text-align: center;'>
 				<tr>
 					<td>
-						IAS: 9999kts I&nbsp;&nbsp;HEAD:&nbsp;999° I&nbsp;&nbsp;DIST:&nbsp;999999nm
 						I&nbsp;&nbsp;ALT:&nbsp;99999ft
 					</td>
 				</tr>
