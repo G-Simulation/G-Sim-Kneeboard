@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SimBase.Document Type="InGamePanels" version="1.0">
+    <Filename>gsim_kneeboard_panel.spb</Filename>
+    <InGamePanels.InGamePanelDefinition
+        id="PANEL_GSIM_KNEEBOARD"
+        Name="Kneeboard"
+        url="html_ui/InGamePanels/Kneeboard/index.html"
+        resizeDirections="Both"
+        minWidth="20"
+        minHeight="20"
+        defaultWidth="40"
+        defaultHeight="50"
+        defaultTop="20"
+        defaultRight="5"
+        icon="ICON_TOOLBAR_KNEEBOARD"
+        buttonVisible="true"
+    >
+    </InGamePanels.InGamePanelDefinition>
+</SimBase.Document>

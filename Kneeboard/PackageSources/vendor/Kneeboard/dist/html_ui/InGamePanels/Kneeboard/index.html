@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Cache-control" content="NO-CACHE" />
+    <title>GSim Kneeboard Toolbar</title>
+
+    <link rel="stylesheet" href="/SCSS/common.css" />
+
+    <script type="text/javascript" src="/JS/coherent.js"></script>
+    <script type="text/javascript" src="/JS/common.js"></script>
+    <script type="text/javascript" src="/JS/dataStorage.js"></script>
+    <script type="text/javascript" src="/JS/buttons.js"></script>
+    <script type="text/javascript" src="/JS/Services/ToolBarPanels.js"></script>
+    <script type="text/javascript" src="/JS/simvar.js"></script>
+    <script type="text/javascript" src="/Pages/VCockpit/Instruments/Shared/Utils/DataReadManager.js"></script>
+    <script type="text/javascript" src="/Pages/VCockpit/Instruments/Shared/BaseInstrument.js"></script>
+
+    <link rel="import" href="/templates/NewPushButton/NewPushButton.html" />
+    <link rel="import" href="/templates/ToggleButton/toggleButton.html" />
+    <link rel="import" href="/templates/tabMenu/tabMenu.html" />
+    <link rel="import" href="/templates/ingameUi/ingameUi.html" />
+    <link rel="import" href="/templates/ingameUiHeader/ingameUiHeader.html" />
+    <link rel="import" href="/templates/NewListButton/NewListButton.html" />
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      .ingameUiContent,
+      .ingameUiWrapper {
+        flex: 1 1 auto;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        min-width: 0;
+      }
+
+      #kneeboard-container {
+        position: relative;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background-color: #ffffff;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      #kneeboard-iframe {
+        flex: 1 1 auto;
+        border: none;
+        background-color: transparent;
+        min-height: 0;
+        min-width: 0;
+      }
+
+      #connection-fallback {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #ffffff;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+      }
+
+      #connection-fallback.hidden {
+        display: none;
+      }
+
+      .connection-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 1rem;
+        color: #0d1a2b;
+        max-width: 420px;
+        width: 100%;
+        margin: 0 auto;
+      }
+
+      .connection-logo {
+        display: block;
+        margin: 0 auto;
+        max-width: 220px;
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+      }
+
+      .connection-message {
+        font-size: 1.2rem;
+        padding-top: 2vh;
+        font-weight: 500;
+      }
+
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 1rem auto;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Override MSFS SDK negative margin for fittedContent */
+      ingame-ui.fittedContent .ingameUiWrapper {
+        margin: 0 !important;
+      }
+
+    </style>
+
+    <script type="text/javascript" src="panel.js"></script>
+  </head>
+  <body class="border-box">
+    <ingame-ui
+      id="PANEL_GSIM_KNEEBOARD"
+      panel-id="PANEL_GSIM_KNEEBOARD"
+      title="Kneeboard"
+      class="ingameUiFrame panelInvisible"
+      content-fit="true"
+    >
+      <div id="kneeboard-container">
+        <div id="connection-fallback">
+          <div class="connection-card">
+            <img id="logo-img" class="connection-logo" alt="GSim Logo" />
+            <div class="spinner"></div>
+            <span class="connection-message"
+              >Waiting for Kneeboard server&hellip;</span
+            >
+          </div>
+        </div>
+        <iframe id="kneeboard-iframe" title="GSim Kneeboard"></iframe>
+      </div>
+    </ingame-ui>
+  </body>
+</html>

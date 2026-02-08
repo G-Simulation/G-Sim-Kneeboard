@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AssetPackage Version="0.1.10">
+	<ItemSettings>
+		<ContentType>MISC</ContentType>
+		<Title>Gsim Kneeboard</Title>
+		<Manufacturer/>
+		<Creator>Asobo Studio</Creator>
+	</ItemSettings>
+	<Flags>
+		<VisibleInStore>false</VisibleInStore>
+		<CanBeReferenced>true</CanBeReferenced>
+	</Flags>
+	<PackageOrderHint>MISC</PackageOrderHint>
+	<AssetGroups>
+		<AssetGroup Name="ContentInfo">
+			<Type Version="0">ContentInfo</Type>
+			<Flags>
+				<FSXCompatibility>false</FSXCompatibility>
+			</Flags>
+			<AssetDir>PackageDefinitions\gsimulations-kneeboard\ContentInfo</AssetDir>
+			<OutputDir>ContentInfo\gsimulations-kneeboard</OutputDir>
+		</AssetGroup>
+		<AssetGroup Name="efb_apps_all">
+			<Type Version="0">Copy</Type>
+			<Flags>
+				<FSXCompatibility>false</FSXCompatibility>
+			</Flags>
+			<AssetDir>PackageSources\vendor\Kneeboard\dist\</AssetDir>
+			<OutputDir>.\html_ui\efb_ui\efb_apps\Kneeboard\</OutputDir>
+		</AssetGroup>
+		<AssetGroup Name="ingamepanel_root_html">
+			<Type Version="0">Copy</Type>
+			<Flags>
+				<FSXCompatibility>false</FSXCompatibility>
+			</Flags>
+			<AssetDir>PackageSources\vendor\Kneeboard\dist\html_ui\</AssetDir>
+			<OutputDir>.\html_ui\</OutputDir>
+		</AssetGroup>
+		<AssetGroup Name="ingamepanel_html">
+			<Type Version="0">Copy</Type>
+			<Flags>
+				<FSXCompatibility>false</FSXCompatibility>
+			</Flags>
+			<AssetDir>PackageSources\vendor\Kneeboard\dist\html_ui\InGamePanels\</AssetDir>
+			<OutputDir>.\html_ui\InGamePanels\</OutputDir>
+		</AssetGroup>
+		<AssetGroup Name="ingamepanel_icons">
+			<Type Version="0">Copy</Type>
+			<Flags>
+				<FSXCompatibility>false</FSXCompatibility>
+			</Flags>
+			<AssetDir>PackageSources\vendor\Kneeboard\dist\html_ui\icons\</AssetDir>
+			<OutputDir>.\html_ui\icons\</OutputDir>
+		</AssetGroup>
+		<AssetGroup Name="ingamepanel_spb">
+			<Type Version="0">SPB</Type>
+			<Flags>
+				<FSXCompatibility>false</FSXCompatibility>
+			</Flags>
+			<AssetDir>PackageSources\vendor\Kneeboard\dist\InGamePanels\</AssetDir>
+			<OutputDir>.\InGamePanels\</OutputDir>
+		</AssetGroup>
+	</AssetGroups>
+</AssetPackage>
