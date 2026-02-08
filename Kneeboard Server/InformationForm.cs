@@ -77,6 +77,7 @@ namespace Kneeboard_Server
 
             // Load SRTM settings
             useSrtmCheckbox.Checked = Properties.Settings.Default.useSrtmElevation;
+            UpdateSrtmControls();
             UpdateSrtmStatus();
 
             // Populate SRTM region ComboBox
@@ -321,6 +322,7 @@ namespace Kneeboard_Server
                 SimpleHTTPServer.ClearBoundariesCache();
                 SimpleHTTPServer.ClearElevationCache();
                 UpdateCacheButtonText();
+                UpdateSrtmStatus();
                 MessageBox.Show("Cache wurde geleert (OpenAIP + Boundaries + Elevation).", "Cache",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
@@ -806,14 +808,20 @@ namespace Kneeboard_Server
             try
             {
                 int fileCount = SimpleHTTPServer.GetSrtmFileCount();
+                long srtmSize = SimpleHTTPServer.GetSrtmDataSize();
+                long cacheSize = SimpleHTTPServer.GetCacheSize();
+
+                string srtmSizeStr = FormatFileSize(srtmSize);
+                string cacheSizeStr = FormatFileSize(cacheSize);
+
                 if (fileCount > 0)
                 {
-                    elevationStatusLabel.Text = $"{fileCount} files";
+                    elevationStatusLabel.Text = $"SRTM: {fileCount} files ({srtmSizeStr}) | Cache: {cacheSizeStr}";
                     elevationStatusLabel.ForeColor = System.Drawing.Color.Green;
                 }
                 else
                 {
-                    elevationStatusLabel.Text = "No data";
+                    elevationStatusLabel.Text = $"No SRTM data | Cache: {cacheSizeStr}";
                     elevationStatusLabel.ForeColor = System.Drawing.Color.Gray;
                 }
             }
@@ -824,10 +832,29 @@ namespace Kneeboard_Server
             }
         }
 
+        private string FormatFileSize(long bytes)
+        {
+            if (bytes >= 1024L * 1024 * 1024)
+                return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
+            if (bytes >= 1024L * 1024)
+                return $"{bytes / (1024.0 * 1024):F1} MB";
+            if (bytes >= 1024)
+                return $"{bytes / 1024.0:F0} KB";
+            return $"{bytes} B";
+        }
+
+        private void UpdateSrtmControls()
+        {
+            bool enabled = useSrtmCheckbox.Checked && !_isDownloading;
+            srtmRegionComboBox.Enabled = enabled;
+            downloadSrtmButton.Enabled = useSrtmCheckbox.Checked;
+        }
+
         private void UseSrtmCheckbox_CheckedChanged(object sender, EventArgs e)
         {
             Properties.Settings.Default.useSrtmElevation = useSrtmCheckbox.Checked;
             Properties.Settings.Default.Save();
+            UpdateSrtmControls();
         }
 
         private bool _isDownloading = false;
@@ -922,10 +949,9 @@ namespace Kneeboard_Server
             finally
             {
                 _isDownloading = false;
-                downloadSrtmButton.Enabled = true;
-                srtmRegionComboBox.Enabled = true;
                 downloadSrtmButton.Text = "Download";
                 downloadSrtmButton.ForeColor = System.Drawing.SystemColors.Highlight;
+                UpdateSrtmControls();
             }
         }
 

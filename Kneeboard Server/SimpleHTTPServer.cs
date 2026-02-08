@@ -811,6 +811,24 @@ namespace Kneeboard_Server
         }
 
         /// <summary>
+        /// Gets the total size of SRTM data files in bytes.
+        /// </summary>
+        public static long GetSrtmDataSize()
+        {
+            try
+            {
+                if (!Directory.Exists(_srtmDataDir))
+                    return 0;
+                return Directory.GetFiles(_srtmDataDir, "*.hgt")
+                    .Sum(f => new FileInfo(f).Length);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        /// <summary>
         /// Gibt den MemoryMappedViewAccessor und samples-Zahl für ein SRTM-Tile zurück.
         /// Cached: erstes Öffnen ~1ms, alle weiteren Zugriffe ~0.001ms.
         /// </summary>

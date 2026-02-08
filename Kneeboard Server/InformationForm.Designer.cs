@@ -124,7 +124,7 @@ namespace Kneeboard_Server
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
             this.label2.Font = new System.Drawing.Font("Segoe UI", 8.25F);
             this.label2.ForeColor = System.Drawing.SystemColors.ControlDarkDark;
-            this.label2.Location = new System.Drawing.Point(12, 497);
+            this.label2.Location = new System.Drawing.Point(12, 539);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(466, 16);
             this.label2.TabIndex = 28;
@@ -135,7 +135,7 @@ namespace Kneeboard_Server
             // 
             this.linkLabel1.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
             this.linkLabel1.Font = new System.Drawing.Font("Segoe UI", 8.25F);
-            this.linkLabel1.Location = new System.Drawing.Point(12, 513);
+            this.linkLabel1.Location = new System.Drawing.Point(12, 555);
             this.linkLabel1.Name = "linkLabel1";
             this.linkLabel1.Size = new System.Drawing.Size(466, 16);
             this.linkLabel1.TabIndex = 29;
@@ -178,49 +178,49 @@ namespace Kneeboard_Server
             this.simStart.Text = "Start with Simulator";
             this.simStart.UseVisualStyleBackColor = true;
             this.simStart.CheckedChanged += new System.EventHandler(this.MSFSStart_CheckChanged);
-            //
+            // 
             // exeXml2024Label
-            //
+            // 
             this.exeXml2024Label.AutoSize = true;
             this.exeXml2024Label.Font = new System.Drawing.Font("Segoe UI", 7F);
             this.exeXml2024Label.ForeColor = System.Drawing.SystemColors.ControlText;
             this.exeXml2024Label.Location = new System.Drawing.Point(8, 84);
             this.exeXml2024Label.Name = "exeXml2024Label";
-            this.exeXml2024Label.Size = new System.Drawing.Size(30, 12);
+            this.exeXml2024Label.Size = new System.Drawing.Size(27, 12);
             this.exeXml2024Label.TabIndex = 3;
             this.exeXml2024Label.Text = "2024:";
-            //
+            // 
             // exeXml2024Input
-            //
+            // 
             this.exeXml2024Input.Font = new System.Drawing.Font("Segoe UI", 7F);
             this.exeXml2024Input.ForeColor = System.Drawing.SystemColors.GrayText;
             this.exeXml2024Input.Location = new System.Drawing.Point(42, 81);
             this.exeXml2024Input.Name = "exeXml2024Input";
             this.exeXml2024Input.ReadOnly = true;
-            this.exeXml2024Input.Size = new System.Drawing.Size(178, 19);
+            this.exeXml2024Input.Size = new System.Drawing.Size(178, 20);
             this.exeXml2024Input.TabIndex = 4;
             this.exeXml2024Input.Text = "Auto-Erkennung...";
             this.exeXml2024Input.MouseDown += new System.Windows.Forms.MouseEventHandler(this.ExeXml2024Input_MouseDown);
-            //
+            // 
             // exeXml2020Label
-            //
+            // 
             this.exeXml2020Label.AutoSize = true;
             this.exeXml2020Label.Font = new System.Drawing.Font("Segoe UI", 7F);
             this.exeXml2020Label.ForeColor = System.Drawing.SystemColors.ControlText;
             this.exeXml2020Label.Location = new System.Drawing.Point(8, 104);
             this.exeXml2020Label.Name = "exeXml2020Label";
-            this.exeXml2020Label.Size = new System.Drawing.Size(30, 12);
+            this.exeXml2020Label.Size = new System.Drawing.Size(27, 12);
             this.exeXml2020Label.TabIndex = 5;
             this.exeXml2020Label.Text = "2020:";
-            //
+            // 
             // exeXml2020Input
-            //
+            // 
             this.exeXml2020Input.Font = new System.Drawing.Font("Segoe UI", 7F);
             this.exeXml2020Input.ForeColor = System.Drawing.SystemColors.GrayText;
             this.exeXml2020Input.Location = new System.Drawing.Point(42, 101);
             this.exeXml2020Input.Name = "exeXml2020Input";
             this.exeXml2020Input.ReadOnly = true;
-            this.exeXml2020Input.Size = new System.Drawing.Size(178, 19);
+            this.exeXml2020Input.Size = new System.Drawing.Size(178, 20);
             this.exeXml2020Input.TabIndex = 6;
             this.exeXml2020Input.Text = "Auto-Erkennung...";
             this.exeXml2020Input.MouseDown += new System.Windows.Forms.MouseEventHandler(this.ExeXml2020Input_MouseDown);
@@ -228,58 +228,58 @@ namespace Kneeboard_Server
             // SimbriefIdInput
             // 
             this.SimbriefIdInput.ForeColor = System.Drawing.SystemColors.GrayText;
-            this.SimbriefIdInput.Location = new System.Drawing.Point(10, 20);
+            this.SimbriefIdInput.Location = new System.Drawing.Point(6, 32);
             this.SimbriefIdInput.Name = "SimbriefIdInput";
-            this.SimbriefIdInput.Size = new System.Drawing.Size(170, 20);
+            this.SimbriefIdInput.Size = new System.Drawing.Size(214, 20);
             this.SimbriefIdInput.TabIndex = 0;
             this.SimbriefIdInput.Text = "SimBrief ID or Username";
             this.SimbriefIdInput.TextChanged += new System.EventHandler(this.SimbriefIdInput_TextChanged);
-            //
+            // 
             // simbriefStatusLabel
-            //
+            // 
             this.simbriefStatusLabel.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Bold);
             this.simbriefStatusLabel.ForeColor = System.Drawing.Color.Gray;
-            this.simbriefStatusLabel.Location = new System.Drawing.Point(185, 23);
+            this.simbriefStatusLabel.Location = new System.Drawing.Point(6, 16);
             this.simbriefStatusLabel.Name = "simbriefStatusLabel";
             this.simbriefStatusLabel.Size = new System.Drawing.Size(40, 13);
             this.simbriefStatusLabel.TabIndex = 10;
             this.simbriefStatusLabel.Text = "---";
-            //
+            // 
             // VatsimCidInput
-            //
+            // 
             this.VatsimCidInput.ForeColor = System.Drawing.SystemColors.GrayText;
-            this.VatsimCidInput.Location = new System.Drawing.Point(10, 46);
+            this.VatsimCidInput.Location = new System.Drawing.Point(6, 71);
             this.VatsimCidInput.Name = "VatsimCidInput";
-            this.VatsimCidInput.Size = new System.Drawing.Size(170, 20);
+            this.VatsimCidInput.Size = new System.Drawing.Size(214, 20);
             this.VatsimCidInput.TabIndex = 1;
             this.VatsimCidInput.Text = "VATSIM CID";
             this.VatsimCidInput.TextChanged += new System.EventHandler(this.VatsimCidInput_TextChanged);
-            //
+            // 
             // vatsimStatusLabel
-            //
+            // 
             this.vatsimStatusLabel.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Bold);
             this.vatsimStatusLabel.ForeColor = System.Drawing.Color.Gray;
-            this.vatsimStatusLabel.Location = new System.Drawing.Point(185, 49);
+            this.vatsimStatusLabel.Location = new System.Drawing.Point(6, 55);
             this.vatsimStatusLabel.Name = "vatsimStatusLabel";
             this.vatsimStatusLabel.Size = new System.Drawing.Size(40, 13);
             this.vatsimStatusLabel.TabIndex = 11;
             this.vatsimStatusLabel.Text = "---";
-            //
+            // 
             // IvaoVidInput
-            //
+            // 
             this.IvaoVidInput.ForeColor = System.Drawing.SystemColors.GrayText;
-            this.IvaoVidInput.Location = new System.Drawing.Point(10, 72);
+            this.IvaoVidInput.Location = new System.Drawing.Point(6, 110);
             this.IvaoVidInput.Name = "IvaoVidInput";
-            this.IvaoVidInput.Size = new System.Drawing.Size(170, 20);
+            this.IvaoVidInput.Size = new System.Drawing.Size(214, 20);
             this.IvaoVidInput.TabIndex = 2;
             this.IvaoVidInput.Text = "IVAO VID";
             this.IvaoVidInput.TextChanged += new System.EventHandler(this.IvaoVidInput_TextChanged);
-            //
+            // 
             // ivaoStatusLabel
-            //
+            // 
             this.ivaoStatusLabel.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Bold);
             this.ivaoStatusLabel.ForeColor = System.Drawing.Color.Gray;
-            this.ivaoStatusLabel.Location = new System.Drawing.Point(185, 75);
+            this.ivaoStatusLabel.Location = new System.Drawing.Point(6, 94);
             this.ivaoStatusLabel.Name = "ivaoStatusLabel";
             this.ivaoStatusLabel.Size = new System.Drawing.Size(40, 13);
             this.ivaoStatusLabel.TabIndex = 12;
@@ -313,7 +313,7 @@ namespace Kneeboard_Server
             this.cacheSizeLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             this.cacheSizeLabel.Location = new System.Drawing.Point(7, 22);
             this.cacheSizeLabel.Name = "cacheSizeLabel";
-            this.cacheSizeLabel.Size = new System.Drawing.Size(112, 13);
+            this.cacheSizeLabel.Size = new System.Drawing.Size(114, 13);
             this.cacheSizeLabel.TabIndex = 0;
             this.cacheSizeLabel.Text = "Max Cache Size (MB):";
             // 
@@ -324,7 +324,7 @@ namespace Kneeboard_Server
             this.navigraphLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             this.navigraphLabel.Location = new System.Drawing.Point(7, 18);
             this.navigraphLabel.Name = "navigraphLabel";
-            this.navigraphLabel.Size = new System.Drawing.Size(40, 13);
+            this.navigraphLabel.Size = new System.Drawing.Size(42, 13);
             this.navigraphLabel.TabIndex = 0;
             this.navigraphLabel.Text = "Status:";
             // 
@@ -335,7 +335,7 @@ namespace Kneeboard_Server
             this.navigraphStatusLabel.ForeColor = System.Drawing.Color.Gray;
             this.navigraphStatusLabel.Location = new System.Drawing.Point(50, 18);
             this.navigraphStatusLabel.Name = "navigraphStatusLabel";
-            this.navigraphStatusLabel.Size = new System.Drawing.Size(83, 13);
+            this.navigraphStatusLabel.Size = new System.Drawing.Size(80, 13);
             this.navigraphStatusLabel.TabIndex = 1;
             this.navigraphStatusLabel.Text = "Not logged in";
             // 
@@ -379,7 +379,7 @@ namespace Kneeboard_Server
             this.idsGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
             this.idsGroupBox.Location = new System.Drawing.Point(12, 215);
             this.idsGroupBox.Name = "idsGroupBox";
-            this.idsGroupBox.Size = new System.Drawing.Size(230, 100);
+            this.idsGroupBox.Size = new System.Drawing.Size(230, 140);
             this.idsGroupBox.TabIndex = 51;
             this.idsGroupBox.TabStop = false;
             this.idsGroupBox.Text = "IDs";
@@ -390,7 +390,7 @@ namespace Kneeboard_Server
             this.cacheGroupBox.Controls.Add(this.maxCacheSizeInput);
             this.cacheGroupBox.Controls.Add(this.clearCacheButton);
             this.cacheGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.cacheGroupBox.Location = new System.Drawing.Point(12, 320);
+            this.cacheGroupBox.Location = new System.Drawing.Point(12, 361);
             this.cacheGroupBox.Name = "cacheGroupBox";
             this.cacheGroupBox.Size = new System.Drawing.Size(230, 72);
             this.cacheGroupBox.TabIndex = 52;
@@ -403,7 +403,7 @@ namespace Kneeboard_Server
             this.navigraphGroupBox.Controls.Add(this.navigraphStatusLabel);
             this.navigraphGroupBox.Controls.Add(this.navigraphLoginButton);
             this.navigraphGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.navigraphGroupBox.Location = new System.Drawing.Point(12, 397);
+            this.navigraphGroupBox.Location = new System.Drawing.Point(12, 438);
             this.navigraphGroupBox.Name = "navigraphGroupBox";
             this.navigraphGroupBox.Size = new System.Drawing.Size(230, 65);
             this.navigraphGroupBox.TabIndex = 54;
@@ -469,9 +469,9 @@ namespace Kneeboard_Server
             this.elevationStatusLabel.ForeColor = System.Drawing.Color.Gray;
             this.elevationStatusLabel.Location = new System.Drawing.Point(10, 92);
             this.elevationStatusLabel.Name = "elevationStatusLabel";
-            this.elevationStatusLabel.Size = new System.Drawing.Size(34, 13);
+            this.elevationStatusLabel.Size = new System.Drawing.Size(141, 13);
             this.elevationStatusLabel.TabIndex = 2;
-            this.elevationStatusLabel.Text = "0 files";
+            this.elevationStatusLabel.Text = "No SRTM data | Cache: 0 B";
             // 
             // panelGroupBox
             // 
@@ -494,7 +494,7 @@ namespace Kneeboard_Server
             this.panelStatusTitleLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             this.panelStatusTitleLabel.Location = new System.Drawing.Point(7, 18);
             this.panelStatusTitleLabel.Name = "panelStatusTitleLabel";
-            this.panelStatusTitleLabel.Size = new System.Drawing.Size(40, 13);
+            this.panelStatusTitleLabel.Size = new System.Drawing.Size(42, 13);
             this.panelStatusTitleLabel.TabIndex = 0;
             this.panelStatusTitleLabel.Text = "Status:";
             // 
@@ -505,7 +505,7 @@ namespace Kneeboard_Server
             this.panelStatusLabel.ForeColor = System.Drawing.Color.Gray;
             this.panelStatusLabel.Location = new System.Drawing.Point(50, 18);
             this.panelStatusLabel.Name = "panelStatusLabel";
-            this.panelStatusLabel.Size = new System.Drawing.Size(72, 13);
+            this.panelStatusLabel.Size = new System.Drawing.Size(64, 13);
             this.panelStatusLabel.TabIndex = 1;
             this.panelStatusLabel.Text = "Checking...";
             // 
@@ -538,7 +538,7 @@ namespace Kneeboard_Server
             this.serialGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
             this.serialGroupBox.Location = new System.Drawing.Point(248, 295);
             this.serialGroupBox.Name = "serialGroupBox";
-            this.serialGroupBox.Size = new System.Drawing.Size(230, 45);
+            this.serialGroupBox.Size = new System.Drawing.Size(230, 60);
             this.serialGroupBox.TabIndex = 58;
             this.serialGroupBox.TabStop = false;
             this.serialGroupBox.Text = "License Key";
@@ -548,9 +548,9 @@ namespace Kneeboard_Server
             this.serialNumberInput.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.serialNumberInput.ForeColor = System.Drawing.SystemColors.ControlText;
-            this.serialNumberInput.Location = new System.Drawing.Point(10, 19);
+            this.serialNumberInput.Location = new System.Drawing.Point(6, 32);
             this.serialNumberInput.Name = "serialNumberInput";
-            this.serialNumberInput.Size = new System.Drawing.Size(170, 20);
+            this.serialNumberInput.Size = new System.Drawing.Size(214, 20);
             this.serialNumberInput.TabIndex = 1;
             this.serialNumberInput.TextChanged += new System.EventHandler(this.SerialNumberInput_TextChanged);
             // 
@@ -558,7 +558,7 @@ namespace Kneeboard_Server
             // 
             this.serialStatusLabel.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Bold);
             this.serialStatusLabel.ForeColor = System.Drawing.Color.Gray;
-            this.serialStatusLabel.Location = new System.Drawing.Point(185, 22);
+            this.serialStatusLabel.Location = new System.Drawing.Point(6, 16);
             this.serialStatusLabel.Name = "serialStatusLabel";
             this.serialStatusLabel.Size = new System.Drawing.Size(40, 13);
             this.serialStatusLabel.TabIndex = 2;
@@ -569,7 +569,7 @@ namespace Kneeboard_Server
             this.updateGroupBox.Controls.Add(this.autoUpdateCheckbox);
             this.updateGroupBox.Controls.Add(this.checkForUpdatesButton);
             this.updateGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.updateGroupBox.Location = new System.Drawing.Point(248, 345);
+            this.updateGroupBox.Location = new System.Drawing.Point(248, 361);
             this.updateGroupBox.Name = "updateGroupBox";
             this.updateGroupBox.Size = new System.Drawing.Size(230, 65);
             this.updateGroupBox.TabIndex = 59;
@@ -607,7 +607,7 @@ namespace Kneeboard_Server
             this.supportLink.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
             this.supportLink.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.supportLink.LinkColor = System.Drawing.SystemColors.Highlight;
-            this.supportLink.Location = new System.Drawing.Point(8, 467);
+            this.supportLink.Location = new System.Drawing.Point(8, 509);
             this.supportLink.Name = "supportLink";
             this.supportLink.Size = new System.Drawing.Size(470, 30);
             this.supportLink.TabIndex = 57;
@@ -621,7 +621,7 @@ namespace Kneeboard_Server
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Window;
-            this.ClientSize = new System.Drawing.Size(490, 538);
+            this.ClientSize = new System.Drawing.Size(490, 580);
             this.Controls.Add(this.closeButton);
             this.Controls.Add(this.updateGroupBox);
             this.Controls.Add(this.serialGroupBox);
