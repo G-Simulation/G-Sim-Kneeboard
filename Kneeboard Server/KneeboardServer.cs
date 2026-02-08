@@ -1598,34 +1598,26 @@ namespace Kneeboard_Server
                     {
                         var doc = XDocument.Load(exeXmlPath);
 
-                        // Prüfe ob Kneeboard Server bereits eingetragen ist
-                        bool alreadyExists = doc.Descendants("Launch.Addon")
-                            .Any(e => (string)e.Element("Name") == "Kneeboard Server");
+                        // Bestehenden Kneeboard-Eintrag immer entfernen (wird danach neu geschrieben)
+                        var existingEntries = doc.Descendants("Launch.Addon")
+                            .Where(x => x.Element("Name")?.Value == "Kneeboard Server")
+                            .ToList();
+                        foreach (var entry in existingEntries)
+                        {
+                            entry.Remove();
+                        }
 
-                        if (alreadyExists)
+                        // Neuen Eintrag mit aktuellem Pfad hinzufügen wenn simStart aktiviert
+                        if (Properties.Settings.Default.simStart == true)
                         {
-                            // Entferne existierenden Eintrag wenn simStart deaktiviert
-                            if (Properties.Settings.Default.simStart == false)
-                            {
-                                doc.Descendants().Elements("Launch.Addon")
-                                    .Where(x => x.Element("Name")?.Value == "Kneeboard Server")
-                                    .Remove();
-                                doc.Save(exeXmlPath);
-                            }
+                            var newElement = new XElement("Launch.Addon",
+                                new XElement("Name", "Kneeboard Server"),
+                                new XElement("Disabled", "false"),
+                                new XElement("Path", Application.ExecutablePath));
+                            doc.Element("SimBase.Document").Add(newElement);
                         }
-                        else
-                        {
-                            // Füge neuen Eintrag hinzu wenn simStart aktiviert
-                            if (Properties.Settings.Default.simStart == true)
-                            {
-                                var newElement = new XElement("Launch.Addon",
-                                    new XElement("Name", "Kneeboard Server"),
-                                    new XElement("Disabled", "false"),
-                                    new XElement("Path", Application.ExecutablePath));
-                                doc.Element("SimBase.Document").Add(newElement);
-                                doc.Save(exeXmlPath);
-                            }
-                        }
+
+                        doc.Save(exeXmlPath);
 
                         KneeboardLogger.ServerDebug($"Processed exe.xml: {exeXmlPath}");
                     }

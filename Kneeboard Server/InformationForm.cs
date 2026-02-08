@@ -24,13 +24,14 @@ namespace Kneeboard_Server
                 autostart.Checked = false;
             }
 
-            if (Properties.Settings.Default.simStart == true)
+            // simStart Checkbox: tatsächlichen Status aus exe.xml lesen
+            bool isInExeXml = IsKneeboardInAnyExeXml();
+            simStart.Checked = isInExeXml;
+            // Setting synchronisieren falls es abweicht
+            if (Properties.Settings.Default.simStart != isInExeXml)
             {
-                simStart.Checked = true;
-            }
-            else
-            {
-                simStart.Checked = false;
+                Properties.Settings.Default.simStart = isInExeXml;
+                Properties.Settings.Default.Save();
             }
 
             if (Properties.Settings.Default.minimized == true)
@@ -220,6 +221,17 @@ namespace Kneeboard_Server
                     Filter = "XML files (*.xml)|*.xml|All files (*.*)|*.*",
                     FileName = "exe.xml"
                 };
+
+                // Initial-Verzeichnis aus dem aktuellen Pfad im Textfeld setzen
+                string currentPath = targetInput.Text;
+                if (!string.IsNullOrEmpty(currentPath) && currentPath != "Nicht erkannt")
+                {
+                    string dir = Path.GetDirectoryName(currentPath);
+                    if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    {
+                        openFileDialog.InitialDirectory = dir;
+                    }
+                }
 
                 if (openFileDialog.ShowDialog() == DialogResult.OK &&
                     openFileDialog.FileName.EndsWith("exe.xml"))
@@ -551,7 +563,7 @@ namespace Kneeboard_Server
                     }
                     else
                     {
-                        statusParts.Add($"{shortVersion}: ---");
+                        statusParts.Add($"{shortVersion}: nicht installiert");
                     }
                 }
 
@@ -1015,6 +1027,47 @@ namespace Kneeboard_Server
             {
                 mainForm.CheckForGitHubUpdate(manual: true);
             }
+        }
+
+        #endregion
+
+        #region exe.xml Status
+
+        /// <summary>
+        /// Prüft ob der Kneeboard Server Eintrag in einer der exe.xml Dateien vorhanden ist
+        /// </summary>
+        private bool IsKneeboardInAnyExeXml()
+        {
+            try
+            {
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string roamingAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
+                var exeXmlPaths = new System.Collections.Generic.List<string>
+                {
+                    Path.Combine(localAppData, @"Packages\Microsoft.Limitless_8wekyb3d8bbwe\LocalCache\exe.xml"),
+                    Path.Combine(roamingAppData, @"Microsoft Flight Simulator 2024\exe.xml"),
+                    Path.Combine(localAppData, @"Packages\Microsoft.FlightSimulator_8wekyb3d8bbwe\LocalCache\exe.xml"),
+                    Path.Combine(roamingAppData, @"Microsoft Flight Simulator\exe.xml")
+                };
+
+                foreach (string path in exeXmlPaths)
+                {
+                    if (File.Exists(path))
+                    {
+                        try
+                        {
+                            var doc = System.Xml.Linq.XDocument.Load(path);
+                            bool found = doc.Descendants("Launch.Addon")
+                                .Any(e => (string)e.Element("Name") == "Kneeboard Server");
+                            if (found) return true;
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+            return false;
         }
 
         #endregion

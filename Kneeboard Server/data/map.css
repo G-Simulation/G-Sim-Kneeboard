@@ -4299,6 +4299,19 @@ span.fp-wp-altitude {
 }
 
 /* ========================================
+   SECTION COLLAPSE (Doppelklick auf Header)
+   ======================================== */
+.fp-collapsed .fp-selectors {
+    display: none !important;
+}
+
+.fp-section-header {
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* ========================================
    APPLY BUTTON SECTION
    ======================================== */
 .fp-actions {

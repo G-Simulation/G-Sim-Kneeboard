@@ -20283,6 +20283,8 @@ var flightplanPanelState = {
     alternate: {
         icao: '',
         name: '',
+        lat: 0,
+        lng: 0,
         runways: [],
         stars: [],
         approaches: [],
@@ -20309,6 +20311,53 @@ var flightplanCommittedState = {
 
 // Alternate Route Layer (separate Farbe - Violett)
 var alternateRouteLayer = null;
+
+// ========================================
+// SECTION COLLAPSE (Doppelklick auf Header)
+// ========================================
+
+/**
+ * Klappt eine Flightplan-Sektion zu/auf (Doppelklick auf Header)
+ * Bei Alternate: blendet auch die Route auf der Karte ein/aus
+ */
+function toggleSectionCollapse(sectionElement) {
+    var selectors = sectionElement.querySelector('.fp-selectors');
+    if (!selectors) return;
+    var isCollapsed = selectors.style.display === 'none';
+    selectors.style.display = isCollapsed ? '' : 'none';
+    sectionElement.classList.toggle('fp-collapsed', !isCollapsed);
+
+    // Alternate-Route auf Karte ein-/ausblenden
+    if (sectionElement.id === 'fpAlternateSection' && alternateRouteLayer && map) {
+        if (isCollapsed) {
+            // Wird aufgeklappt - Route anzeigen
+            if (!map.hasLayer(alternateRouteLayer)) map.addLayer(alternateRouteLayer);
+        } else {
+            // Wird zugeklappt - Route ausblenden
+            if (map.hasLayer(alternateRouteLayer)) map.removeLayer(alternateRouteLayer);
+        }
+    }
+}
+
+/**
+ * Registriert Doppelklick-Handler auf allen Flightplan-Section-Headern
+ */
+function initSectionCollapseHandlers() {
+    var sectionIds = ['fpDepartureSection', 'fpArrivalSection', 'fpAlternateSection'];
+    for (var i = 0; i < sectionIds.length; i++) {
+        var section = document.getElementById(sectionIds[i]);
+        if (section) {
+            var header = section.querySelector('.fp-section-header');
+            if (header) {
+                (function(sec) {
+                    header.addEventListener('dblclick', function() {
+                        toggleSectionCollapse(sec);
+                    });
+                })(section);
+            }
+        }
+    }
+}
 
 // ========================================
 // PENDING CHANGES HELPER FUNCTIONS
@@ -20928,7 +20977,13 @@ async function drawAlternateRoute() {
 
         if (coords.length >= 2) {
             flightplanPanelLogger.debug('Drawing route from', altWaypoints[0].name, 'to', altWaypoints[altWaypoints.length-1].name);
-            alternateRouteLayer = L.layerGroup().addTo(map);
+            // Layer erstellen, aber nur zur Map adden wenn Alternate-Sektion nicht collapsed ist
+            var altSection = document.getElementById('fpAlternateSection');
+            var altCollapsed = altSection && altSection.classList.contains('fp-collapsed');
+            alternateRouteLayer = L.layerGroup();
+            if (!altCollapsed) {
+                alternateRouteLayer.addTo(map);
+            }
 
             // Polyline in Violett
             L.polyline(coords, {
@@ -21085,8 +21140,13 @@ async function animateAlternateRoute(onComplete) {
         return;
     }
 
-    // Create layer group for animated drawing
-    alternateRouteLayer = L.layerGroup().addTo(map);
+    // Create layer group for animated drawing - nur zur Map adden wenn nicht collapsed
+    var altSection = document.getElementById('fpAlternateSection');
+    var altCollapsed = altSection && altSection.classList.contains('fp-collapsed');
+    alternateRouteLayer = L.layerGroup();
+    if (!altCollapsed) {
+        alternateRouteLayer.addTo(map);
+    }
 
     // Animation: Draw line segment by segment
     var currentIndex = 0;
@@ -22456,6 +22516,9 @@ async function initFlightplanPanel(ofpData) {
         // Die Preview-Layer werden während des Ladens NICHT angezeigt
         clearAllPreviews();
 
+        // Doppelklick-Handler für Section-Collapse registrieren
+        initSectionCollapseHandlers();
+
     } catch (err) {
         flightplanPanelLogger.error('Error during initialization:', err);
         flightplanPendingState.isInitialLoad = false;
@@ -23176,26 +23239,96 @@ async function loadAlternateProcedures(ofpData) {
         flightplanPanelState.alternate.approaches = approaches || [];
         flightplanPanelLogger.debug('Approaches:', (approaches || []).length);
 
-        // === AUTO-SELECTION für Alternate (wie bei Arrival) ===
+        // === AUTO-SELECTION für Alternate (wie bei Arrival, OFP-basiert) ===
 
-        // 1. Runway auto-select: Erste verfügbare Runway
+        // 1. Runway aus OFP matchen (Plan_rwy), Fallback: erste verfügbare
+        var ofpRunway = alternate.Plan_rwy || alternate.plan_rwy || '';
         var selectedRunway = '';
-        if (runways && runways.length > 0) {
-            selectedRunway = runways[0].Identifier || runways[0].identifier || '';
-            flightplanPanelState.alternate.selectedRunway = selectedRunway;
+        if (ofpRunway && runways && runways.length > 0) {
+            // Exakten Match suchen (z.B. "25L")
+            var matchedRwy = runways.find(function(rwy) {
+                var id = rwy.Identifier || rwy.identifier || '';
+                return id === ofpRunway || id === 'RW' + ofpRunway;
+            });
+            if (matchedRwy) {
+                selectedRunway = matchedRwy.Identifier || matchedRwy.identifier || '';
+                flightplanPanelLogger.debug('OFP Runway matched:', selectedRunway);
+            }
         }
+        // Fallback: erste Runway
+        if (!selectedRunway && runways && runways.length > 0) {
+            selectedRunway = runways[0].Identifier || runways[0].identifier || '';
+            flightplanPanelLogger.debug('Fallback to first runway:', selectedRunway);
+        }
+        flightplanPanelState.alternate.selectedRunway = selectedRunway;
         populateRunwayDropdown('altRunwaySelect', runways || [], selectedRunway);
 
-        // 2. Approach auto-select: ILS bevorzugt, basierend auf Runway
+        // 2. STAR aus OFP Route extrahieren und matchen
+        var filteredStars = filterStarsByRunway(stars || [], selectedRunway);
+        var ofpStarName = '';
+
+        // STAR aus Alternate-Route extrahieren (letztes Element vor dem Airport)
+        var altRoute = alternate.Route || alternate.route || '';
+        if (altRoute) {
+            var routeParts = altRoute.trim().split(/\s+/);
+            if (routeParts.length > 0) {
+                // Letztes Element im Route-String ist meist die STAR
+                ofpStarName = routeParts[routeParts.length - 1];
+                // Falls das letzte Element der Airport-ICAO ist, nimm das vorletzte
+                if (ofpStarName === altIcao && routeParts.length > 1) {
+                    ofpStarName = routeParts[routeParts.length - 2];
+                }
+                flightplanPanelLogger.debug('Extracted STAR from alternate route:', ofpStarName);
+            }
+        }
+
+        var matchedStar = populateStarDropdown('altStarSelect', filteredStars, ofpStarName);
+        var actualStar = matchedStar || '';
+        flightplanPanelState.alternate.selectedStar = actualStar;
+        flightplanPanelLogger.debug('Alternate STAR selected:', actualStar, '(OFP:', ofpStarName, ')');
+
+        // 3. Transition für STAR laden
+        var selectedTransition = '';
+        if (actualStar) {
+            var availableTransitions = getAvailableTransitions(filteredStars, actualStar, 'STAR');
+
+            // Transition aus Route extrahieren (Element vor der STAR)
+            if (altRoute && availableTransitions.length > 0) {
+                var routeParts2 = altRoute.trim().split(/\s+/);
+                var starIdx = -1;
+                for (var ri = 0; ri < routeParts2.length; ri++) {
+                    if (routeParts2[ri] === ofpStarName || routeParts2[ri].indexOf(ofpStarName) === 0) {
+                        starIdx = ri;
+                        break;
+                    }
+                }
+                if (starIdx > 0) {
+                    var potentialTrans = routeParts2[starIdx - 1];
+                    if (potentialTrans && availableTransitions.indexOf(potentialTrans) !== -1) {
+                        selectedTransition = potentialTrans;
+                        flightplanPanelLogger.debug('Transition from route:', selectedTransition);
+                    }
+                }
+            }
+
+            // Fallback: erste verfügbare Transition
+            if (!selectedTransition && availableTransitions.length > 0) {
+                selectedTransition = availableTransitions[0];
+                flightplanPanelLogger.debug('Fallback to first transition:', selectedTransition);
+            }
+
+            populateTransitionDropdown('altTransitionSelect', filteredStars, actualStar, selectedTransition, 'STAR');
+        } else {
+            populateTransitionDropdown('altTransitionSelect', [], '', '', 'STAR');
+        }
+        flightplanPanelState.alternate.selectedTransition = selectedTransition;
+
+        // 4. Approach: ILS bevorzugt, basierend auf Runway
         var selectedApproach = autoSelectApproach(approaches || [], selectedRunway);
         var selectedApproachId = selectedApproach ? (selectedApproach.Identifier || selectedApproach.identifier) : '';
         flightplanPanelState.alternate.selectedApproach = selectedApproachId;
         populateApproachDropdown('altApproachSelect', approaches || [], selectedRunway, selectedApproachId);
-
-        // 3. STAR: Filter by selected runway, then populate
-        var filteredStars = filterStarsByRunway(stars || [], selectedRunway);
-        populateStarDropdown('altStarSelect', filteredStars, '');
-        populateTransitionDropdown('altTransitionSelect', [], '', '', 'STAR');
+        flightplanPanelLogger.debug('Alternate Approach selected:', selectedApproachId);
     } catch (err) {
         flightplanPanelLogger.error('Error loading procedures:', err);
     }
