@@ -13878,8 +13878,8 @@ function setupWaypointEventHandlers(waypointLayers) {
       var clickedId = targetEl.getAttribute("id");
 
       if (startlineShow == false || targetMarker != clickedId) {
-        document.querySelectorAll(".target").forEach(function(el) { el.style.color = ""; });
-        targetEl.style.color = "red";
+        document.querySelectorAll(".target").forEach(function(el) { el.classList.remove('fp-wp-active'); });
+        targetEl.classList.add('fp-wp-active');
 
         targetMarker = clickedId;
         startlineShow = true;
@@ -13897,7 +13897,7 @@ function setupWaypointEventHandlers(waypointLayers) {
 
         markerFunction(clickedId);
       } else {
-        targetEl.style.color = "";
+        targetEl.classList.remove('fp-wp-active');
 
         if (map.hasLayer(startLineGroup)) {
           map.removeLayer(startLineGroup);
@@ -14081,9 +14081,10 @@ function setupWaypointEventHandlers(waypointLayers) {
 /**
  * Gets the icon class and text for a waypoint type
  * @param {string} type - Waypoint type string
+ * @param {string} [sourceType] - Source type (SID, STAR, Approach, etc.)
  * @returns {Object} - { iconClass, iconSvg }
  */
-function getWaypointIconInfo(type) {
+function getWaypointIconInfo(type, sourceType) {
   // SVG Icons im Luftfahrtkarten-Stil
   var svgIcons = {
     // Airport - Kreis mit Bahnen (vereinfacht)
@@ -14109,50 +14110,35 @@ function getWaypointIconInfo(type) {
     // Step Climb - Treppenstufe
     sc: '<svg viewBox="0 0 20 20" width="18" height="18"><path d="M2,16 L2,12 L7,12 L7,8 L12,8 L12,4 L18,4" fill="none" stroke="#d69e2e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     // Runway - Rechteck mit Mittellinie
-    runway: '<svg viewBox="0 0 20 20" width="18" height="18"><rect x="6" y="2" width="8" height="16" fill="none" stroke="#4a5568" stroke-width="1.5"/><line x1="10" y1="4" x2="10" y2="16" stroke="#4a5568" stroke-width="1" stroke-dasharray="2,2"/></svg>'
+    runway: '<svg viewBox="0 0 20 20" width="18" height="18"><rect x="6" y="2" width="8" height="16" fill="none" stroke="#4a5568" stroke-width="1.5"/><line x1="10" y1="4" x2="10" y2="16" stroke="#4a5568" stroke-width="1" stroke-dasharray="2,2"/></svg>',
+    // SID - Pfeil nach oben-rechts (Departure)
+    sid: '<svg viewBox="0 0 20 20" width="18" height="18"><path d="M4,16 L14,4" stroke="#38a169" stroke-width="2" stroke-linecap="round"/><path d="M8,4 L14,4 L14,10" fill="none" stroke="#38a169" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    // STAR - Pfeil nach unten-rechts (Arrival)
+    star: '<svg viewBox="0 0 20 20" width="18" height="18"><path d="M4,4 L14,16" stroke="#e6a817" stroke-width="2" stroke-linecap="round"/><path d="M8,16 L14,16 L14,10" fill="none" stroke="#e6a817" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    // Approach - Airport-Symbol in rot
+    approach: '<svg viewBox="0 0 20 20" width="18" height="18"><circle cx="10" cy="10" r="8" fill="none" stroke="#e53e3e" stroke-width="1.5"/><line x1="4" y1="10" x2="16" y2="10" stroke="#e53e3e" stroke-width="1.5"/><line x1="10" y1="4" x2="10" y2="16" stroke="#e53e3e" stroke-width="1.5"/></svg>',
+    // Transition - Verbindungspfeil
+    transition: '<svg viewBox="0 0 20 20" width="18" height="18"><path d="M3,10 L15,10" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="3,2"/><path d="M12,6 L16,10 L12,14" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
   };
 
-  if (!type) return { iconClass: 'fp-wp-icon-fix', iconSvg: svgIcons.fix };
+  var normalizedSource = (sourceType || '').toUpperCase();
 
-  var normalizedType = type.toUpperCase().split(' ')[0]; // Get first word only
+  if (!type && !sourceType) return { iconClass: 'fp-wp-icon-fix', iconSvg: svgIcons.fix };
 
-  // Airport types
-  if (normalizedType === 'APT' || normalizedType === 'AIRPORT' ||
-      normalizedType === 'DEP' || normalizedType === 'ARR') {
+  var normalizedType = (type || '').toUpperCase().split(' ')[0]; // Get first word only
+  var fullType = (type || '').toUpperCase();
+
+  // Airport types (check first, regardless of source)
+  if (normalizedType === 'APT' || normalizedType === 'AIRPORT') {
     return { iconClass: 'fp-wp-icon-apt', iconSvg: svgIcons.airport };
   }
 
   // Runway
-  if (normalizedType.match(/^RWY?\d{2}[LRCB]?$/i)) {
+  if (normalizedType.match(/^RWY?\d{2}[LRCB]?$/i) || normalizedType === 'RWY') {
     return { iconClass: 'fp-wp-icon-rwy', iconSvg: svgIcons.runway };
   }
 
-  // VORDME (check before VOR)
-  if (normalizedType.indexOf('VORDME') !== -1 || normalizedType === 'VOR/DME') {
-    return { iconClass: 'fp-wp-icon-vordme', iconSvg: svgIcons.vordme };
-  }
-
-  // TACAN
-  if (normalizedType.indexOf('TACAN') !== -1 || normalizedType === 'VORTAC') {
-    return { iconClass: 'fp-wp-icon-tacan', iconSvg: svgIcons.tacan };
-  }
-
-  // VOR types
-  if (normalizedType.indexOf('VOR') !== -1) {
-    return { iconClass: 'fp-wp-icon-vor', iconSvg: svgIcons.vor };
-  }
-
-  // DME only
-  if (normalizedType === 'DME') {
-    return { iconClass: 'fp-wp-icon-dme', iconSvg: svgIcons.dme };
-  }
-
-  // NDB types
-  if (normalizedType === 'NDB' || normalizedType.indexOf('NDB') !== -1) {
-    return { iconClass: 'fp-wp-icon-ndb', iconSvg: svgIcons.ndb };
-  }
-
-  // TOC/TOD
+  // TOC/TOD (always show regardless of source)
   if (normalizedType === 'TOC') {
     return { iconClass: 'fp-wp-icon-toc', iconSvg: svgIcons.toc };
   }
@@ -14163,6 +14149,53 @@ function getWaypointIconInfo(type) {
   // Step Climb
   if (normalizedType === 'SC' || normalizedType === 'S/C') {
     return { iconClass: 'fp-wp-icon-sc', iconSvg: svgIcons.sc };
+  }
+
+  // SID/STAR/Approach source types - use procedure-specific icons
+  if (normalizedSource === 'SID') {
+    return { iconClass: 'fp-wp-icon-sid', iconSvg: svgIcons.sid };
+  }
+  if (normalizedSource === 'STAR') {
+    return { iconClass: 'fp-wp-icon-star', iconSvg: svgIcons.star };
+  }
+  if (normalizedSource === 'APPROACH') {
+    return { iconClass: 'fp-wp-icon-approach', iconSvg: svgIcons.approach };
+  }
+  if (normalizedSource === 'TRANSITION') {
+    return { iconClass: 'fp-wp-icon-transition', iconSvg: svgIcons.transition };
+  }
+
+  // DEP/ARR without specific sourceType - use procedure icons
+  if (normalizedType === 'DEP') {
+    return { iconClass: 'fp-wp-icon-sid', iconSvg: svgIcons.sid };
+  }
+  if (normalizedType === 'ARR') {
+    return { iconClass: 'fp-wp-icon-star', iconSvg: svgIcons.star };
+  }
+
+  // VORDME (check before VOR)
+  if (fullType.indexOf('VORDME') !== -1 || fullType.indexOf('VOR/DME') !== -1) {
+    return { iconClass: 'fp-wp-icon-vordme', iconSvg: svgIcons.vordme };
+  }
+
+  // TACAN
+  if (fullType.indexOf('TACAN') !== -1 || normalizedType === 'VORTAC') {
+    return { iconClass: 'fp-wp-icon-tacan', iconSvg: svgIcons.tacan };
+  }
+
+  // VOR types
+  if (fullType.indexOf('VOR') !== -1) {
+    return { iconClass: 'fp-wp-icon-vor', iconSvg: svgIcons.vor };
+  }
+
+  // DME only
+  if (normalizedType === 'DME') {
+    return { iconClass: 'fp-wp-icon-dme', iconSvg: svgIcons.dme };
+  }
+
+  // NDB types
+  if (normalizedType === 'NDB' || fullType.indexOf('NDB') !== -1) {
+    return { iconClass: 'fp-wp-icon-ndb', iconSvg: svgIcons.ndb };
   }
 
   // RNAV waypoints (5-letter fixes are often RNAV)
@@ -14278,7 +14311,8 @@ function updateWaypointList(waypointLayers, coordinatesArray) {
 
     // Get waypoint type and icon
     var type = layer.options.type || "";
-    var iconInfo = getWaypointIconInfo(type);
+    var wpSourceType = layer.options.sourceType || "";
+    var iconInfo = getWaypointIconInfo(type, wpSourceType);
 
     // Get airway for this waypoint (airway TO this waypoint from previous)
     var airway = (typeof wpAirways !== 'undefined' && wpAirways[originalIndex]) ? wpAirways[originalIndex] : '';
@@ -14930,10 +14964,15 @@ function drawLines() {
         }
       }
 
-      var listItems = document.querySelectorAll("#overlayList > ul > li");
+      var listItems = document.querySelectorAll("#overlayList > ul > li.target");
       var targetIndex = startlineShow ? parseInt(target, 10) : -1;
       for (var i = 0; i < listItems.length; i++) {
-        listItems[i].style.color = (i === targetIndex) ? "red" : "";
+        var liId = parseInt(listItems[i].getAttribute('id'), 10);
+        if (liId === targetIndex) {
+          listItems[i].classList.add('fp-wp-active');
+        } else {
+          listItems[i].classList.remove('fp-wp-active');
+        }
       }
 
       var distance2 = 0;
@@ -15789,7 +15828,6 @@ function drawLines() {
     var hidePanels = function() {
       mapLogger.debug('Hiding panels - layer control opened');
       var overlayEl = document.getElementById('overlay');
-      var overlayEl = document.getElementById('overlay');
       var overlayListEl = document.getElementById('overlayList');
       var controllerEl = document.getElementById('controllerContainer');
       var metarEl = document.getElementById('metarContainer');
@@ -15809,7 +15847,6 @@ function drawLines() {
 
       // Hide all panels using display: none
       if (overlayEl) overlayEl.style.display = 'none';
-      if (overlayEl) overlayEl.style.display = 'none';
       if (overlayListEl) overlayListEl.style.display = 'none';
       if (controllerEl) controllerEl.style.display = 'none';
       if (metarEl) metarEl.style.display = 'none';
@@ -15821,7 +15858,6 @@ function drawLines() {
     var showPanels = function() {
       mapLogger.debug('Showing panels - layer control closed');
       var overlayEl = document.getElementById('overlay');
-      var overlayEl = document.getElementById('overlay');
       var overlayListEl = document.getElementById('overlayList');
       var controllerEl = document.getElementById('controllerContainer');
       var metarEl = document.getElementById('metarContainer');
@@ -15830,7 +15866,6 @@ function drawLines() {
       var overlay2El = document.getElementById('overlay2');
 
       // Restore states
-      if (overlayEl && panelStates.overlay !== undefined) overlayEl.style.display = panelStates.overlay;
       if (overlayEl && panelStates.overlay !== undefined) overlayEl.style.display = panelStates.overlay;
       if (overlayListEl && panelStates.overlayList !== undefined) overlayListEl.style.display = panelStates.overlayList;
       if (controllerEl && panelStates.controller !== undefined) controllerEl.style.display = panelStates.controller;
@@ -27666,19 +27701,28 @@ function listControllers() {
     }
   }
 
+  // Format frequency to always show 3 decimal places (e.g. "134.000")
+  function formatFrequency(freq) {
+    if (!freq) return '';
+    var num = parseFloat(freq);
+    if (isNaN(num)) return freq;
+    return num.toFixed(3);
+  }
+
   // Helper für Controller-Kategorie
   function appendCategory(categoryName, controllers, color, categoryType) {
     appendHtml('<div class="kneeboard-panel-category">' + categoryName + '</div>');
     for (var j = 0; j < controllers.length; j++) {
+      var formattedFreq = formatFrequency(controllers[j].frequency);
       appendHtml(buildPanelListItem({
         id: controllers[j].callsign,
         title: controllers[j].callsign,
-        subtitle: controllers[j].frequency,
+        subtitle: formattedFreq,
         dotColor: color,
         data: {
           type: 'controller',
           category: categoryType,
-          frequency: controllers[j].frequency
+          frequency: formattedFreq
         }
       }));
     }
@@ -29483,12 +29527,17 @@ function finishAppendWaypoint(lat, lng, activePopup) {
 (function initOverlayResize() {
   var elevationRedrawPending = false;
 
+  // Convert vw to pixels
+  function vwToPx(vw) {
+    return Math.round(window.innerWidth * vw / 100);
+  }
+
   var configs = {
     overlay: {
       element: null,
       handle: null,
-      minWidth: 200,
-      maxWidth: 600,
+      get minWidth() { return vwToPx(25); },
+      get maxWidth() { return vwToPx(45); },
       isResizing: false,
       startX: 0,
       startWidth: 0,
@@ -29498,8 +29547,8 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     controller: {
       element: null,
       handle: null,
-      minWidth: 200,
-      maxWidth: 600,
+      get minWidth() { return vwToPx(15); },
+      get maxWidth() { return vwToPx(45); },
       isResizing: false,
       startX: 0,
       startWidth: 0,
@@ -29509,8 +29558,8 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     metar: {
       element: null,
       handle: null,
-      minWidth: 220,
-      maxWidth: 600,
+      get minWidth() { return vwToPx(15); },
+      get maxWidth() { return vwToPx(45); },
       isResizing: false,
       startX: 0,
       startWidth: 0,

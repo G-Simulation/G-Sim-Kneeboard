@@ -1032,7 +1032,8 @@ h4 {
 
 #overlay {
     position: absolute;
-    width: 35vw;
+    width: 25vw;
+    min-width: 25vw;
     max-width: 45vw;
     max-height: 79vh;
     min-height: 17vh;
@@ -1107,7 +1108,8 @@ h4 {
 
 #controllerContainer {
     position: absolute;
-    width: 35vw;
+    width: 15vw;
+    min-width: 15vw;
     max-width: 45vw;
     max-height: 79vh;
     min-height: 17vh;
@@ -3290,8 +3292,8 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 /* List Items */
 .kneeboard-list-item {
     position: relative;
-    padding: 10px 12px 10px 28px;
-    margin: 2px 4px;
+    padding: 7px 12px 7px 28px;
+    margin: 1px 4px;
     border-radius: 6px;
     cursor: pointer;
     transition: background-color 0.2s ease;
@@ -3345,24 +3347,26 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 /* List Item Content */
 .kneeboard-list-item-content {
-    display: block;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
 }
 
 .kneeboard-list-item-title {
-    display: block;
     font-family: "Roboto-Light", sans-serif;
     font-size: clamp(0.9vw, 1.4vh, 14px);
     font-weight: 600;
     line-height: 1.4;
+    white-space: nowrap;
 }
 
 .kneeboard-list-item-subtitle {
-    display: block;
     font-family: "Roboto-Light", sans-serif;
     font-size: clamp(0.75vw, 1.2vh, 12px);
     color: #666;
-    margin-top: 2px;
     line-height: 1.3;
+    white-space: nowrap;
 }
 
 /* Panel Footer (Show more) */
@@ -4200,6 +4204,15 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     background: white;
     width: 100%;
     box-sizing: border-box;
+}
+
+.fp-waypoint.fp-wp-active {
+    background-color: #e3f2fd;
+    border-left: 3px solid #ff2e63;
+}
+.fp-waypoint.fp-wp-active .fp-wp-ident {
+    color: #ff2e63;
+    font-weight: 800;
 }
 
 .fp-route-header {
