@@ -4181,6 +4181,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     width: 100%;
     padding: 0 8px;
     box-sizing: border-box;
+    text-align: center;
 }
 
 /* Waypoint Type Icons - SVG Style */
@@ -4192,6 +4193,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     align-items: center;
     justify-content: center;
     background: transparent;
+    padding-left: 1vw;
 }
 
 .fp-wp-icon svg {
@@ -4253,7 +4255,7 @@ span.fp-wp-altitude {
     font-family: "Roboto Mono", monospace;
     font-size: 10px;
     color: #555;
-    text-align: right;
+    text-align: center;
 }
 
 /* Altitude Constraints - no longer used, prefix is plain text now */
