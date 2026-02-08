@@ -24077,14 +24077,19 @@ function getLastEnrouteWaypoint(ofpData) {
  * @param {Object} ofpData - OFP data (optional, falls back to flightplanPanelState.ofpData)
  * @returns {Promise<string>} Best transition identifier
  */
-async function selectBestApproachTransition(icao, approachId, transitions, runway, ofpData) {
+async function selectBestApproachTransition(icao, approachId, transitions, runway, ofpData, referenceWaypoint) {
     if (!transitions || transitions.length === 0) return '';
     if (transitions.length === 1) return transitions[0];
 
-    var effectiveOfp = ofpData || flightplanPanelState.ofpData;
-    var lastWp = getLastEnrouteWaypoint(effectiveOfp);
+    // Use explicit reference waypoint (e.g. last STAR waypoint) if provided,
+    // otherwise fall back to last OFP enroute waypoint
+    var lastWp = referenceWaypoint || null;
     if (!lastWp) {
-        flightplanPanelLogger.debug('No OFP waypoint - using first transition:', transitions[0]);
+        var effectiveOfp = ofpData || flightplanPanelState.ofpData;
+        lastWp = getLastEnrouteWaypoint(effectiveOfp);
+    }
+    if (!lastWp) {
+        flightplanPanelLogger.debug('No reference waypoint - using first transition:', transitions[0]);
         return transitions[0];
     }
 
@@ -24155,14 +24160,14 @@ async function selectBestApproachTransition(icao, approachId, transitions, runwa
  * @param {Array<string>} transitions - List of transition identifiers
  * @param {string} selectedValue - The value to select
  */
-function populateApproachTransitionDropdown(elementId, transitions, selectedValue) {
+function populateApproachTransitionDropdown(elementId, transitions, selectedValue, skipAutoSelect) {
     var select = document.getElementById(elementId);
     if (!select) {
         flightplanPanelLogger.error('Element not found:', elementId);
         return;
     }
 
-    flightplanPanelLogger.debug(elementId, '- transitions:', transitions, 'selected:', selectedValue);
+    flightplanPanelLogger.debug(elementId, '- transitions:', transitions, 'selected:', selectedValue, 'skipAuto:', !!skipAutoSelect);
 
     select.innerHTML = '<option value="">None</option>';
 
@@ -24172,8 +24177,10 @@ function populateApproachTransitionDropdown(elementId, transitions, selectedValu
 
     // Auto-Select: Wenn keine Transition im OFP, erste verfügbare wählen
     // Dies ist nötig damit Missed Approach Waypoints geladen werden (API gibt sie nur mit Transition)
+    // ABER: Wenn skipAutoSelect gesetzt ist (z.B. STAR verbindet direkt zum Final Approach),
+    // dann "None" beibehalten
     var valueToSelect = selectedValue;
-    if ((!valueToSelect || valueToSelect === '') && transitions.length > 0) {
+    if (!skipAutoSelect && (!valueToSelect || valueToSelect === '') && transitions.length > 0) {
         valueToSelect = transitions[0];
         flightplanPanelLogger.debug('Auto-selecting first transition:', valueToSelect);
     }
@@ -24489,6 +24496,76 @@ function onArrStarChange(starName) {
 
     populateTransitionDropdown('arrTransitionSelect', filteredStars, starName, nextTransition, 'STAR');
     flightplanPanelState.arrival.selectedTransition = nextTransition;
+
+    // Re-evaluate approach transition (Via) based on new STAR
+    // If the STAR's last waypoint is on the Final Approach segment (RouteType I),
+    // no approach transition (Via) is needed - the STAR connects directly.
+    if (flightplanPanelState.arrival.selectedApproach) {
+        var availableApproachTransitions = getAvailableApproachTransitions(
+            flightplanPanelState.arrival.approaches || [],
+            flightplanPanelState.arrival.selectedApproach
+        );
+        var starIcao = flightplanPanelState.arrival.icao;
+        var starRunway = flightplanPanelState.arrival.selectedRunway;
+        var selectedApproachForVia = flightplanPanelState.arrival.selectedApproach;
+
+        // Fetch STAR and Approach data in parallel to check connectivity
+        Promise.all([
+            fetchProcedureDetail(starIcao, starName, 'STAR', nextTransition, starRunway),
+            fetchProcedureDetail(starIcao, selectedApproachForVia, 'APPROACH', '', starRunway)
+        ]).then(function(results) {
+            var starData = results[0];
+            var approachData = results[1];
+
+            // Get last non-runway STAR waypoint name
+            var lastStarWpName = '';
+            var refWp = null;
+            if (starData && starData.Waypoints && starData.Waypoints.length > 0) {
+                var sorted = sortProcedureWaypoints(starData.Waypoints);
+                for (var si = sorted.length - 1; si >= 0; si--) {
+                    var wpName = (sorted[si].Identifier || sorted[si].identifier || '').toUpperCase();
+                    if (wpName.match(/^RW/i)) continue;
+                    var lat = parseFloat(sorted[si].Latitude || sorted[si].latitude || 0);
+                    var lon = parseFloat(sorted[si].Longitude || sorted[si].longitude || 0);
+                    if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
+                        lastStarWpName = wpName;
+                        refWp = { lat: lat, lng: lon, name: wpName };
+                        break;
+                    }
+                }
+            }
+
+            // Check if last STAR waypoint exists in the Final Approach segment (RouteType I)
+            var starConnectsDirectly = false;
+            if (lastStarWpName && approachData && approachData.Waypoints) {
+                approachData.Waypoints.forEach(function(wp) {
+                    var rt = (wp.RouteType || wp.routeType || '').toUpperCase();
+                    var name = (wp.Identifier || wp.identifier || '').toUpperCase();
+                    if (rt === 'I' && name === lastStarWpName) {
+                        starConnectsDirectly = true;
+                    }
+                });
+            }
+
+            if (starConnectsDirectly) {
+                // STAR ends at a Final Approach fix - no Via needed
+                flightplanPanelLogger.info('STAR', starName, 'connects directly to approach via', lastStarWpName, '- no Via needed');
+                populateApproachTransitionDropdown('arrApproachTransitionSelect', availableApproachTransitions, '', true);
+                flightplanPanelState.arrival.selectedApproachTransition = '';
+            } else if (availableApproachTransitions.length > 0) {
+                // STAR does not connect directly - find best Via
+                flightplanPanelLogger.debug('STAR does not connect directly, selecting best Via. Last STAR wp:', lastStarWpName);
+                selectBestApproachTransition(
+                    starIcao, selectedApproachForVia, availableApproachTransitions,
+                    starRunway, flightplanPanelState.ofpData, refWp
+                ).then(function(bestVia) {
+                    populateApproachTransitionDropdown('arrApproachTransitionSelect', availableApproachTransitions, bestVia);
+                    flightplanPanelState.arrival.selectedApproachTransition = bestVia;
+                    flightplanPanelLogger.debug('Selected Via after STAR change:', bestVia);
+                });
+            }
+        });
+    }
 
     // Nur bei manueller Änderung Preview zeichnen
     if (!flightplanPendingState.isInitialLoad) {
