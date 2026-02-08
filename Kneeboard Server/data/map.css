@@ -108,7 +108,7 @@ only screen and (min-device-pixel-ratio : 2) {
 
 .leaflet-control {
     position: relative;
-    z-index: 0;
+    z-index: auto;
     pointer-events: visiblePainted;
     pointer-events: auto;
 }
@@ -1399,10 +1399,6 @@ p {
     overflow: visible !important;
 }
 
-/* Expanded: ueber alle anderen Controls (auch rechte Seite) */
-#searchButton.search-expanded {
-    z-index: 10000 !important;
-}
 
 /* Icon-Button: transparent, ueber dem Wrapper */
 #searchButton.search-expanded button.easy-button-button {

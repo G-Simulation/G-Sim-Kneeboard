@@ -12851,6 +12851,10 @@ function initializeMapWithLayers(layers) {
     btnContainer.appendChild(searchInputWrapper);
     btnContainer.classList.add('search-expanded');
 
+    // Rechte Buttons z-index senken damit Suchleiste darüber liegt
+    var rightContainer = document.querySelector('.leaflet-top.leaflet-right');
+    if (rightContainer) rightContainer.style.zIndex = '999';
+
     if (inp) {
       setTimeout(function() {
         inp.focus();
@@ -12869,6 +12873,9 @@ function initializeMapWithLayers(layers) {
     if (btnContainer) {
       btnContainer.classList.remove('search-expanded');
     }
+    // Rechte Buttons z-index zurücksetzen
+    var rightContainer = document.querySelector('.leaflet-top.leaflet-right');
+    if (rightContainer) rightContainer.style.zIndex = '';
     if (searchInputWrapper && searchInputWrapper.parentNode) {
       searchInputWrapper.parentNode.removeChild(searchInputWrapper);
     }
