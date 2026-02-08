@@ -4040,218 +4040,6 @@ namespace Kneeboard_Server
             }
         }
 
-        /// <summary>
-        /// Debug endpoint to get ALL raw approach legs (including vector legs with 0,0 coordinates)
-        /// URL: /api/navigraph/approach-debug/{icao}/{procedureId}
-        /// </summary>
-        private async Task HandleApproachDebugRequest(IHttpContext ctx, string command)
-        {
-            try
-            {
-                string path = command.Replace("api/navigraph/approach-debug/", "").Trim('/');
-                string[] parts = path.Split('/');
-
-                if (parts.Length < 2)
-                {
-                    ctx.Response.StatusCode = 400;
-                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO and procedure ID required\"}");
-                    return;
-                }
-
-                string icao = parts[0].ToUpperInvariant();
-                string procedureId = parts[1];
-
-                if (_navigraphData?.IsDataAvailable != true)
-                {
-                    ctx.Response.StatusCode = 503;
-                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
-                    return;
-                }
-
-                var legs = _navigraphData.GetRawApproachLegs(icao, procedureId);
-
-                var response = new
-                {
-                    Icao = icao,
-                    ProcedureId = procedureId,
-                    TotalLegs = legs.Count,
-                    Legs = legs
-                };
-
-                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                await ResponseJsonAsync(ctx, json);
-            }
-            catch (Exception ex)
-            {
-                KneeboardLogger.NavigraphError($"Approach debug error: {ex.Message}");
-                ctx.Response.StatusCode = 500;
-                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
-            }
-        }
-
-        /// <summary>
-        /// Test endpoint using exact GetProcedureLegs SQL query
-        /// URL: /api/navigraph/approach-test/{icao}/{procedureId}
-        /// </summary>
-        private async Task HandleApproachTestRequest(IHttpContext ctx, string command)
-        {
-            try
-            {
-                string path = command.Replace("api/navigraph/approach-test/", "").Trim('/');
-                string[] parts = path.Split('/');
-
-                if (parts.Length < 2)
-                {
-                    ctx.Response.StatusCode = 400;
-                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO and procedure ID required\"}");
-                    return;
-                }
-
-                string icao = parts[0].ToUpperInvariant();
-                string procedureId = parts[1];
-
-                if (_navigraphData?.IsDataAvailable != true)
-                {
-                    ctx.Response.StatusCode = 503;
-                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
-                    return;
-                }
-
-                var legs = _navigraphData.TestApproachQuery(icao, procedureId);
-
-                var response = new
-                {
-                    Icao = icao,
-                    ProcedureId = procedureId,
-                    Query = "SELECT ... FROM tbl_pf_iaps WHERE ... AND route_type NOT IN ('A', 'Z')",
-                    TotalLegs = legs.Count,
-                    Legs = legs
-                };
-
-                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                await ResponseJsonAsync(ctx, json);
-            }
-            catch (Exception ex)
-            {
-                KneeboardLogger.NavigraphError($"Approach test error: {ex.Message}");
-                ctx.Response.StatusCode = 500;
-                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
-            }
-        }
-
-        /// <summary>
-        /// Direct test of GetProcedureLegs method
-        /// URL: /api/navigraph/approach-legs/{icao}/{procedureId}
-        /// </summary>
-        private async Task HandleApproachLegsRequest(IHttpContext ctx, string command)
-        {
-            try
-            {
-                string path = command.Replace("api/navigraph/approach-legs/", "").Trim('/');
-                string[] parts = path.Split('/');
-
-                if (parts.Length < 2)
-                {
-                    ctx.Response.StatusCode = 400;
-                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO and procedure ID required\"}");
-                    return;
-                }
-
-                string icao = parts[0].ToUpperInvariant();
-                string procedureId = parts[1];
-
-                if (_navigraphData?.IsDataAvailable != true)
-                {
-                    ctx.Response.StatusCode = 503;
-                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
-                    return;
-                }
-
-                var legs = _navigraphData.TestGetProcedureLegs(icao, procedureId);
-
-                var response = new
-                {
-                    Icao = icao,
-                    ProcedureId = procedureId,
-                    Method = "GetProcedureLegs(Approach, no transition, no runway)",
-                    TotalLegs = legs.Count,
-                    Legs = legs.Select(l => new {
-                        l.SequenceNumber,
-                        l.WaypointIdentifier,
-                        l.Latitude,
-                        l.Longitude,
-                        l.RouteType,
-                        l.PathTerminator
-                    }).ToList()
-                };
-
-                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                await ResponseJsonAsync(ctx, json);
-            }
-            catch (Exception ex)
-            {
-                KneeboardLogger.NavigraphError($"Approach legs error: {ex.Message}");
-                ctx.Response.StatusCode = 500;
-                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
-            }
-        }
-
-        /// <summary>
-        /// Diagnostic test of GetProcedureLegs with detailed debug output
-        /// URL: /api/navigraph/approach-diag/{icao}/{procedureId}
-        /// </summary>
-        private async Task HandleApproachDiagRequest(IHttpContext ctx, string command)
-        {
-            try
-            {
-                string path = command.Replace("api/navigraph/approach-diag/", "").Trim('/');
-                string[] parts = path.Split('/');
-
-                if (parts.Length < 2)
-                {
-                    ctx.Response.StatusCode = 400;
-                    await ResponseJsonAsync(ctx, "{\"error\":\"ICAO and procedure ID required\"}");
-                    return;
-                }
-
-                string icao = parts[0].ToUpperInvariant();
-                string procedureId = parts[1];
-
-                if (_navigraphData?.IsDataAvailable != true)
-                {
-                    ctx.Response.StatusCode = 503;
-                    await ResponseJsonAsync(ctx, "{\"error\":\"Navigraph data not available\"}");
-                    return;
-                }
-
-                var (legs, debugLog) = _navigraphData.DiagnosticGetProcedureLegs(icao, procedureId);
-
-                var response = new
-                {
-                    Icao = icao,
-                    ProcedureId = procedureId,
-                    TotalLegs = legs.Count,
-                    DebugLog = debugLog,
-                    Legs = legs.Select(l => new {
-                        l.SequenceNumber,
-                        l.WaypointIdentifier,
-                        l.Latitude,
-                        l.Longitude,
-                        l.RouteType,
-                        l.PathTerminator
-                    }).ToList()
-                };
-
-                string json = Newtonsoft.Json.JsonConvert.SerializeObject(response, Newtonsoft.Json.Formatting.Indented);
-                await ResponseJsonAsync(ctx, json);
-            }
-            catch (Exception ex)
-            {
-                KneeboardLogger.NavigraphError($"Approach diag error: {ex.Message}");
-                ctx.Response.StatusCode = 500;
-                await ResponseJsonAsync(ctx, $"{{\"error\":\"{ex.Message}\"}}");
-            }
-        }
 
         /// <summary>
         /// Get debug configuration
@@ -7054,7 +6842,26 @@ namespace Kneeboard_Server
             string command = ctx.Request.Url.AbsolutePath;
 
             command = command.Substring(1);
-            KneeboardLogger.Server($"{ctx.Request.HttpMethod} /{command}");
+            // Only log meaningful API requests (skip polling, tiles, static files, repeated data endpoints)
+            if (!command.StartsWith("api/simconnect/position")
+                && !command.StartsWith("getNavlogTimestamp")
+                && !command.StartsWith("checkSimbriefUpdate")
+                && !command.StartsWith("api/openaip/")
+                && !command.StartsWith("checkServerConnection")
+                && !command.StartsWith("api/log")
+                && !command.StartsWith("api/wind/")
+                && !command.StartsWith("api/boundaries/")
+                && !command.StartsWith(".well-known"))
+            {
+                string ext = Path.GetExtension(command).ToLowerInvariant();
+                bool isStaticFile = ext == ".js" || ext == ".css" || ext == ".png" || ext == ".jpg"
+                    || ext == ".ico" || ext == ".ttf" || ext == ".woff" || ext == ".woff2"
+                    || ext == ".map" || ext == ".html" || ext == ".svg" || ext == ".gif";
+                if (!isStaticFile)
+                {
+                    KneeboardLogger.Server($"{ctx.Request.HttpMethod} /{command}");
+                }
+            }
 
             if (string.IsNullOrEmpty(command))
             {
@@ -7631,26 +7438,6 @@ namespace Kneeboard_Server
             else if (command.StartsWith("api/navigraph/procedure/", StringComparison.OrdinalIgnoreCase))
             {
                 await HandleNavigraphProcedureRequest(ctx, command);
-                return;
-            }
-            else if (command.StartsWith("api/navigraph/approach-debug/", StringComparison.OrdinalIgnoreCase))
-            {
-                await HandleApproachDebugRequest(ctx, command);
-                return;
-            }
-            else if (command.StartsWith("api/navigraph/approach-test/", StringComparison.OrdinalIgnoreCase))
-            {
-                await HandleApproachTestRequest(ctx, command);
-                return;
-            }
-            else if (command.StartsWith("api/navigraph/approach-legs/", StringComparison.OrdinalIgnoreCase))
-            {
-                await HandleApproachLegsRequest(ctx, command);
-                return;
-            }
-            else if (command.StartsWith("api/navigraph/approach-diag/", StringComparison.OrdinalIgnoreCase))
-            {
-                await HandleApproachDiagRequest(ctx, command);
                 return;
             }
             else if (command == "api/debug/config" && ctx.Request.HttpMethod == "GET")

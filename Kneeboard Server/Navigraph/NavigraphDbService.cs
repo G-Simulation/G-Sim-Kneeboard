@@ -812,16 +812,16 @@ namespace Kneeboard_Server.Navigraph
                     // Approach RouteTypes: A=Transition, D=DME, F=Final, I=ILS, J=GNSS, L=LOC, P=GPS, R=RNAV, S=VOR, Z=Missed
                     if (!string.IsNullOrEmpty(transition))
                     {
-                        // Mit Transition: Approach Transition + alle anderen außer Missed
-                        // Holt: Transition Legs (A für diese Transition) + Final Legs (alles außer A und Z)
-                        routeTypeFilter = "((route_type = 'A' AND transition_identifier = @transition) OR route_type NOT IN ('A', 'Z'))";
-                        orderBy = "CASE WHEN route_type = 'A' THEN 0 ELSE 1 END, CAST(seqno AS INTEGER) ASC";
+                        // Mit Transition: Approach Transition + alle anderen inkl. Missed Approach (Z)
+                        // Holt: Transition Legs (A für diese Transition) + Final Legs + Missed Approach (Z)
+                        routeTypeFilter = "((route_type = 'A' AND transition_identifier = @transition) OR route_type NOT IN ('A'))";
+                        orderBy = "CASE WHEN route_type = 'A' THEN 0 WHEN route_type = 'Z' THEN 2 ELSE 1 END, CAST(seqno AS INTEGER) ASC";
                     }
                     else
                     {
-                        // Ohne Transition - alle Legs außer Transitions (A) und Missed (Z)
-                        routeTypeFilter = "route_type NOT IN ('A', 'Z')";
-                        orderBy = "CAST(seqno AS INTEGER) ASC";
+                        // Ohne Transition - alle Legs außer Transitions (A), inkl. Missed Approach (Z)
+                        routeTypeFilter = "route_type NOT IN ('A')";
+                        orderBy = "CASE WHEN route_type = 'Z' THEN 1 ELSE 0 END, CAST(seqno AS INTEGER) ASC";
                     }
                     break;
 
@@ -847,10 +847,13 @@ namespace Kneeboard_Server.Navigraph
                             speed_limit,
                             speed_limit_description,
                             course,
-                            route_distance_holding_distance_time,
+                            distance_time,
                             waypoint_description_code,
                             route_type,
-                            transition_identifier
+                            transition_identifier,
+                            recommended_navaid,
+                            recommended_navaid_latitude,
+                            recommended_navaid_longitude
                         FROM {tableName}
                         WHERE airport_identifier = @icao
                           AND procedure_identifier = @proc
@@ -887,6 +890,9 @@ namespace Kneeboard_Server.Navigraph
                                 var descCode = reader.IsDBNull(13) ? "" : reader.GetValue(13)?.ToString() ?? "";
                                 var routeType = reader.IsDBNull(14) ? "" : reader.GetValue(14)?.ToString() ?? "";
                                 var transId = reader.IsDBNull(15) ? "" : reader.GetValue(15)?.ToString() ?? "";
+                                var recNavaid = reader.IsDBNull(16) ? "" : reader.GetValue(16)?.ToString() ?? "";
+                                double? recNavLat = reader.IsDBNull(17) ? (double?)null : Convert.ToDouble(reader.GetValue(17));
+                                double? recNavLon = reader.IsDBNull(18) ? (double?)null : Convert.ToDouble(reader.GetValue(18));
 
                                 var leg = new ProcedureLeg
                                 {
@@ -904,11 +910,16 @@ namespace Kneeboard_Server.Navigraph
                                     Distance = distance,
                                     RouteType = routeType,
                                     TransitionIdentifier = transId,
-                                    Overfly = descCode.Contains("E")
+                                    Overfly = descCode.Contains("E"),
+                                    RecommendedNavaid = recNavaid,
+                                    RecommendedNavaidLatitude = recNavLat,
+                                    RecommendedNavaidLongitude = recNavLon,
+                                    WaypointDescriptionCode = descCode
                                 };
 
-                                // RW waypoints durchlassen, auch wenn lat=0 (werden später mit Runway-Koordinaten ergänzt)
-                                if (Math.Abs(lat) > 0.001 || Math.Abs(lon) > 0.001 || wpIdent.StartsWith("RW"))
+                                // Keep leg if it has coordinates, is a runway waypoint, RouteType Z,
+                                // or is an approach leg (MA legs after runway may have null coords)
+                                if (Math.Abs(lat) > 0.001 || Math.Abs(lon) > 0.001 || wpIdent.StartsWith("RW") || routeType == "Z" || type == ProcedureType.Approach)
                                 {
                                     legs.Add(leg);
                                 }
@@ -920,7 +931,29 @@ namespace Kneeboard_Server.Navigraph
                         }
                     }
 
-                    KneeboardLogger.NavigraphDebug($"[Navigraph DB] GetProcedureLegs FIX_V4: {icao}/{procedureId} -> {rowCount} rows, {legs.Count} kept");
+                    // Mark legs after the Missed Approach Point (MAP) as RouteType 'Z'
+                    // ARINC 424: MAP is indicated by waypoint_description_code containing 'M' at position 3-4
+                    // In ILS approaches, MA legs share the same RouteType as the approach (e.g., 'I')
+                    if (type == ProcedureType.Approach)
+                    {
+                        bool pastMAP = false;
+                        for (int i = 0; i < legs.Count; i++)
+                        {
+                            if (pastMAP && legs[i].RouteType != "A")
+                            {
+                                legs[i].RouteType = "Z";
+                            }
+                            // MAP is the runway threshold or a waypoint with 'M' in description code
+                            if (legs[i].WaypointIdentifier.StartsWith("RW"))
+                            {
+                                pastMAP = true;
+                            }
+                        }
+                    }
+
+                    var routeTypes = legs.Select(l => l.RouteType).Distinct().ToList();
+                    KneeboardLogger.Navigraph($"[Navigraph DB] GetProcedureLegs: {icao}/{procedureId} -> {rowCount} rows, {legs.Count} kept, RouteTypes: [{string.Join(", ", routeTypes)}]");
+
                 }
             }
             catch (Exception ex)
@@ -949,300 +982,90 @@ namespace Kneeboard_Server.Navigraph
                 }
             }
 
-            return legs;
-        }
-
-        /// <summary>
-        /// Diagnostic version of GetProcedureLegs that returns detailed debug info
-        /// </summary>
-        public (List<ProcedureLeg> Legs, List<string> DebugLog) GetProcedureLegsWithDebug(string icao, string procedureId, ProcedureType type)
-        {
-            var legs = new List<ProcedureLeg>();
-            var debugLog = new List<string>();
-            
-            debugLog.Add($"DIAG_V3: Starting for {icao}/{procedureId} type={type}");
-            
-            if (!IsConnected)
+            // Ergänze Koordinaten und Identifier für Legs ohne Waypoint (CD, CA, VA, etc.)
+            for (int i = 0; i < legs.Count; i++)
             {
-                debugLog.Add("ERROR: Not connected to database");
-                return (legs, debugLog);
-            }
-
-            string tableName = type == ProcedureType.Approach ? "tbl_pf_iaps" : "tbl_pe_stars";
-            string routeTypeFilter = "route_type NOT IN ('A', 'Z')";
-            string orderBy = "CAST(seqno AS INTEGER) ASC";
-
-            debugLog.Add($"Table: {tableName}, Filter: {routeTypeFilter}");
-
-            try
-            {
-                using (var cmd = new SQLiteCommand(_connection))
+                var leg = legs[i];
+                if (Math.Abs(leg.Latitude) < 0.001 && Math.Abs(leg.Longitude) < 0.001)
                 {
-                    cmd.CommandText = $@"
-                        SELECT
-                            seqno,
-                            waypoint_identifier,
-                            waypoint_latitude,
-                            waypoint_longitude,
-                            path_termination,
-                            turn_direction,
-                            altitude_description,
-                            altitude1,
-                            altitude2,
-                            speed_limit,
-                            speed_limit_description,
-                            course,
-                            route_distance_holding_distance_time,
-                            waypoint_description_code,
-                            route_type,
-                            transition_identifier
-                        FROM {tableName}
-                        WHERE airport_identifier = @icao
-                          AND procedure_identifier = @proc
-                          AND {routeTypeFilter}
-                        ORDER BY {orderBy}";
+                    // Koordinaten berechnen aus vorherigem Leg + Course
+                    double refLat = 0, refLon = 0;
+                    bool hasRef = false;
 
-                    cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
-                    cmd.Parameters.AddWithValue("@proc", procedureId);
-
-                    debugLog.Add($"SQL: {cmd.CommandText}");
-                    debugLog.Add($"Params: icao={icao}, proc={procedureId}");
-
-                    int rowCount = 0;
-                    using (var reader = cmd.ExecuteReader())
+                    // Vorheriges Leg als Startpunkt
+                    if (i > 0 && (Math.Abs(legs[i - 1].Latitude) > 0.001 || Math.Abs(legs[i - 1].Longitude) > 0.001))
                     {
-                        debugLog.Add($"Reader created, HasRows={reader.HasRows}");
-                        
-                        while (reader.Read())
+                        refLat = legs[i - 1].Latitude;
+                        refLon = legs[i - 1].Longitude;
+                        hasRef = true;
+                    }
+
+                    if (hasRef && leg.Course.HasValue)
+                    {
+                        double distNm = 3.0;
+                        // CD: Course to DME Distance - Distanz aus DB wenn vorhanden
+                        if (leg.PathTerminator == "CD" && leg.Distance.HasValue && leg.Distance.Value > 0)
                         {
-                            rowCount++;
-                            try
-                            {
-                                var seqNo = reader.IsDBNull(0) ? 0 : Convert.ToInt32(reader.GetValue(0));
-                                var wpIdent = reader.IsDBNull(1) ? "" : reader.GetValue(1)?.ToString() ?? "";
-                                var lat = reader.IsDBNull(2) ? 0.0 : Convert.ToDouble(reader.GetValue(2));
-                                var lon = reader.IsDBNull(3) ? 0.0 : Convert.ToDouble(reader.GetValue(3));
-                                var pathTerm = reader.IsDBNull(4) ? "" : reader.GetValue(4)?.ToString() ?? "";
-                                // Index 5: turn_direction (unused for now)
-                                var altDesc = reader.IsDBNull(6) ? "" : reader.GetValue(6)?.ToString() ?? "";
-                                int? alt1 = reader.IsDBNull(7) ? (int?)null : Convert.ToInt32(reader.GetValue(7));
-                                int? alt2 = reader.IsDBNull(8) ? (int?)null : Convert.ToInt32(reader.GetValue(8));
-                                int? spdLimit = reader.IsDBNull(9) ? (int?)null : Convert.ToInt32(reader.GetValue(9));
-                                var spdDesc = reader.IsDBNull(10) ? "" : reader.GetValue(10)?.ToString() ?? "";
-                                double? course = reader.IsDBNull(11) ? (double?)null : Convert.ToDouble(reader.GetValue(11));
-                                double? distance = reader.IsDBNull(12) ? (double?)null : Convert.ToDouble(reader.GetValue(12));
-                                var descCode = reader.IsDBNull(13) ? "" : reader.GetValue(13)?.ToString() ?? "";
-                                var routeType = reader.IsDBNull(14) ? "" : reader.GetValue(14)?.ToString() ?? "";
-                                var transId = reader.IsDBNull(15) ? "" : reader.GetValue(15)?.ToString() ?? "";
+                            distNm = leg.Distance.Value;
+                        }
+                        // CA: Course to Altitude - Distanz aus Höhendifferenz schätzen
+                        else if (leg.PathTerminator == "CA" && leg.Altitude1.HasValue && i > 0 && legs[i - 1].Altitude1.HasValue)
+                        {
+                            var altDiff = Math.Abs(leg.Altitude1.Value - legs[i - 1].Altitude1.Value);
+                            distNm = Math.Max(1.0, Math.Min(10.0, altDiff / 300.0));
+                        }
 
-                                debugLog.Add($"Row {rowCount}: seq={seqNo} wp='{wpIdent}' path={pathTerm} lat={lat} lon={lon} alt1={alt1} alt2={alt2}");
+                        var dest = ProjectPoint(refLat, refLon, leg.Course.Value, distNm);
+                        leg.Latitude = dest.lat;
+                        leg.Longitude = dest.lon;
+                    }
 
-                                // Stop at missed approach (CA = Course to Altitude after runway)
-                                if (pathTerm == "CA" || pathTerm == "HA" || pathTerm == "HF" || pathTerm == "HM")
-                                {
-                                    debugLog.Add($"  -> STOP: Missed approach detected (path={pathTerm})");
-                                    break;
-                                }
-
-                                // RW waypoints durchlassen, auch wenn lat=0 (werden später mit Runway-Koordinaten ergänzt)
-                                bool hasCoords = Math.Abs(lat) > 0.001 || Math.Abs(lon) > 0.001 || wpIdent.StartsWith("RW");
-
-                                if (hasCoords)
-                                {
-                                    var leg = new ProcedureLeg
-                                    {
-                                        SequenceNumber = seqNo,
-                                        WaypointIdentifier = wpIdent,
-                                        Latitude = lat,
-                                        Longitude = lon,
-                                        PathTerminator = pathTerm,
-                                        AltitudeConstraint = altDesc,
-                                        Altitude1 = alt1,
-                                        Altitude2 = alt2,
-                                        SpeedLimit = spdLimit,
-                                        SpeedConstraint = spdDesc,
-                                        Course = course,
-                                        Distance = distance,
-                                        RouteType = routeType,
-                                        TransitionIdentifier = transId,
-                                        Overfly = descCode.Contains("E")
-                                    };
-                                    legs.Add(leg);
-                                    debugLog.Add($"  -> ADDED");
-                                }
-                                else
-                                {
-                                    debugLog.Add($"  -> FILTERED (0,0)");
-                                }
-                            }
-                            catch (Exception rowEx)
-                            {
-                                debugLog.Add($"Row {rowCount} ERROR: {rowEx.Message}");
-                            }
+                    // Identifier setzen wenn leer
+                    if (string.IsNullOrEmpty(leg.WaypointIdentifier))
+                    {
+                        switch (leg.PathTerminator)
+                        {
+                            case "CD":
+                                leg.WaypointIdentifier = !string.IsNullOrEmpty(leg.RecommendedNavaid)
+                                    ? $"(D-{leg.RecommendedNavaid})" : "(DME)";
+                                break;
+                            case "CA":
+                                leg.WaypointIdentifier = leg.Altitude1.HasValue
+                                    ? $"({leg.Altitude1}ft)" : "(ALT)";
+                                break;
+                            case "VA":
+                                leg.WaypointIdentifier = leg.Altitude1.HasValue
+                                    ? $"({leg.Altitude1}ft)" : "(HDG)";
+                                break;
+                            default:
+                                leg.WaypointIdentifier = $"({leg.PathTerminator})";
+                                break;
                         }
                     }
-                    debugLog.Add($"Reader closed. Total rows: {rowCount}, Kept: {legs.Count}");
                 }
-            }
-            catch (Exception ex)
-            {
-                debugLog.Add($"QUERY ERROR: {ex.Message}");
-            }
-
-            // Ergänze Koordinaten für Runway-Waypoints die lat=0/lon=0 haben
-            foreach (var leg in legs)
-            {
-                if (leg.WaypointIdentifier.StartsWith("RW") && Math.Abs(leg.Latitude) < 0.001 && Math.Abs(leg.Longitude) < 0.001)
-                {
-                    var rwyIdent = leg.WaypointIdentifier.Substring(2);
-                    var rwyInfo = GetRunway(icao, rwyIdent);
-                    if (rwyInfo != null)
-                    {
-                        leg.Latitude = rwyInfo.ThresholdLat;
-                        leg.Longitude = rwyInfo.ThresholdLon;
-                        debugLog.Add($"Enriched RW waypoint {leg.WaypointIdentifier} with coordinates: ({leg.Latitude:F6}, {leg.Longitude:F6})");
-                    }
-                    else
-                    {
-                        debugLog.Add($"WARNING: Could not find runway {rwyIdent} at {icao}");
-                    }
-                }
-            }
-
-            return (legs, debugLog);
-        }
-
-        /// <summary>
-        /// Test the EXACT SQL query from GetProcedureLegs for Approach
-        /// </summary>
-        public List<Dictionary<string, object>> TestApproachQuery(string icao, string procedureId)
-        {
-            var legs = new List<Dictionary<string, object>>();
-            if (!IsConnected) return legs;
-
-            try
-            {
-                using (var cmd = new SQLiteCommand(_connection))
-                {
-                    cmd.CommandText = @"
-                        SELECT
-                            seqno,
-                            waypoint_identifier,
-                            waypoint_latitude,
-                            waypoint_longitude,
-                            path_termination,
-                            turn_direction,
-                            altitude_description,
-                            altitude1,
-                            altitude2,
-                            speed_limit,
-                            speed_limit_description,
-                            course,
-                            route_distance_holding_distance_time,
-                            waypoint_description_code,
-                            route_type,
-                            transition_identifier
-                        FROM tbl_pf_iaps
-                        WHERE airport_identifier = @icao
-                          AND procedure_identifier = @proc
-                          AND route_type NOT IN ('A', 'Z')
-                        ORDER BY CAST(seqno AS INTEGER) ASC";
-
-                    cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
-                    cmd.Parameters.AddWithValue("@proc", procedureId);
-
-                    KneeboardLogger.NavigraphDebug($"[TEST] Executing exact GetProcedureLegs query for {icao}/{procedureId}");
-
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            var leg = new Dictionary<string, object>();
-                            for (int i = 0; i < reader.FieldCount; i++)
-                            {
-                                leg[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
-                            }
-                            legs.Add(leg);
-                            KneeboardLogger.NavigraphDebug($"[TEST] Row: seqno={leg["seqno"]} wp={leg["waypoint_identifier"]} route={leg["route_type"]}");
-                        }
-                    }
-                    KneeboardLogger.NavigraphDebug($"[TEST] Total rows: {legs.Count}");
-                }
-            }
-            catch (Exception ex)
-            {
-                KneeboardLogger.NavigraphError($"Test Error: {ex.Message}");
             }
 
             return legs;
         }
 
         /// <summary>
-        /// Get ALL raw approach legs for debugging (no coordinate filtering)
+        /// Project a point from lat/lon along a course (degrees true) for a distance (nm)
         /// </summary>
-        public List<Dictionary<string, object>> GetRawApproachLegs(string icao, string procedureId)
+        private static (double lat, double lon) ProjectPoint(double lat1, double lon1, double courseDeg, double distanceNm)
         {
-            var legs = new List<Dictionary<string, object>>();
-            if (!IsConnected) return legs;
+            const double R = 3440.065; // Earth radius in nautical miles
+            double lat1Rad = lat1 * Math.PI / 180.0;
+            double lon1Rad = lon1 * Math.PI / 180.0;
+            double brng = courseDeg * Math.PI / 180.0;
+            double d = distanceNm / R;
 
-            try
-            {
-                using (var cmd = new SQLiteCommand(_connection))
-                {
-                    cmd.CommandText = @"
-                        SELECT 
-                            seqno,
-                            waypoint_identifier,
-                            waypoint_latitude,
-                            waypoint_longitude,
-                            path_termination,
-                            route_type,
-                            transition_identifier,
-                            course,
-                            route_distance_holding_distance_time,
-                            altitude1,
-                            altitude2,
-                            recommended_navaid,
-                            recommended_navaid_latitude,
-                            recommended_navaid_longitude,
-                            turn_direction,
-                            waypoint_description_code,
-                            procedure_identifier
-                        FROM tbl_pf_iaps
-                        WHERE airport_identifier = @icao
-                          AND procedure_identifier = @proc
-                        ORDER BY route_type, seqno ASC";
+            double lat2 = Math.Asin(Math.Sin(lat1Rad) * Math.Cos(d) + Math.Cos(lat1Rad) * Math.Sin(d) * Math.Cos(brng));
+            double lon2 = lon1Rad + Math.Atan2(Math.Sin(brng) * Math.Sin(d) * Math.Cos(lat1Rad),
+                                                Math.Cos(d) - Math.Sin(lat1Rad) * Math.Sin(lat2));
 
-                    cmd.Parameters.AddWithValue("@icao", icao.ToUpperInvariant());
-                    cmd.Parameters.AddWithValue("@proc", procedureId);
-
-                    KneeboardLogger.NavigraphDebug($"Navigraph DB: Querying raw approach legs for {icao}/{procedureId}");
-
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            var leg = new Dictionary<string, object>();
-                            for (int i = 0; i < reader.FieldCount; i++)
-                            {
-                                var name = reader.GetName(i);
-                                var value = reader.IsDBNull(i) ? null : reader.GetValue(i);
-                                leg[name] = value;
-                            }
-                            legs.Add(leg);
-                        }
-                    }
-                    KneeboardLogger.NavigraphDebug($"Navigraph DB: Found {legs.Count} raw approach legs");
-                }
-            }
-            catch (Exception ex)
-            {
-                KneeboardLogger.NavigraphError($"Raw Approach Legs Query Error: {ex.Message}");
-                KneeboardLogger.NavigraphError($"Stack: {ex.StackTrace}");
-            }
-
-            return legs;
+            return (lat2 * 180.0 / Math.PI, lon2 * 180.0 / Math.PI);
         }
+
 
         #endregion
 

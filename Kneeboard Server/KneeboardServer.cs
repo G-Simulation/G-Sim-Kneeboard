@@ -3410,9 +3410,12 @@ namespace Kneeboard_Server
                     return true;
                 }
 
-                var sidWaypoints = proc["sid"]?["waypoints"] as Newtonsoft.Json.Linq.JArray;
-                var starWaypoints = proc["star"]?["waypoints"] as Newtonsoft.Json.Linq.JArray;
-                var approachWaypoints = proc["approach"]?["waypoints"] as Newtonsoft.Json.Linq.JArray;
+                var sidObj = proc["sid"] as Newtonsoft.Json.Linq.JObject;
+                var starObj = proc["star"] as Newtonsoft.Json.Linq.JObject;
+                var approachObj = proc["approach"] as Newtonsoft.Json.Linq.JObject;
+                var sidWaypoints = sidObj?["waypoints"] as Newtonsoft.Json.Linq.JArray;
+                var starWaypoints = starObj?["waypoints"] as Newtonsoft.Json.Linq.JArray;
+                var approachWaypoints = approachObj?["waypoints"] as Newtonsoft.Json.Linq.JArray;
 
                 bool hasSid = sidWaypoints != null && sidWaypoints.Count > 0;
                 bool hasStar = starWaypoints != null && starWaypoints.Count > 0;
@@ -3491,30 +3494,53 @@ namespace Kneeboard_Server
                 }
 
                 // Extract transitions and runways from OFP data
-                var ofp = flightplanData.ofp;
-                if (ofp != null)
+                var ofpObj = flightplanData.ofp as Newtonsoft.Json.Linq.JObject;
+                if (ofpObj != null)
                 {
-                    var general = ofp.General ?? ofp.general;
-                    var origin = ofp.Origin ?? ofp.origin;
-                    var destination = ofp.Destination ?? ofp.destination;
+                    var general = ofpObj["General"] as Newtonsoft.Json.Linq.JObject ?? ofpObj["general"] as Newtonsoft.Json.Linq.JObject;
+                    var origin = ofpObj["Origin"] as Newtonsoft.Json.Linq.JObject ?? ofpObj["origin"] as Newtonsoft.Json.Linq.JObject;
+                    var destination = ofpObj["Destination"] as Newtonsoft.Json.Linq.JObject ?? ofpObj["destination"] as Newtonsoft.Json.Linq.JObject;
 
                     if (general != null)
                     {
-                        sidTransition = (string)(general.Sid_trans ?? general.sid_trans);
-                        starTransition = (string)(general.Star_trans ?? general.star_trans);
-                        approachName = (string)(general.Approach_name ?? general.approach_name ??
-                                                general.App_name ?? general.app_name ??
-                                                general.Appr_type ?? general.appr_type);
-                        approachTransition = (string)(general.App_trans ?? general.app_trans ??
-                                                      general.Approach_trans ?? general.approach_trans);
+                        sidTransition = (string)(general["Sid_trans"] ?? general["sid_trans"]);
+                        starTransition = (string)(general["Star_trans"] ?? general["star_trans"]);
+                        approachTransition = (string)(general["App_trans"] ?? general["app_trans"] ??
+                                                      general["Approach_trans"] ?? general["approach_trans"]);
                     }
                     if (origin != null)
                     {
-                        departureRunway = (string)(origin.Plan_rwy ?? origin.plan_rwy);
+                        departureRunway = (string)(origin["Plan_rwy"] ?? origin["plan_rwy"]);
                     }
                     if (destination != null)
                     {
-                        arrivalRunway = (string)(destination.Plan_rwy ?? destination.plan_rwy);
+                        arrivalRunway = (string)(destination["Plan_rwy"] ?? destination["plan_rwy"]);
+                    }
+
+                    // Extract approach name from Navlog fixes (SimBrief stores it in Via_airway where Stage = APP)
+                    var navlog = ofpObj["Navlog"] ?? ofpObj["navlog"];
+                    if (navlog != null)
+                    {
+                        var fixes = navlog["Fix"] ?? navlog["fix"];
+                        if (fixes is Newtonsoft.Json.Linq.JArray fixArray)
+                        {
+                            for (int i = fixArray.Count - 1; i >= 0; i--)
+                            {
+                                var fix = fixArray[i] as Newtonsoft.Json.Linq.JObject;
+                                if (fix == null) continue;
+                                var stage = ((string)(fix["Stage"] ?? fix["stage"]) ?? "").ToUpperInvariant();
+                                if (stage == "APP" || stage == "APR" || stage == "APPROACH")
+                                {
+                                    var viaAirway = (string)(fix["Via_airway"] ?? fix["via_airway"]);
+                                    if (!string.IsNullOrEmpty(viaAirway))
+                                    {
+                                        approachName = viaAirway;
+                                        KneeboardLogger.NavigraphDebug($"Approach name from navlog: {approachName}");
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -3607,7 +3633,12 @@ namespace Kneeboard_Server
 
                         foreach (var wp in detail.Waypoints)
                         {
-                            if (Math.Abs(wp.Latitude) < 0.001 && Math.Abs(wp.Longitude) < 0.001)
+                            // Keep RouteType Z (Missed Approach) and RW waypoints even without coordinates
+                            // Client will calculate synthetic positions for these
+                            bool hasCoords = Math.Abs(wp.Latitude) > 0.001 || Math.Abs(wp.Longitude) > 0.001;
+                            bool isMissedApproach = wp.RouteType == "Z";
+                            bool isRunway = wp.Identifier != null && wp.Identifier.StartsWith("RW");
+                            if (!hasCoords && !isMissedApproach && !isRunway)
                                 continue;
 
                             waypoints.Add(new

@@ -4452,6 +4452,34 @@ span.fp-wp-altitude {
     transform: scale(0.95);
 }
 
+/* Missed Approach Waypoints in der Waypoint-Liste */
+.wp-missed-approach {
+    opacity: 0.5;
+    font-style: italic;
+}
+
+.wp-missed-approach .fp-wp-ident {
+    color: #fdbd7a;
+}
+
+.wp-missed-approach .fp-wp-bearing,
+.wp-missed-approach .fp-wp-distance,
+.wp-missed-approach .fp-wp-altitude {
+    opacity: 0.6;
+}
+
+.wp-missed-header {
+    pointer-events: none;
+    border-top: 1px dashed rgba(253, 189, 122, 0.4);
+    margin-top: 2px;
+    padding-top: 2px;
+}
+
+.wp-missed-header .fp-wp-ident {
+    font-size: 0.8em;
+    letter-spacing: 0.05em;
+}
+
 /* Loading State for Dropdowns */
 .fp-dropdown.loading {
     background-image: none;

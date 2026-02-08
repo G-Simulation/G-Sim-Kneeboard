@@ -622,7 +622,6 @@ namespace Kneeboard_Server.Navigraph
 
             // Use GetProcedureLegs for ALL procedure types - it has proper route_type filtering
             // For Approaches with a transition, it includes RouteType 'A' legs for that transition
-            // GetProcedureLegsWithDebug always filters out 'A' (transitions) which loses approach waypoints!
             List<ProcedureLeg> legs = _dbService.GetProcedureLegs(icao, procedureName, procType, transition, runway);
             Log($"[Navigraph] GetProcedureDetail: {procType} {procedureName} trans='{transition}' rwy='{runway}' -> {legs.Count} legs");
 
@@ -812,43 +811,6 @@ namespace Kneeboard_Server.Navigraph
         public ProcedureDetail GetProcedureDetail(string icao, string procedureName, string transition, ProcedureType procType, string runway = null)
         {
             return GetProcedureDetail(icao, procedureName, transition, procType.ToString(), runway);
-        }
-
-        /// <summary>
-        /// Get ALL raw approach legs for debugging (no coordinate filtering)
-        /// </summary>
-        public List<Dictionary<string, object>> GetRawApproachLegs(string icao, string procedureId)
-        {
-            return _dbService?.GetRawApproachLegs(icao, procedureId) ?? new List<Dictionary<string, object>>();
-        }
-
-        /// <summary>
-        /// Test the exact GetProcedureLegs SQL query
-        /// </summary>
-        public List<Dictionary<string, object>> TestApproachQuery(string icao, string procedureId)
-        {
-            return _dbService?.TestApproachQuery(icao, procedureId) ?? new List<Dictionary<string, object>>();
-        }
-
-        /// <summary>
-        /// Direct test of GetProcedureLegs for Approach (no additional filtering)
-        /// NOW USES DIAGNOSTIC VERSION TO BYPASS BUG
-        /// </summary>
-        public List<ProcedureLeg> TestGetProcedureLegs(string icao, string procedureId)
-        {
-            if (_dbService == null) return new List<ProcedureLeg>();
-            var (legs, _) = _dbService.GetProcedureLegsWithDebug(icao, procedureId, ProcedureType.Approach);
-            KneeboardLogger.NavigraphDebug($"[NavigraphData] TestGetProcedureLegs DIAG: Got {legs.Count} legs");
-            return legs;
-        }
-
-        /// <summary>
-        /// Diagnostic test of GetProcedureLegs with detailed debug output
-        /// </summary>
-        public (List<ProcedureLeg> Legs, List<string> DebugLog) DiagnosticGetProcedureLegs(string icao, string procedureId)
-        {
-            if (_dbService == null) return (new List<ProcedureLeg>(), new List<string> { "ERROR: _dbService is null" });
-            return _dbService.GetProcedureLegsWithDebug(icao, procedureId, ProcedureType.Approach);
         }
 
         /// <summary>

@@ -203,6 +203,8 @@ var DEBUG_CONFIG = {
   BRIDGE: false,
   INIT: false,
 
+  AIRPORTS: false,
+
   API: false,
   STATE: false,
   EVENT: false,
@@ -14381,6 +14383,58 @@ function updateWaypointList(waypointLayers, coordinatesArray) {
   });
   wpi2 = waypointLayers.length;
 
+  // Missed Approach Waypoints anhängen (visuell abgesetzt, nicht in Distanz-Berechnung)
+  if (missedApproachWaypoints && missedApproachWaypoints.length > 0) {
+    overlayListHtml.push(
+      '<li class="fp-waypoint wp-missed-header">' +
+        '<div class="fp-wp-row">' +
+          '<span class="fp-wp-icon"></span>' +
+          '<span class="fp-wp-ident" style="color: ' + routeColors.goAround + '; font-size: 0.85em;">MISSED APPROACH</span>' +
+          '<span class="fp-wp-extra"></span>' +
+          '<span class="fp-wp-bearing">&nbsp;</span>' +
+          '<span class="fp-wp-distance">&nbsp;</span>' +
+          '<span class="fp-wp-altitude">&nbsp;</span>' +
+        '</div>' +
+      '</li>'
+    );
+
+    missedApproachWaypoints.forEach(function(wp, maIdx) {
+      var altStr = '';
+      if (wp.altitude && wp.altitude > 0) {
+        altStr = formatAltitudeDisplay(wp.altitude);
+      }
+
+      // Berechne Bearing/Distance zum nächsten MA-Waypoint
+      var maBearing = '';
+      var maDistance = '';
+      if (maIdx < missedApproachWaypoints.length - 1) {
+        var nextMa = missedApproachWaypoints[maIdx + 1];
+        if (nextMa.lat && nextMa.lng) {
+          var b = calculateBearing(wp.lat, wp.lng, nextMa.lat, nextMa.lng);
+          var d = calculateDistance(wp.lat, wp.lng, nextMa.lat, nextMa.lng, 'N');
+          if (b < 10) maBearing = '00' + Math.round(b);
+          else if (b < 100) maBearing = '0' + Math.round(b);
+          else maBearing = '' + Math.round(b);
+          maBearing += DEGREE_SYMBOL;
+          maDistance = parseFloat(d).toFixed(0) + 'nm';
+        }
+      }
+
+      overlayListHtml.push(
+        '<li class="fp-waypoint wp-missed-approach">' +
+          '<div class="fp-wp-row">' +
+            '<span class="fp-wp-icon"></span>' +
+            '<span class="fp-wp-ident">' + escapeHtml(wp.name || 'MA') + '</span>' +
+            '<span class="fp-wp-extra"></span>' +
+            '<span class="fp-wp-bearing">' + (maBearing || '&nbsp;') + '</span>' +
+            '<span class="fp-wp-distance">' + (maDistance || '&nbsp;') + '</span>' +
+            '<span class="fp-wp-altitude">' + (altStr || '&nbsp;') + '</span>' +
+          '</div>' +
+        '</li>'
+      );
+    });
+  }
+
   // Single DOM update - much faster than multiple appends
   if (overlayListUl && overlayListHtml.length > 0) {
     overlayListUl.innerHTML = overlayListHtml.join('');
@@ -20077,7 +20131,10 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
         // 3. Inject Approach waypoints LAST (after STAR, before destination)
         if (!serverHadApproach && approachWaypointsForFlightpath && approachWaypointsForFlightpath.length > 0) {
-          mapLogger.debug('3. Injecting', approachWaypointsForFlightpath.length, 'approach waypoints');
+          var apprNames = approachWaypointsForFlightpath.map(function(w) {
+            return w.Identifier || w.identifier || w.Name || w.name || '?';
+          });
+          mapLogger.info('3. Injecting', approachWaypointsForFlightpath.length, 'approach waypoints:', apprNames.join(', '));
 
           var insertIndex = flightplan.length > 0 ? flightplan.length - 1 : 0;
 
@@ -20119,24 +20176,22 @@ async function processFlightplanMessage(message, skipSourceCheck) {
             }
           });
 
-          // ZIGZAG FIX v2: Finde den LETZTEN gemeinsamen Waypoint zwischen Flightplan und Approach
-          // Nur Approach-Waypoints NACH diesem Punkt hinzufügen
-          var lastCommonWpIndex = -1;
+          // Finde den ERSTEN Waypoint im Approach der auch im Flightplan vorkommt
+          // Das ist der Transition-Fix (z.B. WYP) - den überspringen wir nur EINMAL
+          // Approach kann denselben Fix mehrfach haben (Procedure Turn: WYP→LEGDU→WYP)
+          var firstCommonWpIndex = -1;
           for (var i = 0; i < approachWaypointsForFlightpath.length; i++) {
             var wpName = approachWaypointsForFlightpath[i].Identifier || approachWaypointsForFlightpath[i].identifier ||
                          approachWaypointsForFlightpath[i].Name || approachWaypointsForFlightpath[i].name || '';
             if (existingNames[wpName.toUpperCase()]) {
-              lastCommonWpIndex = i;
-              mapLogger.debug('Approach/Flightplan common waypoint at index', i, ':', wpName);
-              // Nicht break - wir wollen den LETZTEN gemeinsamen finden
+              firstCommonWpIndex = i;
+              break;
             }
           }
 
-          // Starte NACH dem letzten gemeinsamen Waypoint (der ist ja schon im Flightplan)
-          var startIndex = lastCommonWpIndex >= 0 ? lastCommonWpIndex + 1 : 0;
-          if (MAP_DEBUG) {
-            mapLogger.info('Approach: lastCommonWpIndex=' + lastCommonWpIndex + ', starting from index ' + startIndex);
-          }
+          // Starte NACH dem ersten Common-Waypoint (der ist schon im Flightplan vom STAR)
+          // Alle weiteren Waypoints einfügen - auch wenn der Name gleich ist (Procedure Turn!)
+          var startIndex = firstCommonWpIndex >= 0 ? firstCommonWpIndex + 1 : 0;
 
           approachWaypointsForFlightpath.slice(startIndex).forEach(function(wp) {
             var lat = wp.Latitude || wp.latitude;
@@ -20145,20 +20200,12 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
             // Skip RWY_THRESHOLD - nicht in Route anzeigen
             if (name === 'RWY_THRESHOLD') {
-              mapLogger.debug('Skipping RWY_THRESHOLD waypoint');
-              return;
-            }
-
-            // Skip wenn Waypoint bereits existiert (Duplikat-Check)
-            if (existingNames[name.toUpperCase()]) {
-              mapLogger.debug('Skipping duplicate approach waypoint:', name);
               return;
             }
 
             // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
             var rwMatch = name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
             if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
-              mapLogger.debug('Skipping duplicate runway in approach:', name);
               return;
             }
 
@@ -20202,15 +20249,15 @@ async function processFlightplanMessage(message, skipSourceCheck) {
             }
           });
 
+          mapLogger.info('Approach: firstCommon=' + firstCommonWpIndex + ', startIdx=' + startIndex + ', entries=' + approachEntries.length);
           if (approachEntries.length > 0) {
             var before = flightplan.slice(0, insertIndex);
             var after = flightplan.slice(insertIndex);
             flightplan = before.concat(approachEntries).concat(after);
-            mapLogger.debug('Flightplan now has', flightplan.length, 'waypoints (with approach)');
           }
         }
 
-        mapLogger.debug('Final flightplan with all procedures:', flightplan.length, 'waypoints');
+        mapLogger.info('Final flightplan with all procedures:', flightplan.length, 'waypoints');
       } catch (err) {
         mapLogger.error('Error initializing Flightplan Panel:', err);
       }
@@ -20857,7 +20904,7 @@ function getArrivalCoordinates() {
  * Zeichnet Missed Approach Linie in separater Farbe (Orange)
  * Startet am letzten ARR-Waypoint (Runway Threshold) und führt zum Missed Approach Holding
  */
-function drawMissedApproachLine() {
+function drawMissedApproachLine(animate) {
     // Alte Missed Approach Linie entfernen
     if (missedApproachPolyline) {
         map.removeLayer(missedApproachPolyline);
@@ -20865,11 +20912,11 @@ function drawMissedApproachLine() {
     }
 
     if (!missedApproachWaypoints || missedApproachWaypoints.length === 0) {
-        flightplanPanelLogger.debug('No waypoints to draw');
-        return;
+        flightplanPanelLogger.debug('No missed approach waypoints to draw');
+        return false;
     }
 
-    flightplanPanelLogger.debug('Drawing line with', missedApproachWaypoints.length, 'waypoints');
+    flightplanPanelLogger.debug('Drawing missed approach with', missedApproachWaypoints.length, 'waypoints, animate:', !!animate);
 
     // Finde den letzten ARR-Waypoint (Runway Threshold) als Startpunkt
     var startCoord = null;
@@ -20893,33 +20940,56 @@ function drawMissedApproachLine() {
     }
 
     // Erstelle Koordinaten-Array
-    var coords = [];
+    var allCoords = [];
     if (startCoord) {
-        coords.push(startCoord);
+        allCoords.push(startCoord);
     }
 
     missedApproachWaypoints.forEach(function(wp) {
         if (wp.lat && wp.lng && !isNaN(wp.lat) && !isNaN(wp.lng)) {
-            coords.push([wp.lat, wp.lng]);
+            allCoords.push([wp.lat, wp.lng]);
         }
     });
 
-    if (coords.length < 2) {
-        flightplanPanelLogger.debug('Not enough coordinates to draw line');
-        return;
+    if (allCoords.length < 2) {
+        flightplanPanelLogger.debug('Not enough coordinates for missed approach line');
+        return false;
     }
 
-    // Zeichne Linie in Orange (gestrichelt)
-    missedApproachPolyline = L.polyline(coords, {
-        color: routeColors.goAround,  // GoAround
+    var lineStyle = {
+        color: routeColors.goAround,
         weight: 3,
-        opacity: 0.8,
-        dashArray: '8, 6',     // Gestrichelt
+        opacity: 0.7,
+        dashArray: '8, 6',
         lineCap: 'round',
         lineJoin: 'round'
-    }).addTo(map);
+    };
 
-    flightplanPanelLogger.debug('Line drawn with', coords.length, 'points');
+    if (animate) {
+        // Animierte Zeichnung: Punkt für Punkt mit Verzögerung
+        missedApproachPolyline = L.polyline([allCoords[0]], lineStyle).addTo(map);
+        var pointIndex = 1;
+        var animDelay = 80; // ms zwischen Punkten
+
+        function addNextPoint() {
+            if (pointIndex >= allCoords.length) {
+                flightplanPanelLogger.debug('Missed approach animation complete');
+                return;
+            }
+            if (!missedApproachPolyline) return; // Abgebrochen
+
+            missedApproachPolyline.addLatLng(allCoords[pointIndex]);
+            pointIndex++;
+            setTimeout(addNextPoint, animDelay);
+        }
+        setTimeout(addNextPoint, animDelay);
+    } else {
+        // Sofort zeichnen (kein Animation)
+        missedApproachPolyline = L.polyline(allCoords, lineStyle).addTo(map);
+    }
+
+    flightplanPanelLogger.info('Missed approach line started with', allCoords.length, 'points');
+    return true;
 }
 
 /**
@@ -21377,6 +21447,13 @@ var previewStyle = {
         opacity: 0.7,
         dashArray: '5, 3'
     },
+    // Missed Approach style
+    missedApproach: {
+        color: '#fdbd7a',      // GoAround - Hellorange
+        weight: 3,
+        opacity: 0.6,
+        dashArray: '8, 6'
+    },
     // Visual styles (VFR)
     visualDeparture: {
         color: '#f52929',      // SID - Rot
@@ -21398,12 +21475,12 @@ var alternateApproachPreviewLayer = null;
 
 /**
  * Prüft ob ein Waypoint zum Missed Approach gehört
- * RouteType 3 = Missed Approach (STAR notation)
- * RouteType Z = Missed Approach (Approach notation)
+ * RouteType Z = Missed Approach (ARINC 424 Approach notation)
+ * HINWEIS: RouteType 3 ist STAR Runway Transition, NICHT Missed Approach!
  */
 function isMissedApproachWaypoint(wp) {
     var rt = String(wp.RouteType || wp.routeType || '');
-    return rt === '3' || rt.toUpperCase() === 'Z';
+    return rt.toUpperCase() === 'Z';
 }
 
 /**
@@ -22966,8 +23043,7 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         }
     });
 
-    // STAR FIX v3: OFP-Waypoints ab STAR-Einstieg ERSETZEN (nicht nur markieren)
-    // Analog zur Approach-Injection in rebuildFlightplanWithProcedures()
+    // STAR FIX v4: STAR-Reihenfolge als Template, OFP-Höhen beibehalten
 
     // 1. Sammle alle STAR-Waypoint-Namen
     var starWpNames = {};
@@ -22975,6 +23051,7 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         var name = (wp.Identifier || wp.identifier || '').toUpperCase();
         if (name) starWpNames[name] = true;
     });
+    flightplanPanelLogger.debug('[STAR] Waypoints:', Object.keys(starWpNames).join(', '));
 
     // Destination immer sichern bevor wir den Array verändern
     var destination = flightplanArray.length > 0
@@ -22990,24 +23067,31 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         if (wpType.indexOf('DEP') === 0) continue;
         if (starWpNames[wp.name.toUpperCase()]) {
             starEntryIndex = i;
-            flightplanPanelLogger.debug('STAR entry point found at index', i, ':', wp.name);
             break;
         }
     }
 
-    // 3. Entferne alle OFP-Waypoints ab dem STAR-Einstieg bis zum Ende (außer Destination)
+    // 3. Sammle OFP-Waypoint-Daten VOR dem Entfernen (für Höhen-Übernahme)
+    var ofpWaypointData = {};
+    flightplanArray.forEach(function(wp) {
+        if (wp.name) {
+            ofpWaypointData[wp.name.toUpperCase()] = wp;
+        }
+    });
+
+    // 4. Entferne alles ab STAR-Einstieg (außer Destination)
     var removedNames = [];
     if (starEntryIndex >= 0) {
         for (var i = starEntryIndex; i < flightplanArray.length - 1; i++) {
             removedNames.push(flightplanArray[i].name || '?');
         }
         if (removedNames.length > 0) {
-            flightplanPanelLogger.debug('Removing', removedNames.length, 'OFP waypoints from STAR entry to destination:', removedNames.join(', '));
+            flightplanPanelLogger.debug('[STAR] Removing', removedNames.length, 'OFP waypoints:', removedNames.join(', '));
         }
         flightplanArray = flightplanArray.slice(0, starEntryIndex);
     }
 
-    // 4. Aktualisiere existingNames basierend auf dem verbleibenden Flightplan
+    // 5. Aktualisiere existingNames basierend auf dem verbleibenden Flightplan
     existingNames = {};
     existingRunways = {};
     flightplanArray.forEach(function(wp) {
@@ -23018,32 +23102,28 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         }
     });
 
-    // 5. Erstelle STAR-Einträge aus den sortierten Navigraph-Waypoints
+    // 6. Erstelle STAR-Einträge in STAR-Reihenfolge
+    //    Nutze OFP-Höhen wenn Navigraph keine hat (Altitude1=0)
     var starEntries = [];
-    flightplanPanelLogger.debug('Processing', sortedWaypoints.length, 'STAR waypoints. Remaining flightplan names:', Object.keys(existingNames).join(', '));
     sortedWaypoints.forEach(function(wp) {
         var lat = wp.Latitude || wp.latitude;
         var lon = wp.Longitude || wp.longitude;
         var name = wp.Identifier || wp.identifier || 'STAR';
+        var nameUpper = name.toUpperCase();
 
         // Skip wenn Waypoint bereits im verbleibenden Flightplan existiert
-        if (existingNames[name.toUpperCase()]) {
-            flightplanPanelLogger.debug('Skipping duplicate STAR waypoint:', name);
-            return;
-        }
+        if (existingNames[nameUpper]) return;
 
         // Skip Runway-Waypoints wenn sie bereits existieren
         var rwMatch = name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
-        if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
-            mapLogger.debug('Skipping duplicate runway in STAR:', name);
-            return;
-        }
+        if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) return;
 
         if (!lat || !lon || isNaN(lat) || isNaN(lon) || Math.abs(lat) < 0.001) return;
 
-        var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
-        if (altitude === 0 && rwMatch && arrivalRunwayData && arrivalRunwayData.elevation) {
-            altitude = arrivalRunwayData.elevation;
+        // Navigraph-Höhe
+        var navAltitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
+        if (navAltitude === 0 && rwMatch && arrivalRunwayData && arrivalRunwayData.elevation) {
+            navAltitude = arrivalRunwayData.elevation;
         }
         var altitude2 = wp.Altitude2 || wp.altitude2 || 0;
         var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || '';
@@ -23053,36 +23133,85 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         else if (altConstraint === '@' || altConstraint === 'AT') { atbl = 'AT'; }
         else if (altConstraint === 'J' || altConstraint === 'V') { atbl = 'AB'; }
 
+        // OFP-Höhe übernehmen wenn Navigraph keine hat
+        var finalAltitude = navAltitude;
+        var ofpWp = ofpWaypointData[nameUpper];
+        if (finalAltitude === 0 && ofpWp && ofpWp.altitude && ofpWp.altitude > 0) {
+            finalAltitude = ofpWp.altitude;
+        }
+
         starEntries.push({
             lat: parseFloat(lat),
             lng: parseFloat(lon),
             name: name,
-            altitude: altitude,
+            altitude: finalAltitude,
             altitude2: altitude2,
             atbl: atbl,
             waypointType: 'ARR',
             sourceAtcWaypointType: 'STAR',
             arrivalProcedure: starName || ''
         });
-        existingNames[name.toUpperCase()] = true;
+        existingNames[nameUpper] = true;
     });
 
-    flightplanPanelLogger.debug('STAR entries to inject:', starEntries.length);
+    flightplanPanelLogger.debug('[STAR] Injecting', starEntries.length, 'waypoints');
 
-    // 6. Zusammensetzen: verbleibender Flightplan + STAR-Einträge + Destination
+    // 7. Interpoliere fehlende Höhen für STAR-Waypoints ohne Altitude
+    //    Nutze den letzten Enroute-Waypoint VOR dem STAR als Startpunkt
+    //    und den Destination-Waypoint als Endpunkt
+    if (starEntries.length > 0) {
+        // Starthöhe: letzter Waypoint im verbleibenden Flightplan
+        var startAlt = 0;
+        if (flightplanArray.length > 0) {
+            var lastWp = flightplanArray[flightplanArray.length - 1];
+            startAlt = lastWp.altitude || 0;
+        }
+        // Endhöhe: Destination-Waypoint (Flughafenhöhe)
+        var endAlt = (destination && destination.altitude) || 0;
+
+        // Sammle Indizes mit bekannten und unbekannten Höhen
+        // Füge Start und Ende als virtuelle Ankerpunkte hinzu
+        var altPoints = [{ idx: -1, alt: startAlt }]; // vor starEntries
+        for (var si = 0; si < starEntries.length; si++) {
+            if (starEntries[si].altitude > 0) {
+                altPoints.push({ idx: si, alt: starEntries[si].altitude });
+            }
+        }
+        altPoints.push({ idx: starEntries.length, alt: endAlt }); // nach starEntries
+
+        // Interpoliere zwischen bekannten Punkten
+        for (var ai = 0; ai < altPoints.length - 1; ai++) {
+            var from = altPoints[ai];
+            var to = altPoints[ai + 1];
+            var gap = to.idx - from.idx;
+            if (gap <= 1) continue; // Keine Lücke
+            for (var gi = from.idx + 1; gi < to.idx; gi++) {
+                if (gi < 0 || gi >= starEntries.length) continue;
+                if (starEntries[gi].altitude > 0) continue; // Hat schon Höhe
+                var frac = (gi - from.idx) / gap;
+                var interpAlt = Math.round(from.alt + (to.alt - from.alt) * frac);
+                if (interpAlt > 0) {
+                    starEntries[gi].altitude = interpAlt;
+                    flightplanPanelLogger.debug(starEntries[gi].name, ': interpolated altitude', interpAlt);
+                }
+            }
+        }
+    }
+
+    // 8. Zusammensetzen: verbleibender Flightplan + STAR-Einträge + Destination
     if (starEntries.length > 0) {
         var result = flightplanArray.concat(starEntries);
         if (destination) result.push(destination);
-        flightplanPanelLogger.debug('Final flightplan after STAR injection:', result.length, 'waypoints');
+        flightplanPanelLogger.debug('[STAR] Result:', result.map(function(w) { return w.name; }).join(' → '));
         return result;
     }
 
-    // Kein STAR eingefügt - wenn wir Waypoints entfernt haben, Destination wieder anfügen
+    // Kein STAR eingefügt - Destination wieder anfügen wenn wir Waypoints entfernt haben
     if (starEntryIndex >= 0 && destination) {
         flightplanArray.push(destination);
     }
 
-    flightplanPanelLogger.debug('No STAR entries to inject');
+    flightplanPanelLogger.debug('[STAR] No entries injected');
     return flightplanArray;
 }
 
@@ -25168,13 +25297,27 @@ async function drawApproachPreview(icao, approachName, approachTransition) {
         var sorted = sortProcedureWaypoints(procedureData.Waypoints);
         flightplanPanelLogger.debug('Sorted waypoints:', sorted.length);
 
-        var validWaypoints = sorted.filter(function(wp) {
+        // Separiere normale Approach-Waypoints von Missed Approach (RouteType Z)
+        var separated = separateMissedApproachWaypoints(sorted);
+        flightplanPanelLogger.debug('Normal:', separated.normal.length, 'Missed:', separated.missed.length);
+
+        // Filtere valide Koordinaten für normale Waypoints
+        var validWaypoints = separated.normal.filter(function(wp) {
             var lat = wp.Latitude || wp.latitude;
             var lon = wp.Longitude || wp.longitude;
             return lat !== undefined && lat !== null && !isNaN(lat) && lat !== 0 &&
                    lon !== undefined && lon !== null && !isNaN(lon) && lon !== 0;
         });
-        flightplanPanelLogger.debug('Valid waypoints after filter:', validWaypoints.length);
+
+        // Filtere valide Koordinaten für Missed Approach Waypoints
+        var validMissedWaypoints = separated.missed.filter(function(wp) {
+            var lat = wp.Latitude || wp.latitude;
+            var lon = wp.Longitude || wp.longitude;
+            return lat !== undefined && lat !== null && !isNaN(lat) && lat !== 0 &&
+                   lon !== undefined && lon !== null && !isNaN(lon) && lon !== 0;
+        });
+
+        flightplanPanelLogger.debug('Valid normal:', validWaypoints.length, 'Valid missed:', validMissedWaypoints.length);
 
         // Append runway threshold as final approach point if available
         if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
@@ -25188,8 +25331,8 @@ async function drawApproachPreview(icao, approachName, approachTransition) {
             flightplanPanelLogger.debug('No arrivalRunwayData available');
         }
 
-        if (validWaypoints.length < 2) {
-            flightplanPanelLogger.debug('Less than 2 waypoints, not drawing');
+        if (validWaypoints.length < 2 && validMissedWaypoints.length === 0) {
+            flightplanPanelLogger.debug('Not enough waypoints, not drawing');
             return;
         }
 
@@ -25201,28 +25344,65 @@ async function drawApproachPreview(icao, approachName, approachTransition) {
         // Create layer group
         approachPreviewLayer = L.layerGroup().addTo(map);
 
-        // Create coordinates array
-        var coords = validWaypoints.map(function(wp) {
-            return [wp.Latitude || wp.latitude, wp.Longitude || wp.longitude];
-        });
+        // 1. Draw normal approach polyline (orange)
+        if (validWaypoints.length >= 2) {
+            var coords = validWaypoints.map(function(wp) {
+                return [wp.Latitude || wp.latitude, wp.Longitude || wp.longitude];
+            });
+            L.polyline(coords, previewStyle.approach).addTo(approachPreviewLayer);
 
-        // Draw polyline
-        L.polyline(coords, previewStyle.approach).addTo(approachPreviewLayer);
+            // Add waypoint markers for normal approach
+            validWaypoints.forEach(function(wp) {
+                var lat = wp.Latitude || wp.latitude;
+                var lon = wp.Longitude || wp.longitude;
+                var ident = wp.Identifier || wp.identifier || wp.WaypointIdentifier || '';
 
-        // Add waypoint markers
-        validWaypoints.forEach(function(wp) {
-            var lat = wp.Latitude || wp.latitude;
-            var lon = wp.Longitude || wp.longitude;
-            var ident = wp.Identifier || wp.identifier || wp.WaypointIdentifier || '';
+                L.circleMarker([lat, lon], {
+                    radius: 4,
+                    color: previewStyle.approach.color,
+                    fillColor: previewStyle.approach.color,
+                    fillOpacity: 0.8,
+                    weight: 1
+                }).bindTooltip(ident).addTo(approachPreviewLayer);
+            });
+        }
 
-            L.circleMarker([lat, lon], {
-                radius: 4,
-                color: previewStyle.approach.color,
-                fillColor: previewStyle.approach.color,
-                fillOpacity: 0.8,
-                weight: 1
-            }).bindTooltip(ident).addTo(approachPreviewLayer);
-        });
+        // 2. Draw Missed Approach polyline (hellorange, transparent)
+        if (validMissedWaypoints.length > 0) {
+            var missedCoords = [];
+
+            // Startpunkt: Runway Threshold oder letzter normaler Waypoint
+            if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
+                missedCoords.push([arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon]);
+            } else if (validWaypoints.length > 0) {
+                var lastNormal = validWaypoints[validWaypoints.length - 1];
+                missedCoords.push([lastNormal.Latitude || lastNormal.latitude, lastNormal.Longitude || lastNormal.longitude]);
+            }
+
+            validMissedWaypoints.forEach(function(wp) {
+                missedCoords.push([wp.Latitude || wp.latitude, wp.Longitude || wp.longitude]);
+            });
+
+            if (missedCoords.length >= 2) {
+                L.polyline(missedCoords, previewStyle.missedApproach).addTo(approachPreviewLayer);
+
+                // Add waypoint markers for missed approach (in GoAround-Farbe)
+                validMissedWaypoints.forEach(function(wp) {
+                    var lat = wp.Latitude || wp.latitude;
+                    var lon = wp.Longitude || wp.longitude;
+                    var ident = wp.Identifier || wp.identifier || wp.WaypointIdentifier || '';
+
+                    L.circleMarker([lat, lon], {
+                        radius: 3,
+                        color: previewStyle.missedApproach.color,
+                        fillColor: previewStyle.missedApproach.color,
+                        fillOpacity: 0.5,
+                        weight: 1
+                    }).bindTooltip('MA: ' + ident).addTo(approachPreviewLayer);
+                });
+            }
+            flightplanPanelLogger.debug('Drew missed approach preview with', missedCoords.length, 'points');
+        }
     } catch (err) {
         flightplanPanelLogger.error('Error drawing Approach preview:', err);
     }
@@ -25341,7 +25521,9 @@ async function drawAlternateApproachPreview(icao, approachName) {
 
         var sorted = sortProcedureWaypoints(procedureData.Waypoints);
 
-        var validWaypoints = sorted.filter(function(wp) {
+        // Missed Approach Waypoints rausfiltern (Alternate braucht keine MA-Anzeige)
+        var separated = separateMissedApproachWaypoints(sorted);
+        var validWaypoints = separated.normal.filter(function(wp) {
             var lat = wp.Latitude || wp.latitude;
             var lon = wp.Longitude || wp.longitude;
             return lat !== undefined && lat !== null && !isNaN(lat) && lat !== 0 &&
@@ -25475,17 +25657,38 @@ async function integrateApproachIntoFlightpath(icao, approachName, approachTrans
         approachWaypointsForFlightpath = validWaypoints;
 
         // Missed Approach Waypoints separat speichern
+        // Waypoints ohne Koordinaten (CA/VA PathTerminator) bekommen synthetische Position
         missedApproachWaypoints = separated.missed.map(function(wp) {
-            return {
-                lat: parseFloat(wp.Latitude || wp.latitude),
-                lng: parseFloat(wp.Longitude || wp.longitude),
-                name: wp.Identifier || wp.identifier || wp.Name || wp.name || 'MISSED',
-                altitude: wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0
-            };
+            var lat = parseFloat(wp.Latitude || wp.latitude) || 0;
+            var lng = parseFloat(wp.Longitude || wp.longitude) || 0;
+            var name = wp.Identifier || wp.identifier || wp.Name || wp.name || 'MISSED';
+            var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
+
+            // Synthetische Position fuer koordinatenlose MA-Waypoints (CA/VA/VI Legs)
+            if (Math.abs(lat) < 0.001 && Math.abs(lng) < 0.001) {
+                if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
+                    var course = wp.Course || wp.course;
+                    var heading = course || (arrivalRunwayData.heading) || 0;
+                    var distNm = 3;
+                    if (altitude > 0) {
+                        // Grobe Schaetzung: ~300ft/nm Steigrate
+                        distNm = Math.max(2, Math.min(8, altitude / 300));
+                    }
+                    var synth = calculatePointFromHeading(
+                        arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon,
+                        heading, distNm
+                    );
+                    lat = synth.lat;
+                    lng = synth.lon;
+                    flightplanPanelLogger.debug('Synthesized MA position for', name, 'hdg=' + heading, 'dist=' + distNm.toFixed(1) + 'nm');
+                }
+            }
+
+            return { lat: lat, lng: lng, name: name, altitude: altitude };
         }).filter(function(wp) {
-            return wp.lat && wp.lng && !isNaN(wp.lat) && !isNaN(wp.lng);
+            return !isNaN(wp.lat) && !isNaN(wp.lng) && (wp.lat !== 0 || wp.lng !== 0);
         });
-        flightplanPanelLogger.debug('Stored', missedApproachWaypoints.length, 'missed approach waypoints');
+        flightplanPanelLogger.info('Stored', missedApproachWaypoints.length, 'missed approach waypoints (from', separated.missed.length, 'total)');
 
         // NOTE: Waypoints will be injected into flightplan in processFlightplanMessage BEFORE animation
         // No need to update polyline afterwards - it's drawn correctly from the start
@@ -25634,7 +25837,7 @@ async function rebuildFlightplanWithProcedures() {
             // Sortiere Waypoints nach RouteType und SequenceNumber
             var sortedWaypoints = sortProcedureWaypoints(approachWaypoints);
 
-            // Trenne normale Approach-Waypoints von Missed Approach (RouteType 3 oder Z)
+            // Trenne normale Approach-Waypoints von Missed Approach (RouteType Z)
             var separated = separateMissedApproachWaypoints(sortedWaypoints);
             flightplanPanelLogger.debug('Sorted approach waypoints:', sortedWaypoints.length, '(normal:', separated.normal.length, ', missed:', separated.missed.length, ')');
 
@@ -25715,18 +25918,37 @@ async function rebuildFlightplanWithProcedures() {
                 flightplanPanelLogger.debug('Added', approachEntries.length, 'approach waypoints at index', insertIndex);
             }
 
-            // Missed Approach Waypoints separat speichern (für separate Linie)
+            // Missed Approach Waypoints separat speichern (fuer separate Linie)
+            // Waypoints ohne Koordinaten (CA/VA PathTerminator) bekommen synthetische Position
             missedApproachWaypoints = separated.missed.map(function(wp) {
-                return {
-                    lat: parseFloat(wp.Latitude || wp.latitude),
-                    lng: parseFloat(wp.Longitude || wp.longitude),
-                    name: wp.Identifier || wp.identifier || wp.Name || wp.name || 'MISSED',
-                    altitude: wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0
-                };
+                var lat = parseFloat(wp.Latitude || wp.latitude) || 0;
+                var lng = parseFloat(wp.Longitude || wp.longitude) || 0;
+                var name = wp.Identifier || wp.identifier || wp.Name || wp.name || 'MISSED';
+                var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
+
+                // Synthetische Position fuer koordinatenlose MA-Waypoints
+                if (Math.abs(lat) < 0.001 && Math.abs(lng) < 0.001) {
+                    if (arrivalRunwayData && arrivalRunwayData.thresholdLat && arrivalRunwayData.thresholdLon) {
+                        var course = wp.Course || wp.course;
+                        var heading = course || (arrivalRunwayData.heading) || 0;
+                        var distNm = 3;
+                        if (altitude > 0) {
+                            distNm = Math.max(2, Math.min(8, altitude / 300));
+                        }
+                        var synth = calculatePointFromHeading(
+                            arrivalRunwayData.thresholdLat, arrivalRunwayData.thresholdLon,
+                            heading, distNm
+                        );
+                        lat = synth.lat;
+                        lng = synth.lon;
+                    }
+                }
+
+                return { lat: lat, lng: lng, name: name, altitude: altitude };
             }).filter(function(wp) {
-                return wp.lat && wp.lng && !isNaN(wp.lat) && !isNaN(wp.lng);
+                return !isNaN(wp.lat) && !isNaN(wp.lng) && (wp.lat !== 0 || wp.lng !== 0);
             });
-            flightplanPanelLogger.debug('Stored', missedApproachWaypoints.length, 'missed approach waypoints');
+            flightplanPanelLogger.info('Stored', missedApproachWaypoints.length, 'missed approach waypoints (from', separated.missed.length, 'total)');
         } else {
             missedApproachWaypoints = [];
         }
@@ -26410,10 +26632,12 @@ function setWaypoints(flightplanData) {
       drawLines();
       mapLogger.debug('Waypoint list and polylines updated via drawLines()');
 
-      // Draw missed approach line if waypoints are available
+      // Draw missed approach line if waypoints are available (animated after main animation)
       if (typeof drawMissedApproachLine === 'function') {
-        drawMissedApproachLine();
-        mapLogger.debug('Missed approach line drawn');
+        var maDrawn = drawMissedApproachLine(true);
+        if (maDrawn) {
+          mapLogger.info('Missed approach line drawn (animated)');
+        }
       }
     } catch (e) {
       mapLogger.error('Error updating waypoint list:', e);
@@ -29681,8 +29905,6 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       }, { passive: false });
     }
 
-    // Debug-Log
-    mapLogger.debug('Resize handle setup for:', config.element.id, 'Handle found:', !!config.handle);
   }
 
   var initialized = false;
@@ -29722,8 +29944,6 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     var controllerFound = !!configs.controller.element && !!configs.controller.handle;
     var metarFound = !!configs.metar.element && !!configs.metar.handle;
     var elevationProfileFound = !!configs.elevationProfile.element && !!configs.elevationProfile.handle;
-
-    mapLogger.debug('Resize check - Overlay:', overlayFound, 'Controller:', controllerFound, 'Metar:', metarFound, 'ElevationProfile:', elevationProfileFound);
 
     // Wenn mindestens einer gefunden, als initialisiert markieren
     if (overlayFound || controllerFound || metarFound || elevationProfileFound) {
@@ -29853,7 +30073,6 @@ function updateAircraftPositionOnRoute(lat, lng, alt) {
   // if (MAP_DEBUG) console.log('[Map] waypointLayers.length:', waypointLayers.length);
   if (waypointLayers.length < 2) {
     aircraftPositionOnRoute = null;
-    mapLogger.debug('Not enough waypoints, setting aircraftPositionOnRoute to null');
     return;
   }
 
@@ -30925,8 +31144,6 @@ function drawWaypointProfile(ctx, waypointData, xScale, yScale, zoomScale) {
       waypointIndex: layerIdx
     });
 
-    mapLogger.debug('Added click area for waypoint', i, '- layerIdx:', layerIdx, 'position:', x, y, 'name:', wp.name);
-
     // Check if this is the active/target waypoint (targetMarker can be string or number)
     var isActiveWaypoint = (parseInt(targetMarker) >= 0 && parseInt(targetMarker) === layerIdx);
     var waypointColor = isActiveWaypoint ? '#ff0000' : colorDark;
@@ -31238,12 +31455,8 @@ function drawElevationProfile(groundElevations, waypointData, distances, retryCo
     drawWaypointProfile(elevationCtx, waypointData, xScaleFlightPath, yScale, elevationZoom.scale);
 
     // Draw aircraft position if available and startline is active
-    mapLogger.debug('Checking aircraft position - aircraftPositionOnRoute:', aircraftPositionOnRoute, 'startlineShow:', startlineShow);
     if (aircraftPositionOnRoute !== null && aircraftPositionOnRoute !== undefined) {
-      mapLogger.debug('Drawing aircraft position on elevation profile');
       drawAircraftPosition(elevationCtx, aircraftPositionOnRoute, xScaleFlightPath, yScale, dimensions, stats, groundElevations, distances);
-    } else {
-      mapLogger.debug('NOT drawing aircraft position - aircraftPositionOnRoute null?:', aircraftPositionOnRoute === null, 'startlineShow false?:', startlineShow === false);
     }
 
     // Draw zoom indicator
@@ -32133,7 +32346,6 @@ var updateElevationProfile = scheduleElevationUpdate;
       map.on('moveend', function() {
         // Don't autosave position if no flightplan (aircraft should stay centered)
         if (typeof flightplan === 'undefined' || !flightplan || flightplan.length === 0) {
-          mapLogger.debug('Skipping autosave - no flightplan (aircraft tracking mode)');
           return;
         }
         scheduleAutosave();

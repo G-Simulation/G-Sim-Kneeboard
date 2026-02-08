@@ -251,6 +251,14 @@ namespace Kneeboard_Server.Navigraph
         // ARINC 424 fields for transition filtering
         public string RouteType { get; set; }  // ARINC 424 route_type (1-6)
         public string TransitionIdentifier { get; set; }  // transition_identifier from database
+
+        // Recommended Navaid (reference point for CD/CA legs)
+        public string RecommendedNavaid { get; set; }
+        public double? RecommendedNavaidLatitude { get; set; }
+        public double? RecommendedNavaidLongitude { get; set; }
+
+        // ARINC 424 waypoint description code
+        public string WaypointDescriptionCode { get; set; }
     }
 
     /// <summary>
