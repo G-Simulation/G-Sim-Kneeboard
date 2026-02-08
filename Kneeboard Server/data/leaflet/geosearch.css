@@ -255,15 +255,5 @@
 .leaflet-geosearch-bar form,
 .leaflet-control-geosearch form,
 .leaflet-control-geosearch.active form {
-  position: absolute !important;
-  width: 0 !important;
-  height: 0 !important;
-  overflow: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: none !important;
-  display: block !important;
-  visibility: hidden !important;
+  display: none !important;
 }

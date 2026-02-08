@@ -2770,7 +2770,6 @@ function showFlightplanPanel() {
   wpListMinimized = false;
   var wpMinBtn = document.getElementById("wpListMinimize");
   if (wpMinBtn) wpMinBtn.innerHTML = "_";
-  var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "72px";
 }
 
 function showDepartureSection(icao, name) {
@@ -6109,8 +6108,6 @@ function initMapPage() {
     _imgAP.style.transform = "rotate(" + Math.round(-45) + "deg)  scale(" + aircraftScale + ")";
     _imgAP.style.fill = colorLight;
   }
-  var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "0px";
-
   if (!mapDomListenersBound) {
     // Buttons/Eingabefelder nur, wenn sie da sind
     // Note: METAR button (toggle12) has onClick handler in its definition, no need to add here
@@ -12758,7 +12755,7 @@ function initializeMapWithLayers(layers) {
       var input = document.createElement('input');
       input.type = 'text';
       input.placeholder = 'Enter address';
-      input.className = 'search-inline-input';
+      input.className = 'search-inline-input use-keyboard-input';
       searchInputWrapper.appendChild(input);
 
       var resultsDiv = document.createElement('div');
@@ -12768,6 +12765,10 @@ function initializeMapWithLayers(layers) {
       L.DomEvent.disableClickPropagation(searchInputWrapper);
       L.DomEvent.disableScrollPropagation(searchInputWrapper);
 
+      // Alle Events stoppen damit der easyButton nicht ausgeloest wird
+      searchInputWrapper.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+      searchInputWrapper.addEventListener('touchstart', function(e) { e.stopPropagation(); });
+
       // Debounced search on input
       input.addEventListener('input', function() {
         var query = input.value;
@@ -12775,6 +12776,7 @@ function initializeMapWithLayers(layers) {
         if (!query || query.length < 2) {
           resultsDiv.innerHTML = '';
           resultsDiv.style.display = 'none';
+          searchInputWrapper.classList.remove('has-results');
           return;
         }
         searchDebounceTimer = setTimeout(function() {
@@ -12782,9 +12784,11 @@ function initializeMapWithLayers(layers) {
             resultsDiv.innerHTML = '';
             if (!results || results.length === 0) {
               resultsDiv.style.display = 'none';
+              searchInputWrapper.classList.remove('has-results');
               return;
             }
             resultsDiv.style.display = 'block';
+            searchInputWrapper.classList.add('has-results');
             for (var i = 0; i < results.length; i++) {
               (function(result) {
                 var item = document.createElement('div');
@@ -12845,7 +12849,17 @@ function initializeMapWithLayers(layers) {
     btnContainer.appendChild(searchInputWrapper);
     btnContainer.classList.add('search-expanded');
 
-    if (inp) inp.focus();
+    if (inp) {
+      setTimeout(function() {
+        inp.focus();
+        if (window.Keyboard && typeof Keyboard.open === 'function') {
+          Keyboard.open(inp.value, function(currentValue) {
+            inp.value = currentValue;
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+          }, inp);
+        }
+      }, 100);
+    }
   }
 
   function closeSearchInButton() {
@@ -12873,8 +12887,9 @@ function initializeMapWithLayers(layers) {
       title: 'Open search',
       onClick: function(btn, map) {
         openSearchInButton();
-        searchButtonActive = true;
         btn.state('search-open');
+        // Delay damit der aktuelle Click-Zyklus nicht sofort wieder schliesst
+        setTimeout(function() { searchButtonActive = true; }, 200);
       }
     }, {
       stateName: 'search-open',
@@ -12897,15 +12912,25 @@ function initializeMapWithLayers(layers) {
     var btnEl = document.querySelector('#searchButton');
     if (btnEl && btnEl.contains(target)) return;
 
-    // Don't close if clicking on a Leaflet popup
+    // Don't close if clicking on the virtual keyboard
     var el = target;
     while (el) {
+      if (el.classList && (el.classList.contains('keyboard') || el.classList.contains('keyboard__keys'))) return;
       if (el.classList && el.classList.contains('leaflet-popup')) return;
       el = el.parentElement;
     }
 
     closeSearchInButton();
   }, true);
+
+  // Keyboard Close-Button schliesst auch die Searchbar
+  addTrackedEventListener(document, 'click', function(e) {
+    if (!searchButtonActive) return;
+    var target = e.target;
+    if (target && target.classList && target.classList.contains('keyboard__key--dark') && target.textContent === 'Close') {
+      closeSearchInButton();
+    }
+  });
 
   var openAipWasActive = false; // Track the state of OpenAIP layer
 
@@ -13183,7 +13208,6 @@ function initializeMapWithLayers(layers) {
         wpListMinimized = false;
         var wpMinBtn = document.getElementById("wpListMinimize");
         if (wpMinBtn) wpMinBtn.innerHTML = "_";
-        var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "72px";
         var forcedName =
           isSynthetic && typeof e.setName === "string" ? e.setName : "";
         var forcedType =
@@ -13869,7 +13893,6 @@ function setupWaypointEventHandlers(waypointLayers) {
           redrawElevationCanvas();
         }
 
-        var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "72px";
         markerFunction(clickedId);
       } else {
         targetEl.style.color = "";
@@ -13880,7 +13903,6 @@ function setupWaypointEventHandlers(waypointLayers) {
 
         startlineShow = false;
         localStorage.setItem("targetMarker", -2);
-        var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "-2px";
         targetMarker = -2;
 
         if (elevationProfileVisible && cachedElevationData.groundElevations) {
@@ -19007,7 +19029,6 @@ function hideWpList() {
   // Banner visibility now controlled by SimConnect status only
   DOM.overlay.style.visibility = "hidden";
   DOM.overlayList.style.visibility = "hidden";
-  var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "0px";
 }
 
 function showWpList(force) {
@@ -19068,8 +19089,6 @@ function showWpList(force) {
     wpListMinimized = false;
     var wpMinBtn = document.getElementById("wpListMinimize");
     if (wpMinBtn) wpMinBtn.innerHTML = "_";
-    var _gsb = document.querySelector(".leaflet-geosearch-bar"); if (_gsb) _gsb.style.top = "72px";
-
     mapLogger.debug('Waypoint list shown - wpListOn:', wpListOn);
   } else {
     mapLogger.debug('showWpList - activeCount < 1, not showing panel');

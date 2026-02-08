@@ -1373,77 +1373,57 @@ p {
     display: none !important;
 }
 
-/* Geosearch-Control KOMPLETT verstecken (wird durch eigenes Input im EasyButton ersetzt) */
+/* Geosearch-Control KOMPLETT verstecken */
 .leaflet-control-geosearch,
 .leaflet-geosearch-bar,
 .leaflet-geosearch-bar form,
-.leaflet-control-geosearch form {
-    position: absolute !important;
-    width: 0 !important;
-    height: 0 !important;
-    overflow: hidden !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-}
-
-/* Input-Feld responsive */
-.leaflet-control-geosearch form input {
-    width: 100%;
-    min-width: 150px;
-}
-
-/* KEIN display: none mehr - wird nur via JavaScript gesteuert! */
-
-/* Close-Button (X) in Suchleiste verstecken - wird nur über SEARCH Button geschlossen */
-.leaflet-control-geosearch a.reset {
+.leaflet-control-geosearch form,
+.leaflet-control-geosearch a.reset,
+.leaflet-control-geosearch .results {
     display: none !important;
 }
 
 /* ===== Search Button - Expanded State ===== */
 
-/* Expanded: position absolute so it floats OVER other buttons */
-#searchButton.search-expanded {
-    position: absolute !important;
-    z-index: 1000 !important;
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: stretch !important;
-    width: min(400px, 50vw) !important;
-    border-radius: 4px !important;
+#searchButton {
+    position: relative !important;
     overflow: visible !important;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.4) !important;
 }
 
+/* Icon-Button: transparent, ueber dem Wrapper */
 #searchButton.search-expanded button.easy-button-button {
-    flex: 0 0 7vmin !important;
-    width: 7vmin !important;
-    min-width: 7vmin !important;
-    max-width: 7vmin !important;
-    overflow: hidden !important;
-    border-right: 1px solid #ddd !important;
-    border-radius: 4px 0 0 4px !important;
-    border-bottom: none !important;
+    position: relative !important;
+    z-index: 1001 !important;
+    background: transparent !important;
+    border: none !important;
 }
 
 #searchButton.search-expanded .backButton {
     display: none !important;
 }
 
-/* Input wrapper neben dem Icon-Button */
+/* Wrapper: Overlay ab left:0, EIN weisser Kasten */
 .search-input-wrapper {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: min(350px, 45vw) !important;
+    height: 7vmin !important;
     display: flex !important;
     align-items: center !important;
-    flex: 1 1 auto !important;
-    min-width: 0 !important;
-    height: 7vmin !important;
     background: #fff !important;
-    border-radius: 0 4px 4px 0 !important;
+    border: 1px solid #ccc !important;
+    border-radius: 4px !important;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.3) !important;
+    padding-left: 7vmin !important;
+    padding-right: 8px !important;
+    z-index: 1000 !important;
     overflow: visible !important;
-    position: relative !important;
-    padding: 0 8px !important;
+}
+
+/* Mit Ergebnissen: unten rechts keine Rundung */
+.search-input-wrapper.has-results {
+    border-radius: 4px 4px 4px 0 !important;
 }
 
 /* Eigenes Input-Feld */
@@ -1461,19 +1441,18 @@ p {
     margin: 0 !important;
 }
 
-/* Eigene Ergebnis-Liste */
+/* Ergebnis-Liste unter dem Input-Bereich */
 .search-inline-results {
     display: none;
     position: absolute !important;
-    top: 100% !important;
-    left: 0 !important;
+    top: 7vmin !important;
+    left: 7vmin !important;
     right: 0 !important;
-    min-width: 200px !important;
     background: white !important;
     border: 1px solid #ccc !important;
-    border-top: none !important;
+    border-top: 1px solid #eee !important;
     border-radius: 0 0 4px 4px !important;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.3) !important;
     max-height: 300px !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
@@ -1498,34 +1477,6 @@ p {
 }
 
 /* ===== Ende Search Button Expanded ===== */
-
-/* Suchergebnis-Container - positioniert direkt unter dem Suchfeld */
-.leaflet-control-geosearch .results {
-    position: fixed !important;
-    width: 250px !important;
-    min-width: 250px !important;
-    max-width: 250px !important;
-    background: white !important;
-    border: 1px solid #ccc !important;
-    border-top: none !important;
-    border-radius: 0 0 4px 4px !important;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
-    max-height: 300px !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    z-index: 10001 !important;
-    padding: 0 !important;
-}
-
-/* Suchergebnis Items linksbündig */
-.leaflet-control-geosearch .results > * {
-    text-align: left !important;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-}
 
 input .glass {
     font-family: "Roboto-Light";
