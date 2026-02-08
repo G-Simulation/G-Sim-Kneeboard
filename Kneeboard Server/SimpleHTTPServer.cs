@@ -56,8 +56,13 @@ namespace Kneeboard_Server
             Timeout = TimeSpan.FromSeconds(15)
         };
 
-        // Source-Verzeichnis: Statische Daten (data\) liegen neben der exe
+        // Source-Verzeichnis: Im Debug-Modus Projekt-Root (3 Ebenen hoch), sonst neben der exe
+#if DEBUG
+        private static readonly string SOURCE_DIR = Path.GetFullPath(
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\'), @"..\..\.."));
+#else
         private static readonly string SOURCE_DIR = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+#endif
 
         // Cache-Verzeichnis: %LOCALAPPDATA% statt ProgramData (Schreibrechte ohne Admin)
         private static readonly string CACHE_BASE_DIR = Path.Combine(
@@ -7787,6 +7792,7 @@ namespace Kneeboard_Server
                         string ext = Path.GetExtension(filePath).ToLowerInvariant();
                         if (ext == ".html" || ext == ".htm" || ext == ".css" || ext == ".js" || ext == ".json" || ext == ".xml" || ext == ".txt" || ext == ".svg")
                         {
+                            ctx.Response.Headers["Cache-Control"] = "no-store, must-revalidate";
                             string textContent = Encoding.UTF8.GetString(fileContent);
                             await ctx.SendStringAsync(textContent, contentType, Encoding.UTF8);
                         }

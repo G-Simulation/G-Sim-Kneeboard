@@ -1680,17 +1680,14 @@ namespace Kneeboard_Server
 
         private void KneeboardServer_Load(object sender, EventArgs e)
         {
-            // Pfad ermitteln: installierte Version hat data\ direkt neben der exe,
-            // Entwicklungsmodus geht von bin\x64\Debug 3 Ebenen hoch zum Projekt-Root
+            // Pfad ermitteln: Debug nutzt IMMER Source-Ordner (JS/CSS sofort sichtbar ohne Rebuild).
+            // Release nutzt exe-Verzeichnis (installierte Version).
             string baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
-            if (Directory.Exists(Path.Combine(baseDir, "data")))
-            {
-                folderpath = baseDir;
-            }
-            else
-            {
-                folderpath = Path.GetFullPath(Path.Combine(baseDir, @"..\..\.."));
-            }
+#if DEBUG
+            folderpath = Path.GetFullPath(Path.Combine(baseDir, @"..\..\.."));
+#else
+            folderpath = baseDir;
+#endif
             KneeboardLogger.Server($"Data directory: {folderpath}\\data");
 
             KneeboardLogger.Initialize(consoleOutput: true, fileOutput: true, minLevel: KneeboardLogger.Level.INFO);

@@ -383,17 +383,14 @@ label {
     min-width: 200px;
     width: 100%;
     background-color: white;
-    height: 100% !important;
+    height: 100%;
     outline: none;
     border: none;
     margin: 0;
-    padding: 0;
+    padding: 0 8px 0 12px;
     font-family: "Roboto-Light" !important;
-    font-size: 12px;
-    height: 26px;
-    border: none;
-    border-radius: 0 4px 4px 0;
-    text-indent: 20px !important;
+    font-size: 3vmin;
+    border-radius: 4px;
 }
 
 .results.active {
@@ -492,11 +489,6 @@ button.getMetar i {
 
 .leaflet-touch:hover .leaflet-control-geosearch a.reset:hover {
     color: dimgray;
-}
-
-.leaflet-control-geosearch form input {
-    background-color: white;
-    height: 30px;
 }
 
 .leaflet-popup-content p {
@@ -1381,21 +1373,20 @@ p {
     display: none !important;
 }
 
-/* Formular - NUR Basis-Styles, display wird KOMPLETT via JavaScript gesteuert */
+/* Geosearch-Control KOMPLETT verstecken (wird durch eigenes Input im EasyButton ersetzt) */
+.leaflet-control-geosearch,
+.leaflet-geosearch-bar,
+.leaflet-geosearch-bar form,
 .leaflet-control-geosearch form {
-    display: none;
-    position: fixed;
-    border-radius: 0 4px 4px 0;
-    background-color: #fff;
-    z-index: 10000;
-    height: 7vmin;
-    margin: 0;
-    padding: 0 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    font-family: "Roboto-Light";
-    pointer-events: auto;
-    min-width: 200px;
-    max-width: min(400px, 40vw);
+    position: absolute !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
 }
 
 /* Input-Feld responsive */
@@ -1410,6 +1401,103 @@ p {
 .leaflet-control-geosearch a.reset {
     display: none !important;
 }
+
+/* ===== Search Button - Expanded State ===== */
+
+/* Expanded: position absolute so it floats OVER other buttons */
+#searchButton.search-expanded {
+    position: absolute !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    width: min(400px, 50vw) !important;
+    border-radius: 4px !important;
+    overflow: visible !important;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.4) !important;
+}
+
+#searchButton.search-expanded button.easy-button-button {
+    flex: 0 0 7vmin !important;
+    width: 7vmin !important;
+    min-width: 7vmin !important;
+    max-width: 7vmin !important;
+    overflow: hidden !important;
+    border-right: 1px solid #ddd !important;
+    border-radius: 4px 0 0 4px !important;
+    border-bottom: none !important;
+}
+
+#searchButton.search-expanded .backButton {
+    display: none !important;
+}
+
+/* Input wrapper neben dem Icon-Button */
+.search-input-wrapper {
+    display: flex !important;
+    align-items: center !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    height: 7vmin !important;
+    background: #fff !important;
+    border-radius: 0 4px 4px 0 !important;
+    overflow: visible !important;
+    position: relative !important;
+    padding: 0 8px !important;
+}
+
+/* Eigenes Input-Feld */
+.search-inline-input {
+    display: block !important;
+    width: 100% !important;
+    height: 5vmin !important;
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+    font-family: "Roboto-Light" !important;
+    font-size: 2vmin !important;
+    padding: 0 4px !important;
+    color: #333 !important;
+    margin: 0 !important;
+}
+
+/* Eigene Ergebnis-Liste */
+.search-inline-results {
+    display: none;
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    min-width: 200px !important;
+    background: white !important;
+    border: 1px solid #ccc !important;
+    border-top: none !important;
+    border-radius: 0 0 4px 4px !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+    max-height: 300px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    z-index: 10001 !important;
+    padding: 0 !important;
+}
+
+.search-result-item {
+    padding: 6px 8px !important;
+    cursor: pointer !important;
+    font-family: "Roboto-Light" !important;
+    font-size: 1.8vmin !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.4 !important;
+    border-bottom: 1px solid #eee !important;
+}
+
+.search-result-item:hover {
+    background-color: #f0f0f0 !important;
+}
+
+/* ===== Ende Search Button Expanded ===== */
 
 /* Suchergebnis-Container - positioniert direkt unter dem Suchfeld */
 .leaflet-control-geosearch .results {

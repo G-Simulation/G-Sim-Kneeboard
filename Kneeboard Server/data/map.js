@@ -1,5 +1,22 @@
+// Polyfill für Element.closest() - Coherent GT unterstützt dies nicht
+if (!Element.prototype.matches) {
+  Element.prototype.matches =
+    Element.prototype.msMatchesSelector ||
+    Element.prototype.webkitMatchesSelector;
+}
+if (!Element.prototype.closest) {
+  Element.prototype.closest = function(selector) {
+    var el = this;
+    while (el && el.nodeType === 1) {
+      if (el.matches(selector)) return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
+}
+
 // VERSION MARKER - Wird beim Laden der Datei geloggt um Cache-Probleme zu erkennen
-var MAP_JS_VERSION = "2026-02-03-v7.15-sid-star-fix";
+var MAP_JS_VERSION = "2026-02-08-v7.41-kill-geosearch";
 
 // ============================================================================
 // FLIGHTPLAN PANEL STYLING - Now handled entirely via map.css
@@ -2660,6 +2677,14 @@ function setWaypointAsStart(lat, lng, icao, fullName) {
   var savedIcao = icao || tempWPIcao;
   var savedFullName = fullName || tempWPFullName;
 
+  // Bestehenden DEP-Waypoint entfernen falls vorhanden
+  for (var i = wpTypes.length - 1; i >= 0; i--) {
+    if (wpTypes[i] === 'DEP') {
+      deleteWaypointByIndex(i);
+      break;
+    }
+  }
+
   // Füge neuen Start an Position 0 ein mit waypointType "DEP"
   insertWaypointAtIndex(lat, lng, 0, activePopup, 'DEP');
 
@@ -2679,6 +2704,14 @@ function setWaypointAsDestination(lat, lng, icao, fullName) {
   // Verwende übergebene Werte oder fallback auf temp-Werte
   var savedIcao = icao || tempWPIcao;
   var savedFullName = fullName || tempWPFullName;
+
+  // Bestehenden ARR-Waypoint entfernen falls vorhanden
+  for (var i = wpTypes.length - 1; i >= 0; i--) {
+    if (wpTypes[i] === 'ARR') {
+      deleteWaypointByIndex(i);
+      break;
+    }
+  }
 
   // Füge neues Ziel am Ende ein mit waypointType "ARR"
   insertWaypointAtIndex(lat, lng, wpNames.length, activePopup, 'ARR');
@@ -2983,7 +3016,12 @@ function deleteWaypointByIndex(index) {
     map.removeLayer(layers[index]);
   }
 
-  // Arrays bereinigen
+  // waypointsData aktualisieren (muss VOR Legacy-Arrays passieren)
+  if (waypointsData && waypointsData.length > index) {
+    waypointsData.splice(index, 1);
+  }
+
+  // Legacy-Arrays bereinigen
   wpNames.splice(index, 1);
   wpTypes.splice(index, 1);
   altitudes.splice(index, 1);
@@ -5577,6 +5615,11 @@ function closeSearchUi(options) {
         searchControl.markers.clearLayers();
       } catch (e) {}
     }
+  }
+
+  // Collapse the inline search bar back into just the button
+  if (typeof closeSearchInButton === 'function') {
+    closeSearchInButton();
   }
 
   // Close keyboard if requested and available
@@ -12692,42 +12735,134 @@ function initializeMapWithLayers(layers) {
 
   // ============================================================================
 
-  GeoSearchControl = window.GeoSearch.GeoSearchControl;
-  AlgoliaProvider = window.GeoSearch.AlgoliaProvider;
+  // Nur den Provider initialisieren - KEIN GeoSearchControl mehr (der erzeugt die sichtbare Suchleiste)
   provider = new GeoSearch.OpenStreetMapProvider();
 
-  //  Define search controls (hidden, controlled by easyButton)
-  searchControl = new GeoSearchControl({
-    provider: provider,
-    autoComplete: true,
-    autoCompleteDelay: 250,
-    style: "bar",
-    id: "search",
-    position: "topleft",
-    showMarker: true,
-    showPopup: true,
-    popupFormat: ({ query, result }) => createGeoSearchTeleportPopupHtml(result.label, altitude, heading, speed),
-    resultFormat: ({ result }) => (result && result.label ? result.label : ""),
-    autoClose: true,
-    keepResult: false,
-    retainZoomLevel: true,
-    animateZoom: true,
-    updateMap: true,
-    marker: {
-      draggable: true,
-    },
-  });
+  // searchControl als einfaches Objekt mit markers Layer (für Kompatibilität mit bestehendem Code)
+  var searchMarkersLayer = L.layerGroup().addTo(map);
+  searchControl = { markers: searchMarkersLayer, _keepResultActive: false };
 
-  // Add searchbar to the map
-  map.addControl(searchControl);
+  // === Custom Search UI (eigenes Input im Button, Provider direkt) ===
+  var searchInputWrapper = null;
+  var searchDebounceTimer = null;
 
-  // Hide the search bar initially
-  var searchContainer = searchControl.getContainer ? searchControl.getContainer() : document.querySelector('.leaflet-control-geosearch');
-  if (searchContainer) {
-    searchContainer.style.display = 'none';
+  function openSearchInButton() {
+    var btnContainer = document.querySelector('#searchButton');
+    if (!btnContainer) return;
+
+    // Create wrapper with input and results dropdown
+    if (!searchInputWrapper) {
+      searchInputWrapper = document.createElement('div');
+      searchInputWrapper.className = 'search-input-wrapper';
+
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Enter address';
+      input.className = 'search-inline-input';
+      searchInputWrapper.appendChild(input);
+
+      var resultsDiv = document.createElement('div');
+      resultsDiv.className = 'search-inline-results';
+      searchInputWrapper.appendChild(resultsDiv);
+
+      L.DomEvent.disableClickPropagation(searchInputWrapper);
+      L.DomEvent.disableScrollPropagation(searchInputWrapper);
+
+      // Debounced search on input
+      input.addEventListener('input', function() {
+        var query = input.value;
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+        if (!query || query.length < 2) {
+          resultsDiv.innerHTML = '';
+          resultsDiv.style.display = 'none';
+          return;
+        }
+        searchDebounceTimer = setTimeout(function() {
+          provider.search({ query: query }).then(function(results) {
+            resultsDiv.innerHTML = '';
+            if (!results || results.length === 0) {
+              resultsDiv.style.display = 'none';
+              return;
+            }
+            resultsDiv.style.display = 'block';
+            for (var i = 0; i < results.length; i++) {
+              (function(result) {
+                var item = document.createElement('div');
+                item.className = 'search-result-item';
+                item.textContent = result.label;
+                item.addEventListener('mousedown', function(e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Fire geosearch event so existing handlers work
+                  var location = {
+                    x: result.x,
+                    y: result.y,
+                    label: result.label,
+                    bounds: result.bounds,
+                    raw: result.raw
+                  };
+                  map.fireEvent('geosearch/showlocation', {
+                    location: location,
+                    marker: null
+                  });
+                  // Add marker
+                  var marker = L.marker([result.y, result.x]).addTo(map);
+                  var popupHtml = createGeoSearchTeleportPopupHtml(
+                    result.label, altitude, heading, speed
+                  );
+                  marker.bindPopup(popupHtml, { maxWidth: 300 }).openPopup();
+                  // Store marker for cleanup
+                  if (searchControl && searchControl.markers) {
+                    searchControl.markers.clearLayers();
+                    searchControl.markers.addLayer(marker);
+                  }
+                  closeSearchInButton();
+                });
+                resultsDiv.appendChild(item);
+              })(results[i]);
+            }
+          });
+        }, 250);
+      });
+
+      // Close on Escape
+      input.addEventListener('keydown', function(e) {
+        if (e.keyCode === 27) {
+          closeSearchInButton();
+        }
+      });
+    }
+
+    // Reset and show
+    var inp = searchInputWrapper.querySelector('input');
+    if (inp) inp.value = '';
+    var res = searchInputWrapper.querySelector('.search-inline-results');
+    if (res) {
+      res.innerHTML = '';
+      res.style.display = 'none';
+    }
+
+    btnContainer.appendChild(searchInputWrapper);
+    btnContainer.classList.add('search-expanded');
+
+    if (inp) inp.focus();
   }
 
-  // SEARCH easyButton - toggles search bar visibility
+  function closeSearchInButton() {
+    var btnContainer = document.querySelector('#searchButton');
+    if (btnContainer) {
+      btnContainer.classList.remove('search-expanded');
+    }
+    if (searchInputWrapper && searchInputWrapper.parentNode) {
+      searchInputWrapper.parentNode.removeChild(searchInputWrapper);
+    }
+    searchButtonActive = false;
+    if (searchButton && searchButton.state) {
+      try { searchButton.state('search-closed'); } catch(e) {}
+    }
+  }
+
+  // SEARCH easyButton
   var searchButtonActive = false;
   var searchButton = L.easyButton({
     id: 'searchButton',
@@ -12737,47 +12872,7 @@ function initializeMapWithLayers(layers) {
       icon: btnIcon('search', 'SEARCH'),
       title: 'Open search',
       onClick: function(btn, map) {
-        var container = searchControl.getContainer ? searchControl.getContainer() : document.querySelector('.leaflet-control-geosearch');
-        if (container) {
-          container.style.display = 'block';
-          container.classList.add('active');
-          var form = container.querySelector('form');
-          if (!form) {
-            form = document.querySelector('.leaflet-control-geosearch form');
-          }
-          var searchBtn = document.querySelector('#searchButton');
-          if (searchBtn && form) {
-            var rect = searchBtn.getBoundingClientRect();
-            form.style.position = 'fixed';
-            form.style.top = rect.top + 'px';
-            form.style.left = (rect.right) + 'px';
-            form.style.height = rect.height + 'px';
-            form.style.display = 'block';
-
-            var positionResults = function() {
-              var results = container.querySelector('.results');
-              if (results) {
-                results.style.position = 'fixed';
-                results.style.top = (rect.top + rect.height) + 'px';
-                results.style.left = (rect.right) + 'px';
-                results.style.width = '250px';
-                results.style.minWidth = '250px';
-                results.style.maxWidth = '250px';
-              }
-            };
-
-            setTimeout(positionResults, 50);
-
-            var observer = new MutationObserver(function() {
-              setTimeout(positionResults, 10);
-            });
-            observer.observe(container, { childList: true, subtree: true });
-          }
-          var input = form ? form.querySelector('input') : null;
-          if (input) {
-            input.focus();
-          }
-        }
+        openSearchInButton();
         searchButtonActive = true;
         btn.state('search-open');
       }
@@ -12786,23 +12881,31 @@ function initializeMapWithLayers(layers) {
       icon: btnIcon('search', 'SEARCH', {color: '#007bff'}),
       title: 'Close search',
       onClick: function(btn, map) {
-        var container = searchControl.getContainer ? searchControl.getContainer() : document.querySelector('.leaflet-control-geosearch');
-        if (container) {
-          container.classList.remove('active');
-          var form = container.querySelector('form');
-          if (!form) {
-            form = document.querySelector('.leaflet-control-geosearch form');
-          }
-          if (form) {
-            form.style.display = 'none';
-          }
-        }
-        searchButtonActive = false;
-        btn.state('search-closed');
+        closeSearchInButton();
         Keyboard.close();
       }
     }]
   }).addTo(map);
+
+  // Close search on click outside (not on popups)
+  addTrackedEventListener(document, 'mousedown', function(e) {
+    if (!searchButtonActive) return;
+    var target = e.target;
+    if (!target) return;
+
+    // Don't close if clicking inside the search button / input area
+    var btnEl = document.querySelector('#searchButton');
+    if (btnEl && btnEl.contains(target)) return;
+
+    // Don't close if clicking on a Leaflet popup
+    var el = target;
+    while (el) {
+      if (el.classList && el.classList.contains('leaflet-popup')) return;
+      el = el.parentElement;
+    }
+
+    closeSearchInButton();
+  }, true);
 
   var openAipWasActive = false; // Track the state of OpenAIP layer
 
@@ -18173,6 +18276,9 @@ function removeAllMarkersAndClearServer() {
 
   scheduleNavlogSync();
   hideElevationProfile();
+  cachedElevationData.groundElevations = null;
+  cachedElevationData.waypointData = null;
+  cachedElevationData.distances = null;
 
   // Clear local navlog but keep SimBrief cache intact
   // User can immediately click sync again to reload the flightplan
@@ -22841,49 +22947,92 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         }
     });
 
+    // STAR FIX v3: OFP-Waypoints ab STAR-Einstieg ERSETZEN (nicht nur markieren)
+    // Analog zur Approach-Injection in rebuildFlightplanWithProcedures()
+
+    // 1. Sammle alle STAR-Waypoint-Namen
+    var starWpNames = {};
+    sortedWaypoints.forEach(function(wp) {
+        var name = (wp.Identifier || wp.identifier || '').toUpperCase();
+        if (name) starWpNames[name] = true;
+    });
+
+    // Destination immer sichern bevor wir den Array verändern
+    var destination = flightplanArray.length > 0
+        ? flightplanArray[flightplanArray.length - 1]
+        : null;
+
+    // 2. Finde den ersten OFP-Waypoint der im STAR vorkommt (= Einstiegspunkt)
+    var starEntryIndex = -1;
+    for (var i = 0; i < flightplanArray.length; i++) {
+        var wp = flightplanArray[i];
+        if (!wp.name) continue;
+        var wpType = (wp.waypointType || '').toUpperCase();
+        if (wpType.indexOf('DEP') === 0) continue;
+        if (starWpNames[wp.name.toUpperCase()]) {
+            starEntryIndex = i;
+            flightplanPanelLogger.debug('STAR entry point found at index', i, ':', wp.name);
+            break;
+        }
+    }
+
+    // 3. Entferne alle OFP-Waypoints ab dem STAR-Einstieg bis zum Ende (außer Destination)
+    var removedNames = [];
+    if (starEntryIndex >= 0) {
+        for (var i = starEntryIndex; i < flightplanArray.length - 1; i++) {
+            removedNames.push(flightplanArray[i].name || '?');
+        }
+        if (removedNames.length > 0) {
+            flightplanPanelLogger.debug('Removing', removedNames.length, 'OFP waypoints from STAR entry to destination:', removedNames.join(', '));
+        }
+        flightplanArray = flightplanArray.slice(0, starEntryIndex);
+    }
+
+    // 4. Aktualisiere existingNames basierend auf dem verbleibenden Flightplan
+    existingNames = {};
+    existingRunways = {};
+    flightplanArray.forEach(function(wp) {
+        if (wp.name) {
+            existingNames[wp.name.toUpperCase()] = true;
+            var rwMatch = wp.name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
+            if (rwMatch) existingRunways[rwMatch[1].toUpperCase()] = true;
+        }
+    });
+
+    // 5. Erstelle STAR-Einträge aus den sortierten Navigraph-Waypoints
     var starEntries = [];
-    flightplanPanelLogger.debug('Processing', sortedWaypoints.length, 'waypoints. Existing names:', Object.keys(existingNames).join(', '));
+    flightplanPanelLogger.debug('Processing', sortedWaypoints.length, 'STAR waypoints. Remaining flightplan names:', Object.keys(existingNames).join(', '));
     sortedWaypoints.forEach(function(wp) {
         var lat = wp.Latitude || wp.latitude;
         var lon = wp.Longitude || wp.longitude;
         var name = wp.Identifier || wp.identifier || 'STAR';
 
-        // Skip wenn Waypoint bereits existiert oder ungültige Koordinaten
+        // Skip wenn Waypoint bereits im verbleibenden Flightplan existiert
         if (existingNames[name.toUpperCase()]) {
             flightplanPanelLogger.debug('Skipping duplicate STAR waypoint:', name);
             return;
         }
 
-        // Skip Runway-Waypoints wenn sie bereits existieren (auch mit/ohne RW-Prefix)
+        // Skip Runway-Waypoints wenn sie bereits existieren
         var rwMatch = name.match(/^(?:RWY?)?(\d{2}[LRCB]?)$/i);
         if (rwMatch && existingRunways[rwMatch[1].toUpperCase()]) {
             mapLogger.debug('Skipping duplicate runway in STAR:', name);
             return;
         }
 
-        if (!lat || !lon || isNaN(lat) || isNaN(lon) || Math.abs(lat) < 0.001) {
-            return;
-        }
+        if (!lat || !lon || isNaN(lat) || isNaN(lon) || Math.abs(lat) < 0.001) return;
 
-        // Altitude aus Navigraph-Daten extrahieren (Altitude1 ist die primäre Höhe)
-        // Fallback auf Arrival-Runway-Elevation für Runway-Waypoints
         var altitude = wp.Altitude1 || wp.altitude1 || wp.Altitude || wp.altitude || 0;
         if (altitude === 0 && rwMatch && arrivalRunwayData && arrivalRunwayData.elevation) {
             altitude = arrivalRunwayData.elevation;
         }
         var altitude2 = wp.Altitude2 || wp.altitude2 || 0;
         var altConstraint = wp.AltitudeConstraint || wp.altitudeConstraint || '';
-        // Map ARINC 424 altitude_description codes
         var atbl = '';
-        if (altConstraint === '+' || altConstraint === 'AT_OR_ABOVE') {
-          atbl = 'A';
-        } else if (altConstraint === '-' || altConstraint === 'AT_OR_BELOW' || altConstraint === 'B') {
-          atbl = 'B';
-        } else if (altConstraint === '@' || altConstraint === 'AT') {
-          atbl = 'AT';
-        } else if (altConstraint === 'J' || altConstraint === 'V') {
-          atbl = 'AB';
-        }
+        if (altConstraint === '+' || altConstraint === 'AT_OR_ABOVE') { atbl = 'A'; }
+        else if (altConstraint === '-' || altConstraint === 'AT_OR_BELOW' || altConstraint === 'B') { atbl = 'B'; }
+        else if (altConstraint === '@' || altConstraint === 'AT') { atbl = 'AT'; }
+        else if (altConstraint === 'J' || altConstraint === 'V') { atbl = 'AB'; }
 
         starEntries.push({
             lat: parseFloat(lat),
@@ -22899,17 +23048,22 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         existingNames[name.toUpperCase()] = true;
     });
 
-    flightplanPanelLogger.debug('Star entries to inject:', starEntries.length);
+    flightplanPanelLogger.debug('STAR entries to inject:', starEntries.length);
+
+    // 6. Zusammensetzen: verbleibender Flightplan + STAR-Einträge + Destination
     if (starEntries.length > 0) {
-        // Insert before destination airport (before last element)
-        var insertIndex = flightplanArray.length > 0 ? flightplanArray.length - 1 : 0;
-        var before = flightplanArray.slice(0, insertIndex);
-        var after = flightplanArray.slice(insertIndex);
-        flightplanPanelLogger.debug('Injecting', starEntries.length, 'STAR waypoints at index', insertIndex);
-        return before.concat(starEntries).concat(after);
+        var result = flightplanArray.concat(starEntries);
+        if (destination) result.push(destination);
+        flightplanPanelLogger.debug('Final flightplan after STAR injection:', result.length, 'waypoints');
+        return result;
     }
 
-    flightplanPanelLogger.debug('No STAR entries to inject!');
+    // Kein STAR eingefügt - wenn wir Waypoints entfernt haben, Destination wieder anfügen
+    if (starEntryIndex >= 0 && destination) {
+        flightplanArray.push(destination);
+    }
+
+    flightplanPanelLogger.debug('No STAR entries to inject');
     return flightplanArray;
 }
 
