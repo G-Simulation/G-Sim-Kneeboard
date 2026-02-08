@@ -1621,7 +1621,7 @@ namespace Kneeboard_Server
                                 var newElement = new XElement("Launch.Addon",
                                     new XElement("Name", "Kneeboard Server"),
                                     new XElement("Disabled", "false"),
-                                    new XElement("Path", AppDomain.CurrentDomain.BaseDirectory + "Kneeboard Server.exe"));
+                                    new XElement("Path", Application.ExecutablePath));
                                 doc.Element("SimBase.Document").Add(newElement);
                                 doc.Save(exeXmlPath);
                             }

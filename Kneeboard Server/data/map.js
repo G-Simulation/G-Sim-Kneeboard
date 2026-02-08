@@ -14170,7 +14170,7 @@ function updateWaypointList(waypointLayers, coordinatesArray) {
 
     // Check if there's a next visible waypoint (for info row)
     var hasNextWaypoint = visibleIndex < totalWaypoints - 1;
-    var infoRowHtml = "";
+    var infoRowHtml = '<span class="fp-wp-bearing">&nbsp;</span><span class="fp-wp-distance">&nbsp;</span><span class="fp-wp-altitude">&nbsp;</span>';
 
     if (hasNextWaypoint) {
       // Get coordinates directly from current and next VISIBLE layers
@@ -14234,12 +14234,11 @@ function updateWaypointList(waypointLayers, coordinatesArray) {
       // Build distance string
       var distanceStr = parseFloat(segmentDistance).toFixed(0) + 'nm';
 
-      // Build info row with new styling
-      infoRowHtml = '<div class="fp-wp-info">' +
+      // Build info spans (flat grid children, no wrapper)
+      infoRowHtml =
         '<span class="fp-wp-bearing">' + bearingStr + DEGREE_SYMBOL + '</span>' +
         '<span class="fp-wp-distance">' + distanceStr + '</span>' +
-        '<span class="fp-wp-altitude">' + (altitudeHtml || '&nbsp;') + '</span>' +
-        '</div>';
+        '<span class="fp-wp-altitude">' + (altitudeHtml || '&nbsp;') + '</span>';
     }
 
     // Build complete list item with new enhanced styling - single row grid layout

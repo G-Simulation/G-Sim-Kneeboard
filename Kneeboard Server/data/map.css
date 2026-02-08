@@ -4135,7 +4135,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 .fp-route .kneeboard-panel-content {
     flex: 1;
     overflow-y: auto;
-    padding: 0 15px;
+    padding: 0 4px;
     width: 100%;
 }
 
@@ -4172,16 +4172,15 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     border-left: 3px solid var(--dark);
 }
 
-/* Waypoint Row - Single line grid layout */
+/* Waypoint Row - 7 column responsive grid layout */
 .fp-wp-row {
-    display: inline-grid;
-    grid-template-columns: 3vw 3vw 4vw auto 2vw;
+    display: grid;
+    grid-template-columns: 24px 2fr 1.2fr 1fr 1fr 1.2fr 20px;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     width: 100%;
-    padding-right: 20px;
-    padding-left: 40px;
-    text-align: center;
+    padding: 0 8px;
+    box-sizing: border-box;
 }
 
 /* Waypoint Type Icons - SVG Style */
@@ -4247,29 +4246,14 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     background-color: #e8f4f8;
 }
 
-/* Waypoint Info (Bearing/Distance/Altitude) - flex layout with fixed widths */
-.fp-wp-info {
-    display: flex;
+/* Waypoint Info Columns (Bearing/Distance/Altitude) - direct grid children */
+span.fp-wp-bearing,
+span.fp-wp-distance,
+span.fp-wp-altitude {
     font-family: "Roboto Mono", monospace;
     font-size: 10px;
     color: #555;
-    justify-content: center;
-    gap: 0;
-}
-
-span.fp-wp-bearing {
-    width: 8em;
-    text-align: center;
-}
-
-span.fp-wp-distance {
-    width: 8em;
-    text-align: center;
-}
-
-span.fp-wp-altitude {
-    width: 8em;
-    text-align: center; 
+    text-align: right;
 }
 
 /* Altitude Constraints - no longer used, prefix is plain text now */
@@ -4392,20 +4376,26 @@ span.fp-wp-altitude {
     background: #FFF3E0 !important;
 }
 
-/* Delete Button on Waypoint */
+/* Delete Button on Waypoint - grid child */
 .fp-waypoint .waypoint-delete-btn {
-    margin-left: auto;
-    position: absolute;
-    right: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 14px;
-    height: 14px;
+    position: static;
+    transform: none;
+    width: 16px;
+    height: 16px;
     font-size: 10px;
+    justify-self: center;
 }
 
 .fp-waypoint:hover .waypoint-delete-btn {
     opacity: 1;
+}
+
+.fp-waypoint .waypoint-delete-btn:hover {
+    transform: scale(1.1);
+}
+
+.fp-waypoint .waypoint-delete-btn:active {
+    transform: scale(0.95);
 }
 
 /* Loading State for Dropdowns */
