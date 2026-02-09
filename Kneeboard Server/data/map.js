@@ -957,7 +957,11 @@ function saveMapState() {
       zoomLevel: map ? map.getZoom() : null,
 
       // Follow-Modus
-      follow: typeof follow !== 'undefined' ? follow : false
+      follow: typeof follow !== 'undefined' ? follow : false,
+
+      // Panel-Zustand (Controller/Airports/Navaids)
+      panelState: typeof panelState !== 'undefined' ? panelState : '',
+      controllerMode: typeof moverX !== 'undefined' ? moverX : false
     };
 
     setCachedItem(MAP_STATE_KEY, state);
@@ -1005,6 +1009,55 @@ function restoreMapState() {
       } else {
         toggle.enable();
       }
+    }
+
+    // Panel-Zustand wiederherstellen (Controller-Modus, VATSIM/IVAO/Airports/Navaids)
+    if (state.panelState && state.controllerMode) {
+      cacheLogger.debug('Restoring panel state:', state.panelState);
+      setTimeout(function() {
+        try {
+          if (state.panelState === 'vatsim') {
+            if (typeof setControlZonesEnabled === 'function') setControlZonesEnabled(true);
+            if (typeof openControllerPanel === 'function') openControllerPanel('vatsim');
+            if (typeof toggle10 !== 'undefined') toggle10.state('vatsim');
+          } else if (state.panelState === 'ivao') {
+            if (typeof setControlZonesEnabled === 'function') setControlZonesEnabled(true);
+            if (typeof openControllerPanel === 'function') openControllerPanel('ivao');
+            if (typeof toggle10 !== 'undefined') toggle10.state('ivao');
+          } else if (state.panelState === 'airports') {
+            if (typeof toggle11 !== 'undefined') {
+              mover();
+              airportsToggle = 'airports';
+              airportsCounter = 10;
+              document.getElementById('controllerListUl').innerHTML = '';
+              document.getElementById('controllerHeader').innerHTML = 'Airports';
+              toggle11.state('airports');
+              if (typeof getWPData === 'function') getWPData();
+              if (typeof listNavaids === 'function') listNavaids();
+              airportsPanel = false;
+              panelState = 'airports';
+              if (typeof hideMetarContainer === 'function') hideMetarContainer();
+            }
+          } else if (state.panelState === 'navaids') {
+            if (typeof toggle11 !== 'undefined') {
+              mover();
+              airportsToggle = 'navaids';
+              navaidsCounter = 10;
+              document.getElementById('controllerListUl').innerHTML = '';
+              document.getElementById('controllerHeader').innerHTML = 'Navaids';
+              toggle11.state('navaids');
+              if (typeof getWPData === 'function') getWPData();
+              if (typeof listNavaids === 'function') listNavaids();
+              airportsPanel = true;
+              panelState = 'navaids';
+              if (typeof hideMetarContainer === 'function') hideMetarContainer();
+            }
+          }
+          cacheLogger.debug('Panel state restored:', state.panelState);
+        } catch (e) {
+          cacheLogger.warn('Panel state restore failed:', e);
+        }
+      }, 800);
     }
 
     cacheLogger.debug('State restored successfully');
@@ -17162,6 +17215,9 @@ function mover() {
         map.invalidateSize({ pan: false });
       }
     }, 0);
+
+    // Auto-save panel state
+    scheduleMapStateSave();
   }
 }
 
@@ -18927,10 +18983,20 @@ function minimizeWpList() {
   var fpSections = overlayEl ? overlayEl.querySelectorAll('.fp-section') : [];
 
   if (!wpListMinimized) {
-    // Minimieren - nur Header und Footer zeigen
+    // Minimieren - Section Headers bleiben sichtbar, Inhalt wird versteckt
     if (overlayList) overlayList.style.display = "none";
     fpSections.forEach(function(section) {
-      section.style.display = "none";
+      var sectionId = section.id;
+      if (sectionId === 'fpActionsSection' || section.classList.contains('fp-route')) {
+        // ACTIONS und ROUTE komplett verstecken
+        section.style.display = "none";
+      } else if (section.style.display === 'none') {
+        // Section war bereits versteckt (keine Daten) - nicht anzeigen
+      } else {
+        // DEP/ARR/ALT: Header sichtbar lassen, Selectors verstecken
+        var selectors = section.querySelector('.fp-selectors');
+        if (selectors) selectors.style.display = "none";
+      }
     });
     if (overlayEl) {
       overlayEl.style.height = "auto";
@@ -18954,21 +19020,28 @@ function minimizeWpList() {
       overlayList.style.visibility = "visible";
     }
     fpSections.forEach(function(section) {
-      // DEP, ARR, ALT Sections nur zeigen wenn sie vorher sichtbar waren (haben style.display = 'block' im initFlightplanPanel)
       var sectionId = section.id;
-      if (sectionId === 'fpDepartureSection' || sectionId === 'fpArrivalSection' || sectionId === 'fpAlternateSection') {
-        // Diese werden durch initFlightplanPanel auf 'block' gesetzt wenn Daten vorhanden
-        // Prüfe ob flightplanPanelState Daten hat
-        if (sectionId === 'fpDepartureSection' && flightplanPanelState && flightplanPanelState.departure && flightplanPanelState.departure.icao) {
-          section.style.display = "block";
-        } else if (sectionId === 'fpArrivalSection' && flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.icao) {
-          section.style.display = "block";
-        } else if (sectionId === 'fpAlternateSection' && flightplanPanelState && flightplanPanelState.alternate && flightplanPanelState.alternate.icao) {
-          section.style.display = "block";
+      if (sectionId === 'fpActionsSection') {
+        // ACTIONS section nur zeigen wenn Apply-Button aktiv ist
+        var applyBtn = document.getElementById('fpApplyBtn');
+        if (applyBtn && !applyBtn.disabled) {
+          section.style.display = "";
         }
-      } else {
-        // ROUTE und ACTIONS sections immer zeigen
+      } else if (section.classList.contains('fp-route')) {
+        // ROUTE section wieder einblenden
         section.style.display = "";
+      } else {
+        // DEP/ARR/ALT: Selectors wieder einblenden (nur wenn Section Daten hat)
+        if (sectionId === 'fpDepartureSection' && flightplanPanelState && flightplanPanelState.departure && flightplanPanelState.departure.icao) {
+          var selectors = section.querySelector('.fp-selectors');
+          if (selectors) selectors.style.display = "";
+        } else if (sectionId === 'fpArrivalSection' && flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.icao) {
+          var selectors = section.querySelector('.fp-selectors');
+          if (selectors) selectors.style.display = "";
+        } else if (sectionId === 'fpAlternateSection' && flightplanPanelState && flightplanPanelState.alternate && flightplanPanelState.alternate.icao) {
+          var selectors = section.querySelector('.fp-selectors');
+          if (selectors) selectors.style.display = "";
+        }
       }
     });
     // Only show overlayListSum if we have at least 2 waypoints

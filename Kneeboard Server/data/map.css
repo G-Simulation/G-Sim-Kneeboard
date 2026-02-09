@@ -4028,44 +4028,43 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     overflow: hidden;
 }
 
-/* Section Headers - Clean white style like popups */
+/* Section Headers */
 .fp-section-header {
-    background-color:  var(--dark);
-    opacity: 60%;
-    border-bottom: 1px solid #e0e0e0;
-    color: var(--fontLight);
-    font-size: 9px;
-    font-weight: 600;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e5e7eb;
+    color: #374151;
+    font-family: "Roboto-Light", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 4px 8px;
+    letter-spacing: 0.8px;
+    padding: 5px 10px;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding-left: 2vw;
+    gap: 8px;
 }
 
 .fp-departure .fp-section-header {
-    background-color: #f52929;  /* SID - Rot */
-    opacity: 80%;
+    border-left: 3px solid #ef4444;
+    color: #ef4444;
 }
 
 .fp-arrival .fp-section-header {
-    background-color: #41dc7a;  /* ARRIVAL - Grün */
-    opacity: 80%;
+    border-left: 3px solid #22c55e;
+    color: #16a34a;
 }
 
 .fp-section-header .fp-icao {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
-    color: var(--fontLight);
+    color: #1f2937;
     letter-spacing: 0.5px;
 }
 
 .fp-section-header .fp-name {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 400;
-    color: var(--fontLight);
+    color: #6b7280;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -4186,8 +4185,8 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 .fp-route .fp-section-header {
     flex-shrink: 0;
-    background-color: #9039e9;  /* ROUTE - Lila */
-    opacity: 80%;
+    border-left: 3px solid #8b5cf6;
+    color: #7c3aed;
 }
 
 .fp-route .kneeboard-panel-content {
@@ -4341,19 +4340,18 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 .fp-alternate .fp-section-header,
 .fp-alternate-header {
-    background-color: #0e88bf;  /* ALTERNATE - Blau */
-    opacity: 80%;
-    color: white;
+    border-left: 3px solid #0ea5e9;
+    color: #0284c7;
 }
 
-.fp-alternate .fp-section-header .fp-icao,S
+.fp-alternate .fp-section-header .fp-icao,
 .fp-alternate-header .fp-icao {
-    color: white;
+    color: #1f2937;
 }
 
 .fp-alternate .fp-section-header .fp-name,
 .fp-alternate-header .fp-name {
-    color: rgba(255, 255, 255, 0.8);
+    color: #6b7280;
 }
 
 /* ========================================
