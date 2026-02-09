@@ -2449,11 +2449,9 @@ function handleAnimationComplete(e) {
     // Funktion um Elevation Profile anzuzeigen (nach aller Animation)
     var showElevationAfterAnimation = function() {
       var waypointLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
-      if (waypointLayers.length >= 2 && typeof showElevationProfile === 'function' && !elevationProfileUserClosed && !moverX) {
+      if (waypointLayers.length >= 2 && typeof showElevationProfile === 'function' && !elevationProfileUserClosed) {
         mapLogger.debug('Showing elevation profile after all animations complete');
         showElevationProfile();
-      } else if (moverX && MAP_DEBUG) {
-        mapLogger.warn('Skipping elevation profile - controller mode active');
       } else if (elevationProfileUserClosed && MAP_DEBUG) {
         mapLogger.warn('Skipping elevation profile - user manually closed it');
       }
@@ -2573,11 +2571,7 @@ function executeFlightplanPath(data) {
       return Promise.resolve(); // Silently ignore
     }
 
-    // Controller-Modus automatisch deaktivieren wenn Flugplan geladen wird
-    if (moverX) {
-      mapLogger.info('Controller mode active - deactivating to load flightplan');
-      mout();
-    }
+    // Controller-Panel bleibt sichtbar wenn Flugplan geladen wird
 
     // BUGFIX: Blockiere Flightplan-Loading im Teleport-Modus
     // Im Teleport-Modus (toggle4.state() === 'add-markers') soll KEIN Flugplan angezeigt werden
@@ -17500,13 +17494,22 @@ function openControllerPanel(network) {
   airportsPanel = false;
   panelMode = 'zones';  // Reset auf Zonen-Modus
 
-  // Header mit Toggle-Buttons für Zonen/Piloten
+  // Header-Text setzen (ohne Toggle drin)
   var networkName = network === "vatsim" ? "VATSIM" : "IVAO";
-  var toggleHtml = '<div class="panel-mode-toggle">' +
+  document.getElementById("controllerHeader").textContent = networkName;
+
+  // Toggle-Buttons als separates Element nach dem Header einfügen
+  var existingToggle = document.querySelector('#controllerContainer .panel-mode-toggle');
+  if (existingToggle) existingToggle.remove();
+
+  var toggleDiv = document.createElement('div');
+  toggleDiv.className = 'panel-mode-toggle';
+  toggleDiv.innerHTML =
     '<button id="toggleZones" class="mode-btn active">Zonen</button>' +
-    '<button id="togglePilots" class="mode-btn">Piloten</button>' +
-    '</div>';
-  document.getElementById("controllerHeader").innerHTML = networkName + toggleHtml;
+    '<button id="togglePilots" class="mode-btn">Piloten</button>';
+
+  var header = document.querySelector('#controllerContainer .kneeboard-panel-header');
+  header.parentNode.insertBefore(toggleDiv, header.nextSibling);
 
   // Event-Listener für Toggle-Buttons
   document.getElementById("toggleZones").onclick = function() {
@@ -19987,12 +19990,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
           window.initialWindLayerConfig.initialActivationDone = false;
         }
 
-        // Controller-Modus automatisch beenden wenn Flightplan geladen wird
-        if (moverX) {
-          mapLogger.debug('Ending controller mode - flightplan recreate requested');
-          mout();
-          setControlZonesEnabled(false);
-        }
+        // Controller-Panel bleibt sichtbar wenn Flugplan geladen wird
 
         // Create markers using the normal render path
         transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'recreate-markers');
@@ -20016,12 +20014,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
         window.initialWindLayerConfig.initialActivationDone = false;
       }
 
-      // Controller-Modus automatisch beenden wenn Flightplan geladen wird
-      if (moverX) {
-        mapLogger.debug('Ending controller mode - identical flightplan event chain');
-        mout();
-        setControlZonesEnabled(false);
-      }
+      // Controller-Panel bleibt sichtbar wenn Flugplan geladen wird
 
       // Event-basierte UI-Sequenz (v1.24): Startet die Event-Chain
       if (flightplan.length > 1) {
@@ -20275,12 +20268,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
       mapLogger.warn('Cannot init Flightplan Panel - importedOFPData:', !!importedOFPData, 'initFlightplanPanel:', typeof initFlightplanPanel);
     }
 
-    // Controller-Modus automatisch beenden wenn Flightplan geladen wird
-    if (moverX) {
-      mapLogger.debug('Ending controller mode - flightplan load requested');
-      mout();
-      setControlZonesEnabled(false);
-    }
+    // Controller-Panel bleibt sichtbar wenn Flugplan geladen wird
 
     transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'new-flightplan');
     preCenterMapOnFlightplan(flightplan, 'new-flightplan');
@@ -29661,6 +29649,16 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       isRightAligned: true,
       isVertical: false
     },
+    overlayHeight: {
+      element: null,
+      handle: null,
+      minHeight: function() { return window.innerHeight * 0.15; },
+      maxHeight: function() { return window.innerHeight * 0.85; },
+      isResizing: false,
+      startY: 0,
+      startHeight: 0,
+      isVertical: true
+    },
     controller: {
       element: null,
       handle: null,
@@ -29671,6 +29669,16 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       startWidth: 0,
       isRightAligned: false,
       isVertical: false
+    },
+    controllerHeight: {
+      element: null,
+      handle: null,
+      minHeight: function() { return window.innerHeight * 0.15; },
+      maxHeight: function() { return window.innerHeight * 0.85; },
+      isResizing: false,
+      startY: 0,
+      startHeight: 0,
+      isVertical: true
     },
     metar: {
       element: null,
@@ -29702,8 +29710,12 @@ function finishAppendWaypoint(lat, lng, activePopup) {
 
     if (configs.overlay.isResizing) {
       config = configs.overlay;
+    } else if (configs.overlayHeight.isResizing) {
+      config = configs.overlayHeight;
     } else if (configs.controller.isResizing) {
       config = configs.controller;
+    } else if (configs.controllerHeight.isResizing) {
+      config = configs.controllerHeight;
     } else if (configs.metar.isResizing) {
       config = configs.metar;
     } else if (configs.elevationProfile.isResizing) {
@@ -29722,7 +29734,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     e.preventDefault();
 
     if (config.isVertical) {
-      // Vertical resizing (height)
+      // Vertical resizing (height) - Grabbar oben, Unterkante bleibt fix
       var deltaY = e.clientY - config.startY;
       var newHeight = config.startHeight - deltaY;
 
@@ -29731,10 +29743,40 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       if (newHeight < minH) newHeight = minH;
       if (newHeight > maxH) newHeight = maxH;
 
-      if (isElevationResizing) mapLogger.debug('Setting elevation height to:', newHeight, 'element:', config.element.id);
-      // CRITICAL: Use setProperty with priority 'important' to override flex layout!
-      config.element.style.setProperty('height', newHeight + 'px', 'important');
+      // Tatsaechliches deltaY nach Clamping neu berechnen
+      var actualDeltaY = config.startHeight - newHeight;
+
       config.element.style.setProperty('flex', '0 0 auto', 'important');
+
+      // Elevation: direkt Hoehe setzen (keine Position-Anpassung noetig)
+      if (isElevationResizing) {
+        config.element.style.setProperty('height', newHeight + 'px', 'important');
+      }
+
+      // Panel-Position beim Resize: Unterkante bleibt fix, Oberkante wandert
+      if (!isElevationResizing && config.startTop !== undefined) {
+        // Wenn Panel mit bottom positioniert ist (Corner-Position), bottom beibehalten
+        var hasBottom = config.element.style.bottom && config.element.style.bottom !== 'auto';
+        if (hasBottom) {
+          // Bottom bleibt fix - nur Hoehe aendern, Panel waechst nach oben
+          var newTop = config.startTop + actualDeltaY;
+          if (newTop < 10) {
+            newHeight = config.startTop + config.startHeight - 10;
+          }
+          config.element.style.setProperty('height', newHeight + 'px', 'important');
+          config.element.style.top = 'auto';
+        } else {
+          // Freie Position mit top - top muss mitbewegt werden
+          var newTop = config.startTop + actualDeltaY;
+          if (newTop < 10) {
+            newTop = 10;
+            newHeight = config.startTop + config.startHeight - 10;
+          }
+          config.element.style.setProperty('height', newHeight + 'px', 'important');
+          config.element.style.top = newTop + 'px';
+          config.element.style.bottom = 'auto';
+        }
+      }
 
       // Redraw elevation canvas during resize - throttle to max once per 100ms
       if (isElevationResizing && typeof redrawElevationCanvas === 'function') {
@@ -29766,10 +29808,12 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       if (isElevationResizing) mapLogger.debug('After setting - element.style.height:', config.element.style.height);
     } else {
       // Horizontal resizing (width)
+      // Dynamisch pruefen: resize-left = Handle links = Panel waechst nach links (rightAligned)
+      var isRight = config.element.classList.contains('resize-left');
       var deltaX = e.clientX - config.startX;
       var newWidth;
 
-      if (config.isRightAligned) {
+      if (isRight) {
         newWidth = config.startWidth - deltaX;
       } else {
         newWidth = config.startWidth + deltaX;
@@ -29784,14 +29828,23 @@ function finishAppendWaypoint(lat, lng, activePopup) {
 
   function onMouseEnd() {
     var wasElevationResizing = configs.elevationProfile.isResizing;
-    var wasAnyResizing = configs.overlay.isResizing || configs.controller.isResizing ||
+    var wasAnyResizing = configs.overlay.isResizing || configs.overlayHeight.isResizing ||
+                          configs.controller.isResizing || configs.controllerHeight.isResizing ||
                           configs.metar.isResizing || configs.elevationProfile.isResizing;
+    var wasOverlayResizing = configs.overlay.isResizing || configs.overlayHeight.isResizing;
+    var wasControllerResizing = configs.controller.isResizing || configs.controllerHeight.isResizing;
 
     if (configs.overlay.isResizing) {
       configs.overlay.isResizing = false;
     }
+    if (configs.overlayHeight.isResizing) {
+      configs.overlayHeight.isResizing = false;
+    }
     if (configs.controller.isResizing) {
       configs.controller.isResizing = false;
+    }
+    if (configs.controllerHeight.isResizing) {
+      configs.controllerHeight.isResizing = false;
     }
     if (configs.metar.isResizing) {
       configs.metar.isResizing = false;
@@ -29812,6 +29865,14 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       redrawElevationCanvas(true);
     }
 
+    // Save panel width after resize to PanelPositionManager
+    if (wasOverlayResizing && typeof PanelPositionManager !== 'undefined') {
+      PanelPositionManager.saveWidth('overlay');
+    }
+    if (wasControllerResizing && typeof PanelPositionManager !== 'undefined') {
+      PanelPositionManager.saveWidth('controllerContainer');
+    }
+
     // Auto-save settings after resize
     if (wasAnyResizing && typeof window.mapSettings !== 'undefined' && window.mapSettings.save) {
       setTimeout(function() {
@@ -29826,8 +29887,12 @@ function finishAppendWaypoint(lat, lng, activePopup) {
 
     if (configs.overlay.isResizing) {
       config = configs.overlay;
+    } else if (configs.overlayHeight.isResizing) {
+      config = configs.overlayHeight;
     } else if (configs.controller.isResizing) {
       config = configs.controller;
+    } else if (configs.controllerHeight.isResizing) {
+      config = configs.controllerHeight;
     } else if (configs.metar.isResizing) {
       config = configs.metar;
     } else if (configs.elevationProfile.isResizing) {
@@ -29840,7 +29905,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     e.preventDefault();
 
     if (config.isVertical) {
-      // Vertical resizing (height)
+      // Vertical resizing (height) - Grabbar oben, Unterkante bleibt fix
       var clientY = e.touches[0].clientY;
       var deltaY = clientY - config.startY;
       var newHeight = config.startHeight - deltaY;
@@ -29850,8 +29915,39 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       if (newHeight < minH) newHeight = minH;
       if (newHeight > maxH) newHeight = maxH;
 
-      config.element.style.setProperty('height', newHeight + 'px', 'important');
+      // Tatsaechliches deltaY nach Clamping neu berechnen
+      var actualDeltaY = config.startHeight - newHeight;
+
       config.element.style.setProperty('flex', '0 0 auto', 'important');
+
+      // Elevation: direkt Hoehe setzen
+      if (isElevationResizing) {
+        config.element.style.setProperty('height', newHeight + 'px', 'important');
+      }
+
+      // Panel-Position beim Resize: Unterkante bleibt fix, Oberkante wandert
+      if (!isElevationResizing && config.startTop !== undefined) {
+        var hasBottom = config.element.style.bottom && config.element.style.bottom !== 'auto';
+        if (hasBottom) {
+          // Bottom bleibt fix - nur Hoehe aendern, Panel waechst nach oben
+          var newTop = config.startTop + actualDeltaY;
+          if (newTop < 10) {
+            newHeight = config.startTop + config.startHeight - 10;
+          }
+          config.element.style.setProperty('height', newHeight + 'px', 'important');
+          config.element.style.top = 'auto';
+        } else {
+          // Freie Position mit top - top muss mitbewegt werden
+          var newTop = config.startTop + actualDeltaY;
+          if (newTop < 10) {
+            newTop = 10;
+            newHeight = config.startTop + config.startHeight - 10;
+          }
+          config.element.style.setProperty('height', newHeight + 'px', 'important');
+          config.element.style.top = newTop + 'px';
+          config.element.style.bottom = 'auto';
+        }
+      }
 
       // Redraw elevation canvas during resize
       if (isElevationResizing && typeof redrawElevationCanvas === 'function') {
@@ -29876,11 +29972,12 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       }
     } else {
       // Horizontal resizing (width)
+      var isRight = config.element.classList.contains('resize-left');
       var clientX = e.touches[0].clientX;
       var deltaX = clientX - config.startX;
       var newWidth;
 
-      if (config.isRightAligned) {
+      if (isRight) {
         newWidth = config.startWidth - deltaX;
       } else {
         newWidth = config.startWidth + deltaX;
@@ -29895,14 +29992,23 @@ function finishAppendWaypoint(lat, lng, activePopup) {
 
   function onTouchEnd() {
     var wasElevationResizing = configs.elevationProfile.isResizing;
-    var wasAnyResizing = configs.overlay.isResizing || configs.controller.isResizing ||
+    var wasAnyResizing = configs.overlay.isResizing || configs.overlayHeight.isResizing ||
+                          configs.controller.isResizing || configs.controllerHeight.isResizing ||
                           configs.metar.isResizing || configs.elevationProfile.isResizing;
+    var wasOverlayResizing = configs.overlay.isResizing || configs.overlayHeight.isResizing;
+    var wasControllerResizing = configs.controller.isResizing || configs.controllerHeight.isResizing;
 
     if (configs.overlay.isResizing) {
       configs.overlay.isResizing = false;
     }
+    if (configs.overlayHeight.isResizing) {
+      configs.overlayHeight.isResizing = false;
+    }
     if (configs.controller.isResizing) {
       configs.controller.isResizing = false;
+    }
+    if (configs.controllerHeight.isResizing) {
+      configs.controllerHeight.isResizing = false;
     }
     if (configs.metar.isResizing) {
       configs.metar.isResizing = false;
@@ -29921,6 +30027,14 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     // Redraw elevation profile after resize (force=true to skip throttling)
     if (wasElevationResizing && typeof redrawElevationCanvas === 'function') {
       redrawElevationCanvas(true);
+    }
+
+    // Save panel width after resize to PanelPositionManager
+    if (wasOverlayResizing && typeof PanelPositionManager !== 'undefined') {
+      PanelPositionManager.saveWidth('overlay');
+    }
+    if (wasControllerResizing && typeof PanelPositionManager !== 'undefined') {
+      PanelPositionManager.saveWidth('controllerContainer');
     }
 
     // Auto-save settings after resize
@@ -29947,6 +30061,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       if (config.isVertical) {
         config.startY = e.clientY;
         config.startHeight = config.element.offsetHeight;
+        config.startTop = config.element.getBoundingClientRect().top;
         document.body.style.cursor = 'ns-resize';
       } else {
         config.startX = e.clientX;
@@ -29968,6 +30083,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       if (config.isVertical) {
         config.startY = e.touches[0].clientY;
         config.startHeight = config.element.offsetHeight;
+        config.startTop = config.element.getBoundingClientRect().top;
         document.body.style.cursor = 'ns-resize';
       } else {
         config.startX = e.touches[0].clientX;
@@ -30124,18 +30240,26 @@ function finishAppendWaypoint(lat, lng, activePopup) {
   function initializeResize() {
     if (initialized) return;
 
-    // Overlay setup
+    // Overlay width setup
     configs.overlay.element = document.getElementById('overlay');
     if (configs.overlay.element) {
-      configs.overlay.handle = configs.overlay.element.querySelector('.resize-handle');
+      configs.overlay.handle = configs.overlay.element.querySelector('.resize-handle-x');
       setupResizeHandle(configs.overlay);
+      // Overlay height setup
+      configs.overlayHeight.element = configs.overlay.element;
+      configs.overlayHeight.handle = configs.overlay.element.querySelector('.resize-handle-y');
+      setupResizeHandle(configs.overlayHeight);
     }
 
-    // Controller setup
+    // Controller width setup
     configs.controller.element = document.getElementById('controllerContainer');
     if (configs.controller.element) {
-      configs.controller.handle = configs.controller.element.querySelector('.resize-handle');
+      configs.controller.handle = configs.controller.element.querySelector('.resize-handle-x');
       setupResizeHandle(configs.controller);
+      // Controller height setup
+      configs.controllerHeight.element = configs.controller.element;
+      configs.controllerHeight.handle = configs.controller.element.querySelector('.resize-handle-y');
+      setupResizeHandle(configs.controllerHeight);
     }
 
     // Metar panel setup
@@ -30224,6 +30348,10 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     initializeResize();
     // Also reinitialize kneeboard panels
     initializePanelResize();
+    // Re-initialize panel position manager (panels are dynamically loaded)
+    if (typeof PanelPositionManager !== 'undefined') {
+      PanelPositionManager.init();
+    }
     mapLogger.debug('Panel resize handles re-initialized successfully');
   };
 })();
@@ -30466,13 +30594,11 @@ function getGroundElevationAtDistance(distanceMeters) {
 
 // Show elevation profile section
 function showElevationProfile() {
-  // EARLY RETURN: Don't show when controller mode is active
-  // Prüfe sowohl moverX als auch die tatsächliche Panel-Sichtbarkeit
-  var controllerEl = document.getElementById('controllerContainer');
-  var controllerVisible = controllerEl && controllerEl.style.visibility === 'visible';
-
-  if (moverX || controllerVisible) {
-    mapLogger.warn('BLOCKED showElevationProfile - moverX=' + moverX + ', controllerVisible=' + controllerVisible);
+  // Already visible - just update canvas data, don't re-init (prevents flicker)
+  if (elevationProfileVisible) {
+    if (typeof updateElevationProfile === 'function') {
+      updateElevationProfile();
+    }
     return;
   }
 
@@ -31775,15 +31901,6 @@ async function updateElevationProfileImmediate() {
   }
 
   // Auto-show elevation profile if layer is active but panel is hidden
-  // ABER: Nicht einblenden wenn Controller Modus aktiv ist
-  var controllerEl = document.getElementById('controllerContainer');
-  var controllerVisible = controllerEl && controllerEl.style.visibility === 'visible';
-
-  if (moverX || controllerVisible) {
-    mapLogger.debug('BLOCKED updateElevationProfileImmediate - controller mode active');
-    return { success: true, panelVisible: false, reason: 'controller_mode_active' };
-  }
-
   if (map && elevationProfileLayer && map.hasLayer(elevationProfileLayer) && !elevationProfileVisible) {
     mapLogger.debug('Auto-showing elevation profile (layer active, 2+ waypoints)');
     var section = document.getElementById('elevationProfileSection');
@@ -32978,13 +33095,14 @@ var updateElevationProfile = scheduleElevationUpdate;
 })();
 
 /**
- * Panel Position Manager - Verwaltet Panel-Positionen und Snap-to-Corners
+ * Panel Position Manager - Verwaltet Panel-Positionen mit Lock/Unlock und Server-Persistenz
+ * Coherent GT kompatibel
  */
 var PanelPositionManager = (function() {
-    var SNAP_THRESHOLD = 80; // Pixel-Abstand f�r Snap
-    var STORAGE_KEY = 'kneeboardPanelPositions';
+    var SNAP_THRESHOLD = 80;
+    var EDGE_MARGIN = 10; // Mindestabstand zum Viewport-Rand
+    var SAVE_DEBOUNCE_MS = 500;
 
-    // Ecken-Definitionen
     var CORNERS = {
         'top-left': { left: 10, top: 10 },
         'top-right': { right: 10, top: 10 },
@@ -32993,42 +33111,163 @@ var PanelPositionManager = (function() {
     };
 
     var positions = {};
+    var lockState = {}; // { panelId: true/false } - true = locked (default)
     var dragState = null;
+    var saveTimer = null;
+    var initialized = false;
+    var globalListenersAttached = false;
+    var positionsLoaded = false;
+
+    // ========================================================================
+    // INITIALIZATION
+    // ========================================================================
 
     function init() {
-        loadPositions();
-        initializePanelDragging();
-        applyStoredPositions();
+        if (positionsLoaded) {
+            // Re-init nach dynamischem Laden - nur Dragging + UI neu aufsetzen
+            initializePanelDragging();
+            applyStoredPositions();
+            applyLockStates();
+            return;
+        }
+        loadPositionsFromServer(function() {
+            positionsLoaded = true;
+            initializePanelDragging();
+            applyStoredPositions();
+            applyLockStates();
+            initialized = true;
+        });
     }
 
-    function loadPositions() {
+    // ========================================================================
+    // SERVER PERSISTENCE (with localStorage fallback)
+    // ========================================================================
+
+    function loadPositionsFromServer(callback) {
         try {
-            var stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) {
-                positions = JSON.parse(stored);
-            }
+            var serverUrl = (typeof getServerUrl === 'function') ? getServerUrl() : '';
+            fetch(serverUrl + '/api/panel-positions')
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data && typeof data === 'object') {
+                        positions = data.positions || {};
+                        lockState = data.lockState || {};
+                    }
+                    if (callback) callback();
+                })
+                .catch(function() {
+                    // Fallback: localStorage
+                    try {
+                        var stored = localStorage.getItem('kneeboardPanelPositions');
+                        if (stored) {
+                            var parsed = JSON.parse(stored);
+                            positions = parsed.positions || parsed;
+                            lockState = parsed.lockState || {};
+                        }
+                    } catch (e) {}
+                    if (callback) callback();
+                });
         } catch (e) {
-            mapLogger.warn('Failed to load panel positions:', e);
+            if (callback) callback();
         }
     }
 
     function savePositions() {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
-        } catch (e) {
-            mapLogger.warn('Failed to save panel positions:', e);
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(function() {
+            var data = { positions: positions, lockState: lockState };
+            // Server
+            try {
+                var serverUrl = (typeof getServerUrl === 'function') ? getServerUrl() : '';
+                fetch(serverUrl + '/api/panel-positions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                }).catch(function() {});
+            } catch (e) {}
+            // localStorage Fallback
+            try {
+                localStorage.setItem('kneeboardPanelPositions', JSON.stringify(data));
+            } catch (e) {}
+        }, SAVE_DEBOUNCE_MS);
+    }
+
+    // ========================================================================
+    // LOCK / UNLOCK
+    // ========================================================================
+
+    function isLocked(panelId) {
+        return lockState[panelId] !== false; // Default: locked
+    }
+
+    function toggleLock(panelId) {
+        var wasLocked = isLocked(panelId);
+        lockState[panelId] = !wasLocked;
+        updateLockUI(panelId);
+        savePositions();
+    }
+
+    function updateLockUI(panelId) {
+        var panel = document.getElementById(panelId);
+        if (!panel) return;
+        var locked = isLocked(panelId);
+        var btn = panel.querySelector('.panel-lock-btn');
+        if (btn) {
+            var closedIcon = btn.querySelector('.lock-closed');
+            var openIcon = btn.querySelector('.lock-open');
+            if (closedIcon && openIcon) {
+                closedIcon.style.display = locked ? 'block' : 'none';
+                openIcon.style.display = locked ? 'none' : 'block';
+            }
+            if (locked) {
+                btn.classList.remove('unlocked');
+                btn.title = 'Unlock position';
+            } else {
+                btn.classList.add('unlocked');
+                btn.title = 'Lock position';
+            }
+        }
+        if (locked) {
+            panel.classList.remove('panel-unlocked');
+        } else {
+            panel.classList.add('panel-unlocked');
         }
     }
 
+    function applyLockStates() {
+        var panels = document.querySelectorAll('.kneeboard-panel');
+        panels.forEach(function(panel) {
+            if (panel.id) updateLockUI(panel.id);
+        });
+    }
+
+    // ========================================================================
+    // VIEWPORT CLAMPING
+    // ========================================================================
+
+    function clampToViewport(x, y, panelWidth, panelHeight) {
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
+
+        // Panel muss komplett im Viewport bleiben
+        x = Math.max(EDGE_MARGIN, Math.min(x, vw - panelWidth - EDGE_MARGIN));
+        y = Math.max(EDGE_MARGIN, Math.min(y, vh - panelHeight - EDGE_MARGIN));
+        return { x: x, y: y };
+    }
+
+    // ========================================================================
+    // CORNER SNAP
+    // ========================================================================
+
     function findNearestCorner(x, y, panelWidth, panelHeight) {
-        var viewportWidth = window.innerWidth;
-        var viewportHeight = window.innerHeight;
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
 
         var cornerPositions = {
             'top-left': { x: 10, y: 10 },
-            'top-right': { x: viewportWidth - panelWidth - 10, y: 10 },
-            'bottom-left': { x: 10, y: viewportHeight - panelHeight - 60 },
-            'bottom-right': { x: viewportWidth - panelWidth - 10, y: viewportHeight - panelHeight - 60 }
+            'top-right': { x: vw - panelWidth - 10, y: 10 },
+            'bottom-left': { x: 10, y: vh - panelHeight - 60 },
+            'bottom-right': { x: vw - panelWidth - 10, y: vh - panelHeight - 60 }
         };
 
         var nearest = null;
@@ -33037,7 +33276,6 @@ var PanelPositionManager = (function() {
         for (var corner in cornerPositions) {
             var pos = cornerPositions[corner];
             var distance = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(y - pos.y, 2));
-
             if (distance < minDistance) {
                 minDistance = distance;
                 nearest = corner;
@@ -33047,37 +33285,126 @@ var PanelPositionManager = (function() {
         return (minDistance <= SNAP_THRESHOLD) ? nearest : null;
     }
 
-    function applyPosition(panelId, corner) {
+    // ========================================================================
+    // POSITION APPLICATION
+    // ========================================================================
+
+    function applyCornerPosition(panelId, corner) {
         var panel = document.getElementById(panelId);
         if (!panel) return;
 
         var cornerPos = CORNERS[corner];
+        // auto statt '' um CSS-Stylesheet-Werte zu überschreiben
+        panel.style.left = 'auto';
+        panel.style.right = 'auto';
+        panel.style.top = 'auto';
+        panel.style.bottom = 'auto';
 
-        // Reset
-        panel.style.left = '';
-        panel.style.right = '';
-        panel.style.top = '';
-        panel.style.bottom = '';
-
-        // Apply new position
         for (var prop in cornerPos) {
             panel.style[prop] = cornerPos[prop] + 'px';
         }
 
-        // Update resize handle
         panel.classList.remove('resize-left', 'resize-right');
         panel.classList.add(corner.includes('left') ? 'resize-right' : 'resize-left');
+    }
 
-        positions[panelId] = { corner: corner };
-        savePositions();
+    function applyFreePosition(panelId, left, top, width, height) {
+        var panel = document.getElementById(panelId);
+        if (!panel) return;
+
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        panel.style.left = left + 'px';
+        panel.style.top = top + 'px';
+        if (width) panel.style.width = width + 'px';
+        if (height) panel.style.setProperty('height', height + 'px', 'important');
+
+        // Resize-Handle basierend auf Position
+        var vw = window.innerWidth;
+        panel.classList.remove('resize-left', 'resize-right');
+        panel.classList.add(left < vw / 2 ? 'resize-right' : 'resize-left');
     }
 
     function applyStoredPositions() {
         for (var panelId in positions) {
-            if (positions[panelId].corner) {
-                applyPosition(panelId, positions[panelId].corner);
+            var pos = positions[panelId];
+            if (!pos) continue;
+            if (pos.corner) {
+                applyCornerPosition(panelId, pos.corner);
+            } else if (pos.left !== undefined && pos.top !== undefined) {
+                // Freie Position - sofort setzen, viewport-clamped
+                var panel = document.getElementById(panelId);
+                if (!panel) continue;
+                var rect = panel.getBoundingClientRect();
+                var clamped = clampToViewport(pos.left, pos.top, rect.width || 300, rect.height || 400);
+                applyFreePosition(panelId, clamped.x, clamped.y, pos.width, pos.height);
             }
         }
+    }
+
+    // ========================================================================
+    // DRAGGING (Mouse + Touch)
+    // ========================================================================
+
+    function startDrag(panel, clientX, clientY) {
+        if (isLocked(panel.id)) return;
+
+        var rect = panel.getBoundingClientRect();
+        dragState = {
+            panel: panel,
+            startX: clientX,
+            startY: clientY,
+            initialX: rect.left,
+            initialY: rect.top
+        };
+
+        panel.classList.add('dragging');
+    }
+
+    function moveDrag(clientX, clientY) {
+        if (!dragState) return;
+
+        var deltaX = clientX - dragState.startX;
+        var deltaY = clientY - dragState.startY;
+
+        var newX = dragState.initialX + deltaX;
+        var newY = dragState.initialY + deltaY;
+
+        var rect = dragState.panel.getBoundingClientRect();
+        var clamped = clampToViewport(newX, newY, rect.width, rect.height);
+
+        dragState.panel.style.left = clamped.x + 'px';
+        dragState.panel.style.top = clamped.y + 'px';
+        dragState.panel.style.right = 'auto';
+        dragState.panel.style.bottom = 'auto';
+    }
+
+    function endDrag() {
+        if (!dragState) return;
+
+        var panel = dragState.panel;
+        panel.classList.remove('dragging');
+
+        var rect = panel.getBoundingClientRect();
+        var corner = findNearestCorner(rect.left, rect.top, rect.width, rect.height);
+
+        if (corner) {
+            panel.style.transition = 'all 0.2s ease';
+            applyCornerPosition(panel.id, corner);
+            positions[panel.id] = { corner: corner };
+            setTimeout(function() { panel.style.transition = ''; }, 200);
+        } else {
+            positions[panel.id] = {
+                corner: null,
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: rect.height
+            };
+        }
+
+        savePositions();
+        dragState = null;
     }
 
     function initializePanelDragging() {
@@ -33086,73 +33413,87 @@ var PanelPositionManager = (function() {
         panels.forEach(function(panel) {
             var header = panel.querySelector('.kneeboard-panel-header');
             if (!header) return;
+            // Prevent duplicate listeners
+            if (header._panelDragInit) return;
+            header._panelDragInit = true;
 
+            // Mouse events
             header.addEventListener('mousedown', function(e) {
-                // Ignoriere Buttons
                 if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
-
-                dragState = {
-                    panel: panel,
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    initialX: panel.getBoundingClientRect().left,
-                    initialY: panel.getBoundingClientRect().top
-                };
-
-                panel.classList.add('dragging');
+                if (e.target.tagName === 'SELECT' || e.target.closest('select')) return;
+                startDrag(panel, e.clientX, e.clientY);
                 e.preventDefault();
             });
+
+            // Touch events (Coherent GT)
+            header.addEventListener('touchstart', function(e) {
+                if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+                if (e.target.tagName === 'SELECT' || e.target.closest('select')) return;
+                var touch = e.touches[0];
+                startDrag(panel, touch.clientX, touch.clientY);
+                e.preventDefault();
+            }, { passive: false });
         });
 
-        document.addEventListener('mousemove', function(e) {
-            if (!dragState) return;
+        // Global listeners nur einmal registrieren
+        if (!globalListenersAttached) {
+            globalListenersAttached = true;
 
-            var deltaX = e.clientX - dragState.startX;
-            var deltaY = e.clientY - dragState.startY;
+            document.addEventListener('mousemove', function(e) {
+                moveDrag(e.clientX, e.clientY);
+            });
 
-            var newX = dragState.initialX + deltaX;
-            var newY = dragState.initialY + deltaY;
+            document.addEventListener('mouseup', function() {
+                endDrag();
+            });
 
-            dragState.panel.style.left = newX + 'px';
-            dragState.panel.style.top = newY + 'px';
-            dragState.panel.style.right = '';
-            dragState.panel.style.bottom = '';
-        });
+            document.addEventListener('touchmove', function(e) {
+                if (!dragState) return;
+                var touch = e.touches[0];
+                moveDrag(touch.clientX, touch.clientY);
+                e.preventDefault();
+            }, { passive: false });
 
-        document.addEventListener('mouseup', function() {
-            if (!dragState) return;
+            document.addEventListener('touchend', function() {
+                endDrag();
+            });
+        }
+    }
 
-            var panel = dragState.panel;
-            panel.classList.remove('dragging');
+    // ========================================================================
+    // PUBLIC API
+    // ========================================================================
 
-            var rect = panel.getBoundingClientRect();
-            var corner = findNearestCorner(rect.left, rect.top, rect.width, rect.height);
-
-            if (corner) {
-                panel.style.transition = 'all 0.2s ease';
-                applyPosition(panel.id, corner);
-                setTimeout(function() {
-                    panel.style.transition = '';
-                }, 200);
-            } else {
-                // Free position
-                positions[panel.id] = {
-                    corner: null,
-                    left: rect.left,
-                    top: rect.top
-                };
-                savePositions();
-            }
-
-            dragState = null;
-        });
+    function saveSize(panelId) {
+        var panel = document.getElementById(panelId);
+        if (!panel) return;
+        var rect = panel.getBoundingClientRect();
+        if (!positions[panelId]) positions[panelId] = {};
+        positions[panelId].width = rect.width;
+        positions[panelId].height = rect.height;
+        savePositions();
     }
 
     return {
         init: init,
-        applyPosition: applyPosition
+        applyPosition: function(panelId, corner) {
+            applyCornerPosition(panelId, corner);
+            positions[panelId] = { corner: corner };
+            savePositions();
+        },
+        toggleLock: toggleLock,
+        isLocked: isLocked,
+        saveWidth: saveSize,
+        saveSize: saveSize
     };
 })();
+
+/**
+ * Global toggle function for lock buttons in HTML
+ */
+function togglePanelLock(panelId) {
+    PanelPositionManager.toggleLock(panelId);
+}
 
 /**
  * Panel Resize - Verwaltet Panel-Größen (ohne Persistenz - CSS vw-Werte werden verwendet)
@@ -33161,7 +33502,7 @@ function initializePanelResize() {
     var panels = document.querySelectorAll('.kneeboard-panel');
 
     panels.forEach(function(panel) {
-        var handle = panel.querySelector('.resize-handle');
+        var handle = panel.querySelector('.resize-handle-x');
         if (!handle) return;
 
         var isResizing = false;

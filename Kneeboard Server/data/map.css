@@ -1296,16 +1296,6 @@ span#counter {
     color: lightgray;
 }
 
-#wpListMinimize {
-    position: absolute;
-    right: 20px;
-    color: gray;
-    background-color: white;
-    border: 0;
-    border-radius: 4px;
-    font-size: 20px;
-    z-index: 1000;
-}
 
 #wpListMinimize:hover {
     color: lightgray;
@@ -2788,7 +2778,7 @@ i.gg-data{
     top: 50%;
     transform: translateY(-50%);
     display: flex;
-    gap: 4px;
+    gap: 10px;
 }
 
 #elevationProfileSection.minimized {
@@ -3227,9 +3217,14 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 /* Panel Header */
 .kneeboard-panel-header {
     flex: 0 0 auto;
-    padding: 12px 16px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 16px;
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     background-color: white;
+    font-size: 16px;
 }
 
 #overlay .kneeboard-panel-header-FP {
@@ -3249,15 +3244,17 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     color: var(--fontDark);
 }
 
-/* Panel Buttons (Close, Minimize) */
+/* Panel Buttons (Lock, Minimize, Close) */
 .kneeboard-panel-buttons {
     position: absolute;
-    top: 10px;
-    right: 12px;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 2px;
     z-index: 10;
+    background-color: white;
 }
 
 .kneeboard-panel-btn {
@@ -3269,7 +3266,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     font-size: 20px;
     font-weight: 300;
     cursor: pointer;
-    padding: 2px 6px;
+    padding: 2px 10px;
     margin: 0;
     line-height: 1;
     transition: all 0.15s ease;
@@ -3395,30 +3392,39 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 }
 
 /* Resize Handle - Unified */
+/* Resize Handles - nur sichtbar wenn panel-unlocked */
 .kneeboard-panel .resize-handle {
     position: absolute;
+    background: transparent;
+    pointer-events: all;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Nur sichtbar wenn unlocked */
+.kneeboard-panel.panel-unlocked .resize-handle {
+    display: flex;
+}
+
+/* X-Handle (Breite) - seitlich */
+.kneeboard-panel .resize-handle-x {
     width: 40px;
     height: 80px;
     cursor: ew-resize;
-    background: transparent;
-    /* z-index entfernt - Grabbar soll auf selber Ebene wie Panel sein */
-    pointer-events: all;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     top: 50%;
     transform: translateY(-50%);
 }
 
-.kneeboard-panel.resize-left .resize-handle {
+.kneeboard-panel.resize-left .resize-handle-x {
     left: -12px;
 }
 
-.kneeboard-panel.resize-right .resize-handle {
+.kneeboard-panel.resize-right .resize-handle-x {
     right: -12px;
 }
 
-.kneeboard-panel .resize-handle::after {
+.kneeboard-panel .resize-handle-x::after {
     content: '';
     width: 6px;
     height: 48px;
@@ -3427,10 +3433,35 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     transition: all 0.15s ease;
 }
 
-.kneeboard-panel .resize-handle:hover::after,
-.kneeboard-panel .resize-handle:active::after {
+.kneeboard-panel .resize-handle-x:hover::after,
+.kneeboard-panel .resize-handle-x:active::after {
     background: rgba(28, 94, 214, 0.4);
     height: 60px;
+}
+
+/* Y-Handle (Hoehe) - oben */
+.kneeboard-panel .resize-handle-y {
+    width: 80px;
+    height: 24px;
+    cursor: ns-resize;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.kneeboard-panel .resize-handle-y::after {
+    content: '';
+    width: 48px;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+    transition: all 0.15s ease;
+}
+
+.kneeboard-panel .resize-handle-y:hover::after,
+.kneeboard-panel .resize-handle-y:active::after {
+    background: rgba(28, 94, 214, 0.4);
+    width: 60px;
 }
 
 /* Resize Handle - Minimized State */
@@ -3440,6 +3471,10 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 /* Drag & Drop States */
 .kneeboard-panel-header {
+    cursor: default;
+}
+
+.kneeboard-panel.panel-unlocked .kneeboard-panel-header {
     cursor: move;
 }
 
@@ -3447,6 +3482,30 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
     z-index: 2000;
     transition: none;
+    opacity: 0.9;
+}
+
+/* Lock/Unlock Button */
+.panel-lock-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 10px;
+}
+
+.panel-lock-btn .lock-icon {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+    display: block;
+}
+
+.panel-lock-btn.unlocked {
+    color: #22c55e;
+}
+
+.panel-lock-btn.unlocked:hover {
+    color: #16a34a;
 }
 
 /* ATIS Info (VATSIM/IVAO) */
@@ -3839,9 +3898,11 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 .panel-mode-toggle {
     display: flex;
     gap: 6px;
-    margin-top: 12px;
-    margin-bottom: 8px;
+    padding: 8px 16px;
     width: 100%;
+    box-sizing: border-box;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: white;
 }
 
 .mode-btn {
@@ -4516,7 +4577,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 .wp-missed-header {
     pointer-events: none;
-    border-top: 1px dashed rgba(253, 189, 122, 0.4);
+    border-bottom: 1px dashed rgba(253, 189, 122, 0.4);
     margin-top: 2px;
     padding-top: 2px;
 }

@@ -17,13 +17,15 @@
 		</div>
 	</div>
 <div id="overlay" class="kneeboard-panel flightplan-panel resize-left" style="visibility: hidden;">
-    <div class="resize-handle"></div>
-    <div class="kneeboard-panel-buttons">
-        <button class="kneeboard-panel-btn" id="wpListMinimize" onclick="minimizeWpList()" title="Minimize waypoint list">_</button>
-        <button class="kneeboard-panel-btn" onclick="hideWpList()" title="Close waypoint list">×</button>
-    </div>
+    <div class="resize-handle resize-handle-x"></div>
+    <div class="resize-handle resize-handle-y"></div>
     <div class="kneeboard-panel-header">
         <h3 class="kneeboard-panel-title">FLIGHTPLAN</h3>
+        <div class="kneeboard-panel-buttons">
+            <button class="kneeboard-panel-btn panel-lock-btn" id="overlayLockBtn" onclick="togglePanelLock('overlay')" title="Lock/Unlock position"><svg class="lock-icon lock-closed" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18 10h-1V7A5 5 0 0 0 7 7v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2zM9 7a3 3 0 0 1 6 0v3H9V7z"/></svg><svg class="lock-icon lock-open" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none"><path d="M18 10h-7V7a3 3 0 0 1 5.12-2.12 3 3 0 0 1 .88 1.62h2A5 5 0 0 0 7 7v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2z"/></svg></button>
+            <button class="kneeboard-panel-btn" id="wpListMinimize" onclick="minimizeWpList()" title="Minimize waypoint list">_</button>
+            <button class="kneeboard-panel-btn" onclick="hideWpList()" title="Close waypoint list">×</button>
+        </div>
     </div>
 
     <!-- DEPARTURE SECTION -->
@@ -168,13 +170,15 @@
 
 </div>
 <div id="controllerContainer" class="kneeboard-panel resize-right" style="visibility: hidden;">
-    <div class="resize-handle"></div>
-    <div class="kneeboard-panel-buttons">
-        <button class="kneeboard-panel-btn" id="controllerListMinimize" onclick="minimizeControllerList()" title="Minimize controller list">_</button>
-        <button class="kneeboard-panel-btn" onclick="hideControllerPanel()" title="Hide panel">×</button>
-    </div>
+    <div class="resize-handle resize-handle-x"></div>
+    <div class="resize-handle resize-handle-y"></div>
     <div class="kneeboard-panel-header">
         <h3 class="kneeboard-panel-title" id="controllerHeader">VATSIM</h3>
+        <div class="kneeboard-panel-buttons">
+            <button class="kneeboard-panel-btn panel-lock-btn" id="controllerLockBtn" onclick="togglePanelLock('controllerContainer')" title="Lock/Unlock position"><svg class="lock-icon lock-closed" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18 10h-1V7A5 5 0 0 0 7 7v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2zM9 7a3 3 0 0 1 6 0v3H9V7z"/></svg><svg class="lock-icon lock-open" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none"><path d="M18 10h-7V7a3 3 0 0 1 5.12-2.12 3 3 0 0 1 .88 1.62h2A5 5 0 0 0 7 7v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2z"/></svg></button>
+            <button class="kneeboard-panel-btn" id="controllerListMinimize" onclick="minimizeControllerList()" title="Minimize controller list">_</button>
+            <button class="kneeboard-panel-btn" onclick="hideControllerPanel()" title="Hide panel">×</button>
+        </div>
     </div>
     <div class="kneeboard-panel-content" id="controllerList">
         <ul class="kneeboard-panel-list" id="controllerListUl"></ul>

@@ -106,6 +106,10 @@ namespace Kneeboard_Server
         private static readonly string FAVORITES_FILE = Path.Combine(CACHE_BASE_DIR, "pilot_favorites.json");
         private static readonly object _favoritesLock = new object();
 
+        // Panel Positions Storage
+        private static readonly string PANEL_POSITIONS_FILE = Path.Combine(CACHE_BASE_DIR, "panel_positions.json");
+        private static readonly object _panelPositionsLock = new object();
+
         // Baselayer Tile Cache Configuration
         private static readonly string BASELAYER_CACHE_DIR = Path.Combine(CACHE_BASE_DIR, "tiles");
         private static readonly TimeSpan BASELAYER_CACHE_TTL = TimeSpan.FromDays(30); // 30 Tage Cache für Baselayer
@@ -5587,6 +5591,68 @@ namespace Kneeboard_Server
         }
 
         /// <summary>
+        /// Load panel positions from disk
+        /// </summary>
+        private async Task HandleGetPanelPositions(IHttpContext ctx)
+        {
+            try
+            {
+                string json = null;
+                lock (_panelPositionsLock)
+                {
+                    if (File.Exists(PANEL_POSITIONS_FILE))
+                    {
+                        json = File.ReadAllText(PANEL_POSITIONS_FILE, Encoding.UTF8);
+                        if (json.Length > 0 && json[0] == '\uFEFF')
+                        {
+                            json = json.Substring(1);
+                        }
+                    }
+                }
+
+                await ResponseJsonAsync(ctx, json ?? "{}");
+            }
+            catch (Exception ex)
+            {
+                KneeboardLogger.Server($"Error loading panel positions: {ex.Message}");
+                await ResponseJsonAsync(ctx, "{}");
+            }
+        }
+
+        /// <summary>
+        /// Save panel positions to disk
+        /// </summary>
+        private async Task HandleSavePanelPositions(IHttpContext ctx)
+        {
+            try
+            {
+                using (var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding))
+                {
+                    string json = reader.ReadToEnd();
+
+                    lock (_panelPositionsLock)
+                    {
+                        var cacheDir = Path.GetDirectoryName(PANEL_POSITIONS_FILE);
+                        if (!Directory.Exists(cacheDir))
+                        {
+                            Directory.CreateDirectory(cacheDir);
+                        }
+
+                        File.WriteAllText(PANEL_POSITIONS_FILE, json, new UTF8Encoding(false));
+                    }
+
+                    await ResponseJsonAsync(ctx, "{\"success\":true}");
+                }
+            }
+            catch (Exception ex)
+            {
+                KneeboardLogger.Server($"Error saving panel positions: {ex.Message}");
+                ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                await ResponseJsonAsync(ctx, "{\"error\":\"" + ex.Message.Replace("\"", "\\\"") + "\"}");
+            }
+        }
+
+        /// <summary>
         /// Handles ICAO-based airport lookup via OpenAIP API.
         /// Returns airport coordinates for a given ICAO code.
         /// Endpoint: api/openaip/airport-by-icao/{ICAO}
@@ -7228,6 +7294,18 @@ namespace Kneeboard_Server
                 else if (ctx.Request.HttpMethod == "POST")
                 {
                     await HandleSaveFavorites(ctx);
+                }
+                return;
+            }
+            else if (command == "api/panel-positions")
+            {
+                if (ctx.Request.HttpMethod == "GET")
+                {
+                    await HandleGetPanelPositions(ctx);
+                }
+                else if (ctx.Request.HttpMethod == "POST")
+                {
+                    await HandleSavePanelPositions(ctx);
                 }
                 return;
             }
