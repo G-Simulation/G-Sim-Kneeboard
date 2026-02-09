@@ -101,6 +101,7 @@ only screen and (min-device-pixel-ratio : 2) {
     gap: 6px;
     max-height: 75%;
     padding-right: 6px;
+    z-index: 500;
 }
 
 .leaflet-bottom.leaflet-left {
@@ -145,6 +146,7 @@ only screen and (min-device-pixel-ratio : 2) {
     gap: 6px;
     max-height: 75%;
     padding-left: 6px;
+    z-index: 500;
 }
 
 .leaflet-top.leaflet-right::-webkit-scrollbar {
