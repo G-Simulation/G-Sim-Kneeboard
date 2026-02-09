@@ -3464,12 +3464,19 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 
 /* Category Headers (für VATSIM/IVAO Sections) */
 .kneeboard-panel-category {
-    padding: 8px 16px 4px 16px;
-    font-size: 11px;
+    padding: 6px 12px 3px 12px;
+    font-family: "Roboto-Light", sans-serif;
+    font-size: 10px;
     font-weight: 700;
-    color: #999;
+    color: #9ca3af;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
+    border-bottom: 1px solid #f0f0f0;
+    margin-bottom: 2px;
+}
+
+.kneeboard-panel-category:not(:first-child) {
+    margin-top: 4px;
 }
 
 /* ============================================================================

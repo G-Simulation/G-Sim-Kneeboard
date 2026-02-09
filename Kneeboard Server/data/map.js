@@ -12467,12 +12467,6 @@ function initializeMapWithLayers(layers) {
       window.activateWindLayerWhenReady = false;
       var windLayer = window.initialWindLayerConfig.layer;
 
-      // Don't activate wind layer if controller panel is open
-      if (typeof moverX !== 'undefined' && moverX) {
-        windLogger.debug('mapInitialized event: Skipping wind layer - controller panel is open');
-        return;
-      }
-
       if (!map.hasLayer(windLayer)) {
         windLogger.debug('mapInitialized event: Activating wind layer for no-flightplan scenario');
         windLayer.setOpacity(0);
@@ -13408,13 +13402,11 @@ function initializeMapWithLayers(layers) {
 
           id = this.options.myId;
           startlineShow = true;
-          // Nicht einblenden wenn Controller Modus aktiv
-          if (!wpListOn && !moverX) {
+          if (!wpListOn) {
             showWpList();
           }
           // Elevation Profile einblenden wenn geschlossen
-          // Aber nicht wenn Controller Modus aktiv
-          if (!elevationProfileVisible && !window.flightplanAnimationInProgress && !window.flightplanUISequenceInProgress && !moverX) {
+          if (!elevationProfileVisible && !window.flightplanAnimationInProgress && !window.flightplanUISequenceInProgress) {
             var wpLayers = typeof getWaypointLayersSorted === 'function' ? getWaypointLayersSorted() : [];
             if (wpLayers.length >= 2) {
               showElevationProfile();
@@ -16014,9 +16006,8 @@ function drawLines() {
           if (storedAlts) altitudes = storedAlts;
 
           // Show UI panels if waypoints exist
-          // Aber nicht wenn Controller Modus aktiv
           var layers = getWaypointLayersSorted();
-          if (layers && layers.length > 0 && !moverX) {
+          if (layers && layers.length > 0) {
             // Use showWpList which handles all visibility properly
             showWpList(true);
             showElevationProfile();
@@ -17122,19 +17113,8 @@ function mover() {
     // Reset minimized state when opening panel
     controllerListMinimized = false;
 
-    // Save wind layer state and hide it
-    if (typeof owmWindLayer !== 'undefined' && owmWindLayer && map) {
-      windLayerStateBeforePanel = map.hasLayer(owmWindLayer);
-      if (windLayerStateBeforePanel) {
-        map.removeLayer(owmWindLayer);
-        // Also remove wind markers
-        if (typeof windMarkersLayer !== 'undefined' && windMarkersLayer && map.hasLayer(windMarkersLayer)) {
-          map.removeLayer(windMarkersLayer);
-        }
-      }
-    } else {
-      windLayerStateBeforePanel = false;
-    }
+    // Wind bleibt sichtbar im Controller-Modus
+    windLayerStateBeforePanel = null;
 
     // Save measure tool state and hide it
     if (typeof polylineMeasureControl !== 'undefined' && polylineMeasureControl) {
@@ -17170,91 +17150,14 @@ function mover() {
       }
     }
 
-    // Save elevation profile state and hide it
-    elevationProfileStateBeforePanel = elevationProfileVisible;
-    if (elevationProfileVisible) {
-      hideElevationProfile();
-    }
+    // Elevation-Profile, Flightplan-Panel und Route bleiben sichtbar
+    elevationProfileStateBeforePanel = null;
+    flightplanPanelStateBeforeController = null;
+    flightpathLayersStateBeforeController = null;
 
-    // Save flightplan panel state and hide it
-    flightplanPanelStateBeforeController = wpListOn;
-    if (wpListOn) {
-      hideWpList();
-    }
-
-    // Save flight path layers state and hide them (route lines + waypoints + live tracking)
-    flightpathLayersStateBeforeController = {
-      pLineGroup: pLineGroup && map && map.hasLayer(pLineGroup),
-      pLineGroupDEP: pLineGroupDEP && map && map.hasLayer(pLineGroupDEP),
-      pLineGroupARR: pLineGroupARR && map && map.hasLayer(pLineGroupARR),
-      startLineGroup: startLineGroup && map && map.hasLayer(startLineGroup),
-      middleMarkers: middleMarkers && map && map.hasLayer(middleMarkers),
-      liveTrackingPolyline: polyline && map && map.hasLayer(polyline),
-      alternateRoute: alternateRouteLayer && map && map.hasLayer(alternateRouteLayer),
-      waypointMarkers: []
-    };
-
-    // Waypoint-Layer-State synchron sammeln (für mout()-Restore)
-    if (typeof getWaypointLayersSorted === 'function') {
-      var wpLayers = getWaypointLayersSorted();
-      for (var i = 0; i < wpLayers.length; i++) {
-        var wpLayer = wpLayers[i];
-        if (map.hasLayer(wpLayer)) {
-          flightpathLayersStateBeforeController.waypointMarkers.push(wpLayer);
-        }
-      }
-    }
-
-    // Layer-Entfernungen deferred ausführen damit UI responsive bleibt
-    var savedState = flightpathLayersStateBeforeController;
+    // Force map resize after UI changes
     setTimeout(function() {
-      // Guard: Wenn mout() zwischenzeitlich lief, nichts mehr tun
       if (!moverX) return;
-
-      // Hide route polylines
-      if (savedState.pLineGroup && pLineGroup && map.hasLayer(pLineGroup)) {
-        map.removeLayer(pLineGroup);
-      }
-      if (savedState.pLineGroupDEP && pLineGroupDEP && map.hasLayer(pLineGroupDEP)) {
-        map.removeLayer(pLineGroupDEP);
-      }
-      if (savedState.pLineGroupARR && pLineGroupARR && map.hasLayer(pLineGroupARR)) {
-        map.removeLayer(pLineGroupARR);
-      }
-      if (savedState.startLineGroup && startLineGroup && map.hasLayer(startLineGroup)) {
-        map.removeLayer(startLineGroup);
-      }
-      if (savedState.middleMarkers && middleMarkers && map.hasLayer(middleMarkers)) {
-        map.removeLayer(middleMarkers);
-      }
-
-      // Hide live tracking polyline (red flight path animation)
-      if (savedState.liveTrackingPolyline && polyline && map.hasLayer(polyline)) {
-        map.removeLayer(polyline);
-      }
-
-      // Hide alternate route
-      if (savedState.alternateRoute && alternateRouteLayer && map.hasLayer(alternateRouteLayer)) {
-        map.removeLayer(alternateRouteLayer);
-      }
-
-      // Hide waypoint markers
-      for (var j = 0; j < savedState.waypointMarkers.length; j++) {
-        if (map.hasLayer(savedState.waypointMarkers[j])) {
-          map.removeLayer(savedState.waypointMarkers[j]);
-        }
-      }
-
-      controllerLogger.info('Flight path hidden (deferred) - route lines, live tracking, and', savedState.waypointMarkers.length, 'waypoints');
-
-      // Deaktiviere Delete-Button im Controller-Modus
-      var deleteBtn = document.querySelector('.leaflet-draw-edit-remove');
-      if (deleteBtn) {
-        deleteBtn.style.pointerEvents = 'none';
-        deleteBtn.style.opacity = '0.5';
-      }
-
-      // Force map resize after all UI changes
       if (map) {
         map.invalidateSize({ pan: false });
       }
@@ -17341,29 +17244,28 @@ function mout() {
     LayerControl._update();
   }
 
-  // Restore wind layer if it was active before panel opened
-  if (windLayerStateBeforePanel === true && typeof owmWindLayer !== 'undefined' && owmWindLayer && map) {
-    // Remove Off layer first
-    if (windOffLayer && map.hasLayer(windOffLayer)) {
-      map.removeLayer(windOffLayer);
-    }
-    if (!map.hasLayer(owmWindLayer)) {
-      map.addLayer(owmWindLayer);
-    }
-    // Wind markers will be re-added by the overlayadd event handler
-  } else {
-    // Set Wind to Off
-    if (owmWindLayer && map && map.hasLayer(owmWindLayer)) {
-      map.removeLayer(owmWindLayer);
-    }
-    if (windOffLayer && map) {
-      if (map.hasLayer(windOffLayer)) {
+  // Restore wind layer only if it was saved (null = wind was never hidden)
+  if (windLayerStateBeforePanel !== null) {
+    if (windLayerStateBeforePanel === true && typeof owmWindLayer !== 'undefined' && owmWindLayer && map) {
+      if (windOffLayer && map.hasLayer(windOffLayer)) {
         map.removeLayer(windOffLayer);
       }
-      map.addLayer(windOffLayer);
+      if (!map.hasLayer(owmWindLayer)) {
+        map.addLayer(owmWindLayer);
+      }
+    } else if (windLayerStateBeforePanel === false) {
+      if (owmWindLayer && map && map.hasLayer(owmWindLayer)) {
+        map.removeLayer(owmWindLayer);
+      }
+      if (windOffLayer && map) {
+        if (map.hasLayer(windOffLayer)) {
+          map.removeLayer(windOffLayer);
+        }
+        map.addLayer(windOffLayer);
+      }
     }
+    windLayerStateBeforePanel = null;
   }
-  windLayerStateBeforePanel = null; // Reset state
 
   // Restore measure tool state
   if (measureToolStateBeforePanel && typeof polylineMeasureControl !== 'undefined' && polylineMeasureControl) {
@@ -18673,9 +18575,7 @@ function loadPoints() {
   var wpCount = waypointsData.length || (coordinates ? coordinates.length : 0);
   if (wpCount > 0) {
     // Nicht einblenden wenn Controller Modus aktiv
-    if (!moverX) {
-      showWpList(true);
-    }
+    showWpList(true);
     if (wpCount > 2) {
       toggle.enable();
       follow = false;
@@ -19144,12 +19044,6 @@ function hideWpList() {
 }
 
 function showWpList(force) {
-  // EARLY RETURN: Don't show when controller mode is active
-  if (moverX) {
-    mapLogger.debug('Blocking showWpList - controller mode active');
-    return;
-  }
-
   mapLogger.debug('showWpList called - force:', force, 'wpNames.length:', wpNames.length);
 
   var activeCount = 0;
@@ -19739,7 +19633,7 @@ function receiveMessage(e) {
       }
       var distance = map.distance([lastLat, lastLng], [lat, lng]);
       if (distance > 10 && (lat != lastLat || lng != lastLng)) {
-        if (showPath == true && polyline && !moverX) {
+        if (showPath == true && polyline) {
           polyline.addLatLng([lat, lng]);
           polylinepoints.push([lat, lng]);
         }
@@ -20375,21 +20269,12 @@ var pendingFlightplanRafId = null;
 var pendingFlightplanTimer = null;
 
 function scheduleFlightplanRender(flightplanData, delay) {
-  // BLOCK rendering when controller mode is active
-  if (moverX) {
-    mapLogger.debug('BLOCKED - controller mode active (moverX=true)');
-    return;
-  }
 
   safeCleanupTimer('pendingFlightplanTimer');
   var ms = typeof delay === "number" ? delay : 0;
 
   function tryRenderFlightplan() {
-    // Check again in case controller mode was activated during delay
-    if (moverX) {
-      mapLogger.debug('BLOCKED in tryRenderFlightplan - controller mode active');
-      return;
-    }
+
 
     if (!map || typeof map.fire !== "function") {
       pendingFlightplanRafId = requestAnimationFrame(tryRenderFlightplan);
@@ -26191,12 +26076,6 @@ async function rebuildFlightplanFromSelections() {
 // ========================================
 
 function setWaypoints(flightplanData) {
-  // BLOCK when controller mode is active
-  if (moverX) {
-    waypointLogger.debug('BLOCKED - controller mode active');
-    return;
-  }
-
   // WICHTIG: Wenn bereits Waypoints aus dem Cache geladen wurden, nicht nochmal erstellen!
   // Dies verhindert doppelte RWY-Waypoints beim Browser-Reload
   var existingWaypoints = getWaypointLayersSorted();
