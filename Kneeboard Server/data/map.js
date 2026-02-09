@@ -32895,7 +32895,7 @@ var PanelPositionManager = (function() {
                 .then(function(data) {
                     if (data && typeof data === 'object') {
                         positions = data.positions || {};
-                        lockState = data.lockState || {};
+                        lockState = {}; // Always start locked
                     }
                     if (callback) callback();
                 })
@@ -32906,7 +32906,7 @@ var PanelPositionManager = (function() {
                         if (stored) {
                             var parsed = JSON.parse(stored);
                             positions = parsed.positions || parsed;
-                            lockState = parsed.lockState || {};
+                            lockState = {}; // Always start locked
                         }
                     } catch (e) {}
                     if (callback) callback();

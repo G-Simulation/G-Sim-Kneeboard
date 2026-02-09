@@ -105,6 +105,7 @@ only screen and (min-device-pixel-ratio : 2) {
 
 .leaflet-bottom.leaflet-left {
     padding-left: 5px !important;
+    z-index: 500;
 }
 
 .leaflet-control {
@@ -1116,7 +1117,7 @@ h4 {
 
 #controllerContainer {
     position: absolute;
-    width: 15vw;
+    width: 25vw;
     min-width: 15vw;
     max-width: 45vw;
     max-height: 75%;
@@ -3408,6 +3409,11 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     display: flex;
 }
 
+.kneeboard-panel.panel-unlocked {
+    overflow: visible;
+    z-index: 1001;
+}
+
 /* X-Handle (Breite) - seitlich */
 .kneeboard-panel .resize-handle-x {
     width: 40px;
@@ -3445,7 +3451,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     width: 80px;
     height: 24px;
     cursor: ns-resize;
-    top: -8px;
+    top: 4px;
     left: 50%;
     transform: translateX(-50%);
 }
@@ -3494,7 +3500,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     border: 2px dashed rgba(0,0,0,0.15);
     border-radius: 8px;
     background: rgba(0,0,0,0.03);
-    z-index: 999;
+    z-index: 1500;
     display: none;
     pointer-events: none;
     transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
