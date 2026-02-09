@@ -941,147 +941,6 @@ function removeCachedItem(key) {
   localStorage.removeItem(versionedKey);
 }
 
-// ============================================================================
-// MAP UI STATE MANAGEMENT - Speichert und stellt UI-Zustände wieder her
-// ============================================================================
-var MAP_STATE_KEY = 'mapUiState';
-
-/**
- * Speichert den aktuellen UI-Zustand der Karte im LocalStorage
- */
-function saveMapState() {
-  try {
-    var state = {
-      // Karten-Position und Zoom
-      mapCenter: map ? [map.getCenter().lat, map.getCenter().lng] : null,
-      zoomLevel: map ? map.getZoom() : null,
-
-      // Follow-Modus
-      follow: typeof follow !== 'undefined' ? follow : false,
-
-      // Panel-Zustand (Controller/Airports/Navaids)
-      panelState: typeof panelState !== 'undefined' ? panelState : '',
-      controllerMode: typeof moverX !== 'undefined' ? moverX : false
-    };
-
-    setCachedItem(MAP_STATE_KEY, state);
-    cacheLogger.debug('Saved state:', state);
-    return true;
-  } catch (e) {
-    cacheLogger.warn('Save failed:', e);
-    return false;
-  }
-}
-
-/**
- * Stellt den UI-Zustand der Karte aus dem LocalStorage wieder her
- */
-function restoreMapState() {
-  try {
-    var state = getCachedItem(MAP_STATE_KEY);
-    if (!state) {
-      cacheLogger.debug('No saved state found');
-      return false;
-    }
-
-    cacheLogger.debug('Restoring state:', state);
-
-    // Karten-Position und Zoom wiederherstellen - nur wenn anders als aktuell
-    if (state.mapCenter && state.zoomLevel && map) {
-      var currentCenter = map.getCenter();
-      var currentZoom = map.getZoom();
-      var samePosition = Math.abs(currentCenter.lat - state.mapCenter[0]) < 0.0001 &&
-                         Math.abs(currentCenter.lng - state.mapCenter[1]) < 0.0001 &&
-                         currentZoom === state.zoomLevel;
-      if (!samePosition) {
-        map.setView(state.mapCenter, state.zoomLevel, { animate: false });
-        cacheLogger.debug('View updated to saved position');
-      } else {
-        cacheLogger.debug('Position already correct, skipping setView');
-      }
-    }
-
-    // Follow-Modus wiederherstellen
-    if (typeof follow !== 'undefined' && typeof toggle !== 'undefined') {
-      follow = state.follow;
-      if (follow) {
-        toggle.disable();
-      } else {
-        toggle.enable();
-      }
-    }
-
-    // Panel-Zustand wiederherstellen (Controller-Modus, VATSIM/IVAO/Airports/Navaids)
-    if (state.panelState && state.controllerMode) {
-      cacheLogger.debug('Restoring panel state:', state.panelState);
-      setTimeout(function() {
-        try {
-          if (state.panelState === 'vatsim') {
-            if (typeof setControlZonesEnabled === 'function') setControlZonesEnabled(true);
-            if (typeof openControllerPanel === 'function') openControllerPanel('vatsim');
-            if (typeof toggle10 !== 'undefined') toggle10.state('vatsim');
-          } else if (state.panelState === 'ivao') {
-            if (typeof setControlZonesEnabled === 'function') setControlZonesEnabled(true);
-            if (typeof openControllerPanel === 'function') openControllerPanel('ivao');
-            if (typeof toggle10 !== 'undefined') toggle10.state('ivao');
-          } else if (state.panelState === 'airports') {
-            if (typeof toggle11 !== 'undefined') {
-              mover();
-              airportsToggle = 'airports';
-              airportsCounter = 10;
-              document.getElementById('controllerListUl').innerHTML = '';
-              document.getElementById('controllerHeader').innerHTML = 'Airports';
-              toggle11.state('airports');
-              if (typeof getWPData === 'function') getWPData();
-              if (typeof listNavaids === 'function') listNavaids();
-              airportsPanel = false;
-              panelState = 'airports';
-              if (typeof hideMetarContainer === 'function') hideMetarContainer();
-            }
-          } else if (state.panelState === 'navaids') {
-            if (typeof toggle11 !== 'undefined') {
-              mover();
-              airportsToggle = 'navaids';
-              navaidsCounter = 10;
-              document.getElementById('controllerListUl').innerHTML = '';
-              document.getElementById('controllerHeader').innerHTML = 'Navaids';
-              toggle11.state('navaids');
-              if (typeof getWPData === 'function') getWPData();
-              if (typeof listNavaids === 'function') listNavaids();
-              airportsPanel = true;
-              panelState = 'navaids';
-              if (typeof hideMetarContainer === 'function') hideMetarContainer();
-            }
-          }
-          cacheLogger.debug('Panel state restored:', state.panelState);
-        } catch (e) {
-          cacheLogger.warn('Panel state restore failed:', e);
-        }
-      }, 800);
-    }
-
-    cacheLogger.debug('State restored successfully');
-    return true;
-  } catch (e) {
-    cacheLogger.warn('Restore failed:', e);
-    return false;
-  }
-}
-
-/**
- * Debounced Auto-Save - speichert nicht bei jedem kleinen Event
- */
-var mapStateSaveTimeout = null;
-function scheduleMapStateSave() {
-  if (mapStateSaveTimeout) {
-    clearTimeout(mapStateSaveTimeout);
-  }
-  mapStateSaveTimeout = setTimeout(function() {
-    saveMapState();
-    mapStateSaveTimeout = null;
-  }, 1000); // 1 Sekunde Debounce
-}
-
 /**
  * Returns true when valid waypoint data exists in cache/local state.
  * Helps decide if we must fetch from server even when hashes match.
@@ -2455,6 +2314,20 @@ function handleAnimationComplete(e) {
       } else if (elevationProfileUserClosed && MAP_DEBUG) {
         mapLogger.warn('Skipping elevation profile - user manually closed it');
       }
+
+      // Panels erst jetzt sichtbar machen (zusammen mit Elevation Profile)
+      var overlayEl = document.getElementById('overlay');
+      if (overlayEl && overlayEl.style.display === 'flex') {
+        overlayEl.style.visibility = 'visible';
+      }
+      var bannerEl = document.getElementById('banner');
+      if (bannerEl) bannerEl.style.visibility = 'visible';
+      var controllerEl = document.getElementById('controllerContainer');
+      if (controllerEl && controllerEl.style.visibility === 'hidden' && moverX) {
+        controllerEl.style.visibility = 'visible';
+        var controllerList = document.getElementById('controllerList');
+        if (controllerList) controllerList.style.visibility = 'visible';
+      }
     };
 
     // DURCHGEHENDE ANIMATION: Alternate-Route animiert NACH Hauptanimation, VOR Elevation Profile
@@ -2795,11 +2668,14 @@ function showFlightplanPanel() {
   var overlayListSum = DOM.overlayListSum;
   var banner = DOM.banner;
 
+  // Während Animation nur display setzen, visibility bleibt hidden bis showElevationAfterAnimation
+  var animating = window.flightplanAnimationInProgress || window.flightplanUISequenceInProgress;
+
   if (overlayEl) {
     overlayEl.style.display = "flex";
-    overlayEl.style.visibility = "visible";
+    if (!animating) overlayEl.style.visibility = "visible";
   }
-  if (banner) banner.style.visibility = "visible";
+  if (banner && !animating) banner.style.visibility = "visible";
   if (overlayList) {
     overlayList.style.display = "";
     overlayList.style.visibility = "visible";
@@ -6207,8 +6083,7 @@ function initMapPage() {
     }, 200);
   }
 
-  // NOTE: restoreMapState() wird am Ende von initializeMapWithLayers() aufgerufen,
-  // da dort alle UI-Elemente (toggle10, toggle11, etc.) bereits initialisiert sind
+  // UI-State wird durch applyMapSettings() in window.mapSettings.initialize() wiederhergestellt
 
   // Check SimBrief ID availability and update button state accordingly
   checkSimbriefIdAvailable().then(function() {
@@ -12645,7 +12520,7 @@ function initializeMapWithLayers(layers) {
       }, 100);
     }
     // Auto-save map UI state
-    scheduleMapStateSave();
+    if (window.mapSettings && window.mapSettings.save) window.mapSettings.save();
   }
 
   // Helper function to deactivate measure mode
@@ -12684,7 +12559,7 @@ function initializeMapWithLayers(layers) {
     }
     elevationProfileStateBeforeMeasure = null;
     // Auto-save map UI state
-    scheduleMapStateSave();
+    if (window.mapSettings && window.mapSettings.save) window.mapSettings.save();
   }
 
   var measureButton = L.easyButton({
@@ -13223,19 +13098,15 @@ function initializeMapWithLayers(layers) {
         var overlayEl = DOM.overlay;
         if (overlayEl) {
           overlayEl.style.display = "flex";
-          overlayEl.style.visibility = "visible";
+          // Visibility bleibt hidden - wird erst mit Elevation Profile sichtbar
         }
-        DOM.banner.style.visibility = "visible";
-        DOM.overlay.style.visibility = "visible";
         DOM.overlayList.style.display = "";
-        DOM.overlayList.style.visibility = "visible";
         // Only show overlayListSum if we have at least 2 waypoints
         var wpCountCheck = flightplan ? flightplan.length : 0;
         var overlayListSumEl = DOM.overlayListSum;
         if (overlayListSumEl) {
           if (wpCountCheck >= 2) {
             overlayListSumEl.style.display = "";
-            overlayListSumEl.style.visibility = "visible";
           } else {
             overlayListSumEl.style.display = "none";
           }
@@ -15699,7 +15570,7 @@ function drawLines() {
       updatePilotsViewport();
     }
     // Auto-save map UI state
-    scheduleMapStateSave();
+    if (window.mapSettings && window.mapSettings.save) window.mapSettings.save();
   });
 
   // WICHTIG: Set "Off" layers BEFORE creating LayerControl
@@ -16366,11 +16237,7 @@ function drawLines() {
   });
 
   // Restore saved map UI state AFTER all UI elements are initialized
-  // (toggle10, toggle11, measureButton, searchButton, etc.)
-  setTimeout(function() {
-    mapLogger.debug('Restoring map UI state after full initialization');
-    restoreMapState();
-  }, 500);
+  // UI-State wird durch applyMapSettings() wiederhergestellt (konsolidiert)
 
   // Initialize Flightplan Panel with cached OFP data (if available)
   // This handles the case when the page is reloaded with a cached flightplan
@@ -17137,9 +17004,11 @@ var flightpathLayersStateBeforeController = null; // Tracks flight path layers s
 function mover() {
   if (moverX == false) {
     var controllerOverlay = DOM.controllerContainer;
-    controllerOverlay.style.visibility = "visible";
+    var animating = window.flightplanAnimationInProgress || window.flightplanUISequenceInProgress;
+    // Waehrend Animation nur Modus aktivieren, visibility bleibt hidden bis showElevationAfterAnimation
+    if (!animating) controllerOverlay.style.visibility = "visible";
     var list = DOM.controllerList;
-    list.style.visibility = "visible";
+    if (!animating) list.style.visibility = "visible";
     moverX = true;
     window.moverX = true; // Expose to kneeboard.js for polling control
     // Reset minimized state when opening panel
@@ -17196,7 +17065,7 @@ function mover() {
     }, 0);
 
     // Auto-save panel state
-    scheduleMapStateSave();
+    if (window.mapSettings && window.mapSettings.save) window.mapSettings.save();
   }
 }
 
@@ -17217,6 +17086,8 @@ function hideControllerPanel() {
 // Öffnet das Panel wieder wenn Controller-Modus aktiv ist
 function showControllerPanel() {
   if (!moverX) return; // Nur wenn Controller-Modus aktiv
+  // Während Animation nicht einblenden - wird von showElevationAfterAnimation erledigt
+  if (window.flightplanAnimationInProgress || window.flightplanUISequenceInProgress) return;
   var controllerContainer = DOM.controllerContainer;
   var controllerList = DOM.controllerList;
   if (controllerContainer) {
@@ -29863,6 +29734,11 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     // Redraw elevation profile after resize (force=true to skip throttling)
     if (wasElevationResizing && typeof redrawElevationCanvas === 'function') {
       redrawElevationCanvas(true);
+      // Panel-Positionen an neue Elevation-Hoehe anpassen
+      var elevSection = document.getElementById('elevationProfileSection');
+      if (elevSection && elevSection.offsetHeight > 0) {
+        document.documentElement.style.setProperty('--panel-bottom', (elevSection.offsetHeight + 15) + 'px');
+      }
     }
 
     // Save panel width after resize to PanelPositionManager
@@ -30027,6 +29903,11 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     // Redraw elevation profile after resize (force=true to skip throttling)
     if (wasElevationResizing && typeof redrawElevationCanvas === 'function') {
       redrawElevationCanvas(true);
+      // Panel-Positionen an neue Elevation-Hoehe anpassen
+      var elevSection = document.getElementById('elevationProfileSection');
+      if (elevSection && elevSection.offsetHeight > 0) {
+        document.documentElement.style.setProperty('--panel-bottom', (elevSection.offsetHeight + 15) + 'px');
+      }
     }
 
     // Save panel width after resize to PanelPositionManager
@@ -30622,6 +30503,14 @@ function showElevationProfile() {
     elevationProfileVisible = true;
     elevationProfileUserClosed = false; // Reset user-closed state when showing
 
+    // Panel-Positionen ueber Elevation Panel schieben
+    requestAnimationFrame(function() {
+      var eh = section.offsetHeight;
+      if (eh > 0) {
+        document.documentElement.style.setProperty('--panel-bottom', (eh + 15) + 'px');
+      }
+    });
+
     // WICHTIG: Wenn Flugplan geladen wird, collapsed-Zustand zurücksetzen!
     // Der Canvas soll beim Einblenden immer sichtbar sein
     var wrapper = document.querySelector('.elevation-canvas-wrapper');
@@ -30717,6 +30606,9 @@ function hideElevationProfile(userAction) {
   if (section) {
     section.style.display = 'none';
     elevationProfileVisible = false;
+
+    // Panel-Positionen zurueck an unteren Viewport-Rand
+    document.documentElement.style.setProperty('--panel-bottom', '10px');
 
     // Track if user manually closed the panel
     if (userAction === true) {
@@ -32168,6 +32060,9 @@ var updateElevationProfile = scheduleElevationUpdate;
       };
     }
 
+    // Follow-Modus
+    settings.follow = typeof follow !== 'undefined' ? follow : false;
+
     // Panel sizes
     settings.panels = {};
 
@@ -32175,7 +32070,8 @@ var updateElevationProfile = scheduleElevationUpdate;
     if (overlayEl) {
       settings.panels.overlay = {
         visible: overlayEl.style.visibility !== 'hidden' &&
-                 window.getComputedStyle(overlayEl).visibility !== 'hidden'
+                 window.getComputedStyle(overlayEl).visibility !== 'hidden',
+        minimized: typeof wpListMinimized !== 'undefined' ? wpListMinimized : false
       };
     }
 
@@ -32199,10 +32095,12 @@ var updateElevationProfile = scheduleElevationUpdate;
       }
 
       settings.panels.controller = {
-        visible: false,  // IMMER false - Controller Panel soll beim Laden NIE aktiv sein
-        panelState: savedPanelState || ''  // Save current panel type (vatsim, ivao, airports, navaids, reportingPoints)
+        visible: typeof isControllerPanelVisible === 'function' ? isControllerPanelVisible() : false,
+        active: typeof moverX !== 'undefined' ? moverX : false,
+        minimized: typeof controllerListMinimized !== 'undefined' ? controllerListMinimized : false,
+        panelState: savedPanelState || ''
       };
-      mapLogger.debug('Saving controller panel state:', savedPanelState, ', visible: always false');
+      mapLogger.debug('Saving controller panel state:', savedPanelState, ', active:', moverX, ', visible:', settings.panels.controller.visible);
     }
 
     var metarEl = document.getElementById('metarContainer');
@@ -32298,6 +32196,13 @@ var updateElevationProfile = scheduleElevationUpdate;
     if (!settings) return;
 
     try {
+      // Follow-Modus wiederherstellen
+      if (typeof settings.follow !== 'undefined' && typeof follow !== 'undefined' && typeof toggle !== 'undefined') {
+        follow = settings.follow;
+        if (follow) toggle.disable();
+        else toggle.enable();
+      }
+
       // Apply panel visibility FIRST (immediately, no delay) to prevent flashing
       if (settings.panels) {
         if (settings.panels.overlay && typeof settings.panels.overlay.visible !== 'undefined') {
@@ -32400,14 +32305,17 @@ var updateElevationProfile = scheduleElevationUpdate;
           var controllerEl = document.getElementById('controllerContainer');
           var controllerList = document.getElementById('controllerList');
           if (controllerEl) {
-            // Controller Panel soll NIEMALS beim Laden aktiv sein
-            // Egal was in den Settings steht - immer hidden starten
-            var shouldShow = false;
-            if (typeof settings.panels.controller.visible !== 'undefined') {
-              controllerEl.style.visibility = shouldShow ? 'visible' : 'hidden';
-              if (controllerList) {
-                controllerList.style.visibility = shouldShow ? 'visible' : 'hidden';
-              }
+            var shouldShow = settings.panels.controller.active || false;
+            var animating = window.flightplanAnimationInProgress || window.flightplanUISequenceInProgress;
+
+            if (shouldShow && settings.panels.controller.visible) {
+              // Modus aktiv und Panel war sichtbar - waehrend Animation hidden lassen
+              controllerEl.style.visibility = animating ? 'hidden' : 'visible';
+              if (controllerList) controllerList.style.visibility = animating ? 'hidden' : 'visible';
+            } else {
+              // Modus nicht aktiv oder Panel war geschlossen
+              controllerEl.style.visibility = 'hidden';
+              if (controllerList) controllerList.style.visibility = 'hidden';
             }
 
             // Restore panel state and trigger data loading
@@ -32505,13 +32413,6 @@ var updateElevationProfile = scheduleElevationUpdate;
           }
         }
 
-        // WICHTIG: Controller Button IMMER auf radio setzen beim Laden
-        // Unabhängig davon ob settings.panels.controller existiert oder nicht
-        if (typeof toggle10 !== 'undefined') {
-          toggle10.state('radio');
-          mapLogger.debug('Controller button forced to radio state on load (applyMapSettings)');
-        }
-
         if (settings.panels.metar) {
           var metarEl = document.getElementById('metarContainer');
           if (metarEl) {
@@ -32546,6 +32447,14 @@ var updateElevationProfile = scheduleElevationUpdate;
             elevationEl.classList.remove('elevation-collapsed');
             mapLogger.debug('Elevation canvas always starts expanded');
           }
+        }
+
+        // Minimized-States wiederherstellen (nach Panel-Restore)
+        if (settings.panels.overlay && settings.panels.overlay.minimized) {
+          if (typeof minimizeWpList === 'function') minimizeWpList();
+        }
+        if (settings.panels.controller && settings.panels.controller.minimized) {
+          if (typeof minimizeControllerList === 'function') minimizeControllerList();
         }
       }
 
@@ -33103,12 +33012,23 @@ var PanelPositionManager = (function() {
     var EDGE_MARGIN = 10; // Mindestabstand zum Viewport-Rand
     var SAVE_DEBOUNCE_MS = 500;
 
-    var CORNERS = {
-        'top-left': { left: 10, top: 10 },
-        'top-right': { right: 10, top: 10 },
-        'bottom-left': { left: 10, bottom: 60 },
-        'bottom-right': { right: 10, bottom: 60 }
-    };
+    function getElevationBottom() {
+        if (typeof elevationProfileVisible !== 'undefined' && elevationProfileVisible) {
+            var elev = document.getElementById('elevationProfileSection');
+            if (elev && elev.offsetHeight > 0) return elev.offsetHeight + 15;
+        }
+        return 10;
+    }
+
+    function getCORNERS() {
+        var eb = getElevationBottom();
+        return {
+            'top-left': { left: 10, top: 10 },
+            'top-right': { right: 10, top: 10 },
+            'bottom-left': { left: 10, bottom: eb },
+            'bottom-right': { right: 10, bottom: eb }
+        };
+    }
 
     var positions = {};
     var lockState = {}; // { panelId: true/false } - true = locked (default)
@@ -33232,6 +33152,11 @@ var PanelPositionManager = (function() {
         } else {
             panel.classList.add('panel-unlocked');
         }
+
+        // Drop-Targets ein-/ausblenden wenn irgendein Panel unlocked
+        var anyUnlocked = document.querySelector('.kneeboard-panel.panel-unlocked');
+        var targets = document.querySelectorAll('.panel-drop-target');
+        targets.forEach(function(t) { t.style.display = anyUnlocked ? 'block' : 'none'; });
     }
 
     function applyLockStates() {
@@ -33263,11 +33188,12 @@ var PanelPositionManager = (function() {
         var vw = window.innerWidth;
         var vh = window.innerHeight;
 
+        var eb = getElevationBottom();
         var cornerPositions = {
             'top-left': { x: 10, y: 10 },
             'top-right': { x: vw - panelWidth - 10, y: 10 },
-            'bottom-left': { x: 10, y: vh - panelHeight - 60 },
-            'bottom-right': { x: vw - panelWidth - 10, y: vh - panelHeight - 60 }
+            'bottom-left': { x: 10, y: vh - panelHeight - eb },
+            'bottom-right': { x: vw - panelWidth - 10, y: vh - panelHeight - eb }
         };
 
         var nearest = null;
@@ -33293,7 +33219,7 @@ var PanelPositionManager = (function() {
         var panel = document.getElementById(panelId);
         if (!panel) return;
 
-        var cornerPos = CORNERS[corner];
+        var cornerPos = getCORNERS()[corner];
         // auto statt '' um CSS-Stylesheet-Werte zu überschreiben
         panel.style.left = 'auto';
         panel.style.right = 'auto';
@@ -33308,21 +33234,34 @@ var PanelPositionManager = (function() {
         panel.classList.add(corner.includes('left') ? 'resize-right' : 'resize-left');
     }
 
-    function applyFreePosition(panelId, left, top, width, height) {
+    function applyFreePosition(panelId, pos) {
         var panel = document.getElementById(panelId);
         if (!panel) return;
 
-        panel.style.right = 'auto';
-        panel.style.bottom = 'auto';
-        panel.style.left = left + 'px';
-        panel.style.top = top + 'px';
-        if (width) panel.style.width = width + 'px';
-        if (height) panel.style.setProperty('height', height + 'px', 'important');
+        if (pos.width) panel.style.width = pos.width + 'px';
+        if (pos.height) panel.style.setProperty('height', pos.height + 'px', 'important');
 
-        // Resize-Handle basierend auf Position
-        var vw = window.innerWidth;
-        panel.classList.remove('resize-left', 'resize-right');
-        panel.classList.add(left < vw / 2 ? 'resize-right' : 'resize-left');
+        if (pos.useRight) {
+            // Rechts-verankertes Panel
+            var r = Math.max(0, pos.right || 0);
+            var b = Math.max(0, pos.bottom || 0);
+            panel.style.left = 'auto';
+            panel.style.top = 'auto';
+            panel.style.right = r + 'px';
+            panel.style.bottom = b + 'px';
+            panel.classList.remove('resize-left', 'resize-right');
+            panel.classList.add('resize-left');
+        } else {
+            // Links-verankertes Panel
+            var l = Math.max(0, pos.left || 0);
+            var b = Math.max(0, pos.bottom || 0);
+            panel.style.right = 'auto';
+            panel.style.top = 'auto';
+            panel.style.left = l + 'px';
+            panel.style.bottom = b + 'px';
+            panel.classList.remove('resize-left', 'resize-right');
+            panel.classList.add('resize-right');
+        }
     }
 
     function applyStoredPositions() {
@@ -33331,13 +33270,8 @@ var PanelPositionManager = (function() {
             if (!pos) continue;
             if (pos.corner) {
                 applyCornerPosition(panelId, pos.corner);
-            } else if (pos.left !== undefined && pos.top !== undefined) {
-                // Freie Position - sofort setzen, viewport-clamped
-                var panel = document.getElementById(panelId);
-                if (!panel) continue;
-                var rect = panel.getBoundingClientRect();
-                var clamped = clampToViewport(pos.left, pos.top, rect.width || 300, rect.height || 400);
-                applyFreePosition(panelId, clamped.x, clamped.y, pos.width, pos.height);
+            } else if (pos.right !== undefined || pos.left !== undefined) {
+                applyFreePosition(panelId, pos);
             }
         }
     }
@@ -33350,12 +33284,27 @@ var PanelPositionManager = (function() {
         if (isLocked(panel.id)) return;
 
         var rect = panel.getBoundingClientRect();
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
+
+        // Anker bestimmen: rechte Panels (overlay) → right/bottom, linke (controller) → left/bottom
+        var useRight = panel.style.right !== 'auto' && panel.style.right !== '' && panel.style.left === 'auto';
+        // Fallback: Panel auf rechter Bildschirmhälfte → right-Anker
+        if (!useRight && panel.style.left === '' && panel.style.right === '') {
+            useRight = rect.left + rect.width / 2 > vw / 2;
+        }
+
         dragState = {
             panel: panel,
             startX: clientX,
             startY: clientY,
-            initialX: rect.left,
-            initialY: rect.top
+            useRight: useRight,
+            initialRight: vw - rect.right,
+            initialBottom: vh - rect.bottom,
+            initialLeft: rect.left,
+            initialTop: rect.top,
+            panelWidth: rect.width,
+            panelHeight: rect.height
         };
 
         panel.classList.add('dragging');
@@ -33366,17 +33315,53 @@ var PanelPositionManager = (function() {
 
         var deltaX = clientX - dragState.startX;
         var deltaY = clientY - dragState.startY;
+        var panel = dragState.panel;
+        var pw = dragState.panelWidth;
+        var ph = dragState.panelHeight;
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
 
-        var newX = dragState.initialX + deltaX;
-        var newY = dragState.initialY + deltaY;
+        if (dragState.useRight) {
+            // Rechts-verankertes Panel: right/bottom berechnen
+            var newRight = dragState.initialRight - deltaX;
+            var newBottom = dragState.initialBottom - deltaY;
 
-        var rect = dragState.panel.getBoundingClientRect();
-        var clamped = clampToViewport(newX, newY, rect.width, rect.height);
+            // Clamping - komplett im Viewport
+            newRight = Math.max(EDGE_MARGIN, Math.min(newRight, vw - pw - EDGE_MARGIN));
+            newBottom = Math.max(EDGE_MARGIN, Math.min(newBottom, vh - ph - EDGE_MARGIN));
 
-        dragState.panel.style.left = clamped.x + 'px';
-        dragState.panel.style.top = clamped.y + 'px';
-        dragState.panel.style.right = 'auto';
-        dragState.panel.style.bottom = 'auto';
+            panel.style.right = newRight + 'px';
+            panel.style.bottom = newBottom + 'px';
+            panel.style.left = 'auto';
+            panel.style.top = 'auto';
+        } else {
+            // Links-verankertes Panel: left/bottom berechnen
+            var newLeft = dragState.initialLeft + deltaX;
+            var newBottom = dragState.initialBottom - deltaY;
+
+            // Clamping - komplett im Viewport
+            newLeft = Math.max(EDGE_MARGIN, Math.min(newLeft, vw - pw - EDGE_MARGIN));
+            newBottom = Math.max(EDGE_MARGIN, Math.min(newBottom, vh - ph - EDGE_MARGIN));
+
+            panel.style.left = newLeft + 'px';
+            panel.style.bottom = newBottom + 'px';
+            panel.style.right = 'auto';
+            panel.style.top = 'auto';
+        }
+
+        // Drop-Target Highlight - reagiert auf untere Ecken des Panels
+        var panelRect = panel.getBoundingClientRect();
+        var targets = document.querySelectorAll('.panel-drop-target');
+        targets.forEach(function(t) {
+            var tr = t.getBoundingClientRect();
+            // Untere linke Ecke des Panels prüfen
+            var blOver = panelRect.left >= tr.left && panelRect.left <= tr.right &&
+                         panelRect.bottom >= tr.top && panelRect.bottom <= tr.bottom;
+            // Untere rechte Ecke des Panels prüfen
+            var brOver = panelRect.right >= tr.left && panelRect.right <= tr.right &&
+                         panelRect.bottom >= tr.top && panelRect.bottom <= tr.bottom;
+            t.classList.toggle('drop-highlight', blOver || brOver);
+        });
     }
 
     function endDrag() {
@@ -33385,25 +33370,62 @@ var PanelPositionManager = (function() {
         var panel = dragState.panel;
         panel.classList.remove('dragging');
 
-        var rect = panel.getBoundingClientRect();
-        var corner = findNearestCorner(rect.left, rect.top, rect.width, rect.height);
+        // Drop-Target Highlights entfernen
+        var targets = document.querySelectorAll('.panel-drop-target');
+        var droppedOnTarget = false;
+        targets.forEach(function(t) {
+            if (t.classList.contains('drop-highlight')) {
+                droppedOnTarget = true;
+            }
+            t.classList.remove('drop-highlight');
+        });
 
-        if (corner) {
-            panel.style.transition = 'all 0.2s ease';
-            applyCornerPosition(panel.id, corner);
-            positions[panel.id] = { corner: corner };
-            setTimeout(function() { panel.style.transition = ''; }, 200);
+        if (droppedOnTarget) {
+            // Reset auf CSS-Default-Position
+            panel.style.left = '';
+            panel.style.right = '';
+            panel.style.top = '';
+            panel.style.bottom = '';
+            panel.style.width = '';
+            panel.style.removeProperty('height');
+
+            // Gespeicherte Position löschen
+            delete positions[panel.id];
+            savePositions();
+
+            // Panel locken
+            lockState[panel.id] = true;
+            updateLockUI(panel.id);
+            savePositions();
         } else {
-            positions[panel.id] = {
-                corner: null,
-                left: rect.left,
-                top: rect.top,
-                width: rect.width,
-                height: rect.height
-            };
+            // Position speichern im aktuellen Anker-Modus
+            var rect = panel.getBoundingClientRect();
+            var vw = window.innerWidth;
+            var vh = window.innerHeight;
+
+            if (dragState.useRight) {
+                positions[panel.id] = {
+                    corner: null,
+                    right: vw - rect.right,
+                    bottom: vh - rect.bottom,
+                    width: rect.width,
+                    height: rect.height,
+                    useRight: true
+                };
+            } else {
+                positions[panel.id] = {
+                    corner: null,
+                    left: rect.left,
+                    bottom: vh - rect.bottom,
+                    width: rect.width,
+                    height: rect.height,
+                    useRight: false
+                };
+            }
+
+            savePositions();
         }
 
-        savePositions();
         dragState = null;
     }
 

@@ -9,6 +9,7 @@ only screen and (min-device-pixel-ratio : 2) {
     --buttonSize: 7vmin;
     --iconScale: 0.18; /* Responsive icon scale multiplier - reduziert fuer MSFS Panel */
     --buttonTextSize: 1.5vmin; /* Button label text size */
+    --panel-bottom: 10px; /* Dynamisch: 10px ohne Elevation, elevationHeight+15 mit */
  }
 
 .leaflet-container .leaflet-touch .leaflet-fade-anim .leaflet-grab .leaflet-touch-drag .leaflet-touch-zoom {
@@ -1042,10 +1043,10 @@ h4 {
     width: 25vw;
     min-width: 25vw;
     max-width: 45vw;
-    max-height: 79vh;
+    max-height: 50vh;
     min-height: 17vh;
-    right: 10px;
-    bottom: 3vh;
+    right: calc(7vmin + 15px);
+    bottom: var(--panel-bottom);
     background-color: white;
     border: 2px solid rgba(0, 0, 0, 0.2);
     border-radius: 4px;
@@ -1118,10 +1119,10 @@ h4 {
     width: 15vw;
     min-width: 15vw;
     max-width: 45vw;
-    max-height: 79vh;
+    max-height: 50vh;
     min-height: 17vh;
-    left: 10px;
-    bottom: 3vh;
+    left: calc(7vmin + 15px);
+    bottom: var(--panel-bottom);
     background-color: white;
     border: 2px solid rgba(0, 0, 0, 0.2);
     border-radius: 4px;
@@ -3483,6 +3484,33 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     z-index: 2000;
     transition: none;
     opacity: 0.9;
+}
+
+/* Drop-Targets für Panel-Reset */
+.panel-drop-target {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    border: 2px dashed rgba(0,0,0,0.15);
+    border-radius: 8px;
+    background: rgba(0,0,0,0.03);
+    z-index: 999;
+    display: none;
+    pointer-events: none;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.drop-target-left {
+    left: calc(7vmin + 15px);
+    bottom: var(--panel-bottom);
+}
+.drop-target-right {
+    right: calc(7vmin + 15px);
+    bottom: var(--panel-bottom);
+}
+.panel-drop-target.drop-highlight {
+    border-color: #007bff;
+    background: rgba(0,123,255,0.12);
+    box-shadow: 0 0 12px rgba(0,123,255,0.3);
 }
 
 /* Lock/Unlock Button */
