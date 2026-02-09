@@ -1062,8 +1062,9 @@ h4 {
     transform: translateZ(0);
 }
 
-/* Flightplan Panel Grabbar - auf gleicher Z-Ebene wie das Panel */
-#overlay .resize-handle {
+/* Panel Grabbars - auf gleicher Z-Ebene wie das Panel */
+#overlay .resize-handle,
+#controllerContainer .resize-handle {
     z-index: 1000;
 }
 
@@ -3409,8 +3410,10 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     display: flex;
 }
 
-.kneeboard-panel.panel-unlocked {
-    overflow: visible;
+.kneeboard-panel.panel-unlocked,
+#overlay.panel-unlocked,
+#controllerContainer.panel-unlocked {
+    overflow: visible !important;
     z-index: 1001;
 }
 
@@ -3451,7 +3454,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     width: 80px;
     height: 24px;
     cursor: ns-resize;
-    top: 4px;
+    top: -4px;
     left: 50%;
     transform: translateX(-50%);
 }
