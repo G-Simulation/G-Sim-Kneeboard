@@ -2758,8 +2758,11 @@ function showAlternateSection(icao, name, lat, lng) {
   var altIcaoEl = document.getElementById('altIcao');
   var altNameEl = document.getElementById('altName');
 
-  if (altSection) altSection.style.display = 'block';
-  if (altSelectors) altSelectors.style.display = 'grid';
+  if (altSection) {
+    altSection.style.display = 'block';
+    altSection.classList.add('fp-collapsed');
+  }
+  if (altSelectors) altSelectors.style.display = 'none';
   if (altIcaoEl) altIcaoEl.textContent = icao || '----';
   if (altNameEl) altNameEl.textContent = name || '';
 
@@ -18895,8 +18898,10 @@ function minimizeWpList() {
           var selectors = section.querySelector('.fp-selectors');
           if (selectors) selectors.style.display = "";
         } else if (sectionId === 'fpAlternateSection' && flightplanPanelState && flightplanPanelState.alternate && flightplanPanelState.alternate.icao) {
+          // Alternate bleibt collapsed beim Laden
+          section.classList.add('fp-collapsed');
           var selectors = section.querySelector('.fp-selectors');
-          if (selectors) selectors.style.display = "";
+          if (selectors) selectors.style.display = "none";
         }
       }
     });
@@ -23450,9 +23455,14 @@ async function loadAlternateProcedures(ofpData) {
     if (altIcaoEl) altIcaoEl.textContent = altIcao || '----';
     if (altNameEl) altNameEl.textContent = altName || '-';
 
-    // Alternate-Sektion anzeigen
+    // Alternate-Sektion anzeigen (collapsed)
     var altSection = document.getElementById('fpAlternateSection');
-    if (altSection) altSection.style.display = 'block';
+    if (altSection) {
+      altSection.style.display = 'block';
+      altSection.classList.add('fp-collapsed');
+      var altSel = altSection.querySelector('.fp-selectors');
+      if (altSel) altSel.style.display = 'none';
+    }
 
     // Prüfen ob DOM-Elemente existieren (Map-Tab muss geladen sein)
     var altRunwaySelect = document.getElementById('altRunwaySelect');

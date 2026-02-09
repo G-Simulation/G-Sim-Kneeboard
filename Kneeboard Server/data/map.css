@@ -1044,10 +1044,10 @@ h4 {
     width: 25vw;
     min-width: 25vw;
     max-width: 45vw;
-    max-height: 75%;
+    max-height: 85%;
     min-height: 37vh;
-    right: calc(7vmin + 15px);
-    bottom: 10px;
+    right: calc(7vmin + 50px);
+    bottom: 5px;
     background-color: white;
     border: 2px solid rgba(0, 0, 0, 0.2);
     border-radius: 4px;
@@ -1120,10 +1120,10 @@ h4 {
     width: 25vw;
     min-width: 15vw;
     max-width: 45vw;
-    max-height: 75%;
+    max-height: 85%;
     min-height: 17vh;
-    left: calc(7vmin + 15px);
-    bottom: 10px;
+    left: calc(7vmin + 50px);
+    bottom: 5px;
     background-color: white;
     border: 2px solid rgba(0, 0, 0, 0.2);
     border-radius: 4px;
@@ -4156,6 +4156,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     font-weight: 700;
     color: #1f2937;
     letter-spacing: 0.5px;
+    margin-left: 4px;
 }
 
 .fp-section-header .fp-name {
@@ -4468,27 +4469,37 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 .fp-arrival .fp-section-header::after,
 .fp-alternate .fp-section-header::after,
 .fp-route .fp-section-header::after {
-    content: '\25B4';
+    content: '';
     margin-left: auto;
-    font-size: 8px;
-    color: #9ca3af;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 5px solid #9ca3af;
+    display: inline-block;
 }
 
 .fp-collapsed .fp-section-header::after {
-    content: '\25BE';
+    border-bottom: none;
+    border-top: 5px solid #9ca3af;
 }
 
 /* Collapse-Indikator für Controller-Kategorien */
 .kneeboard-panel-category::after {
-    content: '\25B4';
+    content: '';
     float: right;
-    font-size: 8px;
-    color: #9ca3af;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 5px solid #9ca3af;
+    margin-top: 4px;
     transition: transform 0.2s ease;
 }
 
 .kneeboard-panel-category.category-collapsed::after {
-    content: '\25BE';
+    border-bottom: none;
+    border-top: 5px solid #9ca3af;
 }
 
 /* ========================================
