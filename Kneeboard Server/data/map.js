@@ -18233,7 +18233,7 @@ function removeAllMarkersAndClearServer() {
   if (typeof flightplanPanelState !== 'undefined') {
     flightplanPanelState.departure = { icao: '', runways: [], sids: [], selectedRunway: '', selectedSid: '', selectedTransition: '' };
     flightplanPanelState.arrival = { icao: '', runways: [], stars: [], approaches: [], selectedRunway: '', selectedStar: '', selectedTransition: '', selectedApproach: '', selectedApproachTransition: '' };
-    flightplanPanelState.alternate = { icao: '', lat: 0, lng: 0, runways: [], stars: [], approaches: [], selectedRunway: '', selectedStar: '', selectedTransition: '', selectedApproach: '' };
+    flightplanPanelState.alternate = { icao: '', lat: 0, lng: 0, runways: [], stars: [], approaches: [], selectedRunway: '', selectedStar: '', selectedTransition: '', selectedApproach: '', selectedApproachTransition: '' };
     mapLogger.info('Reset flightplan panel state');
 
     // Also reset flightplan panel UI elements
@@ -20470,7 +20470,8 @@ var flightplanPanelState = {
         selectedRunway: '',
         selectedStar: '',
         selectedTransition: '',
-        selectedApproach: ''
+        selectedApproach: '',
+        selectedApproachTransition: ''
     },
     ofpData: null  // Stored OFP data for smart transition selection
 };
@@ -20485,7 +20486,7 @@ var flightplanPendingState = {
 var flightplanCommittedState = {
     departure: { selectedRunway: '', selectedSid: '', selectedTransition: '' },
     arrival: { selectedRunway: '', selectedStar: '', selectedTransition: '', selectedApproach: '', selectedApproachTransition: '' },
-    alternate: { icao: '', selectedRunway: '', selectedStar: '', selectedTransition: '', selectedApproach: '' }
+    alternate: { icao: '', selectedRunway: '', selectedStar: '', selectedTransition: '', selectedApproach: '', selectedApproachTransition: '' }
 };
 
 // Alternate Route Layer (separate Farbe - Violett)
@@ -20716,7 +20717,8 @@ function commitCurrentSelections() {
         selectedRunway: flightplanPanelState.alternate.selectedRunway || '',
         selectedStar: flightplanPanelState.alternate.selectedStar || '',
         selectedTransition: flightplanPanelState.alternate.selectedTransition || '',
-        selectedApproach: flightplanPanelState.alternate.selectedApproach || ''
+        selectedApproach: flightplanPanelState.alternate.selectedApproach || '',
+        selectedApproachTransition: flightplanPanelState.alternate.selectedApproachTransition || ''
     };
 }
 
@@ -20846,6 +20848,12 @@ function cancelFlightplanChanges() {
         populateTransitionDropdown('altTransitionSelect', [], '', '', 'STAR');
     }
     populateApproachDropdown('altApproachSelect', flightplanPanelState.alternate.approaches || [], altCommitted.selectedRunway, altCommitted.selectedApproach);
+    if (altCommitted.selectedApproach) {
+        var altApproachTrans = getAvailableApproachTransitions(flightplanPanelState.alternate.approaches || [], altCommitted.selectedApproach);
+        populateApproachTransitionDropdown('altApproachTransitionSelect', altApproachTrans, altCommitted.selectedApproachTransition);
+    } else {
+        populateApproachTransitionDropdown('altApproachTransitionSelect', [], '');
+    }
 
     // Pending zurücksetzen
     flightplanPendingState.hasPendingChanges = false;
@@ -21145,24 +21153,32 @@ async function drawAlternateRoute() {
         }
     }
 
-    // Approach-Waypoints für Alternate
+    // Approach-Waypoints für Alternate (mit Transition + Missed Approach Trennung)
+    var altMissedWaypoints = [];
     if (altState.selectedApproach) {
         try {
             var appData = await fetchProcedureDetail(
                 altState.icao, altState.selectedApproach, 'APPROACH',
-                null, altState.selectedRunway
+                altState.selectedApproachTransition, altState.selectedRunway
             );
             if (appData && appData.Waypoints) {
                 var sortedApp = sortProcedureWaypoints(appData.Waypoints);
                 sortedApp.forEach(function(wp) {
                     var lat = wp.Latitude || wp.latitude;
                     var lng = wp.Longitude || wp.longitude;
+                    var routeType = (wp.RouteType || wp.routeType || '').toUpperCase();
                     if (lat && lng) {
-                        altWaypoints.push({
+                        var wpObj = {
                             lat: lat,
                             lng: lng,
                             name: wp.Identifier || wp.identifier || ''
-                        });
+                        };
+                        if (routeType === 'Z') {
+                            // Missed Approach
+                            altMissedWaypoints.push(wpObj);
+                        } else {
+                            altWaypoints.push(wpObj);
+                        }
                     }
                 });
             }
@@ -21192,8 +21208,8 @@ async function drawAlternateRoute() {
         }
     }
 
-    // Zeichne Alternate-Route (VIOLETT, gestrichelt)
-    flightplanPanelLogger.debug('Collected', altWaypoints.length, 'waypoints');
+    // Zeichne Alternate-Route
+    flightplanPanelLogger.debug('Collected', altWaypoints.length, 'waypoints,', altMissedWaypoints.length, 'missed approach');
 
     if (altWaypoints.length >= 2) {
         var coords = altWaypoints.map(function(wp) {
@@ -21214,12 +21230,12 @@ async function drawAlternateRoute() {
                 alternateRouteLayer.addTo(map);
             }
 
-            // Polyline in Violett
+            // Hauptroute in Alternate-Farbe (Blau, gestrichelt)
             L.polyline(coords, {
-                color: '#9C27B0',      // Violett
+                color: routeColors.alternate,
                 weight: 4,
                 opacity: 0.8,
-                dashArray: '15, 10'    // Gestrichelt
+                dashArray: '15, 10'
             }).addTo(alternateRouteLayer);
 
             // Waypoint-Marker
@@ -21227,8 +21243,8 @@ async function drawAlternateRoute() {
                 if (wp.lat && wp.lng) {
                     L.circleMarker([wp.lat, wp.lng], {
                         radius: 4,
-                        fillColor: '#9C27B0',
-                        color: '#7B1FA2',
+                        fillColor: routeColors.alternate,
+                        color: routeColors.alternate,
                         weight: 1,
                         fillOpacity: 0.8
                     }).bindTooltip(wp.name, { permanent: false })
@@ -21236,6 +21252,43 @@ async function drawAlternateRoute() {
                 }
             });
 
+            // Missed Approach in GoAround-Farbe (Gelb/Hellorange)
+            if (altMissedWaypoints.length > 0) {
+                // Startpunkt = letzter Waypoint der Approach-Route
+                var maCoords = [];
+                var lastApproachWp = altWaypoints[altWaypoints.length - 1];
+                if (lastApproachWp && lastApproachWp.lat && lastApproachWp.lng) {
+                    maCoords.push([lastApproachWp.lat, lastApproachWp.lng]);
+                }
+                altMissedWaypoints.forEach(function(wp) {
+                    if (wp.lat && wp.lng) {
+                        maCoords.push([wp.lat, wp.lng]);
+                    }
+                });
+
+                if (maCoords.length >= 2) {
+                    L.polyline(maCoords, {
+                        color: routeColors.goAround,
+                        weight: 3,
+                        opacity: 0.7,
+                        dashArray: '8, 6'
+                    }).addTo(alternateRouteLayer);
+
+                    // MA Waypoint-Marker
+                    altMissedWaypoints.forEach(function(wp) {
+                        if (wp.lat && wp.lng) {
+                            L.circleMarker([wp.lat, wp.lng], {
+                                radius: 3,
+                                fillColor: routeColors.goAround,
+                                color: routeColors.goAround,
+                                weight: 1,
+                                fillOpacity: 0.8
+                            }).bindTooltip('[MA] ' + wp.name, { permanent: false })
+                              .addTo(alternateRouteLayer);
+                        }
+                    });
+                }
+            }
         }
     }
 }
@@ -21320,20 +21373,26 @@ async function animateAlternateRoute(onComplete) {
         }
     }
 
-    // Approach-Waypoints für Alternate
+    // Approach-Waypoints für Alternate (mit Transition + Missed Approach Trennung)
+    var altMissedWaypoints = [];
     if (altState.selectedApproach) {
         try {
             var appData = await fetchProcedureDetail(
                 altState.icao, altState.selectedApproach, 'APPROACH',
-                null, altState.selectedRunway
+                altState.selectedApproachTransition, altState.selectedRunway
             );
             if (appData && appData.Waypoints) {
                 var sortedApp = sortProcedureWaypoints(appData.Waypoints);
                 sortedApp.forEach(function(wp) {
                     var lat = wp.Latitude || wp.latitude;
                     var lng = wp.Longitude || wp.longitude;
+                    var routeType = (wp.RouteType || wp.routeType || '').toUpperCase();
                     if (lat && lng) {
-                        altWaypoints.push({ lat: lat, lng: lng, name: wp.Identifier || wp.identifier || '' });
+                        if (routeType === 'Z') {
+                            altMissedWaypoints.push({ lat: lat, lng: lng, name: wp.Identifier || wp.identifier || '' });
+                        } else {
+                            altWaypoints.push({ lat: lat, lng: lng, name: wp.Identifier || wp.identifier || '' });
+                        }
                     }
                 });
             }
@@ -21389,6 +21448,27 @@ async function animateAlternateRoute(onComplete) {
 
     function animateNextSegment() {
         if (currentIndex >= validWaypoints.length) {
+            // Missed Approach nach Hauptanimation zeichnen
+            if (altMissedWaypoints.length > 0) {
+                var maCoords = [];
+                var lastWp = validWaypoints[validWaypoints.length - 1];
+                if (lastWp) maCoords.push([lastWp.lat, lastWp.lng]);
+                altMissedWaypoints.forEach(function(wp) {
+                    if (wp.lat && wp.lng) maCoords.push([wp.lat, wp.lng]);
+                });
+                if (maCoords.length >= 2) {
+                    L.polyline(maCoords, {
+                        color: routeColors.goAround, weight: 3, opacity: 0.7, dashArray: '8, 6'
+                    }).addTo(alternateRouteLayer);
+                    altMissedWaypoints.forEach(function(wp) {
+                        if (wp.lat && wp.lng) {
+                            L.circleMarker([wp.lat, wp.lng], {
+                                radius: 3, fillColor: routeColors.goAround, color: routeColors.goAround, weight: 1, fillOpacity: 0.8
+                            }).bindTooltip('[MA] ' + wp.name, { permanent: false }).addTo(alternateRouteLayer);
+                        }
+                    });
+                }
+            }
             flightplanPanelLogger.debug('Animation complete');
             if (typeof onComplete === 'function') onComplete();
             return;
@@ -21402,7 +21482,7 @@ async function animateAlternateRoute(onComplete) {
             alternateRouteLayer.removeLayer(currentPolyline);
         }
         currentPolyline = L.polyline(polylineCoords, {
-            color: '#9C27B0',
+            color: routeColors.alternate,
             weight: 4,
             opacity: 0.8,
             dashArray: '15, 10'
@@ -21411,8 +21491,8 @@ async function animateAlternateRoute(onComplete) {
         // Add waypoint marker
         L.circleMarker([wp.lat, wp.lng], {
             radius: 4,
-            fillColor: '#9C27B0',
-            color: '#7B1FA2',
+            fillColor: routeColors.alternate,
+            color: routeColors.alternate,
             weight: 1,
             fillOpacity: 0.8
         }).bindTooltip(wp.name, { permanent: false })
@@ -23664,6 +23744,17 @@ async function loadAlternateProcedures(ofpData) {
         var selectedApproachId = selectedApproach ? (selectedApproach.Identifier || selectedApproach.identifier) : '';
         flightplanPanelState.alternate.selectedApproach = selectedApproachId;
         populateApproachDropdown('altApproachSelect', approaches || [], selectedRunway, selectedApproachId);
+
+        // VIA-Dropdown für Alternate befüllen
+        if (selectedApproachId) {
+            var altApproachTransitions = getAvailableApproachTransitions(approaches || [], selectedApproachId);
+            var altSelectedTransition = altApproachTransitions.length === 1 ? altApproachTransitions[0] : '';
+            populateApproachTransitionDropdown('altApproachTransitionSelect', altApproachTransitions, altSelectedTransition);
+            flightplanPanelState.alternate.selectedApproachTransition = altSelectedTransition;
+        } else {
+            populateApproachTransitionDropdown('altApproachTransitionSelect', [], '');
+            flightplanPanelState.alternate.selectedApproachTransition = '';
+        }
         flightplanPanelLogger.debug('Alternate Approach selected:', selectedApproachId);
     } catch (err) {
         flightplanPanelLogger.error('Error loading procedures:', err);
@@ -24881,21 +24972,25 @@ function onAltRunwayChange(runwayId) {
 
     // Prüfen ob Visual-Auswahl
     if (isVisualRunway(runwayId)) {
-        // Visual Alternate: Keine STAR/Transition/Approach
+        // Visual Alternate: Keine STAR/Transition/Approach/VIA
         flightplanPanelState.alternate.selectedStar = '';
         flightplanPanelState.alternate.selectedTransition = '';
         flightplanPanelState.alternate.selectedApproach = '';
+        flightplanPanelState.alternate.selectedApproachTransition = '';
         populateStarDropdown('altStarSelect', [], '');
         populateTransitionDropdown('altTransitionSelect', [], '', '', 'STAR');
         populateApproachDropdown('altApproachSelect', [], '', '');
+        populateApproachTransitionDropdown('altApproachTransitionSelect', [], '');
 
-        // STAR, Transition und Approach Felder ausgrauen bei Visual
+        // STAR, Transition, Approach und VIA Felder ausgrauen bei Visual
         var altStarSelect = document.getElementById('altStarSelect');
         var altTransSelect = document.getElementById('altTransitionSelect');
         var altApprSelect = document.getElementById('altApproachSelect');
+        var altViaSelect = document.getElementById('altApproachTransitionSelect');
         if (altStarSelect) { altStarSelect.disabled = true; altStarSelect.style.opacity = '0.5'; }
         if (altTransSelect) { altTransSelect.disabled = true; altTransSelect.style.opacity = '0.5'; }
         if (altApprSelect) { altApprSelect.disabled = true; altApprSelect.style.opacity = '0.5'; }
+        if (altViaSelect) { altViaSelect.disabled = true; altViaSelect.style.opacity = '0.5'; }
 
         if (!flightplanPendingState.isInitialLoad) {
             markPendingChanges();
@@ -24903,13 +24998,15 @@ function onAltRunwayChange(runwayId) {
         return;
     }
 
-    // Normale Runway: STAR/Transition/Approach Felder aktivieren
+    // Normale Runway: STAR/Transition/Approach/VIA Felder aktivieren
     var altStarSelect = document.getElementById('altStarSelect');
     var altTransSelect = document.getElementById('altTransitionSelect');
     var altApprSelect = document.getElementById('altApproachSelect');
+    var altViaSelect = document.getElementById('altApproachTransitionSelect');
     if (altStarSelect) { altStarSelect.disabled = false; altStarSelect.style.opacity = '1'; }
     if (altTransSelect) { altTransSelect.disabled = false; altTransSelect.style.opacity = '1'; }
     if (altApprSelect) { altApprSelect.disabled = false; altApprSelect.style.opacity = '1'; }
+    if (altViaSelect) { altViaSelect.disabled = false; altViaSelect.style.opacity = '1'; }
 
     // STARs nach Runway filtern
     var filteredStars = filterStarsByRunway(flightplanPanelState.alternate.stars || [], runwayId);
@@ -24936,6 +25033,17 @@ function onAltRunwayChange(runwayId) {
     populateApproachDropdown('altApproachSelect',
         flightplanPanelState.alternate.approaches || [], runwayId, selectedApproachId);
     flightplanPanelState.alternate.selectedApproach = selectedApproachId;
+
+    // VIA-Dropdown für Alternate befüllen
+    if (selectedApproachId) {
+        var altApproachTrans = getAvailableApproachTransitions(flightplanPanelState.alternate.approaches || [], selectedApproachId);
+        var altSelTrans = altApproachTrans.length === 1 ? altApproachTrans[0] : '';
+        populateApproachTransitionDropdown('altApproachTransitionSelect', altApproachTrans, altSelTrans);
+        flightplanPanelState.alternate.selectedApproachTransition = altSelTrans;
+    } else {
+        populateApproachTransitionDropdown('altApproachTransitionSelect', [], '');
+        flightplanPanelState.alternate.selectedApproachTransition = '';
+    }
 
     // Pending markieren und Vorschauen zeichnen
     if (!flightplanPendingState.isInitialLoad) {
@@ -25022,13 +25130,40 @@ function onAltTransitionChange(transitionName) {
  */
 function onAltApproachChange(approachId) {
     flightplanPanelState.alternate.selectedApproach = approachId;
+    flightplanPanelState.alternate.selectedApproachTransition = '';
+
+    // VIA-Dropdown befüllen
+    var availableTransitions = getAvailableApproachTransitions(
+        flightplanPanelState.alternate.approaches || [], approachId
+    );
+    var selectedTransition = '';
+    if (availableTransitions.length === 1) {
+        selectedTransition = availableTransitions[0];
+    }
+    populateApproachTransitionDropdown('altApproachTransitionSelect', availableTransitions, selectedTransition);
+    flightplanPanelState.alternate.selectedApproachTransition = selectedTransition;
 
     if (!flightplanPendingState.isInitialLoad) {
         markPendingChanges();
-        // Draw alternate approach preview (magenta)
+        // Draw alternate approach preview
         drawAlternateApproachPreview(
             flightplanPanelState.alternate.icao,
             approachId
+        );
+    }
+}
+
+/**
+ * Handle alternate approach transition (VIA) selection change
+ */
+function onAltApproachTransitionChange(transitionId) {
+    flightplanPanelState.alternate.selectedApproachTransition = transitionId;
+
+    if (!flightplanPendingState.isInitialLoad) {
+        markPendingChanges();
+        drawAlternateApproachPreview(
+            flightplanPanelState.alternate.icao,
+            flightplanPanelState.alternate.selectedApproach
         );
     }
 }
