@@ -2678,14 +2678,12 @@ function showFlightplanPanel() {
   if (banner && !animating) banner.style.visibility = "visible";
   if (overlayList) {
     overlayList.style.display = "";
-    overlayList.style.visibility = "visible";
   }
   // Only show overlayListSum if we have at least 2 waypoints
   var waypointCount = flightplan ? flightplan.length : 0;
   if (overlayListSum) {
     if (waypointCount >= 2) {
       overlayListSum.style.display = "";
-      overlayListSum.style.visibility = "visible";
     } else {
       overlayListSum.style.display = "none";
     }
@@ -6060,7 +6058,7 @@ function initMapPage() {
   if (typeof hideWpList === "function") {
     hideWpList();
   } else {
-    ["overlay", "banner", "overlayList"].forEach(
+    ["overlay", "banner"].forEach(
       function (id) {
         var el = document.getElementById(id);
         if (el) {
@@ -17286,7 +17284,7 @@ function mout() {
   updatePilotsLayerControlUI('Off');
 
   // Auto-save map UI state
-  scheduleMapStateSave();
+  if (window.mapSettings && window.mapSettings.save) window.mapSettings.save();
 }
 
 // Separate function to hide all flightpath layers - called when controller panel opens
@@ -17449,7 +17447,7 @@ function openControllerPanel(network) {
   updatePilotsLayerControlUI(pilotsNetworkName);
 
   // Auto-save map UI state
-  scheduleMapStateSave();
+  if (window.mapSettings && window.mapSettings.save) window.mapSettings.save();
 }
 
 function dynamicSort(property) {
@@ -18876,7 +18874,6 @@ function minimizeWpList() {
     // Maximieren - alles wieder zeigen
     if (overlayList) {
       overlayList.style.display = "";
-      overlayList.style.visibility = "visible";
     }
     fpSections.forEach(function(section) {
       var sectionId = section.id;
@@ -18908,7 +18905,6 @@ function minimizeWpList() {
     if (overlayListSum) {
       if (waypointCount >= 2) {
         overlayListSum.style.display = "";
-        overlayListSum.style.visibility = "visible";
       } else {
         overlayListSum.style.display = "none";
       }
@@ -18970,9 +18966,6 @@ function hideWpList() {
     overlayEl.style.display = "none";
     overlayEl.style.visibility = "hidden";
   }
-  // Banner visibility now controlled by SimConnect status only
-  DOM.overlay.style.visibility = "hidden";
-  DOM.overlayList.style.visibility = "hidden";
 }
 
 function showWpList(force) {
@@ -19017,12 +19010,10 @@ function showWpList(force) {
     if (containerEl) containerEl.style.visibility = "visible";
     if (listEl) {
       listEl.style.display = "";
-      listEl.style.visibility = "visible";
     }
     var footerEl = DOM.overlayListSum;
     if (footerEl) {
       footerEl.style.display = "";
-      footerEl.style.visibility = "visible";
     }
     wpListMinimized = false;
     var wpMinBtn = document.getElementById("wpListMinimize");
@@ -19870,38 +19861,12 @@ async function processFlightplanMessage(message, skipSourceCheck) {
         return;
       }
 
-      // Markers exist - proceed with normal "identical" path
-      // Hide wind layer during flightplan display
-      if (owmWindLayer && map.hasLayer(owmWindLayer)) {
-        owmWindLayer.setOpacity(0);
-        mapLogger.debug('Wind layer hidden (identical flightplan)');
-      }
-
-      // Reset flags so the event chain can run and wind layer can be re-activated
-      window.flightplanAnimationAlreadyCompleted = false;
-      window.flightplanAnimationInProgress = true;
-      window.flightplanUISequenceInProgress = true;
-      if (window.initialWindLayerConfig) {
-        window.initialWindLayerConfig.initialActivationDone = false;
-      }
-
-      // Controller-Panel bleibt sichtbar wenn Flugplan geladen wird
-
-      // Event-basierte UI-Sequenz (v1.24): Startet die Event-Chain
+      // Markers exist - identischer Flugplan, nichts zu tun
+      mapLogger.debug('Identical flightplan, markers exist (' + existingMarkerCount + ') - skipping, just re-center');
+      stopSyncButtonPulse();
+      updateSyncButtonState();
       if (flightplan.length > 1) {
-        mapLogger.debug('Starting event-based UI sequence (identical flightplan)');
-        transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'identical-flightplan');
         preCenterMapOnFlightplan(flightplan, 'identical-flightplan');
-        // Emit MARKERS_READY to start the event chain
-        // Chain: MARKERS_READY -> ELEVATION_UPDATED -> MAP_CENTERED -> ANIMATION_COMPLETE
-        emitFlightplanEvent(FLIGHTPLAN_EVENTS.MARKERS_READY, { source: 'identical-flightplan' });
-      } else {
-        // No waypoints to center on, complete immediately (only if not already in a sequence)
-        if (!window.flightplanUISequenceInProgress && !window.flightplanAnimationInProgress) {
-          onFlightplanAnimationComplete();
-        } else {
-          mapLogger.debug('Skipping onFlightplanAnimationComplete (no waypoints) - sequence in progress');
-        }
       }
       return;
     }
@@ -20141,6 +20106,7 @@ async function processFlightplanMessage(message, skipSourceCheck) {
 
     // Controller-Panel bleibt sichtbar wenn Flugplan geladen wird
 
+    currentFlightplanFingerprint = null;  // Force re-render so route is redrawn after removeAllMarkers
     transitionToState(FlightplanLoadState.CENTERING_FLIGHTPLAN, 'new-flightplan');
     preCenterMapOnFlightplan(flightplan, 'new-flightplan');
     scheduleFlightplanRender(flightplan);  // Pass flightplan data directly
@@ -29524,7 +29490,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       element: null,
       handle: null,
       minHeight: function() { return window.innerHeight * 0.15; },
-      maxHeight: function() { return window.innerHeight * 0.85; },
+      maxHeight: function() { var m = document.getElementById('map'); return m ? m.offsetHeight - 20 : window.innerHeight * 0.85; },
       isResizing: false,
       startY: 0,
       startHeight: 0,
@@ -29545,7 +29511,7 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       element: null,
       handle: null,
       minHeight: function() { return window.innerHeight * 0.15; },
-      maxHeight: function() { return window.innerHeight * 0.85; },
+      maxHeight: function() { var m = document.getElementById('map'); return m ? m.offsetHeight - 20 : window.innerHeight * 0.85; },
       isResizing: false,
       startY: 0,
       startHeight: 0,
@@ -29626,22 +29592,26 @@ function finishAppendWaypoint(lat, lng, activePopup) {
 
       // Panel-Position beim Resize: Unterkante bleibt fix, Oberkante wandert
       if (!isElevationResizing && config.startTop !== undefined) {
-        // Wenn Panel mit bottom positioniert ist (Corner-Position), bottom beibehalten
-        var hasBottom = config.element.style.bottom && config.element.style.bottom !== 'auto';
+        // Minimum-Top = oberer Rand von #map + Abstand (nicht Viewport!)
+        var mapTopEdge = document.getElementById('map').getBoundingClientRect().top + 10;
+        // Wenn Panel mit bottom positioniert ist (Corner-Position ODER CSS-Default), bottom beibehalten
+        var inlineBottom = config.element.style.bottom;
+        var computedBottom = window.getComputedStyle(config.element).bottom;
+        var hasBottom = (inlineBottom && inlineBottom !== 'auto') || (!inlineBottom && computedBottom && computedBottom !== 'auto');
         if (hasBottom) {
           // Bottom bleibt fix - nur Hoehe aendern, Panel waechst nach oben
           var newTop = config.startTop + actualDeltaY;
-          if (newTop < 10) {
-            newHeight = config.startTop + config.startHeight - 10;
+          if (newTop < mapTopEdge) {
+            newHeight = config.startTop + config.startHeight - mapTopEdge;
           }
           config.element.style.setProperty('height', newHeight + 'px', 'important');
           config.element.style.top = 'auto';
         } else {
           // Freie Position mit top - top muss mitbewegt werden
           var newTop = config.startTop + actualDeltaY;
-          if (newTop < 10) {
-            newTop = 10;
-            newHeight = config.startTop + config.startHeight - 10;
+          if (newTop < mapTopEdge) {
+            newTop = mapTopEdge;
+            newHeight = config.startTop + config.startHeight - mapTopEdge;
           }
           config.element.style.setProperty('height', newHeight + 'px', 'important');
           config.element.style.top = newTop + 'px';
@@ -29734,10 +29704,11 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     // Redraw elevation profile after resize (force=true to skip throttling)
     if (wasElevationResizing && typeof redrawElevationCanvas === 'function') {
       redrawElevationCanvas(true);
-      // Panel-Positionen an neue Elevation-Hoehe anpassen
+      // CSS-Variable an neue Elevation-Hoehe anpassen
       var elevSection = document.getElementById('elevationProfileSection');
       if (elevSection && elevSection.offsetHeight > 0) {
-        document.documentElement.style.setProperty('--panel-bottom', (elevSection.offsetHeight + 15) + 'px');
+        var eh = elevSection.offsetHeight;
+        document.documentElement.style.setProperty('--panel-max-height', (window.innerHeight - eh - 30) + 'px');
       }
     }
 
@@ -29755,6 +29726,9 @@ function finishAppendWaypoint(lat, lng, activePopup) {
         window.mapSettings.save();
       }, 100);
     }
+
+    // Leaflet Map-Drag wieder aktivieren nach Resize
+    if (typeof map !== 'undefined' && map && map.dragging) map.dragging.enable();
   }
 
   function onTouchMove(e) {
@@ -29803,21 +29777,25 @@ function finishAppendWaypoint(lat, lng, activePopup) {
 
       // Panel-Position beim Resize: Unterkante bleibt fix, Oberkante wandert
       if (!isElevationResizing && config.startTop !== undefined) {
-        var hasBottom = config.element.style.bottom && config.element.style.bottom !== 'auto';
+        // Minimum-Top = oberer Rand von #map + Abstand (nicht Viewport!)
+        var mapTopEdge = document.getElementById('map').getBoundingClientRect().top + 10;
+        var inlineBottom = config.element.style.bottom;
+        var computedBottom = window.getComputedStyle(config.element).bottom;
+        var hasBottom = (inlineBottom && inlineBottom !== 'auto') || (!inlineBottom && computedBottom && computedBottom !== 'auto');
         if (hasBottom) {
           // Bottom bleibt fix - nur Hoehe aendern, Panel waechst nach oben
           var newTop = config.startTop + actualDeltaY;
-          if (newTop < 10) {
-            newHeight = config.startTop + config.startHeight - 10;
+          if (newTop < mapTopEdge) {
+            newHeight = config.startTop + config.startHeight - mapTopEdge;
           }
           config.element.style.setProperty('height', newHeight + 'px', 'important');
           config.element.style.top = 'auto';
         } else {
           // Freie Position mit top - top muss mitbewegt werden
           var newTop = config.startTop + actualDeltaY;
-          if (newTop < 10) {
-            newTop = 10;
-            newHeight = config.startTop + config.startHeight - 10;
+          if (newTop < mapTopEdge) {
+            newTop = mapTopEdge;
+            newHeight = config.startTop + config.startHeight - mapTopEdge;
           }
           config.element.style.setProperty('height', newHeight + 'px', 'important');
           config.element.style.top = newTop + 'px';
@@ -29903,10 +29881,11 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     // Redraw elevation profile after resize (force=true to skip throttling)
     if (wasElevationResizing && typeof redrawElevationCanvas === 'function') {
       redrawElevationCanvas(true);
-      // Panel-Positionen an neue Elevation-Hoehe anpassen
+      // CSS-Variable an neue Elevation-Hoehe anpassen
       var elevSection = document.getElementById('elevationProfileSection');
       if (elevSection && elevSection.offsetHeight > 0) {
-        document.documentElement.style.setProperty('--panel-bottom', (elevSection.offsetHeight + 15) + 'px');
+        var eh = elevSection.offsetHeight;
+        document.documentElement.style.setProperty('--panel-max-height', (window.innerHeight - eh - 30) + 'px');
       }
     }
 
@@ -29924,6 +29903,9 @@ function finishAppendWaypoint(lat, lng, activePopup) {
         window.mapSettings.save();
       }, 100);
     }
+
+    // Leaflet Map-Drag wieder aktivieren nach Resize
+    if (typeof map !== 'undefined' && map && map.dragging) map.dragging.enable();
   }
 
   function setupResizeHandle(config) {
@@ -29932,6 +29914,8 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     function startMouseResize(e) {
       e.preventDefault();
       e.stopPropagation();
+      // Leaflet Map-Drag deaktivieren waehrend Panel-Resize
+      if (typeof map !== 'undefined' && map && map.dragging) map.dragging.disable();
 
       mapLogger.debug('startMouseResize called for element:', config.element.id);
 
@@ -29958,6 +29942,8 @@ function finishAppendWaypoint(lat, lng, activePopup) {
         e.preventDefault();
       }
       e.stopPropagation();
+      // Leaflet Map-Drag deaktivieren waehrend Panel-Resize
+      if (typeof map !== 'undefined' && map && map.dragging) map.dragging.disable();
 
       config.isResizing = true;
 
@@ -30503,14 +30489,6 @@ function showElevationProfile() {
     elevationProfileVisible = true;
     elevationProfileUserClosed = false; // Reset user-closed state when showing
 
-    // Panel-Positionen ueber Elevation Panel schieben
-    requestAnimationFrame(function() {
-      var eh = section.offsetHeight;
-      if (eh > 0) {
-        document.documentElement.style.setProperty('--panel-bottom', (eh + 15) + 'px');
-      }
-    });
-
     // WICHTIG: Wenn Flugplan geladen wird, collapsed-Zustand zurücksetzen!
     // Der Canvas soll beim Einblenden immer sichtbar sein
     var wrapper = document.querySelector('.elevation-canvas-wrapper');
@@ -30528,10 +30506,15 @@ function showElevationProfile() {
     var currentHeight = parseInt(section.style.height) || 0;
     var minHeight = window.innerHeight * ELEVATION_PANEL_MIN_HEIGHT_RATIO;
     if (currentHeight < minHeight || elevationCanvasCollapsed) {
-      var defaultHeight = minHeight;
-      section.style.setProperty('height', defaultHeight + 'px', 'important');
+      currentHeight = minHeight;
+      section.style.setProperty('height', currentHeight + 'px', 'important');
       section.style.setProperty('flex', '0 0 auto', 'important');
-      mapLogger.debug('Set default elevation panel height:', defaultHeight);
+      mapLogger.debug('Set default elevation panel height:', currentHeight);
+    }
+
+    // CSS-Variable sofort setzen (Hoehe ist bekannt)
+    if (currentHeight > 0) {
+      document.documentElement.style.setProperty('--panel-max-height', (window.innerHeight - currentHeight - 30) + 'px');
     }
 
     // Ensure resize handle is initialized
@@ -30607,8 +30590,8 @@ function hideElevationProfile(userAction) {
     section.style.display = 'none';
     elevationProfileVisible = false;
 
-    // Panel-Positionen zurueck an unteren Viewport-Rand
-    document.documentElement.style.setProperty('--panel-bottom', '10px');
+    // CSS-Variable zurueck auf Default
+    document.documentElement.style.setProperty('--panel-max-height', '50vh');
 
     // Track if user manually closed the panel
     if (userAction === true) {
@@ -32203,35 +32186,6 @@ var updateElevationProfile = scheduleElevationUpdate;
         else toggle.enable();
       }
 
-      // Apply panel visibility FIRST (immediately, no delay) to prevent flashing
-      if (settings.panels) {
-        if (settings.panels.overlay && typeof settings.panels.overlay.visible !== 'undefined') {
-          var overlayEl = document.getElementById('overlay');
-          var overlay = document.getElementById('overlay');
-          var overlayList = document.getElementById('overlayList');
-          var banner = document.getElementById('banner');
-          var visibility = settings.panels.overlay.visible ? 'visible' : 'hidden';
-          if (overlayEl) overlayEl.style.visibility = visibility;
-          if (overlay) overlay.style.visibility = visibility;
-          if (overlayList) overlayList.style.visibility = visibility;
-          if (banner) banner.style.visibility = visibility;
-        }
-
-        if (settings.panels.controller && typeof settings.panels.controller.visible !== 'undefined') {
-          var controllerEl = document.getElementById('controllerContainer');
-          if (controllerEl) {
-            controllerEl.style.visibility = settings.panels.controller.visible ? 'visible' : 'hidden';
-          }
-        }
-
-        if (settings.panels.metar && typeof settings.panels.metar.visible !== 'undefined') {
-          var metarEl = document.getElementById('metarContainer');
-          if (metarEl) {
-            metarEl.style.display = settings.panels.metar.visible ? 'flex' : 'none';
-          }
-        }
-      }
-
       // Restore flight path trail points
       if (settings.flightPath && settings.flightPath.points && settings.flightPath.points.length > 0) {
         if (typeof polylinepoints !== 'undefined' && typeof polyline !== 'undefined') {
@@ -32290,17 +32244,8 @@ var updateElevationProfile = scheduleElevationUpdate;
         setTimeout(applyMapPositionWhenReady, 100);
       }
 
-      // Apply panel sizes and positions
+      // Apply panel state and controller logic
       if (settings.panels) {
-        if (settings.panels.overlay) {
-          var overlayEl = document.getElementById('overlay');
-          if (overlayEl) {
-            if (typeof settings.panels.overlay.visible !== 'undefined') {
-              overlayEl.style.visibility = settings.panels.overlay.visible ? 'visible' : 'hidden';
-            }
-          }
-        }
-
         if (settings.panels.controller) {
           var controllerEl = document.getElementById('controllerContainer');
           var controllerList = document.getElementById('controllerList');
@@ -32323,6 +32268,7 @@ var updateElevationProfile = scheduleElevationUpdate;
               mapLogger.debug('Restoring controller panel state in applyMapSettings:', settings.panels.controller.panelState);
               panelState = settings.panels.controller.panelState;
               moverX = true;
+              window.moverX = true;
 
               // Reset state variables (same as openControllerPanel)
               if (panelState === 'vatsim' || panelState === 'ivao') {
@@ -32393,6 +32339,34 @@ var updateElevationProfile = scheduleElevationUpdate;
                     break;
                 }
                 mapLogger.debug('Panel header set to:', controllerHeader.innerHTML);
+              }
+
+              // Panel-Mode-Toggle einfuegen (Zonen/Piloten) fuer VATSIM/IVAO
+              if (panelState === 'vatsim' || panelState === 'ivao') {
+                panelMode = 'zones';
+                var existingToggle = document.querySelector('#controllerContainer .panel-mode-toggle');
+                if (existingToggle) existingToggle.remove();
+                var toggleDiv = document.createElement('div');
+                toggleDiv.className = 'panel-mode-toggle';
+                toggleDiv.innerHTML =
+                  '<button id="toggleZones" class="mode-btn active">Zonen</button>' +
+                  '<button id="togglePilots" class="mode-btn">Piloten</button>';
+                var ctrlHeader = document.querySelector('#controllerContainer .kneeboard-panel-header');
+                if (ctrlHeader) ctrlHeader.parentNode.insertBefore(toggleDiv, ctrlHeader.nextSibling);
+                var toggleZonesBtn = document.getElementById('toggleZones');
+                var togglePilotsBtn = document.getElementById('togglePilots');
+                if (toggleZonesBtn) toggleZonesBtn.onclick = function() {
+                  panelMode = 'zones';
+                  this.classList.add('active');
+                  document.getElementById('togglePilots').classList.remove('active');
+                  listControllers();
+                };
+                if (togglePilotsBtn) togglePilotsBtn.onclick = function() {
+                  panelMode = 'pilots';
+                  this.classList.add('active');
+                  document.getElementById('toggleZones').classList.remove('active');
+                  listPilots();
+                };
               }
 
               // Trigger data loading immediately (map is ready now)
@@ -32610,199 +32584,53 @@ var updateElevationProfile = scheduleElevationUpdate;
     });
   }
 
-  // Apply ONLY panel visibility from settings (can be done before map is ready)
-  function applyPanelVisibilityOnly(settings) {
-    mapLogger.debug('applyPanelVisibilityOnly called, settings:', settings);
-    if (!settings || !settings.panels) {
-      mapLogger.debug('No settings or no panels - returning');
-      return;
-    }
-    mapLogger.debug('Settings panels:', settings.panels);
-
-    try {
-      // Overlay panel
-      if (settings.panels.overlay && typeof settings.panels.overlay.visible !== 'undefined') {
-        var overlayEl = document.getElementById('overlay');
-        var overlay = document.getElementById('overlay');
-        var overlayList = document.getElementById('overlayList');
-        var banner = document.getElementById('banner');
-        var visibility = settings.panels.overlay.visible ? 'visible' : 'hidden';
-        if (overlayEl) overlayEl.style.visibility = visibility;
-        if (overlay) overlay.style.visibility = visibility;
-        if (overlayList) overlayList.style.visibility = visibility;
-        if (banner) banner.style.visibility = visibility;
-      }
-
-      // Controller panel
-      if (settings.panels.controller && typeof settings.panels.controller.visible !== 'undefined') {
-        mapLogger.debug('Controller panel settings:', settings.panels.controller);
-        var controllerEl = document.getElementById('controllerContainer');
-        var controllerList = document.getElementById('controllerList');
-        if (controllerEl) {
-          // Controller Panel soll NIEMALS beim Laden aktiv sein
-          // Egal was in den Settings steht - immer hidden starten
-          mapLogger.debug('Controller panel - forcing hidden on load (never restore as active)');
-
-          var shouldShow = false;
-          controllerEl.style.visibility = 'hidden';
-          if (controllerList) {
-            controllerList.style.visibility = 'hidden';
-          }
-
-          // NIEMALS das Panel beim Laden wiederherstellen
-          if (shouldShow) {
-            mapLogger.debug('Restoring controller panel state:', settings.panels.controller.panelState);
-            panelState = settings.panels.controller.panelState;
-            moverX = true;
-
-            // Reset state variables (same as openControllerPanel)
-            if (panelState === 'vatsim' || panelState === 'ivao') {
-              lastIvao = "";
-              lastVatsim = "";
-              lastSelected = -1;
-              lastSelectedElement = null;
-              // Reset last rendered prefixes to force re-render when controller data loads
-              // This ensures control zones appear after map reload
-              window._lastRenderedControllerPrefixes = null;
-            }
-
-            // Set panel header based on panel state
-            var controllerHeader = document.getElementById('controllerHeader');
-            if (controllerHeader) {
-              switch(panelState) {
-                case 'vatsim':
-                  controllerHeader.innerHTML = 'VATSIM';
-                  vatsim = true;
-                  airportsPanel = false;
-                  // Close any open popups when switching networks
-                  closeAllPopups();
-                  // Update radio button state to match
-                  if (typeof toggle10 !== 'undefined') toggle10.state('vatsim');
-                  // Enable control zones for VATSIM
-                  setControlZonesNetwork('VATSIM');
-                  setControlZonesEnabled(true);
-                  break;
-                case 'ivao':
-                  controllerHeader.innerHTML = 'IVAO';
-                  vatsim = false;
-                  airportsPanel = false;
-                  // Close any open popups when switching networks
-                  closeAllPopups();
-                  // Update radio button state to match
-                  if (typeof toggle10 !== 'undefined') toggle10.state('ivao');
-                  // Enable control zones for IVAO
-                  setControlZonesNetwork('IVAO');
-                  setControlZonesEnabled(true);
-                  break;
-                case 'airports':
-                  controllerHeader.innerHTML = 'Airports';
-                  airportsToggle = 'airports';
-                  airportsPanel = false;
-                  // Close any open popups when switching panels
-                  closeAllPopups();
-                  // Update airports button state to match
-                  if (typeof toggle11 !== 'undefined') toggle11.state('airports');
-                  // Disable control zones for airports panel
-                  setControlZonesEnabled(false);
-                  break;
-                case 'navaids':
-                  controllerHeader.innerHTML = 'Navaids';
-                  airportsToggle = 'navaids';
-                  airportsPanel = true;
-                  // Close any open popups when switching panels
-                  closeAllPopups();
-                  // Update airports button state to match
-                  if (typeof toggle11 !== 'undefined') toggle11.state('navaids');
-                  // Disable control zones for navaids panel
-                  setControlZonesEnabled(false);
-                  break;
-                case 'reportingPoints':
-                  controllerHeader.innerHTML = 'Reporting Points';
-                  airportsPanel = false;
-                  // Update airports button state to match
-                  if (typeof toggle11 !== 'undefined') toggle11.state('reportingPoints');
-                  // Disable control zones for reporting points panel
-                  setControlZonesEnabled(false);
-                  break;
-              }
-              mapLogger.debug('Panel header set to:', controllerHeader.innerHTML);
-            }
-
-            // Schedule data loading after map is fully initialized
-            setTimeout(function() {
-              mapLogger.debug('Loading data for panel state:', panelState);
-              if (panelState === 'vatsim' || panelState === 'ivao') {
-                mapLogger.debug('Calling getVatsimData()');
-                getVatsimData();
-              } else if (panelState === 'airports' || panelState === 'navaids' || panelState === 'reportingPoints') {
-                mapLogger.debug('Calling getWPData() and listNavaids()');
-                getWPData();
-                listNavaids();
-              }
-            }, 1000);
-          } else {
-            // Panel not visible - ensure radio button is in "radio" state and control zones are disabled
-            if (typeof toggle10 !== 'undefined') toggle10.state('radio');
-            setControlZonesEnabled(false);
-            mapLogger.debug('Panel not restored - forcing radio state');
-          }
-        }
-      }
-
-      // WICHTIG: Controller Button IMMER auf radio setzen beim Laden
-      // Unabhängig davon ob settings.panels.controller existiert oder nicht
-      if (typeof toggle10 !== 'undefined') {
-        toggle10.state('radio');
-        mapLogger.debug('Controller button forced to radio state on load');
-      }
-
-      // METAR panel
-      if (settings.panels.metar && typeof settings.panels.metar.visible !== 'undefined') {
-        var metarEl = document.getElementById('metarContainer');
-        if (metarEl) {
-          metarEl.style.display = settings.panels.metar.visible ? 'flex' : 'none';
-        }
-      }
-
-      // Elevation profile panel - removed from config restore
-      // The elevation profile is now only shown when flightplan animation completes
-      // and NOT when controller mode is active
-    } catch (e) {
-      mapLogger.error('Error applying panel visibility:', e);
-    }
-  }
 
   // Initialize on page load
   function initialize() {
-    // Load settings immediately (before map is ready)
     var settings = loadMapSettings();
 
-    // Apply panel visibility RIGHT NOW to prevent flash
-    if (settings) {
-      applyPanelVisibilityOnly(settings);
+    // Panel-Visibility sofort setzen um Flash zu verhindern (vor Map-Init)
+    if (settings && settings.panels) {
+      var p = settings.panels;
+      if (p.overlay) {
+        var ov = document.getElementById('overlay');
+        var bn = document.getElementById('banner');
+        var vis = p.overlay.visible ? 'visible' : 'hidden';
+        if (ov) ov.style.visibility = vis;
+        if (bn) bn.style.visibility = vis;
+      }
+      if (p.controller) {
+        var ce = document.getElementById('controllerContainer');
+        var show = p.controller.active && p.controller.visible;
+        if (ce) ce.style.visibility = show ? 'visible' : 'hidden';
+      }
+      if (p.metar) {
+        var me = document.getElementById('metarContainer');
+        if (me) me.style.display = p.metar.visible ? 'flex' : 'none';
+      }
+    } else {
+      // Kein gespeicherter State (Cache geleert) - alles hidden
+      var ov = document.getElementById('overlay');
+      var bn = document.getElementById('banner');
+      var ce = document.getElementById('controllerContainer');
+      var me = document.getElementById('metarContainer');
+      if (ov) ov.style.visibility = 'hidden';
+      if (bn) bn.style.visibility = 'hidden';
+      if (ce) ce.style.visibility = 'hidden';
+      if (me) me.style.display = 'none';
     }
 
-    // Wait for map to be ready for the rest of the settings
+    // Auf Map warten, dann alle Settings anwenden
     var checkMapReady = setInterval(function() {
       if (typeof map !== 'undefined' && map) {
         clearInterval(checkMapReady);
-
-        // Apply remaining settings (map position, zoom, layers, sizes, etc.)
-        if (settings) {
-          applyMapSettings(settings);
-        }
-
-        // Setup autosave
+        if (settings) applyMapSettings(settings);
         setupAutosave();
-
         mapLogger.debug('Map settings system initialized');
       }
     }, 100);
 
-    // Timeout after 10 seconds
-    setTimeout(function() {
-      clearInterval(checkMapReady);
-    }, 10000);
+    setTimeout(function() { clearInterval(checkMapReady); }, 10000);
   }
 
   // Public API
@@ -33013,11 +32841,7 @@ var PanelPositionManager = (function() {
     var SAVE_DEBOUNCE_MS = 500;
 
     function getElevationBottom() {
-        if (typeof elevationProfileVisible !== 'undefined' && elevationProfileVisible) {
-            var elev = document.getElementById('elevationProfileSection');
-            if (elev && elev.offsetHeight > 0) return elev.offsetHeight + 15;
-        }
-        return 10;
+        return 10; // Panels sind in #map, Elevation ist ausserhalb - immer 10px Abstand zum #map-Rand
     }
 
     function getCORNERS() {
@@ -33153,10 +32977,14 @@ var PanelPositionManager = (function() {
             panel.classList.add('panel-unlocked');
         }
 
-        // Drop-Targets ein-/ausblenden wenn irgendein Panel unlocked
-        var anyUnlocked = document.querySelector('.kneeboard-panel.panel-unlocked');
+        // Drop-Targets nur wenn ein SICHTBARES Panel unlocked ist
+        var unlocked = document.querySelectorAll('.kneeboard-panel.panel-unlocked');
+        var anyVisibleUnlocked = false;
+        unlocked.forEach(function(p) {
+            if (p.style.visibility !== 'hidden') anyVisibleUnlocked = true;
+        });
         var targets = document.querySelectorAll('.panel-drop-target');
-        targets.forEach(function(t) { t.style.display = anyUnlocked ? 'block' : 'none'; });
+        targets.forEach(function(t) { t.style.display = anyVisibleUnlocked ? 'block' : 'none'; });
     }
 
     function applyLockStates() {
@@ -33170,13 +32998,14 @@ var PanelPositionManager = (function() {
     // VIEWPORT CLAMPING
     // ========================================================================
 
-    function clampToViewport(x, y, panelWidth, panelHeight) {
-        var vw = window.innerWidth;
-        var vh = window.innerHeight;
+    function clampToMap(x, y, panelWidth, panelHeight) {
+        var mapEl = document.getElementById('map');
+        var mw = mapEl.offsetWidth;
+        var mh = mapEl.offsetHeight;
 
-        // Panel muss komplett im Viewport bleiben
-        x = Math.max(EDGE_MARGIN, Math.min(x, vw - panelWidth - EDGE_MARGIN));
-        y = Math.max(EDGE_MARGIN, Math.min(y, vh - panelHeight - EDGE_MARGIN));
+        // Panel muss komplett in #map bleiben
+        x = Math.max(EDGE_MARGIN, Math.min(x, mw - panelWidth - EDGE_MARGIN));
+        y = Math.max(EDGE_MARGIN, Math.min(y, mh - panelHeight - EDGE_MARGIN));
         return { x: x, y: y };
     }
 
@@ -33185,15 +33014,16 @@ var PanelPositionManager = (function() {
     // ========================================================================
 
     function findNearestCorner(x, y, panelWidth, panelHeight) {
-        var vw = window.innerWidth;
-        var vh = window.innerHeight;
+        var mapEl = document.getElementById('map');
+        var mw = mapEl.offsetWidth;
+        var mh = mapEl.offsetHeight;
 
         var eb = getElevationBottom();
         var cornerPositions = {
             'top-left': { x: 10, y: 10 },
-            'top-right': { x: vw - panelWidth - 10, y: 10 },
-            'bottom-left': { x: 10, y: vh - panelHeight - eb },
-            'bottom-right': { x: vw - panelWidth - 10, y: vh - panelHeight - eb }
+            'top-right': { x: mw - panelWidth - 10, y: 10 },
+            'bottom-left': { x: 10, y: mh - panelHeight - eb },
+            'bottom-right': { x: mw - panelWidth - 10, y: mh - panelHeight - eb }
         };
 
         var nearest = null;
@@ -33238,13 +33068,23 @@ var PanelPositionManager = (function() {
         var panel = document.getElementById(panelId);
         if (!panel) return;
 
+        var mapEl = document.getElementById('map');
+        var mw = mapEl.offsetWidth;
+        var mh = mapEl.offsetHeight;
+        var pw = pos.width || panel.offsetWidth;
+        var ph = pos.height || panel.offsetHeight;
+
         if (pos.width) panel.style.width = pos.width + 'px';
-        if (pos.height) panel.style.setProperty('height', pos.height + 'px', 'important');
+        if (pos.height) {
+            // Height auf #map-Hoehe begrenzen
+            var maxH = mh - 20;
+            var h = Math.min(pos.height, maxH);
+            panel.style.setProperty('height', h + 'px', 'important');
+        }
 
         if (pos.useRight) {
-            // Rechts-verankertes Panel
-            var r = Math.max(0, pos.right || 0);
-            var b = Math.max(0, pos.bottom || 0);
+            var r = Math.max(EDGE_MARGIN, Math.min(pos.right || 0, mw - pw - EDGE_MARGIN));
+            var b = Math.max(EDGE_MARGIN, Math.min(pos.bottom || 0, mh - ph - EDGE_MARGIN));
             panel.style.left = 'auto';
             panel.style.top = 'auto';
             panel.style.right = r + 'px';
@@ -33252,9 +33092,8 @@ var PanelPositionManager = (function() {
             panel.classList.remove('resize-left', 'resize-right');
             panel.classList.add('resize-left');
         } else {
-            // Links-verankertes Panel
-            var l = Math.max(0, pos.left || 0);
-            var b = Math.max(0, pos.bottom || 0);
+            var l = Math.max(EDGE_MARGIN, Math.min(pos.left || 0, mw - pw - EDGE_MARGIN));
+            var b = Math.max(EDGE_MARGIN, Math.min(pos.bottom || 0, mh - ph - EDGE_MARGIN));
             panel.style.right = 'auto';
             panel.style.top = 'auto';
             panel.style.left = l + 'px';
@@ -33284,30 +33123,35 @@ var PanelPositionManager = (function() {
         if (isLocked(panel.id)) return;
 
         var rect = panel.getBoundingClientRect();
-        var vw = window.innerWidth;
-        var vh = window.innerHeight;
+        var mapRect = document.getElementById('map').getBoundingClientRect();
 
         // Anker bestimmen: rechte Panels (overlay) → right/bottom, linke (controller) → left/bottom
         var useRight = panel.style.right !== 'auto' && panel.style.right !== '' && panel.style.left === 'auto';
-        // Fallback: Panel auf rechter Bildschirmhälfte → right-Anker
+        // Fallback: Panel auf rechter Hälfte von #map → right-Anker
         if (!useRight && panel.style.left === '' && panel.style.right === '') {
-            useRight = rect.left + rect.width / 2 > vw / 2;
+            useRight = rect.left + rect.width / 2 > mapRect.left + mapRect.width / 2;
         }
+
+        // Merken ob Panel schon in Reset-Zone war (keine gespeicherte Position)
+        var wasInResetZone = !positions[panel.id];
 
         dragState = {
             panel: panel,
             startX: clientX,
             startY: clientY,
             useRight: useRight,
-            initialRight: vw - rect.right,
-            initialBottom: vh - rect.bottom,
-            initialLeft: rect.left,
-            initialTop: rect.top,
+            initialRight: mapRect.right - rect.right,
+            initialBottom: mapRect.bottom - rect.bottom,
+            initialLeft: rect.left - mapRect.left,
+            initialTop: rect.top - mapRect.top,
             panelWidth: rect.width,
-            panelHeight: rect.height
+            panelHeight: rect.height,
+            wasInResetZone: wasInResetZone
         };
 
         panel.classList.add('dragging');
+        // Leaflet Map-Drag deaktivieren waehrend Panel-Drag
+        if (typeof map !== 'undefined' && map && map.dragging) map.dragging.disable();
     }
 
     function moveDrag(clientX, clientY) {
@@ -33318,17 +33162,18 @@ var PanelPositionManager = (function() {
         var panel = dragState.panel;
         var pw = dragState.panelWidth;
         var ph = dragState.panelHeight;
-        var vw = window.innerWidth;
-        var vh = window.innerHeight;
+        var mapEl = document.getElementById('map');
+        var mw = mapEl.offsetWidth;
+        var mh = mapEl.offsetHeight;
 
         if (dragState.useRight) {
             // Rechts-verankertes Panel: right/bottom berechnen
             var newRight = dragState.initialRight - deltaX;
             var newBottom = dragState.initialBottom - deltaY;
 
-            // Clamping - komplett im Viewport
-            newRight = Math.max(EDGE_MARGIN, Math.min(newRight, vw - pw - EDGE_MARGIN));
-            newBottom = Math.max(EDGE_MARGIN, Math.min(newBottom, vh - ph - EDGE_MARGIN));
+            // Clamping - komplett in #map
+            newRight = Math.max(EDGE_MARGIN, Math.min(newRight, mw - pw - EDGE_MARGIN));
+            newBottom = Math.max(EDGE_MARGIN, Math.min(newBottom, mh - ph - EDGE_MARGIN));
 
             panel.style.right = newRight + 'px';
             panel.style.bottom = newBottom + 'px';
@@ -33339,9 +33184,9 @@ var PanelPositionManager = (function() {
             var newLeft = dragState.initialLeft + deltaX;
             var newBottom = dragState.initialBottom - deltaY;
 
-            // Clamping - komplett im Viewport
-            newLeft = Math.max(EDGE_MARGIN, Math.min(newLeft, vw - pw - EDGE_MARGIN));
-            newBottom = Math.max(EDGE_MARGIN, Math.min(newBottom, vh - ph - EDGE_MARGIN));
+            // Clamping - komplett in #map
+            newLeft = Math.max(EDGE_MARGIN, Math.min(newLeft, mw - pw - EDGE_MARGIN));
+            newBottom = Math.max(EDGE_MARGIN, Math.min(newBottom, mh - ph - EDGE_MARGIN));
 
             panel.style.left = newLeft + 'px';
             panel.style.bottom = newBottom + 'px';
@@ -33387,7 +33232,10 @@ var PanelPositionManager = (function() {
             panel.style.top = '';
             panel.style.bottom = '';
             panel.style.width = '';
-            panel.style.removeProperty('height');
+            // Hoehe nur resetten wenn Panel vorher NICHT in der Reset-Zone war
+            if (!dragState.wasInResetZone) {
+                panel.style.removeProperty('height');
+            }
 
             // Gespeicherte Position löschen
             delete positions[panel.id];
@@ -33398,16 +33246,15 @@ var PanelPositionManager = (function() {
             updateLockUI(panel.id);
             savePositions();
         } else {
-            // Position speichern im aktuellen Anker-Modus
+            // Position speichern relativ zu #map
             var rect = panel.getBoundingClientRect();
-            var vw = window.innerWidth;
-            var vh = window.innerHeight;
+            var mapRect = document.getElementById('map').getBoundingClientRect();
 
             if (dragState.useRight) {
                 positions[panel.id] = {
                     corner: null,
-                    right: vw - rect.right,
-                    bottom: vh - rect.bottom,
+                    right: mapRect.right - rect.right,
+                    bottom: mapRect.bottom - rect.bottom,
                     width: rect.width,
                     height: rect.height,
                     useRight: true
@@ -33415,8 +33262,8 @@ var PanelPositionManager = (function() {
             } else {
                 positions[panel.id] = {
                     corner: null,
-                    left: rect.left,
-                    bottom: vh - rect.bottom,
+                    left: rect.left - mapRect.left,
+                    bottom: mapRect.bottom - rect.bottom,
                     width: rect.width,
                     height: rect.height,
                     useRight: false
@@ -33427,12 +33274,21 @@ var PanelPositionManager = (function() {
         }
 
         dragState = null;
+        // Leaflet Map-Drag wieder aktivieren
+        if (typeof map !== 'undefined' && map && map.dragging) map.dragging.enable();
     }
 
     function initializePanelDragging() {
         var panels = document.querySelectorAll('.kneeboard-panel');
 
         panels.forEach(function(panel) {
+            // Scroll/Click-Events nicht an Leaflet durchreichen
+            if (!panel._leafletEventsStopped) {
+                panel._leafletEventsStopped = true;
+                L.DomEvent.disableScrollPropagation(panel);
+                L.DomEvent.disableClickPropagation(panel);
+            }
+
             var header = panel.querySelector('.kneeboard-panel-header');
             if (!header) return;
             // Prevent duplicate listeners
@@ -33445,6 +33301,7 @@ var PanelPositionManager = (function() {
                 if (e.target.tagName === 'SELECT' || e.target.closest('select')) return;
                 startDrag(panel, e.clientX, e.clientY);
                 e.preventDefault();
+                e.stopPropagation();
             });
 
             // Touch events (Coherent GT)
@@ -33454,6 +33311,7 @@ var PanelPositionManager = (function() {
                 var touch = e.touches[0];
                 startDrag(panel, touch.clientX, touch.clientY);
                 e.preventDefault();
+                e.stopPropagation();
             }, { passive: false });
         });
 
@@ -33477,6 +33335,11 @@ var PanelPositionManager = (function() {
             }, { passive: false });
 
             document.addEventListener('touchend', function() {
+                endDrag();
+            });
+
+            // Sicherheitsnetz: wenn Maus/Touch ausserhalb Fenster losgelassen wird
+            window.addEventListener('blur', function() {
                 endDrag();
             });
         }

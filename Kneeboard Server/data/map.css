@@ -9,7 +9,7 @@ only screen and (min-device-pixel-ratio : 2) {
     --buttonSize: 7vmin;
     --iconScale: 0.18; /* Responsive icon scale multiplier - reduziert fuer MSFS Panel */
     --buttonTextSize: 1.5vmin; /* Button label text size */
-    --panel-bottom: 10px; /* Dynamisch: 10px ohne Elevation, elevationHeight+15 mit */
+    --panel-max-height: 50vh; /* Dynamisch: 50vh ohne Elevation, reduziert mit */
  }
 
 .leaflet-container .leaflet-touch .leaflet-fade-anim .leaflet-grab .leaflet-touch-drag .leaflet-touch-zoom {
@@ -99,7 +99,7 @@ only screen and (min-device-pixel-ratio : 2) {
     align-content: flex-start;
     align-items: flex-start;
     gap: 6px;
-    max-height: calc(100% - 20px);
+    max-height: 75%;
     padding-right: 6px;
 }
 
@@ -142,7 +142,7 @@ only screen and (min-device-pixel-ratio : 2) {
     align-content: flex-start;
     direction: rtl;
     gap: 6px;
-    max-height: calc(100% - 20px);
+    max-height: 75%;
     padding-left: 6px;
 }
 
@@ -1043,10 +1043,10 @@ h4 {
     width: 25vw;
     min-width: 25vw;
     max-width: 45vw;
-    max-height: 50vh;
-    min-height: 17vh;
+    max-height: 75%;
+    min-height: 37vh;
     right: calc(7vmin + 15px);
-    bottom: var(--panel-bottom);
+    bottom: 10px;
     background-color: white;
     border: 2px solid rgba(0, 0, 0, 0.2);
     border-radius: 4px;
@@ -1119,10 +1119,10 @@ h4 {
     width: 15vw;
     min-width: 15vw;
     max-width: 45vw;
-    max-height: 50vh;
+    max-height: 75%;
     min-height: 17vh;
     left: calc(7vmin + 15px);
-    bottom: var(--panel-bottom);
+    bottom: 10px;
     background-color: white;
     border: 2px solid rgba(0, 0, 0, 0.2);
     border-radius: 4px;
@@ -3501,11 +3501,11 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 }
 .drop-target-left {
     left: calc(7vmin + 15px);
-    bottom: var(--panel-bottom);
+    bottom: 10px;
 }
 .drop-target-right {
     right: calc(7vmin + 15px);
-    bottom: var(--panel-bottom);
+    bottom: 10px;
 }
 .panel-drop-target.drop-highlight {
     border-color: #007bff;
