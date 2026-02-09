@@ -3462,21 +3462,23 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     border-left: 2px solid #1C5ED6;
 }
 
-/* Category Headers (für VATSIM/IVAO Sections) */
+/* Category Headers (für VATSIM/IVAO Sections) - wie fp-section-header */
 .kneeboard-panel-category {
-    padding: 6px 12px 3px 12px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e5e7eb;
     font-family: "Roboto-Light", sans-serif;
     font-size: 10px;
     font-weight: 700;
-    color: #9ca3af;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    border-bottom: 1px solid #f0f0f0;
-    margin-bottom: 2px;
+    padding: 5px 10px;
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
-.kneeboard-panel-category:not(:first-child) {
-    margin-top: 4px;
+.kneeboard-panel-category.category-collapsed {
+    opacity: 0.6;
 }
 
 /* ============================================================================
@@ -4180,7 +4182,6 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 60px;
 }
 
 .fp-route .fp-section-header {
@@ -4365,6 +4366,34 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     cursor: default;
     -webkit-user-select: none;
     user-select: none;
+}
+
+/* Collapse-Indikator (Chevron) für DEP/ARR/ALT Sektionen */
+.fp-departure .fp-section-header::after,
+.fp-arrival .fp-section-header::after,
+.fp-alternate .fp-section-header::after,
+.fp-route .fp-section-header::after {
+    content: '\25B4';
+    margin-left: auto;
+    font-size: 8px;
+    color: #9ca3af;
+}
+
+.fp-collapsed .fp-section-header::after {
+    content: '\25BE';
+}
+
+/* Collapse-Indikator für Controller-Kategorien */
+.kneeboard-panel-category::after {
+    content: '\25B4';
+    float: right;
+    font-size: 8px;
+    color: #9ca3af;
+    transition: transform 0.2s ease;
+}
+
+.kneeboard-panel-category.category-collapsed::after {
+    content: '\25BE';
 }
 
 /* ========================================

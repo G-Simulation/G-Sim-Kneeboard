@@ -7336,23 +7336,8 @@ function listPilots() {
 
   // Kategorie-Header mit Anzahl
   var viewportCount = pilotsToShow.filter(function(p) { return p.isOnline && p.inViewport; }).length;
-  var favOutsideCount = pilotsToShow.filter(function(p) { return p.isOnline && !p.inViewport; }).length;
-  var offlineFavCount = pilotsToShow.filter(function(p) { return !p.isOnline; }).length;
-  var countText = viewportCount + ' im Sichtbereich';
-  if (favOutsideCount > 0) countText += ' + ' + favOutsideCount + ' Fav.';
-  if (offlineFavCount > 0) countText += ' + ' + offlineFavCount + ' offline';
-
-  if (showOnlyFavorites) {
-    var onlineCount = pilotsToShow.filter(function(p) { return p.isOnline; }).length;
-    if (offlineFavCount > 0) {
-      countText = onlineCount + ' online, ' + offlineFavCount + ' offline';
-    } else {
-      countText = onlineCount + ' Favoriten online';
-    }
-  } else if (query) {
-    countText = pilotsToShow.length + ' gefunden (global)';
-  }
-  tempDiv.innerHTML = '<div class="kneeboard-panel-category">Piloten (' + countText + ')</div>';
+  var countText = String(viewportCount);
+  tempDiv.innerHTML = '<div class="kneeboard-panel-category" style="border-left:3px solid #0ea5e9;color:#0284c7">Piloten (' + countText + ')</div>';
   while (tempDiv.firstChild) fragment.appendChild(tempDiv.firstChild);
 
   // Kategorie-Farben
@@ -20515,10 +20500,26 @@ var alternateRouteLayer = null;
  * Bei Alternate: blendet auch die Route auf der Karte ein/aus
  */
 function toggleSectionCollapse(sectionElement) {
+    // Für DEP/ARR/ALT: .fp-selectors ein-/ausblenden
+    // Für ROUTE: .kneeboard-panel-content und .fp-route-header ein-/ausblenden
     var selectors = sectionElement.querySelector('.fp-selectors');
-    if (!selectors) return;
-    var isCollapsed = selectors.style.display === 'none';
-    selectors.style.display = isCollapsed ? '' : 'none';
+    var panelContent = sectionElement.querySelector('.kneeboard-panel-content');
+    var routeHeader = sectionElement.querySelector('.fp-route-header');
+
+    if (!selectors && !panelContent) return;
+
+    var isCollapsed = sectionElement.classList.contains('fp-collapsed');
+
+    if (selectors) {
+        selectors.style.display = isCollapsed ? '' : 'none';
+    }
+    if (panelContent) {
+        panelContent.style.display = isCollapsed ? '' : 'none';
+    }
+    if (routeHeader) {
+        routeHeader.style.display = isCollapsed ? '' : 'none';
+    }
+
     sectionElement.classList.toggle('fp-collapsed', !isCollapsed);
 
     // Alternate-Route auf Karte ein-/ausblenden
@@ -20549,6 +20550,16 @@ function initSectionCollapseHandlers() {
                     });
                 })(section);
             }
+        }
+    }
+    // ROUTE-Sektion (hat keine ID, über Klasse finden)
+    var routeSection = document.querySelector('.fp-section.fp-route');
+    if (routeSection) {
+        var routeHeader = routeSection.querySelector('.fp-section-header');
+        if (routeHeader) {
+            routeHeader.addEventListener('dblclick', function() {
+                toggleSectionCollapse(routeSection);
+            });
         }
     }
 }
@@ -27670,7 +27681,7 @@ function listControllers() {
 
   // Helper für Controller-Kategorie
   function appendCategory(categoryName, controllers, color, categoryType) {
-    appendHtml('<div class="kneeboard-panel-category">' + categoryName + '</div>');
+    appendHtml('<div class="kneeboard-panel-category" style="border-left:3px solid ' + color + ';color:' + color + '">' + categoryName + '</div>');
     for (var j = 0; j < controllers.length; j++) {
       var formattedFreq = formatFrequency(controllers[j].frequency);
       appendHtml(buildPanelListItem({
@@ -27697,7 +27708,7 @@ function listControllers() {
     appendCategory('ATIS', grouped.atis, czColors.ATIS, 'atis');
   }
 
-  appendHtml('<div class="kneeboard-panel-category">UNICOM</div>');
+  appendHtml('<div class="kneeboard-panel-category" style="border-left:3px solid #6b7280;color:#6b7280">UNICOM</div>');
   appendHtml(buildPanelListItem({
     id: 'UNICOM',
     title: 'UNICOM',
@@ -27725,6 +27736,18 @@ function listControllers() {
   // Delegation-Handler NUR EINMAL auf listUl registrieren (verhindert Listener-Leak)
   if (!listUl._controllerHandlersAttached) {
     listUl._controllerHandlersAttached = true;
+
+    // Dblclick handler für Kategorie-Header collapse
+    listUl.addEventListener("dblclick", function(e) {
+      var cat = e.target.closest(".kneeboard-panel-category");
+      if (!cat) return;
+      var collapsed = cat.classList.toggle('category-collapsed');
+      var sibling = cat.nextElementSibling;
+      while (sibling && !sibling.classList.contains('kneeboard-panel-category')) {
+        sibling.style.display = collapsed ? 'none' : '';
+        sibling = sibling.nextElementSibling;
+      }
+    });
 
     // Click handler via delegation on listUl
     listUl.addEventListener("click", function(e) {
