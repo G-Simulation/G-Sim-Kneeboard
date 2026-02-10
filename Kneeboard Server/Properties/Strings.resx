@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <!-- SetupWizardForm -->
+  <data name="SetupWizard_Title" xml:space="preserve">
+    <value>Kneeboard Server Setup</value>
+  </data>
+  <data name="SetupWizard_StepTitle1" xml:space="preserve">
+    <value>Schritt 1 von 4 &#x2013; MSFS Version</value>
+  </data>
+  <data name="SetupWizard_StepTitle2" xml:space="preserve">
+    <value>Schritt 2 von 4 &#x2013; Autostart &amp; Startup</value>
+  </data>
+  <data name="SetupWizard_StepTitle3" xml:space="preserve">
+    <value>Schritt 3 von 4 &#x2013; SimBrief &amp; Netzwerke</value>
+  </data>
+  <data name="SetupWizard_StepTitle4" xml:space="preserve">
+    <value>Schritt 4 von 4 &#x2013; Panel Installation</value>
+  </data>
+  <data name="SetupWizard_MsfsQuestion" xml:space="preserve">
+    <value>Welche MSFS Version(en) verwendest du?</value>
+  </data>
+  <data name="SetupWizard_AutostartGroup" xml:space="preserve">
+    <value>Autostart &amp; Startup</value>
+  </data>
+  <data name="SetupWizard_SimStartCheckbox" xml:space="preserve">
+    <value>Kneeboard Server mit MSFS automatisch starten</value>
+  </data>
+  <data name="SetupWizard_AutoDetect" xml:space="preserve">
+    <value>Auto-Erkennung...</value>
+  </data>
+  <data name="SetupWizard_MinimizedCheckbox" xml:space="preserve">
+    <value>Minimiert starten</value>
+  </data>
+  <data name="SetupWizard_OnlineNetworks" xml:space="preserve">
+    <value>Online Netzwerke</value>
+  </data>
+  <data name="SetupWizard_PanelInstallGroup" xml:space="preserve">
+    <value>Kneeboard Panel Installation</value>
+  </data>
+  <data name="SetupWizard_Back" xml:space="preserve">
+    <value>Zur&#x00FC;ck</value>
+  </data>
+  <data name="SetupWizard_Next" xml:space="preserve">
+    <value>Weiter</value>
+  </data>
+  <data name="SetupWizard_Skip" xml:space="preserve">
+    <value>&#x00DC;berspringen</value>
+  </data>
+  <data name="SetupWizard_Finish" xml:space="preserve">
+    <value>Fertig</value>
+  </data>
+  <data name="SetupWizard_NotDetectedClick" xml:space="preserve">
+    <value>Nicht erkannt (klicken zum Ausw&#x00E4;hlen)</value>
+  </data>
+  <data name="SetupWizard_BrowseCommunity" xml:space="preserve">
+    <value>MSFS Community-Ordner ausw&#x00E4;hlen</value>
+  </data>
+  <data name="SetupWizard_OtherPath" xml:space="preserve">
+    <value>Anderer Pfad:</value>
+  </data>
+  <!-- InformationForm -->
+  <data name="Info_NotDetected" xml:space="preserve">
+    <value>Nicht erkannt</value>
+  </data>
+  <data name="Info_CacheCleared" xml:space="preserve">
+    <value>Cache wurde geleert (OpenAIP + Boundaries + Elevation).</value>
+  </data>
+  <data name="Info_CacheClearError" xml:space="preserve">
+    <value>Fehler beim Leeren des Cache: {0}</value>
+  </data>
+  <data name="Info_CacheTitle" xml:space="preserve">
+    <value>Cache</value>
+  </data>
+  <data name="Info_ErrorTitle" xml:space="preserve">
+    <value>Fehler</value>
+  </data>
+  <data name="Info_NavigraphAuthFailed" xml:space="preserve">
+    <value>Navigraph-Authentifizierung konnte nicht gestartet werden.
+
+{0}</value>
+  </data>
+  <data name="Info_NavigraphFallbackMsg" xml:space="preserve">
+    <value>Bitte pr&#x00FC;fe deine Internetverbindung und versuche es erneut.</value>
+  </data>
+  <data name="Info_InstallSuccess" xml:space="preserve">
+    <value>Kneeboard Panel erfolgreich in {0} Ordner installiert!</value>
+  </data>
+  <data name="Info_InstallPartial" xml:space="preserve">
+    <value>{0} von {1} Installation(en) erfolgreich.
+
+Fehler:
+{2}</value>
+  </data>
+  <data name="Info_MsfsPanelTitle" xml:space="preserve">
+    <value>MSFS Panel</value>
+  </data>
+  <data name="Info_CommunityFolderTitle" xml:space="preserve">
+    <value>MSFS Community Ordner w&#x00E4;hlen</value>
+  </data>
+  <data name="Info_NotInstalled" xml:space="preserve">
+    <value>nicht installiert</value>
+  </data>
+  <data name="Info_Installed" xml:space="preserve">
+    <value>[v{0} installiert]</value>
+  </data>
+  <data name="Info_OtherPath" xml:space="preserve">
+    <value>Anderer Pfad:</value>
+  </data>
+  <!-- KneeboardServer -->
+  <data name="Main_FileOpenError" xml:space="preserve">
+    <value>Fehler beim &#x00D6;ffnen der Datei: {0}</value>
+  </data>
+  <data name="Main_FileNotFound" xml:space="preserve">
+    <value>Datei nicht gefunden oder existiert nicht.</value>
+  </data>
+  <!-- SpendenForm -->
+  <data name="Spenden_Close" xml:space="preserve">
+    <value>Schlie&#x00DF;en</value>
+  </data>
+  <!-- Language UI -->
+  <data name="Info_LanguageLabel" xml:space="preserve">
+    <value>Sprache / Language</value>
+  </data>
+  <data name="Info_LanguageRestartMsg" xml:space="preserve">
+    <value>Die Sprach&#x00E4;nderung wird nach einem Neustart wirksam.</value>
+  </data>
+</root>

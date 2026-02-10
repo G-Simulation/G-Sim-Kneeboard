@@ -73,6 +73,9 @@ namespace Kneeboard_Server
             this.updateGroupBox = new System.Windows.Forms.GroupBox();
             this.autoUpdateCheckbox = new System.Windows.Forms.CheckBox();
             this.checkForUpdatesButton = new System.Windows.Forms.Button();
+            this.languageGroupBox = new System.Windows.Forms.GroupBox();
+            this.languageLabel = new System.Windows.Forms.Label();
+            this.languageComboBox = new System.Windows.Forms.ComboBox();
             this.supportLink = new System.Windows.Forms.LinkLabel();
             this.startupGroupBox.SuspendLayout();
             this.idsGroupBox.SuspendLayout();
@@ -82,6 +85,7 @@ namespace Kneeboard_Server
             this.panelGroupBox.SuspendLayout();
             this.serialGroupBox.SuspendLayout();
             this.updateGroupBox.SuspendLayout();
+            this.languageGroupBox.SuspendLayout();
             this.SuspendLayout();
             // 
             // closeButton
@@ -575,6 +579,39 @@ namespace Kneeboard_Server
             this.updateGroupBox.TabIndex = 59;
             this.updateGroupBox.TabStop = false;
             this.updateGroupBox.Text = "Updates";
+            //
+            // languageGroupBox
+            //
+            this.languageGroupBox.Controls.Add(this.languageLabel);
+            this.languageGroupBox.Controls.Add(this.languageComboBox);
+            this.languageGroupBox.ForeColor = System.Drawing.SystemColors.Highlight;
+            this.languageGroupBox.Location = new System.Drawing.Point(248, 432);
+            this.languageGroupBox.Name = "languageGroupBox";
+            this.languageGroupBox.Size = new System.Drawing.Size(230, 50);
+            this.languageGroupBox.TabIndex = 60;
+            this.languageGroupBox.TabStop = false;
+            this.languageGroupBox.Text = "Language";
+            //
+            // languageLabel
+            //
+            this.languageLabel.AutoSize = true;
+            this.languageLabel.Font = new System.Drawing.Font("Segoe UI", 8.25F);
+            this.languageLabel.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.languageLabel.Location = new System.Drawing.Point(7, 22);
+            this.languageLabel.Name = "languageLabel";
+            this.languageLabel.Size = new System.Drawing.Size(55, 13);
+            this.languageLabel.TabIndex = 0;
+            this.languageLabel.Text = "Sprache:";
+            //
+            // languageComboBox
+            //
+            this.languageComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.languageComboBox.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.languageComboBox.FormattingEnabled = true;
+            this.languageComboBox.Location = new System.Drawing.Point(100, 19);
+            this.languageComboBox.Name = "languageComboBox";
+            this.languageComboBox.Size = new System.Drawing.Size(120, 21);
+            this.languageComboBox.TabIndex = 1;
             // 
             // autoUpdateCheckbox
             // 
@@ -623,6 +660,7 @@ namespace Kneeboard_Server
             this.BackColor = System.Drawing.SystemColors.Window;
             this.ClientSize = new System.Drawing.Size(490, 580);
             this.Controls.Add(this.closeButton);
+            this.Controls.Add(this.languageGroupBox);
             this.Controls.Add(this.updateGroupBox);
             this.Controls.Add(this.serialGroupBox);
             this.Controls.Add(this.elevationGroupBox);
@@ -657,6 +695,8 @@ namespace Kneeboard_Server
             this.serialGroupBox.PerformLayout();
             this.updateGroupBox.ResumeLayout(false);
             this.updateGroupBox.PerformLayout();
+            this.languageGroupBox.ResumeLayout(false);
+            this.languageGroupBox.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -708,5 +748,8 @@ namespace Kneeboard_Server
         private System.Windows.Forms.Label simbriefStatusLabel;
         private System.Windows.Forms.Label vatsimStatusLabel;
         private System.Windows.Forms.Label ivaoStatusLabel;
+        private System.Windows.Forms.GroupBox languageGroupBox;
+        private System.Windows.Forms.Label languageLabel;
+        private System.Windows.Forms.ComboBox languageComboBox;
     }
 }

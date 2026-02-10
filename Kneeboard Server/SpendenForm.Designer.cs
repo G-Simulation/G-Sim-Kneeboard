@@ -92,6 +92,7 @@ namespace Kneeboard_Server
             // 
             // qrPictureBox
             // 
+            this.qrPictureBox.Image = ((System.Drawing.Image)(resources.GetObject("qrPictureBox.Image")));
             this.qrPictureBox.Location = new System.Drawing.Point(113, 235);
             this.qrPictureBox.Name = "qrPictureBox";
             this.qrPictureBox.Size = new System.Drawing.Size(115, 115);

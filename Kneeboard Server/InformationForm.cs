@@ -15,6 +15,7 @@ namespace Kneeboard_Server
         public InformationForm()
         {
             InitializeComponent();
+            ApplyLocalization();
             if (Properties.Settings.Default.autostart == true)
             {
                 autostart.Checked = true;
@@ -97,6 +98,13 @@ namespace Kneeboard_Server
 
             // Load auto-update setting
             autoUpdateCheckbox.Checked = Properties.Settings.Default.autoUpdateCheck;
+
+            // Language selection
+            languageComboBox.Items.Add("Deutsch");
+            languageComboBox.Items.Add("English");
+            string currentLang = Properties.Settings.Default.language;
+            languageComboBox.SelectedIndex = (currentLang == "en") ? 1 : 0;
+            languageComboBox.SelectedIndexChanged += LanguageComboBox_SelectedIndexChanged;
         }
 
         private void InformationForm_Load(object sender, EventArgs e)
@@ -110,6 +118,23 @@ namespace Kneeboard_Server
         private void CloseButton_Click(object sender, EventArgs e)
         {
             this.Close();
+        }
+
+        private void LanguageComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            string newLang = languageComboBox.SelectedIndex == 1 ? "en" : "de";
+            if (newLang != Properties.Settings.Default.language)
+            {
+                Properties.Settings.Default.language = newLang;
+                Properties.Settings.Default.Save();
+                MessageBox.Show(Properties.Strings.Info_LanguageRestartMsg,
+                    "Kneeboard Server", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void ApplyLocalization()
+        {
+            languageLabel.Text = Properties.Strings.Info_LanguageLabel;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -187,7 +212,7 @@ namespace Kneeboard_Server
             }
             else
             {
-                exeXml2024Input.Text = "Nicht erkannt";
+                exeXml2024Input.Text = Properties.Strings.Info_NotDetected;
                 exeXml2024Input.ForeColor = System.Drawing.Color.Gray;
             }
 
@@ -198,7 +223,7 @@ namespace Kneeboard_Server
             }
             else
             {
-                exeXml2020Input.Text = "Nicht erkannt";
+                exeXml2020Input.Text = Properties.Strings.Info_NotDetected;
                 exeXml2020Input.ForeColor = System.Drawing.Color.Gray;
             }
         }
@@ -225,7 +250,7 @@ namespace Kneeboard_Server
 
                 // Initial-Verzeichnis aus dem aktuellen Pfad im Textfeld setzen
                 string currentPath = targetInput.Text;
-                if (!string.IsNullOrEmpty(currentPath) && currentPath != "Nicht erkannt")
+                if (!string.IsNullOrEmpty(currentPath) && currentPath != Properties.Strings.Info_NotDetected)
                 {
                     string dir = Path.GetDirectoryName(currentPath);
                     if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
@@ -323,12 +348,12 @@ namespace Kneeboard_Server
                 SimpleHTTPServer.ClearElevationCache();
                 UpdateCacheButtonText();
                 UpdateSrtmStatus();
-                MessageBox.Show("Cache wurde geleert (OpenAIP + Boundaries + Elevation).", "Cache",
+                MessageBox.Show(Properties.Strings.Info_CacheCleared, Properties.Strings.Info_CacheTitle,
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Fehler beim Leeren des Cache: {ex.Message}", "Fehler",
+                MessageBox.Show(string.Format(Properties.Strings.Info_CacheClearError, ex.Message), Properties.Strings.Info_ErrorTitle,
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -437,8 +462,8 @@ namespace Kneeboard_Server
                 if (deviceCode == null)
                 {
                     MessageBox.Show(
-                        "Navigraph-Authentifizierung konnte nicht gestartet werden.\n\n" +
-                        (lastLogMessage ?? "Bitte prüfe deine Internetverbindung und versuche es erneut."),
+                        string.Format(Properties.Strings.Info_NavigraphAuthFailed,
+                            lastLogMessage ?? Properties.Strings.Info_NavigraphFallbackMsg),
                         "Navigraph", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
@@ -565,7 +590,7 @@ namespace Kneeboard_Server
                     }
                     else
                     {
-                        statusParts.Add($"{shortVersion}: nicht installiert");
+                        statusParts.Add($"{shortVersion}: {Properties.Strings.Info_NotInstalled}");
                     }
                 }
 
@@ -653,14 +678,14 @@ namespace Kneeboard_Server
                 if (errors.Count > 0)
                 {
                     MessageBox.Show(
-                        $"{successCount} von {selectedPaths.Count} Installation(en) erfolgreich.\n\nFehler:\n{string.Join("\n", errors)}",
-                        "MSFS Panel", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        string.Format(Properties.Strings.Info_InstallPartial, successCount, selectedPaths.Count, string.Join("\n", errors)),
+                        Properties.Strings.Info_MsfsPanelTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
                 else
                 {
                     MessageBox.Show(
-                        $"Kneeboard Panel erfolgreich in {successCount} Ordner installiert!",
-                        "MSFS Panel", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        string.Format(Properties.Strings.Info_InstallSuccess, successCount),
+                        Properties.Strings.Info_MsfsPanelTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
             catch (Exception ex)
@@ -680,7 +705,7 @@ namespace Kneeboard_Server
         {
             using (var form = new Form())
             {
-                form.Text = "MSFS Community Ordner wählen";
+                form.Text = Properties.Strings.Info_CommunityFolderTitle;
                 form.StartPosition = FormStartPosition.CenterParent;
                 form.FormBorderStyle = FormBorderStyle.FixedDialog;
                 form.MaximizeBox = false;
@@ -692,7 +717,7 @@ namespace Kneeboard_Server
                 foreach (var inst in installations)
                 {
                     var info = MsfsPathDetector.GetInstalledPackageInfo(inst.CommunityPath);
-                    string status = info.IsInstalled ? $" [v{info.Version} installiert]" : "";
+                    string status = info.IsInstalled ? " " + string.Format(Properties.Strings.Info_Installed, info.Version) : "";
 
                     var cb = new System.Windows.Forms.CheckBox
                     {
@@ -721,7 +746,7 @@ namespace Kneeboard_Server
                 // Manuell-Option
                 var manualCb = new System.Windows.Forms.CheckBox
                 {
-                    Text = "Anderer Pfad:",
+                    Text = Properties.Strings.Info_OtherPath,
                     Location = new Point(12, yPos),
                     Size = new Size(100, 20),
                     Checked = false,

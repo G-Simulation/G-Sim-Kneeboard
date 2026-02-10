@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
@@ -22,6 +23,13 @@ namespace Kneeboard_Server
             {
                 CheckDatabase();
                 return;
+            }
+
+            // Apply saved language preference
+            string lang = Properties.Settings.Default.language;
+            if (!string.IsNullOrEmpty(lang))
+            {
+                Thread.CurrentThread.CurrentUICulture = new CultureInfo(lang);
             }
 
             bool debug = false;

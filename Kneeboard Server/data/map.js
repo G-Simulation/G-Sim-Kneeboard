@@ -2323,8 +2323,10 @@ function handleAnimationComplete(e) {
       var bannerEl = document.getElementById('banner');
       if (bannerEl) bannerEl.style.visibility = 'visible';
       var controllerEl = document.getElementById('controllerContainer');
-      if (controllerEl && controllerEl.style.visibility === 'hidden' && moverX) {
-        controllerEl.style.visibility = 'visible';
+      if (controllerEl && moverX) {
+        if (controllerEl.style.visibility === 'hidden') {
+          controllerEl.style.visibility = 'visible';
+        }
         var controllerList = document.getElementById('controllerList');
         if (controllerList) controllerList.style.visibility = 'visible';
       }
@@ -18889,14 +18891,21 @@ function minimizeWpList() {
       } else if (section.classList.contains('fp-route')) {
         // ROUTE section wieder einblenden
         section.style.display = "";
+        // Collapsed-State wiederherstellen
+        if (section.classList.contains('fp-collapsed')) {
+          var pc = section.querySelector('.kneeboard-panel-content');
+          var rh = section.querySelector('.fp-route-header');
+          if (pc) pc.style.display = 'none';
+          if (rh) rh.style.display = 'none';
+        }
       } else {
         // DEP/ARR/ALT: Selectors wieder einblenden (nur wenn Section Daten hat)
         if (sectionId === 'fpDepartureSection' && flightplanPanelState && flightplanPanelState.departure && flightplanPanelState.departure.icao) {
           var selectors = section.querySelector('.fp-selectors');
-          if (selectors) selectors.style.display = "";
+          if (selectors && !section.classList.contains('fp-collapsed')) selectors.style.display = "";
         } else if (sectionId === 'fpArrivalSection' && flightplanPanelState && flightplanPanelState.arrival && flightplanPanelState.arrival.icao) {
           var selectors = section.querySelector('.fp-selectors');
-          if (selectors) selectors.style.display = "";
+          if (selectors && !section.classList.contains('fp-collapsed')) selectors.style.display = "";
         } else if (sectionId === 'fpAlternateSection' && flightplanPanelState && flightplanPanelState.alternate && flightplanPanelState.alternate.icao) {
           // Alternate bleibt collapsed beim Laden
           section.classList.add('fp-collapsed');
@@ -18915,7 +18924,7 @@ function minimizeWpList() {
       }
     }
     if (overlayEl) {
-      overlayEl.style.minHeight = "17vh";
+      //overlayEl.style.minHeight = "17vh";
       overlayEl.style.overflow = "hidden";
       overlayEl.classList.remove('minimized');
     }
@@ -29684,6 +29693,8 @@ function finishAppendWaypoint(lat, lng, activePopup) {
                           configs.metar.isResizing || configs.elevationProfile.isResizing;
     var wasOverlayResizing = configs.overlay.isResizing || configs.overlayHeight.isResizing;
     var wasControllerResizing = configs.controller.isResizing || configs.controllerHeight.isResizing;
+    var wasOverlayHeightResizing = configs.overlayHeight.isResizing;
+    var wasControllerHeightResizing = configs.controllerHeight.isResizing;
 
     if (configs.overlay.isResizing) {
       configs.overlay.isResizing = false;
@@ -29705,6 +29716,24 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       // Re-enable CSS transition after resize
       if (configs.elevationProfile.element) {
         configs.elevationProfile.element.style.transition = '';
+      }
+    }
+
+    // Nach Hoehen-Resize: height durch max-height ersetzen damit Sektionen schrumpfen koennen
+    if (wasOverlayHeightResizing && configs.overlayHeight.element) {
+      var el = configs.overlayHeight.element;
+      var h = el.style.getPropertyValue('height');
+      if (h) {
+        el.style.removeProperty('height');
+        el.style.setProperty('max-height', h, 'important');
+      }
+    }
+    if (wasControllerHeightResizing && configs.controllerHeight.element) {
+      var el = configs.controllerHeight.element;
+      var h = el.style.getPropertyValue('height');
+      if (h) {
+        el.style.removeProperty('height');
+        el.style.setProperty('max-height', h, 'important');
       }
     }
 
@@ -29861,6 +29890,8 @@ function finishAppendWaypoint(lat, lng, activePopup) {
                           configs.metar.isResizing || configs.elevationProfile.isResizing;
     var wasOverlayResizing = configs.overlay.isResizing || configs.overlayHeight.isResizing;
     var wasControllerResizing = configs.controller.isResizing || configs.controllerHeight.isResizing;
+    var wasOverlayHeightResizing = configs.overlayHeight.isResizing;
+    var wasControllerHeightResizing = configs.controllerHeight.isResizing;
 
     if (configs.overlay.isResizing) {
       configs.overlay.isResizing = false;
@@ -29879,6 +29910,24 @@ function finishAppendWaypoint(lat, lng, activePopup) {
     }
     if (configs.elevationProfile.isResizing) {
       configs.elevationProfile.isResizing = false;
+    }
+
+    // Nach Hoehen-Resize: height durch max-height ersetzen damit Sektionen schrumpfen koennen
+    if (wasOverlayHeightResizing && configs.overlayHeight.element) {
+      var el = configs.overlayHeight.element;
+      var h = el.style.getPropertyValue('height');
+      if (h) {
+        el.style.removeProperty('height');
+        el.style.setProperty('max-height', h, 'important');
+      }
+    }
+    if (wasControllerHeightResizing && configs.controllerHeight.element) {
+      var el = configs.controllerHeight.element;
+      var h = el.style.getPropertyValue('height');
+      if (h) {
+        el.style.removeProperty('height');
+        el.style.setProperty('max-height', h, 'important');
+      }
     }
 
     document.body.style.cursor = '';
@@ -29934,6 +29983,12 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       mapLogger.debug('Set config.isResizing = true, checking globals:', { overlay: configs.overlay.isResizing, controller: configs.controller.isResizing, metar: configs.metar.isResizing, elevation: configs.elevationProfile.isResizing });
 
       if (config.isVertical) {
+        // max-height durch height ersetzen damit Resize ungehindert wirken kann
+        var mh = config.element.style.getPropertyValue('max-height');
+        if (mh) {
+          config.element.style.removeProperty('max-height');
+          config.element.style.setProperty('height', mh, 'important');
+        }
         config.startY = e.clientY;
         config.startHeight = config.element.offsetHeight;
         config.startTop = config.element.getBoundingClientRect().top;
@@ -29958,6 +30013,12 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       config.isResizing = true;
 
       if (config.isVertical) {
+        // max-height durch height ersetzen damit Resize ungehindert wirken kann
+        var mh = config.element.style.getPropertyValue('max-height');
+        if (mh) {
+          config.element.style.removeProperty('max-height');
+          config.element.style.setProperty('height', mh, 'important');
+        }
         config.startY = e.touches[0].clientY;
         config.startHeight = config.element.offsetHeight;
         config.startTop = config.element.getBoundingClientRect().top;
@@ -31871,17 +31932,17 @@ async function updateElevationProfileImmediate() {
 
     routeCoordinates.push([latlng.lat, latlng.lng]);
 
-    var alt = 0;
+    var alt = null;
     if (typeof altitudes !== 'undefined' && altitudes[index] !== undefined) {
-      alt = parseFloat(altitudes[index]);
-      if (isNaN(alt)) alt = 0;
+      var parsed = parseFloat(altitudes[index]);
+      if (!isNaN(parsed) && parsed > 0) alt = parsed;
     }
 
     waypointData.push({
       name: wpNames[index] || 'WP' + (index + 1),
       lat: latlng.lat,
       lng: latlng.lng,
-      altitude: alt * 0.3048, // Convert feet to meters
+      altitude: alt !== null ? alt * 0.3048 : null, // Convert feet to meters, null = no altitude
       distance: 0, // Will be calculated
       layerIndex: index // Store original layer index for click handling
     });
@@ -31899,6 +31960,32 @@ async function updateElevationProfileImmediate() {
   waypointData.forEach(function(wp, i) {
     wp.distance = distances[i];
   });
+
+  // Interpolate missing altitudes (null) from surrounding waypoints with altitude
+  for (var i = 0; i < waypointData.length; i++) {
+    if (waypointData[i].altitude !== null) continue;
+    // Find previous waypoint with altitude
+    var prevIdx = -1, nextIdx = -1;
+    for (var j = i - 1; j >= 0; j--) {
+      if (waypointData[j].altitude !== null) { prevIdx = j; break; }
+    }
+    // Find next waypoint with altitude
+    for (var j = i + 1; j < waypointData.length; j++) {
+      if (waypointData[j].altitude !== null) { nextIdx = j; break; }
+    }
+    if (prevIdx >= 0 && nextIdx >= 0) {
+      // Linear interpolation between prev and next
+      var totalDist = waypointData[nextIdx].distance - waypointData[prevIdx].distance;
+      var t = totalDist > 0 ? (waypointData[i].distance - waypointData[prevIdx].distance) / totalDist : 0;
+      waypointData[i].altitude = waypointData[prevIdx].altitude + t * (waypointData[nextIdx].altitude - waypointData[prevIdx].altitude);
+    } else if (prevIdx >= 0) {
+      waypointData[i].altitude = waypointData[prevIdx].altitude;
+    } else if (nextIdx >= 0) {
+      waypointData[i].altitude = waypointData[nextIdx].altitude;
+    } else {
+      waypointData[i].altitude = 0;
+    }
+  }
 
   // Interpolate points between waypoints for smoother profile
   var interpolatedCoords = [];
@@ -32611,8 +32698,10 @@ var updateElevationProfile = scheduleElevationUpdate;
       }
       if (p.controller) {
         var ce = document.getElementById('controllerContainer');
+        var cl = document.getElementById('controllerList');
         var show = p.controller.active && p.controller.visible;
         if (ce) ce.style.visibility = show ? 'visible' : 'hidden';
+        if (cl) cl.style.visibility = show ? 'visible' : 'hidden';
       }
       if (p.metar) {
         var me = document.getElementById('metarContainer');
@@ -33089,8 +33178,11 @@ var PanelPositionManager = (function() {
             // Height auf #map-Hoehe begrenzen
             var maxH = mh - 20;
             var h = Math.min(pos.height, maxH);
-            panel.style.setProperty('height', h + 'px', 'important');
+            panel.style.removeProperty('height');
+            panel.style.setProperty('max-height', h + 'px', 'important');
         }
+        // Tatsaechliche Panel-Hoehe nach max-height messen (kann kleiner sein als gespeichert)
+        ph = panel.offsetHeight;
 
         if (pos.useRight) {
             var r = Math.max(EDGE_MARGIN, Math.min(pos.right || 0, mw - pw - EDGE_MARGIN));
