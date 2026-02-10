@@ -31,6 +31,6 @@ using System.Runtime.InteropServices;
 // Sie können alle Werte angeben oder Standardwerte für die Build- und Revisionsnummern verwenden,
 // indem Sie "*" wie unten gezeigt eingeben:
 // [assembly: AssemblyVersion("1.0.*")]
-// Release v2.0.2 - QR designer fix, autoupdater URL fix, event handler leak fix
+// Release v2.0.2 - QR designer fix, autoupdater URL fix, event handler leak fix, MSI upgrade fix
 [assembly: AssemblyVersion("2.0.2.0")]
 [assembly: AssemblyFileVersion("2.0.2.0")]
