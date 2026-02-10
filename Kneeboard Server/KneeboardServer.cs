@@ -1471,11 +1471,10 @@ namespace Kneeboard_Server
 
         private void KneeboardServer_Load(object sender, EventArgs e)
         {
-            // Pfad ermitteln: Debug nutzt IMMER Source-Ordner (JS/CSS sofort sichtbar ohne Rebuild).
-            // Release nutzt exe-Verzeichnis (installierte Version).
             string baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
 #if DEBUG
-            folderpath = Path.GetFullPath(Path.Combine(baseDir, @"..\..\.."));
+            string devPath = Path.GetFullPath(Path.Combine(baseDir, @"..\..\.."));
+            folderpath = Directory.Exists(Path.Combine(devPath, "data")) ? devPath : baseDir;
 #else
             folderpath = baseDir;
 #endif

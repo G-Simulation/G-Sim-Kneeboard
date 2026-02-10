@@ -16,7 +16,9 @@ G-Sim Kneeboard besteht aus zwei Komponenten:
 - Flughafen-Datenbank mit weltweiten Flughäfen
 - Waypoint-Verwaltung für Navigation
 - Simbrief-Integration für Flugplanung
-- SID/STAR Procedure-Daten für detaillierte Flugpfad-Darstellung
+- Navigraph DFD v2 Integration mit aktuellem AIRAC
+- SID/STAR/Approach Procedure-Daten für detaillierte Flugpfad-Darstellung
+- ILS-Daten und Runway-Informationen
 - Echtzeit-Kommunikation mit MSFS via SimConnect
 - Karten-Visualisierung
 - Singleton-Anwendung (nur eine Instanz gleichzeitig)
@@ -49,7 +51,7 @@ G-Sim Kneeboard besteht aus zwei Komponenten:
 
 ### Option 2: Von Source kompilieren
 
-1. Öffne `Kneeboard Server.sln` in Visual Studio 2017 oder neuer
+1. Öffne `Kneeboard Server.sln` in Visual Studio 2022
 2. Build Configuration: `Debug` oder `Release`
 3. Platform: `x64` empfohlen
 4. Build Solution
@@ -64,7 +66,7 @@ G-Sim Kneeboard besteht aus zwei Komponenten:
 
 ## SID/STAR Navdata Integration
 
-Der Kneeboard Server kann detaillierte SID/STAR-Waypoints in der Karte darstellen. Die Waypoints werden farblich unterschieden:
+Der Kneeboard Server kann detaillierte SID/STAR/Approach-Waypoints in der Karte darstellen. Die Waypoints werden farblich unterschieden:
 
 - **Rot**: SID/Departure-Waypoints
 - **Lila**: Route/Enroute-Waypoints
@@ -72,41 +74,41 @@ Der Kneeboard Server kann detaillierte SID/STAR-Waypoints in der Karte darstelle
 - **Orange**: Approach-Waypoints
 - **Blau**: Alternate-Waypoints
 
-### Navdata-Datenbank erstellen
+### Navigraph Integration
 
-Die Navdata werden direkt aus dem MSFS-Installationsordner gelesen. **Wenn du Navigraph in MSFS installiert hast, werden automatisch die aktuellen AIRAC-Daten verwendet!**
+Die Navdata werden über die **Navigraph DFD v2 API** bezogen. Dafür ist ein Navigraph-Account mit aktiver Subscription erforderlich.
 
 **Einrichtung:**
 
 1. Öffne den Kneeboard Server
 2. Klicke auf das **Info-Symbol (i)** oben rechts
-3. Der **MSFS Packages-Ordner** wird automatisch erkannt
-   - Falls nicht: Klicke auf das Textfeld und wähle den Ordner manuell
-   - Der Ordner enthält typischerweise `Official` und `Community` Unterordner
-4. Klicke auf **"Navdata Datenbank erstellen"**
-5. Warte bis die Datenbank erstellt wurde
+3. Klicke auf **"Login"** im Navigraph-Bereich
+4. Ein Autorisierungscode wird angezeigt - gib diesen auf der Navigraph-Website ein
+5. Nach erfolgreicher Autorisierung werden die aktuellen AIRAC-Daten automatisch heruntergeladen
 
 **AIRAC-Updates:**
 
-Wenn du Navigraph aktualisierst, zeigt der Kneeboard Server automatisch eine Meldung, dass ein AIRAC-Update verfügbar ist. Klicke dann erneut auf "Navdata Datenbank erstellen" um die neuen Daten zu laden.
+Der Kneeboard Server prüft beim Start automatisch auf neue AIRAC-Zyklen und lädt Updates herunter.
 
-**Datenquellen (Priorität):**
+**Fallback:**
 
-1. **Navigraph** (wenn in MSFS Community-Ordner installiert) - Aktuelle AIRAC-Daten
-2. **Standard MSFS Navdata** - Basis-Navdata des Simulators
+Ohne Navigraph-Login wird eine gebundelte Navigraph-Datenbank (AIRAC 2403) als Fallback verwendet.
 
 ### SimBrief Fallback
 
-Ohne erstellte Navdata-Datenbank werden die vereinfachten Waypoints aus dem SimBrief-Flugplan verwendet. Diese werden anhand der `stage`-Information (CLB/CRZ/DSC) farblich markiert.
+Ohne Navdata-Datenbank werden die vereinfachten Waypoints aus dem SimBrief-Flugplan verwendet. Diese werden anhand der `stage`-Information (CLB/CRZ/DSC) farblich markiert.
 
 ### API Endpoints
 
 | Endpoint | Beschreibung |
 |----------|--------------|
-| `GET /api/procedures/status` | Status der Navdata-Verbindung |
+| `GET /api/navigraph/status` | Status der Navigraph-Verbindung |
 | `GET /api/procedures/sids/{icao}` | Liste aller SIDs eines Flughafens |
 | `GET /api/procedures/stars/{icao}` | Liste aller STARs eines Flughafens |
-| `GET /api/procedures/procedure/{icao}/{name}?type=sid\|star` | Details einer Procedure |
+| `GET /api/procedures/approaches/{icao}` | Liste aller Approaches eines Flughafens |
+| `GET /api/procedures/procedure/{icao}/{name}?type=SID\|STAR\|Approach&transition=xxx` | Details einer Procedure |
+| `GET /api/ils/{icao}` | ILS-Daten eines Flughafens |
+| `GET /api/navigraph/runway/{icao}/{runway}` | Runway-Daten |
 
 ## Kneeboard Panel Entwicklung
 
@@ -149,6 +151,7 @@ G-Sim Kneeboard/
 │   ├── Simbrief.cs                # Simbrief-Integration
 │   ├── PanelDeploymentService.cs  # Panel-Installation
 │   ├── MsfsPathDetector.cs        # MSFS-Pfad-Erkennung
+│   ├── Navigraph/                 # Navigraph DFD v2 Integration
 │   └── data/                      # Web-Frontend (HTML/JS/CSS)
 ├── Kneeboard Server Setup/        # Installer-Projekt
 ├── Kneeboard/                     # MSFS Panel Add-on
@@ -186,7 +189,7 @@ G-Sim Kneeboard/
 
 ### Voraussetzungen
 
-- Visual Studio 2017 oder neuer
+- Visual Studio 2022
 - .NET Framework 4.8 SDK
 - Windows SDK
 - Node.js (für Panel-Entwicklung)
@@ -198,7 +201,7 @@ Der Server verwendet Port **815**. Stelle sicher, dass dieser Port nicht von and
 
 ## Version
 
-Aktuelle Version: 2.0.2
+Aktuelle Version: 2.0.3
 
 ## Lizenz
 

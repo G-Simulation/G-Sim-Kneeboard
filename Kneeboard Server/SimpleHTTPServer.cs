@@ -56,10 +56,14 @@ namespace Kneeboard_Server
             Timeout = TimeSpan.FromSeconds(15)
         };
 
-        // Source-Verzeichnis: Im Debug-Modus Projekt-Root (3 Ebenen hoch), sonst neben der exe
 #if DEBUG
-        private static readonly string SOURCE_DIR = Path.GetFullPath(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\'), @"..\..\.."));
+        private static readonly string SOURCE_DIR = GetSourceDir();
+        private static string GetSourceDir()
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+            string devPath = Path.GetFullPath(Path.Combine(baseDir, @"..\..\.."));
+            return Directory.Exists(Path.Combine(devPath, "data")) ? devPath : baseDir;
+        }
 #else
         private static readonly string SOURCE_DIR = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
 #endif

@@ -151,3 +151,17 @@ Bei Pflicht-Updates wird der Benutzer gezwungen, das Update zu installieren.
 - Prüfen ob MSI und setup.exe in `Kneeboard Server Setup/Debug/` vorhanden sind
 - Prüfen ob der Tag `vx.y.z` noch nicht existiert
 - GitHub Actions Logs unter `Actions` Tab im Repository prüfen
+
+---
+
+## Release-Historie
+
+### v2.0.3
+- Fix: data-Ordner wurde nicht ins Installationsverzeichnis kopiert (Kneeboard im Browser nicht erreichbar nach Installation)
+- Fix: Debug-Build Pfadlogik mit Fallback - im Debug aus VS wird der Projekt-Ordner genutzt, bei installierter Version das exe-Verzeichnis
+
+### v2.0.2
+- QR Designer Fix
+- Autoupdater URL Fix
+- Event Handler Leak Fix
+- MSI Upgrade Fix

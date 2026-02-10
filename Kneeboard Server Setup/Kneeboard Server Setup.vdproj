@@ -16,350 +16,242 @@
     {
         "Entry"
         {
+        "MsmKey" = "8:_00BD581A04D64E4A9319679153B9EFBF"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_0FB220E4BA93D0B021A39112B20B164D"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_06F5C380BE4A4062A3900B6FBFBCF754"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_12D6BF0DFF19A76CCBDFBB98E8BC029D"
-        "OwnerKey" = "8:_224ABC2DA02CAF4F8D894BB5CA404E04"
+        "MsmKey" = "8:_0BC6283E16894FCB97E01C9D231A39D2"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_12D6BF0DFF19A76CCBDFBB98E8BC029D"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_0E2CBD8339BE402B93BF2A5444F22790"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_138F1C6B7E5DC869E14BE6DBD54393D5"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_0E6F860F1F454DDA96F206C14BFE29CF"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_18157C89E30446032650E5F6A1092052"
-        "OwnerKey" = "8:_1C156BE0EC2398CF2033B4D375EE3C23"
+        "MsmKey" = "8:_10B9D500C94C4105B43A4F2E039F840A"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_18157C89E30446032650E5F6A1092052"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_1DE2701F1F0340C1BB837E7914072DC5"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_1C156BE0EC2398CF2033B4D375EE3C23"
-        "OwnerKey" = "8:_6FD228EDD06983AD3422C8F9F0F8C1A3"
+        "MsmKey" = "8:_24516FD5CB88491797504720FD064693"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_1C156BE0EC2398CF2033B4D375EE3C23"
-        "OwnerKey" = "8:_138F1C6B7E5DC869E14BE6DBD54393D5"
+        "MsmKey" = "8:_2692FDBB589C434380C7422C4E4501B1"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_1C156BE0EC2398CF2033B4D375EE3C23"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_290BCC1843EC4C129DA8E3754CDB9A0B"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_1C156BE0EC2398CF2033B4D375EE3C23"
-        "OwnerKey" = "8:_AD2C744F04B1EA11F920CC9E7809DDD7"
+        "MsmKey" = "8:_29652A7272314F9495D4D6DDC1215FB1"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_1C156BE0EC2398CF2033B4D375EE3C23"
-        "OwnerKey" = "8:_AC6B07022DA6818A757212A5D7E32A17"
+        "MsmKey" = "8:_3728975AF9BC41C69842D6921FB860C8"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_1C156BE0EC2398CF2033B4D375EE3C23"
-        "OwnerKey" = "8:_46CDCB3ABA1D27D33C482A5C06C6CE37"
+        "MsmKey" = "8:_3858F19536304BE992FCAC68530A8916"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_2135CF992E3218BEA8B13CF694E81E55"
-        "OwnerKey" = "8:_6FD077EFC6D18640908E42AF4E40987D"
+        "MsmKey" = "8:_3BD364BEB1C342E595DED4997ECD5524"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_2135CF992E3218BEA8B13CF694E81E55"
-        "OwnerKey" = "8:_138F1C6B7E5DC869E14BE6DBD54393D5"
+        "MsmKey" = "8:_3DB34F2252C34496BAF6B16349F59BCD"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_2135CF992E3218BEA8B13CF694E81E55"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_423A3058197E48B7B0CD3AC3932F3C20"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_2135CF992E3218BEA8B13CF694E81E55"
-        "OwnerKey" = "8:_AC6B07022DA6818A757212A5D7E32A17"
+        "MsmKey" = "8:_4AFCC9A9B2D84070AEFDB87BADA3EB82"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_2135CF992E3218BEA8B13CF694E81E55"
-        "OwnerKey" = "8:_6FD228EDD06983AD3422C8F9F0F8C1A3"
+        "MsmKey" = "8:_4C9AAB16A317469D91416D73D317ADC7"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_2135CF992E3218BEA8B13CF694E81E55"
-        "OwnerKey" = "8:_1C156BE0EC2398CF2033B4D375EE3C23"
+        "MsmKey" = "8:_4D1D97F24A404D0ABE7E92751C6F56AD"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_224ABC2DA02CAF4F8D894BB5CA404E04"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_50708BBD06774225AAF00F16D28C4133"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_224ABC2DA02CAF4F8D894BB5CA404E04"
-        "OwnerKey" = "8:_B946A146BD4113EDC7DADC963404BF04"
+        "MsmKey" = "8:_5337F6616508460C8EAED52BF5BED22D"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_36FDEDA46A6FB5716BA3768C6EAC3B0C"
-        "OwnerKey" = "8:_C6611E983D5E9DB3AB5C3640FADC9980"
+        "MsmKey" = "8:_53ACF50843704DA58F68D544828F6F83"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_36FDEDA46A6FB5716BA3768C6EAC3B0C"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_5BFB935E6CAF4FDF99F2EC292646095B"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_3D8FF6165148F678FCCD1EAF6FEC6BAA"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_61073D077E244DEBBF9B7CF438D95629"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_428E64049235B2C8EF5CA8EC5B3735FE"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_66C30A375E1A47FAAD3C29D409A98D79"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_46CDCB3ABA1D27D33C482A5C06C6CE37"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_6893955CCFB141EC91E72EEAFCB62EC6"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_46CDCB3ABA1D27D33C482A5C06C6CE37"
-        "OwnerKey" = "8:_AD2C744F04B1EA11F920CC9E7809DDD7"
+        "MsmKey" = "8:_68DC0B87802442A48EC982F4102FEFE2"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_49D0BE320AD120AA556E40076939E323"
-        "OwnerKey" = "8:_46CDCB3ABA1D27D33C482A5C06C6CE37"
+        "MsmKey" = "8:_6AF83CAA58CA46D9AEEF8B2F47226706"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_49D0BE320AD120AA556E40076939E323"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_74BF44443BE340599A67517CF2A56D1C"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_49D0BE320AD120AA556E40076939E323"
-        "OwnerKey" = "8:_AC6B07022DA6818A757212A5D7E32A17"
+        "MsmKey" = "8:_7599496C61474E74BBF6AD48BA7202DF"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_49D0BE320AD120AA556E40076939E323"
-        "OwnerKey" = "8:_1C156BE0EC2398CF2033B4D375EE3C23"
+        "MsmKey" = "8:_79895B8FA95C4E3D87F9FF8C55CD6575"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_49D0BE320AD120AA556E40076939E323"
-        "OwnerKey" = "8:_6FD228EDD06983AD3422C8F9F0F8C1A3"
+        "MsmKey" = "8:_7EDC68EAE02843BD9A4F0B45EE406022"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_4A2C24DF5A59EEFF7A23F8C4BDFE1C54"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_7EED2FE2E9094333BA22D5A9DA2065F8"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_4C01F7D5A5A4D495A025BD9BE217EEC0"
-        "OwnerKey" = "8:_224ABC2DA02CAF4F8D894BB5CA404E04"
+        "MsmKey" = "8:_801115A646C84956BAD36B789DE2D036"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_5C257AC464C73EB3EC06195F6460C9C8"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_802199AE97414438B5C5B3ABC58F941A"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_5C257AC464C73EB3EC06195F6460C9C8"
-        "OwnerKey" = "8:_C3E29459CA8AC43D487CD45DFB8D9230"
+        "MsmKey" = "8:_80A7DA7C102047C6A6E4B13D5E1ADFDF"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_5C257AC464C73EB3EC06195F6460C9C8"
-        "OwnerKey" = "8:_7DF017D4ED3EE39D4B23B76A250D1B19"
+        "MsmKey" = "8:_81E3E98513774097BDADD0260764F0DA"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_5C6DD6432B0636874F91125A82202942"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_83620E6C7E2A48938176A2EB7E29558A"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_5FC1A1E8CD05263688425C00BB4623F0"
-        "OwnerKey" = "8:_B946A146BD4113EDC7DADC963404BF04"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_5FC1A1E8CD05263688425C00BB4623F0"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_6C19B7E1DC02477B0BF68B500BEAE954"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_6D1D391B4490E1BD982A1CF0B95F39F6"
-        "OwnerKey" = "8:_12D6BF0DFF19A76CCBDFBB98E8BC029D"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_6D1D391B4490E1BD982A1CF0B95F39F6"
-        "OwnerKey" = "8:_224ABC2DA02CAF4F8D894BB5CA404E04"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_6FD077EFC6D18640908E42AF4E40987D"
-        "OwnerKey" = "8:_5C257AC464C73EB3EC06195F6460C9C8"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_6FD077EFC6D18640908E42AF4E40987D"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_6FD077EFC6D18640908E42AF4E40987D"
-        "OwnerKey" = "8:_C3E29459CA8AC43D487CD45DFB8D9230"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_6FD077EFC6D18640908E42AF4E40987D"
-        "OwnerKey" = "8:_7DF017D4ED3EE39D4B23B76A250D1B19"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_6FD228EDD06983AD3422C8F9F0F8C1A3"
-        "OwnerKey" = "8:_46CDCB3ABA1D27D33C482A5C06C6CE37"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_6FD228EDD06983AD3422C8F9F0F8C1A3"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_6FD228EDD06983AD3422C8F9F0F8C1A3"
-        "OwnerKey" = "8:_AD2C744F04B1EA11F920CC9E7809DDD7"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_704C323F4F88EFD24EF74F8B78A1DD66"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_76EF229AB9A1F676527517858575D696"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_7DCD37C054CD03BF68795425DC29B1CF"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_7DF017D4ED3EE39D4B23B76A250D1B19"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_7DF017D4ED3EE39D4B23B76A250D1B19"
-        "OwnerKey" = "8:_9658062EEE1E3B78FC1F5DB014EE3F3A"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_7DF017D4ED3EE39D4B23B76A250D1B19"
-        "OwnerKey" = "8:_AD2C744F04B1EA11F920CC9E7809DDD7"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_7DF017D4ED3EE39D4B23B76A250D1B19"
-        "OwnerKey" = "8:_46CDCB3ABA1D27D33C482A5C06C6CE37"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_7DF017D4ED3EE39D4B23B76A250D1B19"
-        "OwnerKey" = "8:_C3E29459CA8AC43D487CD45DFB8D9230"
+        "MsmKey" = "8:_8639A73B9C7441359EFE2044E7F13F7B"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
@@ -370,98 +262,236 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_897271856E5D6ACEAAD43AB44D124041"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_8C0BBDDB7451430BA66DBE286DDAFCA1"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_8E04AAA8B78A74F7203C3183ECD0CF18"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_8EB54EA7BAC944219E02CC89CCA8A3DC"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_902956EBC5F8CA7DF5F0BDE9ED4D7F61"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_8F6D03C616AC41E5BC4A0D157DAF51CD"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_9658062EEE1E3B78FC1F5DB014EE3F3A"
-        "OwnerKey" = "8:_AD2C744F04B1EA11F920CC9E7809DDD7"
+        "MsmKey" = "8:_900FCF2436634DFFBB8F48E6905575E2"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_9658062EEE1E3B78FC1F5DB014EE3F3A"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_923CB71222164FAF8AC33AE09A13BDC4"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_ABEC0293B13E830B134ECD06CF9848BE"
-        "OwnerKey" = "8:_224ABC2DA02CAF4F8D894BB5CA404E04"
+        "MsmKey" = "8:_9467E7F3803549BA926918BF22146495"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_AC6B07022DA6818A757212A5D7E32A17"
-        "OwnerKey" = "8:_9658062EEE1E3B78FC1F5DB014EE3F3A"
+        "MsmKey" = "8:_96CAAFF5A2DA4D47AF40FCE7FADA8297"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_AC6B07022DA6818A757212A5D7E32A17"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_985804C1A92C479783D99A24EFD8E317"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_AD2C744F04B1EA11F920CC9E7809DDD7"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_9AA1467FE6E048ECB00ADEB8B826E404"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_B946A146BD4113EDC7DADC963404BF04"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_9DECE71181AD4F26AA8153B779F1FBB9"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_BCE53D51A9D6DC597769091B456174D2"
-        "OwnerKey" = "8:_6C19B7E1DC02477B0BF68B500BEAE954"
+        "MsmKey" = "8:_A0B7D3158E3243DBA478417678B792FC"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_BCE53D51A9D6DC597769091B456174D2"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_A1E1F245387A46D9ACE749476A34E39C"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_C3484451688680E8B669B86534054C03"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_A262DB9DFCFC46349420B90872123FE0"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_C3E29459CA8AC43D487CD45DFB8D9230"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_A5DA9875BDC446979011F7118FFC1BCC"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_C3E29459CA8AC43D487CD45DFB8D9230"
-        "OwnerKey" = "8:_AD2C744F04B1EA11F920CC9E7809DDD7"
+        "MsmKey" = "8:_A620586D5074457C986DC3C382B84D80"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_C6611E983D5E9DB3AB5C3640FADC9980"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_A6D9A86DCB3F49C8AB689940A194C667"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_A74FB659A57E40EF96FAB4656F4A666D"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_A889F73F54014AF3AC819CD216FB2E2C"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_A9692B770DB345D8983594E0D72F7BD1"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_ABD3289507F3472392C4A0A1F420F595"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_AD690118A694435DBA157281F1099C3B"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_AFAA538661984D609B52550A7A69EBB5"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_B1B10B3C71614A92BD9BD3D45D7FC303"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_B2B356E307F74E42BF709DF36C3F4613"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_B3EEA728792B4365B0222FCA58703769"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_B7DA7D9B461D4DD4B8AA66131B09D215"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_B8C97CB6C8DC432BABE04722EA7BA622"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_BEDF697B479643B89A367FE2ACB1CF60"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_C0543ECB4D9C42B9B270724507ED68C9"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_C44C24D2320D40898EC6DA8F3E25BE6D"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_C5DE0C5AFE1E4DB0A41762B20810AEC8"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_D1BFFEFF06B245ABB67E077DE940D05E"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_D520AFB1C82B481B9587F4C2353637A1"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_DA315DA7D3214EFA9991A9A75F3EEBD7"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_DA89842590484F7F92E6636A8EB2A48C"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_DB2BBE66D5E14ABDAEE42A2C8E6215C9"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_DB6123AEA4A84F34B50215868F62C3C0"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_DD0E8449BD1B46AE8BD351BC32F5DE15"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_DDDC48960AB24198A2B5507D7CF9F31D"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
@@ -472,260 +502,86 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_FF1AF79B77E969C2F5BBCBD1901FE7B9"
-        "OwnerKey" = "8:_6C19B7E1DC02477B0BF68B500BEAE954"
+        "MsmKey" = "8:_E86061AE829C47C9B0626BFC49656FCC"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_FF1AF79B77E969C2F5BBCBD1901FE7B9"
-        "OwnerKey" = "8:_0FB220E4BA93D0B021A39112B20B164D"
+        "MsmKey" = "8:_ED2E1EEDA0BE42D1ADAB9E48CFA322E4"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_FF1AF79B77E969C2F5BBCBD1901FE7B9"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
+        "MsmKey" = "8:_EDD7FEEAF8474155BB47407E1875C91C"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_FF1AF79B77E969C2F5BBCBD1901FE7B9"
-        "OwnerKey" = "8:_BCE53D51A9D6DC597769091B456174D2"
+        "MsmKey" = "8:_EEAD140FE8114CFB8D0F9DC1731F00C0"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_F32A0DF73874451E9292E293519ABB50"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_F604FD7155AD4687BE5648621A08363A"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_F763FFA834014BA2824193AA11E05328"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_F84EE83DE80843969672B77DF95C7573"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_F95D5AF57F374F1EA28F194C05400834"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_FB1F6FDEFA524DF5A2610A7F3F22481C"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_FC2AA8E7BC1244409DE618DB041200E4"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_FD9EFD9F82824D9F967DC58635F1E689"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_FDF1E9911E4F407C982F2B8B6A31C1AC"
+        "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
         "MsmKey" = "8:_SIMCONNECT_NATIVE_DLL_01"
         "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_0417B2543A4A4685BC5344132D372D8B"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_3D8FF6165148F678FCCD1EAF6FEC6BAA"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_138F1C6B7E5DC869E14BE6DBD54393D5"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_704C323F4F88EFD24EF74F8B78A1DD66"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_4A2C24DF5A59EEFF7A23F8C4BDFE1C54"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_8E04AAA8B78A74F7203C3183ECD0CF18"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_5C6DD6432B0636874F91125A82202942"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_902956EBC5F8CA7DF5F0BDE9ED4D7F61"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_428E64049235B2C8EF5CA8EC5B3735FE"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_C3484451688680E8B669B86534054C03"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_0FB220E4BA93D0B021A39112B20B164D"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_AD2C744F04B1EA11F920CC9E7809DDD7"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_9658062EEE1E3B78FC1F5DB014EE3F3A"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_AC6B07022DA6818A757212A5D7E32A17"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_46CDCB3ABA1D27D33C482A5C06C6CE37"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_6FD228EDD06983AD3422C8F9F0F8C1A3"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_1C156BE0EC2398CF2033B4D375EE3C23"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_18157C89E30446032650E5F6A1092052"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_49D0BE320AD120AA556E40076939E323"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_C3E29459CA8AC43D487CD45DFB8D9230"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_7DF017D4ED3EE39D4B23B76A250D1B19"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_5C257AC464C73EB3EC06195F6460C9C8"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_6FD077EFC6D18640908E42AF4E40987D"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_2135CF992E3218BEA8B13CF694E81E55"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_5FC1A1E8CD05263688425C00BB4623F0"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_C6611E983D5E9DB3AB5C3640FADC9980"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_36FDEDA46A6FB5716BA3768C6EAC3B0C"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_6C19B7E1DC02477B0BF68B500BEAE954"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_BCE53D51A9D6DC597769091B456174D2"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_FF1AF79B77E969C2F5BBCBD1901FE7B9"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_897271856E5D6ACEAAD43AB44D124041"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_76EF229AB9A1F676527517858575D696"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_7DCD37C054CD03BF68795425DC29B1CF"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_224ABC2DA02CAF4F8D894BB5CA404E04"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_4C01F7D5A5A4D495A025BD9BE217EEC0"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_ABEC0293B13E830B134ECD06CF9848BE"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_12D6BF0DFF19A76CCBDFBB98E8BC029D"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_6D1D391B4490E1BD982A1CF0B95F39F6"
         "MsmSig" = "8:_UNDEFINED"
         }
     }
@@ -823,23 +679,12 @@
         }
         "File"
         {
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_0FB220E4BA93D0B021A39112B20B164D"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_00BD581A04D64E4A9319679153B9EFBF"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Microsoft.Web.WebView2.Wpf, Version=1.0.2592.51, Culture=neutral, PublicKeyToken=2a8ab48044d2601e, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_0FB220E4BA93D0B021A39112B20B164D"
-                    {
-                    "Name" = "8:Microsoft.Web.WebView2.Wpf.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Microsoft.Web.WebView2.Wpf.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\markercluster.js"
+            "TargetName" = "8:markercluster.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -851,26 +696,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_12D6BF0DFF19A76CCBDFBB98E8BC029D"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_06F5C380BE4A4062A3900B6FBFBCF754"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.IO.Compression.FileSystem, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
-                "ScatterAssemblies"
-                {
-                    "_12D6BF0DFF19A76CCBDFBB98E8BC029D"
-                    {
-                    "Name" = "8:System.IO.Compression.FileSystem.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.IO.Compression.FileSystem.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\map-layers.json"
+            "TargetName" = "8:map-layers.json"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -882,26 +716,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_138F1C6B7E5DC869E14BE6DBD54393D5"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_0BC6283E16894FCB97E01C9D231A39D2"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Text.Encoding.CodePages, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_138F1C6B7E5DC869E14BE6DBD54393D5"
-                    {
-                    "Name" = "8:System.Text.Encoding.CodePages.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Text.Encoding.CodePages.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\SmoothWheelZoom.js"
+            "TargetName" = "8:SmoothWheelZoom.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -913,26 +736,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_18157C89E30446032650E5F6A1092052"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_0E2CBD8339BE402B93BF2A5444F22790"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Numerics.Vectors, Version=4.1.6.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_18157C89E30446032650E5F6A1092052"
-                    {
-                    "Name" = "8:System.Numerics.Vectors.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Numerics.Vectors.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\simbrief.pln"
+            "TargetName" = "8:simbrief.pln"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -944,26 +756,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_1C156BE0EC2398CF2033B4D375EE3C23"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_0E6F860F1F454DDA96F206C14BFE29CF"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Memory, Version=4.0.5.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_1C156BE0EC2398CF2033B4D375EE3C23"
-                    {
-                    "Name" = "8:System.Memory.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Memory.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet-src.js.map"
+            "TargetName" = "8:leaflet-src.js.map"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -975,26 +776,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_2135CF992E3218BEA8B13CF694E81E55"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_10B9D500C94C4105B43A4F2E039F840A"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Runtime.CompilerServices.Unsafe, Version=7.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_2135CF992E3218BEA8B13CF694E81E55"
-                    {
-                    "Name" = "8:System.Runtime.CompilerServices.Unsafe.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Runtime.CompilerServices.Unsafe.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\Leaflet.SmoothMarkerBouncing.js"
+            "TargetName" = "8:Leaflet.SmoothMarkerBouncing.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1006,26 +796,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_224ABC2DA02CAF4F8D894BB5CA404E04"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_1DE2701F1F0340C1BB837E7914072DC5"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:netstandard, Version=2.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51"
-                "ScatterAssemblies"
-                {
-                    "_224ABC2DA02CAF4F8D894BB5CA404E04"
-                    {
-                    "Name" = "8:netstandard.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:netstandard.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\boundaries\\vatsim_boundaries.json"
+            "TargetName" = "8:vatsim_boundaries.json"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DC5E1D5D0AB24B7CAB947D44BEEA6C5A"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1037,26 +816,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_36FDEDA46A6FB5716BA3768C6EAC3B0C"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_24516FD5CB88491797504720FD064693"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:CoordinateSharp, Version=3.4.1.1, Culture=neutral, PublicKeyToken=f45e02df057b7725, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_36FDEDA46A6FB5716BA3768C6EAC3B0C"
-                    {
-                    "Name" = "8:CoordinateSharp.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:CoordinateSharp.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet.nauticscale.js"
+            "TargetName" = "8:leaflet.nauticscale.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1068,26 +836,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_3D8FF6165148F678FCCD1EAF6FEC6BAA"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_2692FDBB589C434380C7422C4E4501B1"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Microsoft.FlightSimulator.SimConnect, Version=12.2.0.0, Culture=neutral, processorArchitecture=AMD64"
-                "ScatterAssemblies"
-                {
-                    "_3D8FF6165148F678FCCD1EAF6FEC6BAA"
-                    {
-                    "Name" = "8:Microsoft.FlightSimulator.SimConnect.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Microsoft.FlightSimulator.SimConnect.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\documents.js"
+            "TargetName" = "8:documents.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1099,26 +856,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_428E64049235B2C8EF5CA8EC5B3735FE"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_290BCC1843EC4C129DA8E3754CDB9A0B"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:PdfiumViewer, Version=2.13.0.0, Culture=neutral, PublicKeyToken=91e4789cfb0609e0, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_428E64049235B2C8EF5CA8EC5B3735FE"
-                    {
-                    "Name" = "8:PdfiumViewer.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:PdfiumViewer.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\leaflet.rotatedMarker.js"
+            "TargetName" = "8:leaflet.rotatedMarker.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1130,26 +876,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_46CDCB3ABA1D27D33C482A5C06C6CE37"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_29652A7272314F9495D4D6DDC1215FB1"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Microsoft.Extensions.Logging.Abstractions, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_46CDCB3ABA1D27D33C482A5C06C6CE37"
-                    {
-                    "Name" = "8:Microsoft.Extensions.Logging.Abstractions.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Microsoft.Extensions.Logging.Abstractions.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\boundaries\\ivao_boundaries_geojson.json"
+            "TargetName" = "8:ivao_boundaries_geojson.json"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DC5E1D5D0AB24B7CAB947D44BEEA6C5A"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1161,26 +896,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_49D0BE320AD120AA556E40076939E323"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_3728975AF9BC41C69842D6921FB860C8"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Buffers, Version=4.0.5.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_49D0BE320AD120AA556E40076939E323"
-                    {
-                    "Name" = "8:System.Buffers.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Buffers.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\leaflet-windbarb.js"
+            "TargetName" = "8:leaflet-windbarb.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1192,26 +916,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_4A2C24DF5A59EEFF7A23F8C4BDFE1C54"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_3858F19536304BE992FCAC68530A8916"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Drawing.Common, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_4A2C24DF5A59EEFF7A23F8C4BDFE1C54"
-                    {
-                    "Name" = "8:System.Drawing.Common.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Drawing.Common.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\fullscreen@2x.png"
+            "TargetName" = "8:fullscreen@2x.png"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1223,26 +936,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_4C01F7D5A5A4D495A025BD9BE217EEC0"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_3BD364BEB1C342E595DED4997ECD5524"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:TRUE"
-            "AssemblyAsmDisplayName" = "8:System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_4C01F7D5A5A4D495A025BD9BE217EEC0"
-                    {
-                    "Name" = "8:System.Net.Http.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Net.Http.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\images\\arrow.png"
+            "TargetName" = "8:arrow.png"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_990BBE4F62504E53BA4C4ACE5E432B38"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1254,26 +956,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_5C257AC464C73EB3EC06195F6460C9C8"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_3DB34F2252C34496BAF6B16349F59BCD"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Microsoft.Bcl.AsyncInterfaces, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_5C257AC464C73EB3EC06195F6460C9C8"
-                    {
-                    "Name" = "8:Microsoft.Bcl.AsyncInterfaces.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Microsoft.Bcl.AsyncInterfaces.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet.js"
+            "TargetName" = "8:leaflet.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1285,26 +976,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_5C6DD6432B0636874F91125A82202942"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_423A3058197E48B7B0CD3AC3932F3C20"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Diagnostics.EventLog, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_5C6DD6432B0636874F91125A82202942"
-                    {
-                    "Name" = "8:System.Diagnostics.EventLog.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Diagnostics.EventLog.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet.js.map"
+            "TargetName" = "8:leaflet.js.map"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1316,26 +996,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_5FC1A1E8CD05263688425C00BB4623F0"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_4AFCC9A9B2D84070AEFDB87BADA3EB82"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Swan.Lite, Version=3.1.0.0, Culture=neutral, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_5FC1A1E8CD05263688425C00BB4623F0"
-                    {
-                    "Name" = "8:Swan.Lite.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Swan.Lite.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\leaflet-ruler.css"
+            "TargetName" = "8:leaflet-ruler.css"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1347,26 +1016,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_6C19B7E1DC02477B0BF68B500BEAE954"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_4C9AAB16A317469D91416D73D317ADC7"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:AutoUpdater.NET, Version=1.9.2.0, Culture=neutral, PublicKeyToken=501435c91b35f4bc, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_6C19B7E1DC02477B0BF68B500BEAE954"
-                    {
-                    "Name" = "8:AutoUpdater.NET.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:AutoUpdater.NET.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\jquery.min.js"
+            "TargetName" = "8:jquery.min.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1378,26 +1036,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_6D1D391B4490E1BD982A1CF0B95F39F6"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_4D1D97F24A404D0ABE7E92751C6F56AD"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:TRUE"
-            "AssemblyAsmDisplayName" = "8:System.IO.Compression, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_6D1D391B4490E1BD982A1CF0B95F39F6"
-                    {
-                    "Name" = "8:System.IO.Compression.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.IO.Compression.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\Leaflet-openweathermap\\leaflet-openweathermap.js"
+            "TargetName" = "8:leaflet-openweathermap.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_91AACF854D58421F937C0034131CC65F"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1409,26 +1056,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_6FD077EFC6D18640908E42AF4E40987D"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_50708BBD06774225AAF00F16D28C4133"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Threading.Tasks.Extensions, Version=4.2.4.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_6FD077EFC6D18640908E42AF4E40987D"
-                    {
-                    "Name" = "8:System.Threading.Tasks.Extensions.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Threading.Tasks.Extensions.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\documents.html"
+            "TargetName" = "8:documents.html"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1440,26 +1076,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_6FD228EDD06983AD3422C8F9F0F8C1A3"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_5337F6616508460C8EAED52BF5BED22D"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Diagnostics.DiagnosticSource, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_6FD228EDD06983AD3422C8F9F0F8C1A3"
-                    {
-                    "Name" = "8:System.Diagnostics.DiagnosticSource.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Diagnostics.DiagnosticSource.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\manuals\\G-Simulations Kneeboard - Navigation Log Guide.pdf"
+            "TargetName" = "8:G-Simulations Kneeboard - Navigation Log Guide.pdf"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_7C0DC57379494DA097DD7C5628DBE3AD"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1471,26 +1096,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_704C323F4F88EFD24EF74F8B78A1DD66"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_53ACF50843704DA58F68D544828F6F83"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Security.Principal.Windows, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"
-                "ScatterAssemblies"
-                {
-                    "_704C323F4F88EFD24EF74F8B78A1DD66"
-                    {
-                    "Name" = "8:System.Security.Principal.Windows.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Security.Principal.Windows.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\leaflet-easyPrint.js"
+            "TargetName" = "8:leaflet-easyPrint.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1502,26 +1116,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_76EF229AB9A1F676527517858575D696"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_5BFB935E6CAF4FDF99F2EC292646095B"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.IO.Compression, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
-                "ScatterAssemblies"
-                {
-                    "_76EF229AB9A1F676527517858575D696"
-                    {
-                    "Name" = "8:System.IO.Compression.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.IO.Compression.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\manuals\\Kneeboard_Manual_EN.html"
+            "TargetName" = "8:Kneeboard_Manual_EN.html"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_7C0DC57379494DA097DD7C5628DBE3AD"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1533,26 +1136,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_7DCD37C054CD03BF68795425DC29B1CF"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_61073D077E244DEBBF9B7CF438D95629"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Runtime.Extensions, Version=4.1.2.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"
-                "ScatterAssemblies"
-                {
-                    "_7DCD37C054CD03BF68795425DC29B1CF"
-                    {
-                    "Name" = "8:System.Runtime.Extensions.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Runtime.Extensions.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet.groupedlayercontrol.min.css"
+            "TargetName" = "8:leaflet.groupedlayercontrol.min.css"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1564,26 +1156,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_7DF017D4ED3EE39D4B23B76A250D1B19"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_66C30A375E1A47FAAD3C29D409A98D79"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Microsoft.Extensions.DependencyInjection.Abstractions, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_7DF017D4ED3EE39D4B23B76A250D1B19"
-                    {
-                    "Name" = "8:Microsoft.Extensions.DependencyInjection.Abstractions.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Microsoft.Extensions.DependencyInjection.Abstractions.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\MarkerCluster.css"
+            "TargetName" = "8:MarkerCluster.css"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1595,7 +1176,287 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_6893955CCFB141EC91E72EEAFCB62EC6"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\L.Control.MousePosition.js"
+            "TargetName" = "8:L.Control.MousePosition.js"
+            "Tag" = "8:"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_68DC0B87802442A48EC982F4102FEFE2"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\Leaflet.fullscreen.js"
+            "TargetName" = "8:Leaflet.fullscreen.js"
+            "Tag" = "8:"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_6AF83CAA58CA46D9AEEF8B2F47226706"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\ofp-mapping-config.js"
+            "TargetName" = "8:ofp-mapping-config.js"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_74BF44443BE340599A67517CF2A56D1C"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\Kneeboard.html"
+            "TargetName" = "8:Kneeboard.html"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_7599496C61474E74BBF6AD48BA7202DF"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\notepad.html"
+            "TargetName" = "8:notepad.html"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_79895B8FA95C4E3D87F9FF8C55CD6575"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\formulas.html"
+            "TargetName" = "8:formulas.html"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_7EDC68EAE02843BD9A4F0B45EE406022"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\manuals\\Kneeboard_Manual_DE.html"
+            "TargetName" = "8:Kneeboard_Manual_DE.html"
+            "Tag" = "8:"
+            "Folder" = "8:_7C0DC57379494DA097DD7C5628DBE3AD"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_7EED2FE2E9094333BA22D5A9DA2065F8"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\formulas.css"
+            "TargetName" = "8:formulas.css"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_801115A646C84956BAD36B789DE2D036"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\leaflet.hotline.js"
+            "TargetName" = "8:leaflet.hotline.js"
+            "Tag" = "8:"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_802199AE97414438B5C5B3ABC58F941A"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\openaip_errors.log"
+            "TargetName" = "8:openaip_errors.log"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_80A7DA7C102047C6A6E4B13D5E1ADFDF"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\L.Map.SmoothWheelZoom.js"
+            "TargetName" = "8:L.Map.SmoothWheelZoom.js"
+            "Tag" = "8:"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_81E3E98513774097BDADD0260764F0DA"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\leaflet.fullscreen.css"
+            "TargetName" = "8:leaflet.fullscreen.css"
+            "Tag" = "8:"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_83620E6C7E2A48938176A2EB7E29558A"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\manuals\\G-Simulations Kneeboard - Navigation Log Anleitung.pdf"
+            "TargetName" = "8:G-Simulations Kneeboard - Navigation Log Anleitung.pdf"
+            "Tag" = "8:"
+            "Folder" = "8:_7C0DC57379494DA097DD7C5628DBE3AD"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_8639A73B9C7441359EFE2044E7F13F7B"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\documents.css"
+            "TargetName" = "8:documents.css"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_87253A7CC47E4E39B22FAE98D791581D"
@@ -1618,23 +1479,12 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_897271856E5D6ACEAAD43AB44D124041"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_8C0BBDDB7451430BA66DBE286DDAFCA1"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Net.Http, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"
-                "ScatterAssemblies"
-                {
-                    "_897271856E5D6ACEAAD43AB44D124041"
-                    {
-                    "Name" = "8:System.Net.Http.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Net.Http.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\logger.js"
+            "TargetName" = "8:logger.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1646,26 +1496,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_8E04AAA8B78A74F7203C3183ECD0CF18"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_8EB54EA7BAC944219E02CC89CCA8A3DC"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Diagnostics.PerformanceCounter, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_8E04AAA8B78A74F7203C3183ECD0CF18"
-                    {
-                    "Name" = "8:System.Diagnostics.PerformanceCounter.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Diagnostics.PerformanceCounter.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\leaflet-ruler.js"
+            "TargetName" = "8:leaflet-ruler.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1677,26 +1516,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_902956EBC5F8CA7DF5F0BDE9ED4D7F61"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_8F6D03C616AC41E5BC4A0D157DAF51CD"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:System.Data.SQLite, Version=1.0.119.0, Culture=neutral, PublicKeyToken=db937bc2d44ff139, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_902956EBC5F8CA7DF5F0BDE9ED4D7F61"
-                    {
-                    "Name" = "8:System.Data.SQLite.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Data.SQLite.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\airplane.css"
+            "TargetName" = "8:airplane.css"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1708,26 +1536,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_9658062EEE1E3B78FC1F5DB014EE3F3A"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_900FCF2436634DFFBB8F48E6905575E2"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Microsoft.Extensions.Options, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_9658062EEE1E3B78FC1F5DB014EE3F3A"
-                    {
-                    "Name" = "8:Microsoft.Extensions.Options.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Microsoft.Extensions.Options.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\fullscreen.png"
+            "TargetName" = "8:fullscreen.png"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1739,26 +1556,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_ABEC0293B13E830B134ECD06CF9848BE"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_923CB71222164FAF8AC33AE09A13BDC4"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:TRUE"
-            "AssemblyAsmDisplayName" = "8:System.Diagnostics.Tracing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_ABEC0293B13E830B134ECD06CF9848BE"
-                    {
-                    "Name" = "8:System.Diagnostics.Tracing.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:System.Diagnostics.Tracing.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\Fonts\\Roboto-Light.ttf"
+            "TargetName" = "8:Roboto-Light.ttf"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_5BDCEDEB438943D194798655EE1843AD"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1770,26 +1576,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_AC6B07022DA6818A757212A5D7E32A17"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9467E7F3803549BA926918BF22146495"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Microsoft.Extensions.Primitives, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_AC6B07022DA6818A757212A5D7E32A17"
-                    {
-                    "Name" = "8:Microsoft.Extensions.Primitives.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Microsoft.Extensions.Primitives.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\images\\marker-icon-2x.png"
+            "TargetName" = "8:marker-icon-2x.png"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_990BBE4F62504E53BA4C4ACE5E432B38"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1801,26 +1596,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_AD2C744F04B1EA11F920CC9E7809DDD7"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_96CAAFF5A2DA4D47AF40FCE7FADA8297"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Microsoft.Extensions.Logging, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_AD2C744F04B1EA11F920CC9E7809DDD7"
-                    {
-                    "Name" = "8:Microsoft.Extensions.Logging.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Microsoft.Extensions.Logging.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\easy-button.css"
+            "TargetName" = "8:easy-button.css"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1832,26 +1616,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_B946A146BD4113EDC7DADC963404BF04"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_985804C1A92C479783D99A24EFD8E317"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:EmbedIO, Version=3.5.2.0, Culture=neutral, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_B946A146BD4113EDC7DADC963404BF04"
-                    {
-                    "Name" = "8:EmbedIO.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:EmbedIO.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\images\\marker-icon.png"
+            "TargetName" = "8:marker-icon.png"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_990BBE4F62504E53BA4C4ACE5E432B38"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1863,26 +1636,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_BCE53D51A9D6DC597769091B456174D2"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9AA1467FE6E048ECB00ADEB8B826E404"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Microsoft.Web.WebView2.WinForms, Version=1.0.2592.51, Culture=neutral, PublicKeyToken=2a8ab48044d2601e, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_BCE53D51A9D6DC597769091B456174D2"
-                    {
-                    "Name" = "8:Microsoft.Web.WebView2.WinForms.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Microsoft.Web.WebView2.WinForms.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\notepad.js"
+            "TargetName" = "8:notepad.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1894,26 +1656,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_C3484451688680E8B669B86534054C03"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9DECE71181AD4F26AA8153B779F1FBB9"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_C3484451688680E8B669B86534054C03"
-                    {
-                    "Name" = "8:Newtonsoft.Json.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Newtonsoft.Json.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\Leaflet.SmoothMarkerBouncing.min.js"
+            "TargetName" = "8:Leaflet.SmoothMarkerBouncing.min.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1925,26 +1676,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_C3E29459CA8AC43D487CD45DFB8D9230"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A0B7D3158E3243DBA478417678B792FC"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Microsoft.Extensions.DependencyInjection, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_C3E29459CA8AC43D487CD45DFB8D9230"
-                    {
-                    "Name" = "8:Microsoft.Extensions.DependencyInjection.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Microsoft.Extensions.DependencyInjection.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\notepad.css"
+            "TargetName" = "8:notepad.css"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1956,26 +1696,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_C6611E983D5E9DB3AB5C3640FADC9980"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A1E1F245387A46D9ACE749476A34E39C"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:CoordinateSharp.Magnetic, Version=2.1.5.0, Culture=neutral, PublicKeyToken=f45e02df057b7725, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_C6611E983D5E9DB3AB5C3640FADC9980"
-                    {
-                    "Name" = "8:CoordinateSharp.Magnetic.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:CoordinateSharp.Magnetic.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\Leaflet.PolylineMeasure.js"
+            "TargetName" = "8:Leaflet.PolylineMeasure.js"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1987,26 +1716,15 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_FF1AF79B77E969C2F5BBCBD1901FE7B9"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A262DB9DFCFC46349420B90872123FE0"
             {
-            "AssemblyRegister" = "3:1"
-            "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:Microsoft.Web.WebView2.Core, Version=1.0.2592.51, Culture=neutral, PublicKeyToken=2a8ab48044d2601e, processorArchitecture=MSIL"
-                "ScatterAssemblies"
-                {
-                    "_FF1AF79B77E969C2F5BBCBD1901FE7B9"
-                    {
-                    "Name" = "8:Microsoft.Web.WebView2.Core.dll"
-                    "Attributes" = "3:512"
-                    }
-                }
-            "SourcePath" = "8:Microsoft.Web.WebView2.Core.dll"
-            "TargetName" = "8:"
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet.markercluster.js.map"
+            "TargetName" = "8:leaflet.markercluster.js.map"
             "Tag" = "8:"
-            "Folder" = "8:_2A74EDAA5FD14A38BFE162F42843D4BE"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -2018,7 +1736,787 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A5DA9875BDC446979011F7118FFC1BCC"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet-src.esm.js.map"
+            "TargetName" = "8:leaflet-src.esm.js.map"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A620586D5074457C986DC3C382B84D80"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\manuals\\Kneeboard_Manual_EN.pdf"
+            "TargetName" = "8:Kneeboard_Manual_EN.pdf"
+            "Tag" = "8:"
+            "Folder" = "8:_7C0DC57379494DA097DD7C5628DBE3AD"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A6D9A86DCB3F49C8AB689940A194C667"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\map.js"
+            "TargetName" = "8:map.js"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A74FB659A57E40EF96FAB4656F4A666D"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\images\\marker-shadow.png"
+            "TargetName" = "8:marker-shadow.png"
+            "Tag" = "8:"
+            "Folder" = "8:_990BBE4F62504E53BA4C4ACE5E432B38"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A889F73F54014AF3AC819CD216FB2E2C"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\map.html"
+            "TargetName" = "8:map.html"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A9692B770DB345D8983594E0D72F7BD1"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet.groupedlayercontrol.min.js"
+            "TargetName" = "8:leaflet.groupedlayercontrol.min.js"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_ABD3289507F3472392C4A0A1F420F595"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\boundaries\\vatsim_tracon_boundaries.json"
+            "TargetName" = "8:vatsim_tracon_boundaries.json"
+            "Tag" = "8:"
+            "Folder" = "8:_DC5E1D5D0AB24B7CAB947D44BEEA6C5A"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_AD690118A694435DBA157281F1099C3B"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\navlog.js"
+            "TargetName" = "8:navlog.js"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_AFAA538661984D609B52550A7A69EBB5"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\kneeboard.ico"
+            "TargetName" = "8:kneeboard.ico"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_B1B10B3C71614A92BD9BD3D45D7FC303"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\leaflet-velocity.js"
+            "TargetName" = "8:leaflet-velocity.js"
+            "Tag" = "8:"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_B2B356E307F74E42BF709DF36C3F4613"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\aircraft.svg"
+            "TargetName" = "8:aircraft.svg"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_B3EEA728792B4365B0222FCA58703769"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\debug-config.js"
+            "TargetName" = "8:debug-config.js"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_B7DA7D9B461D4DD4B8AA66131B09D215"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\js-polyfills.js"
+            "TargetName" = "8:js-polyfills.js"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_B8C97CB6C8DC432BABE04722EA7BA622"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet-hash.js"
+            "TargetName" = "8:leaflet-hash.js"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_BEDF697B479643B89A367FE2ACB1CF60"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet-src.esm.js"
+            "TargetName" = "8:leaflet-src.esm.js"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_C0543ECB4D9C42B9B270724507ED68C9"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\navlog.html"
+            "TargetName" = "8:navlog.html"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_C44C24D2320D40898EC6DA8F3E25BE6D"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet.css"
+            "TargetName" = "8:leaflet.css"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_C5DE0C5AFE1E4DB0A41762B20810AEC8"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet-src.js"
+            "TargetName" = "8:leaflet-src.js"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D1BFFEFF06B245ABB67E077DE940D05E"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\navlog.css"
+            "TargetName" = "8:navlog.css"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D520AFB1C82B481B9587F4C2353637A1"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\easy-button.d.ts"
+            "TargetName" = "8:easy-button.d.ts"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_DA315DA7D3214EFA9991A9A75F3EEBD7"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\leaflet-velocity.css"
+            "TargetName" = "8:leaflet-velocity.css"
+            "Tag" = "8:"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_DA89842590484F7F92E6636A8EB2A48C"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\map.css"
+            "TargetName" = "8:map.css"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_DB2BBE66D5E14ABDAEE42A2C8E6215C9"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\Leaflet.PolylineMeasure.css"
+            "TargetName" = "8:Leaflet.PolylineMeasure.css"
+            "Tag" = "8:"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_DB6123AEA4A84F34B50215868F62C3C0"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\easy-button.js"
+            "TargetName" = "8:easy-button.js"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_DD0E8449BD1B46AE8BD351BC32F5DE15"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet.edgebuffer.js"
+            "TargetName" = "8:leaflet.edgebuffer.js"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_DDDC48960AB24198A2B5507D7CF9F31D"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\geosearch.js"
+            "TargetName" = "8:geosearch.js"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_E86061AE829C47C9B0626BFC49656FCC"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\Logo.jpg"
+            "TargetName" = "8:Logo.jpg"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_ED2E1EEDA0BE42D1ADAB9E48CFA322E4"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\kneeboard.css"
+            "TargetName" = "8:kneeboard.css"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_EDD7FEEAF8474155BB47407E1875C91C"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\cssgg-svg.js"
+            "TargetName" = "8:cssgg-svg.js"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_EEAD140FE8114CFB8D0F9DC1731F00C0"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\geosearch.css"
+            "TargetName" = "8:geosearch.css"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_F32A0DF73874451E9292E293519ABB50"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\images\\layers.png"
+            "TargetName" = "8:layers.png"
+            "Tag" = "8:"
+            "Folder" = "8:_990BBE4F62504E53BA4C4ACE5E432B38"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_F604FD7155AD4687BE5648621A08363A"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\kneeboard.js"
+            "TargetName" = "8:kneeboard.js"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_F763FFA834014BA2824193AA11E05328"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\images\\layers-2x.png"
+            "TargetName" = "8:layers-2x.png"
+            "Tag" = "8:"
+            "Folder" = "8:_990BBE4F62504E53BA4C4ACE5E432B38"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_F84EE83DE80843969672B77DF95C7573"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\formulas.js"
+            "TargetName" = "8:formulas.js"
+            "Tag" = "8:"
+            "Folder" = "8:_0A12F01C1BFE4D46BC97AF2A1AD75987"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_F95D5AF57F374F1EA28F194C05400834"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\Leaflet-openweathermap\\leaflet-openweathermap.css"
+            "TargetName" = "8:leaflet-openweathermap.css"
+            "Tag" = "8:"
+            "Folder" = "8:_91AACF854D58421F937C0034131CC65F"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_FB1F6FDEFA524DF5A2610A7F3F22481C"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\manuals\\Kneeboard_Manual_DE.pdf"
+            "TargetName" = "8:Kneeboard_Manual_DE.pdf"
+            "Tag" = "8:"
+            "Folder" = "8:_7C0DC57379494DA097DD7C5628DBE3AD"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_FC2AA8E7BC1244409DE618DB041200E4"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet.groupedlayercontrol.js"
+            "TargetName" = "8:leaflet.groupedlayercontrol.js"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_FD9EFD9F82824D9F967DC58635F1E689"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\leaflet.groupedlayercontrol.min.js.map"
+            "TargetName" = "8:leaflet.groupedlayercontrol.min.js.map"
+            "Tag" = "8:"
+            "Folder" = "8:_DB4A75428D1941018B9BAC51DC8CEFF2"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_FDF1E9911E4F407C982F2B8B6A31C1AC"
+            {
+            "SourcePath" = "8:..\\Kneeboard Server\\data\\leaflet\\plugins\\L.Control.MousePosition.css"
+            "TargetName" = "8:L.Control.MousePosition.css"
+            "Tag" = "8:"
+            "Folder" = "8:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_SIMCONNECT_NATIVE_DLL_01"
@@ -2057,15 +2555,103 @@
             "Property" = "8:TARGETDIR"
                 "Folders"
                 {
-                    "{9EF0B969-E518-4E46-987F-47570745A589}:_EDDEA3E45CD640FBBF1ACD2329F46C0C"
+                    "{9EF0B969-E518-4E46-987F-47570745A589}:_0A12F01C1BFE4D46BC97AF2A1AD75987"
                     {
-                    "Name" = "8:x64"
+                    "Name" = "8:data"
                     "AlwaysCreate" = "11:FALSE"
                     "Condition" = "8:"
                     "Transitive" = "11:FALSE"
-                    "Property" = "8:_7D90CFAE321F4C4C849338142FD2AB0D"
+                    "Property" = "8:_96CA151C0BFF40289D592E27CD55BF50"
                         "Folders"
                         {
+                            "{9EF0B969-E518-4E46-987F-47570745A589}:_5BDCEDEB438943D194798655EE1843AD"
+                            {
+                            "Name" = "8:Fonts"
+                            "AlwaysCreate" = "11:FALSE"
+                            "Condition" = "8:"
+                            "Transitive" = "11:FALSE"
+                            "Property" = "8:_53484C9936194EDABD076DDF989415ED"
+                                "Folders"
+                                {
+                                }
+                            }
+                            "{9EF0B969-E518-4E46-987F-47570745A589}:_7C0DC57379494DA097DD7C5628DBE3AD"
+                            {
+                            "Name" = "8:manuals"
+                            "AlwaysCreate" = "11:FALSE"
+                            "Condition" = "8:"
+                            "Transitive" = "11:FALSE"
+                            "Property" = "8:_54CFDDEA26384B31923ABF10DD5CC763"
+                                "Folders"
+                                {
+                                }
+                            }
+                            "{9EF0B969-E518-4E46-987F-47570745A589}:_CAF850EA768A4A868C045F9C9A98A167"
+                            {
+                            "Name" = "8:images"
+                            "AlwaysCreate" = "11:FALSE"
+                            "Condition" = "8:"
+                            "Transitive" = "11:FALSE"
+                            "Property" = "8:_49F552861D794F2AB62A16DD68FAB29C"
+                                "Folders"
+                                {
+                                }
+                            }
+                            "{9EF0B969-E518-4E46-987F-47570745A589}:_DB4A75428D1941018B9BAC51DC8CEFF2"
+                            {
+                            "Name" = "8:leaflet"
+                            "AlwaysCreate" = "11:FALSE"
+                            "Condition" = "8:"
+                            "Transitive" = "11:FALSE"
+                            "Property" = "8:_8101CA28D5CC4CBBAD9FE6176C3B742D"
+                                "Folders"
+                                {
+                                    "{9EF0B969-E518-4E46-987F-47570745A589}:_990BBE4F62504E53BA4C4ACE5E432B38"
+                                    {
+                                    "Name" = "8:images"
+                                    "AlwaysCreate" = "11:FALSE"
+                                    "Condition" = "8:"
+                                    "Transitive" = "11:FALSE"
+                                    "Property" = "8:_08677CF402AF4C9F8029032FA5D3FA96"
+                                        "Folders"
+                                        {
+                                        }
+                                    }
+                                    "{9EF0B969-E518-4E46-987F-47570745A589}:_FB8A0D090BAD4A049FFA8D0FC9DE2EB9"
+                                    {
+                                    "Name" = "8:plugins"
+                                    "AlwaysCreate" = "11:FALSE"
+                                    "Condition" = "8:"
+                                    "Transitive" = "11:FALSE"
+                                    "Property" = "8:_2B0C9CDFB123489DA2B19B23B103A58D"
+                                        "Folders"
+                                        {
+                                            "{9EF0B969-E518-4E46-987F-47570745A589}:_91AACF854D58421F937C0034131CC65F"
+                                            {
+                                            "Name" = "8:Leaflet-openweathermap"
+                                            "AlwaysCreate" = "11:FALSE"
+                                            "Condition" = "8:"
+                                            "Transitive" = "11:FALSE"
+                                            "Property" = "8:_70D6D9374A18407AB92C1BA00F5B5D97"
+                                                "Folders"
+                                                {
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            "{9EF0B969-E518-4E46-987F-47570745A589}:_DC5E1D5D0AB24B7CAB947D44BEEA6C5A"
+                            {
+                            "Name" = "8:boundaries"
+                            "AlwaysCreate" = "11:FALSE"
+                            "Condition" = "8:"
+                            "Transitive" = "11:FALSE"
+                            "Property" = "8:_B360B963BB2047D9B9A3FF6FC04FC556"
+                                "Folders"
+                                {
+                                }
+                            }
                         }
                     }
                 }
@@ -2119,15 +2705,15 @@
         {
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:Kneeboard Server"
-        "ProductCode" = "8:{EC1CBDC0-3F72-4E39-97EB-7AB162BA80DF}"
-        "PackageCode" = "8:{58B4A6AD-0445-4D03-9A5B-BF512FD6E9F4}"
+        "ProductCode" = "8:{E6CBD105-EDDD-4A45-B23B-372CDB742FD1}"
+        "PackageCode" = "8:{47E3D700-6027-418E-8B95-C09DE686928B}"
         "UpgradeCode" = "8:{B5157DB2-9BE0-4BA2-A22E-33C25A4FFCA3}"
         "AspNetVersion" = "8:2.0.50727.0"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:TRUE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:TRUE"
-        "ProductVersion" = "8:2.0.2"
+        "ProductVersion" = "8:2.0.3"
         "Manufacturer" = "8:Gsimulations"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:"
