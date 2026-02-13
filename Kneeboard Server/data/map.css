@@ -1412,7 +1412,7 @@ p {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
-    width: min(350px, 45vw) !important;
+    width: 45vw !important;
     height: 7vmin !important;
     display: flex !important;
     align-items: center !important;
