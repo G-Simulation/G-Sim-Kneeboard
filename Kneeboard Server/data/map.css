@@ -3308,6 +3308,8 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     cursor: pointer;
     transition: background-color 0.2s ease;
     font-family: "Roboto-Light", sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .kneeboard-list-item:hover {

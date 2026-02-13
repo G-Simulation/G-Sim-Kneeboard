@@ -3476,45 +3476,36 @@ function clearRunwayData() {
 function closeAllPopups() {
   if (!map) return;
 
-  // Remove ALL popup elements from DOM directly - most reliable method
-  var allPopups = document.querySelectorAll('.leaflet-popup');
-  allPopups.forEach(function(popup) {
-    popup.remove();
-  });
-
-  // Clear Leaflet's internal popup reference
-  if (map._popup) {
-    map._popup = null;
-  }
-
-  // Close via Leaflet API as well
+  // ERST via Leaflet API schliessen (feuert popupclose Events, raeumt Timer/newMarker auf)
   map.closePopup();
   map.closeTooltip();
 
-  // Also close popups on all layers and clear references
+  // Dann Layer-Popups via API schliessen
   map.eachLayer(function(layer) {
     try {
       if (layer.closePopup) layer.closePopup();
-      if (layer._popup) {
-        if (layer._popup._map) layer._popup._map = null;
-        layer._popup = null;
-      }
     } catch(e) {}
-    // Also check sublayers in LayerGroups
     if (layer.eachLayer) {
       try {
         layer.eachLayer(function(subLayer) {
           try {
             if (subLayer.closePopup) subLayer.closePopup();
-            if (subLayer._popup) {
-              if (subLayer._popup._map) subLayer._popup._map = null;
-              subLayer._popup = null;
-            }
           } catch(e) {}
         });
       } catch(e) {}
     }
   });
+
+  // Danach verwaiste DOM-Elemente entfernen (falls Leaflet API was uebersehen hat)
+  var allPopups = document.querySelectorAll('.leaflet-popup');
+  allPopups.forEach(function(popup) {
+    popup.remove();
+  });
+
+  // Sicherheitshalber Leaflet-Referenz bereinigen
+  if (map._popup) {
+    map._popup = null;
+  }
 }
 
 // ============================================================================
@@ -7022,6 +7013,10 @@ function listPilots() {
   if (!listUl) return;
 
   if (listUl) listUl.innerHTML = "";
+
+  // Navaid-Suchleiste entfernen falls vorhanden (beim Wechsel Airports -> Piloten)
+  var navaidSearch = list.querySelector('.navaid-search-container');
+  if (navaidSearch) navaidSearch.remove();
 
   // Suchleiste einmalig erstellen (außerhalb der UL, damit sie nicht bei jedem Rebuild zerstört wird)
   var existingSearch = list.querySelector('.pilot-search-container');
@@ -13069,7 +13064,14 @@ function initializeMapWithLayers(layers) {
     if (isInTeleportMode) {
       if (newMarker && map.hasLayer(newMarker)) {
         map.removeLayer(newMarker);
+        newMarker = null;
       } else {
+        // Stale-Referenz bereinigen (z.B. nach closeAllPopups)
+        if (newMarker) {
+          try { if (newMarker.off) newMarker.off(); } catch(e) {}
+          try { if (newMarker.remove) newMarker.remove(); } catch(e) {}
+          newMarker = null;
+        }
         newMarker = new L.marker(e.latlng).addTo(map);
         newMarker
           .bindPopup(
@@ -13363,37 +13365,47 @@ function initializeMapWithLayers(layers) {
   // Long-press handler for map (Kneeboard compatibility - adds waypoints)
   var mapLongPressTimer = null;
   var mapLongPressLatLng = null;
+  var mapLongPressScreenPos = null; // Screen-Pixel statt latlng fuer Bewegungserkennung
 
   map.on("mousedown", function (e) {
     if (e.originalEvent.button !== 0) return; // Only left mouse button
     mapLongPressLatLng = e.latlng;
+    mapLongPressScreenPos = { x: e.originalEvent.clientX, y: e.originalEvent.clientY };
     if (mapLongPressTimer) {
       clearTimeout(mapLongPressTimer);
     }
     mapLongPressTimer = setTimeout(function () {
       if (mapLongPressLatLng) {
+        // Aktuelle latlng an der gespeicherten Screen-Position berechnen
+        // (Karte kann sich durch Follow/Turbulenz verschoben haben)
+        var rect = map.getContainer().getBoundingClientRect();
+        var currentLatLng = map.containerPointToLatLng(
+          L.point(mapLongPressScreenPos.x - rect.left, mapLongPressScreenPos.y - rect.top)
+        );
         map.fire("contextmenu", {
-          latlng: mapLongPressLatLng,
+          latlng: currentLatLng,
           originalEvent: e.originalEvent,
           synthetic: true
         });
       }
       mapLongPressTimer = null;
       mapLongPressLatLng = null;
+      mapLongPressScreenPos = null;
     }, longPressDelay);
   });
 
   map.on("mouseup mousemove", function (e) {
-    if (e.type === "mousemove" && mapLongPressLatLng) {
-      var dx = Math.abs(e.latlng.lat - mapLongPressLatLng.lat);
-      var dy = Math.abs(e.latlng.lng - mapLongPressLatLng.lng);
-      // Cancel if moved more than ~10 pixels worth of degrees
-      if (dx > 0.0001 || dy > 0.0001) {
+    if (e.type === "mousemove" && mapLongPressScreenPos) {
+      // Screen-Pixel vergleichen statt latlng - immun gegen Karten-Pan durch Follow/Turbulenz
+      var dx = Math.abs(e.originalEvent.clientX - mapLongPressScreenPos.x);
+      var dy = Math.abs(e.originalEvent.clientY - mapLongPressScreenPos.y);
+      if (dx > 10 || dy > 10) { // 10px Toleranz
         if (mapLongPressTimer) {
           clearTimeout(mapLongPressTimer);
           mapLongPressTimer = null;
         }
         mapLongPressLatLng = null;
+        mapLongPressScreenPos = null;
       }
     } else if (e.type === "mouseup") {
       if (mapLongPressTimer) {
@@ -13401,6 +13413,7 @@ function initializeMapWithLayers(layers) {
         mapLongPressTimer = null;
       }
       mapLongPressLatLng = null;
+      mapLongPressScreenPos = null;
     }
   });
 
@@ -15115,8 +15128,10 @@ function drawLines() {
       hideFrequencyContextMenu();
     }
 
-    if (newMarker && map.hasLayer(newMarker)) {
-      map.removeLayer(newMarker);
+    if (newMarker) {
+      if (map.hasLayer(newMarker)) {
+        map.removeLayer(newMarker);
+      }
       newMarker = null;
     }
     if (waypointmode == false) {
@@ -15146,6 +15161,9 @@ function drawLines() {
     var popup = e.popup;
     var popupElement = popup._container;
     if (!popupElement) return;
+
+    // Popups mit autoClose:false (z.B. Teleport) nicht auto-schliessen
+    if (popup.options && popup.options.autoClose === false) return;
 
     // Timer functions
     function startPopupTimer() {
@@ -16100,33 +16118,37 @@ function drawLines() {
         stateName: "airports",
         title: "AIRPORTS",
         onClick: function (control) {
-          if (
-            DOM.controllerContainer.style.visibility ==
-            "hidden"
-          ) {
-            // WICHTIG: mover() ZUERST aufrufen um alle Panels auszublenden
-            mover();
-            airportsToggle = "airports";
-            airportsCounter = 10;
+          // Bereits Airports offen -> zu Navaids wechseln
+          if (moverX && panelState === 'airports') {
+            airportsToggle = "navaids";
+            navaidsCounter = 10;
             document.getElementById("controllerListUl").innerHTML = "";
-            document.getElementById("controllerHeader").innerHTML = "Airports";
-            control.state("airports");
+            document.getElementById("controllerHeader").innerHTML = "Navaids";
+            control.state("navaids");
             getWPData();
             listNavaids();
-            airportsPanel = false;
-            panelState = "airports";
+            airportsPanel = true;
+            panelState = "navaids";
             hideMetarContainer();
             return;
           }
-          airportsToggle = "navaids";
-          navaidsCounter = 10;
+          // Irgendwas anderes offen (VATSIM/IVAO/Navaids) -> Modus wechseln
+          if (moverX) {
+            // Panel sichtbar lassen waehrend Cleanup (verhindert Flackern)
+            mout();
+            DOM.controllerContainer.style.visibility = "visible";
+            DOM.controllerList.style.visibility = "visible";
+          }
+          mover();
+          airportsToggle = "airports";
+          airportsCounter = 10;
           document.getElementById("controllerListUl").innerHTML = "";
-          document.getElementById("controllerHeader").innerHTML = "Navaids";
-          control.state("navaids");
+          document.getElementById("controllerHeader").innerHTML = "Airports";
+          control.state("airports");
           getWPData();
           listNavaids();
-          airportsPanel = true;
-          panelState = "navaids";
+          airportsPanel = false;
+          panelState = "airports";
           hideMetarContainer();
         },
       },
@@ -16135,18 +16157,17 @@ function drawLines() {
         stateName: "navaids",
         title: "NAVAIDS",
         onClick: function (control) {
-          if (
-            DOM.controllerContainer.style.visibility ==
-            "visible"
-          ) {
+          // Panel komplett schliessen
+          if (moverX) {
             mout();
-            panelState = "";
             return;
           }
+          // Panel war geschlossen -> frisch mit Airports oeffnen
+          mover();
           document.getElementById("controllerListUl").innerHTML = "";
           airportsToggle = "airports";
           airportsCounter = 10;
-          airportsPanel = true;
+          airportsPanel = false;
           document.getElementById("controllerHeader").innerHTML = "Airports";
           getWPData();
           listNavaids();
@@ -17115,12 +17136,24 @@ function mout() {
   toggle10.state("radio");
   toggle11.state("airports");
   panelState = "";
+  navaidSearchQuery = '';
+  pilotSearchQuery = '';
   var controllerOverlay = DOM.controllerContainer;
   controllerOverlay.style.visibility = "hidden";
   moverX = false;
   window.moverX = false; // Expose to kneeboard.js for polling control
   var list = DOM.controllerList;
   list.style.visibility = "hidden";
+
+  // Dynamische UI-Elemente entfernen (Suchleisten, Toggle) fuer sauberen Neustart
+  if (list) {
+    var navSearch = list.querySelector('.navaid-search-container');
+    if (navSearch) navSearch.remove();
+    var pilotSearch = list.querySelector('.pilot-search-container');
+    if (pilotSearch) pilotSearch.remove();
+    var modeToggle = document.querySelector('#controllerContainer .panel-mode-toggle');
+    if (modeToggle) modeToggle.remove();
+  }
 
   // Pilot-Route verstecken wenn Controller-Modus beendet wird
   hidePilotRoute();
@@ -17288,6 +17321,11 @@ function mout() {
   // Update LayerControl UI to show "Off"
   updatePilotsLayerControlUI('Off');
 
+  // Map-Bounds neu berechnen nach Panel-Schließung
+  setTimeout(function() {
+    if (map) map.invalidateSize({ pan: false });
+  }, 0);
+
   // Auto-save map UI state
   if (window.mapSettings && window.mapSettings.save) window.mapSettings.save();
 }
@@ -17349,7 +17387,21 @@ function hideFlightpathLayers() {
 }
 
 function openControllerPanel(network) {
+  // Falls anderer Modus aktiv, zuerst sauber schliessen (Panel sichtbar lassen)
+  if (moverX) {
+    mout();
+    DOM.controllerContainer.style.visibility = "visible";
+    DOM.controllerList.style.visibility = "visible";
+  }
   mover();
+
+  // Navaid-Suchleiste entfernen falls vorhanden
+  var list = DOM.controllerList;
+  if (list) {
+    var navSearch = list.querySelector('.navaid-search-container');
+    if (navSearch) navSearch.remove();
+  }
+  navaidSearchQuery = '';
 
   // Vorherige Fetches invalidieren (ermöglicht sofortigen Netzwerk-Wechsel)
   // Generation-Counter in getVatsimData() sorgt dafür, dass alte Callbacks verworfen werden
@@ -27913,6 +27965,7 @@ function listControllers() {
 var navaidsCounter = 10;
 var airportsCounter = 10;
 var reportingPointsCounter = 10;
+var navaidSearchQuery = '';
 var stationListClickAttached = false;
 
 function calculateOptimalListCount() {
@@ -27930,6 +27983,18 @@ function calculateOptimalListCount() {
   return Math.max(15, count);
 }
 
+// Polyfill fuer .closest() - Coherent GT (aeltere Chromium-Versionen) unterstuetzen
+if (!Element.prototype.closest) {
+  Element.prototype.closest = function(s) {
+    var el = this;
+    do {
+      if (el.matches ? el.matches(s) : el.msMatchesSelector(s)) return el;
+      el = el.parentElement;
+    } while (el !== null);
+    return null;
+  };
+}
+
 function attachStationListHandler() {
   if (stationListClickAttached) {
     return;
@@ -27939,16 +28004,17 @@ function attachStationListHandler() {
     return;
   }
   listRoot.addEventListener("click", function (event) {
-    var target = event.target.closest(".station2");
+    var target = event.target.closest(".kneeboard-list-item");
     if (!target) {
       return;
     }
     event.preventDefault();
-    var stations2 = document.getElementsByClassName("station2");
-    for (var i = 0; i < stations2.length; i++) {
-      stations2[i].style.color = "";
+    // Vorherige Highlight-Markierung entfernen
+    var items = listRoot.getElementsByClassName("kneeboard-list-item");
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.remove("active");
     }
-    target.style.color = "#d32f2f";
+    target.classList.add("active");
     const lookupDomId = target.getAttribute("data-lookup") || target.id;
     var layer = findLayerByLookupDomId(lookupDomId);
     if (layer) {
@@ -28038,7 +28104,8 @@ function attachNavaidLongPressHandlers(listRoot) {
     // Mousedown - start long press timer
     item.addEventListener('mousedown', function(e) {
       if (e.button !== 0) return; // Only left mouse button
-      e.preventDefault(); // Prevent text selection
+      // Keine e.preventDefault() - blockiert Click-Events in Coherent GT
+      // Text-Selektion wird stattdessen per CSS (user-select: none) verhindert
       navLongPressTriggered = false;
       navStartX = e.pageX;
       navStartY = e.pageY;
@@ -28345,6 +28412,69 @@ function listNavaids() {
     return;
   }
   list.style.display = "inline-block";
+
+  // Zonen/Piloten-Toggle entfernen (falls von VATSIM/IVAO-Modus uebrig)
+  var existingToggle = document.querySelector('#controllerContainer .panel-mode-toggle');
+  if (existingToggle) existingToggle.remove();
+
+  // Suchleiste einmalig erstellen (ausserhalb der UL, damit sie nicht bei jedem Rebuild zerstoert wird)
+  var existingNavSearch = list.querySelector('.navaid-search-container');
+  if (!existingNavSearch) {
+    // Pilot-Suchleiste entfernen falls vorhanden (beim Wechsel Piloten -> Airports)
+    var pilotSearch = list.querySelector('.pilot-search-container');
+    if (pilotSearch) pilotSearch.remove();
+
+    var searchDiv = document.createElement('div');
+    searchDiv.className = 'navaid-search-container pilot-search-container';
+    var placeholder = airportsToggle === 'airports' ? 'Suche: ICAO, Name...' :
+                      airportsToggle === 'navaids' ? 'Suche: Kennung, Name...' :
+                      'Suche: Kennung, Name...';
+    searchDiv.innerHTML = '<input type="text" id="navaidSearchInput" class="pilot-search-input use-keyboard-input" ' +
+      'placeholder="' + placeholder + '" value="' + (navaidSearchQuery || '') + '">';
+    list.insertBefore(searchDiv, listRoot);
+
+    var searchInput = searchDiv.querySelector('#navaidSearchInput');
+    var navaidSearchDebounce = null;
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        navaidSearchQuery = this.value;
+        // Debounce: erst nach 150ms Pause neu rendern (Performance in Coherent GT)
+        if (navaidSearchDebounce) clearTimeout(navaidSearchDebounce);
+        navaidSearchDebounce = setTimeout(function() {
+          airportsCounter = 10;
+          navaidsCounter = 10;
+          reportingPointsCounter = 10;
+          listNavaids();
+        }, 150);
+      });
+
+      searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          navaidSearchQuery = '';
+          this.value = '';
+          airportsCounter = 10;
+          navaidsCounter = 10;
+          reportingPointsCounter = 10;
+          listNavaids();
+        }
+      });
+
+      if (typeof attachKeyboard === 'function') {
+        attachKeyboard(searchInput);
+      }
+    }
+  } else {
+    // Suchleiste existiert bereits - Placeholder und Wert synchronisieren
+    var existingInput = existingNavSearch.querySelector('#navaidSearchInput');
+    if (existingInput) {
+      var newPlaceholder = airportsToggle === 'airports' ? 'Suche: ICAO, Name...' :
+                           airportsToggle === 'navaids' ? 'Suche: Kennung, Name...' :
+                           'Suche: Kennung, Name...';
+      existingInput.placeholder = newPlaceholder;
+      existingInput.value = navaidSearchQuery || '';
+    }
+  }
+
   var htmlChunks = [];
   var showMoreHtml = "";
 
@@ -28355,10 +28485,19 @@ function listNavaids() {
     if (airportsCounter < optimalCount) {
       airportsCounter = optimalCount;
     }
-    // Performance: Use for-loop with break instead of forEach (stops early)
-    var maxAirports = Math.min(airports.length, airportsCounter);
+    // Suchfilter anwenden
+    var filteredAirports = airports;
+    var navQuery = navaidSearchQuery.toLowerCase().trim();
+    if (navQuery) {
+      filteredAirports = airports.filter(function(element) {
+        var icao = (element.properties.icaoCode || '').toLowerCase();
+        var name = (element.properties.name || '').toLowerCase();
+        return icao.indexOf(navQuery) !== -1 || name.indexOf(navQuery) !== -1;
+      });
+    }
+    var maxAirports = Math.min(filteredAirports.length, airportsCounter);
     for (var airportsI = 0; airportsI < maxAirports; airportsI++) {
-      var element = airports[airportsI];
+      var element = filteredAirports[airportsI];
       var lookupKey = ensureLookupKey(element.properties, "airport");
       var domId = element.properties.lookupDomId || sanitizeDomId(lookupKey);
       var lookupDomId = element.properties.lookupDomId || domId;
@@ -28381,7 +28520,7 @@ function listNavaids() {
         )
       );
     }
-    if (airports.length > airportsCounter) {
+    if (filteredAirports.length > airportsCounter) {
       showMoreHtml = '<span class="station2" onclick="moreAirports()">show&nbsp;more...</span>';
     }
   } else if (airportsToggle == "navaids") {
@@ -28391,10 +28530,19 @@ function listNavaids() {
     if (navaidsCounter < optimalCount) {
       navaidsCounter = optimalCount;
     }
-    // Performance: Use for-loop with break instead of forEach (stops early)
-    var maxNavaids = Math.min(navaids.length, navaidsCounter);
+    // Suchfilter anwenden
+    var filteredNavaids = navaids;
+    var navQuery = navaidSearchQuery.toLowerCase().trim();
+    if (navQuery) {
+      filteredNavaids = navaids.filter(function(element) {
+        var identifier = (element.properties.identifier || '').toLowerCase();
+        var name = (element.properties.name || '').toLowerCase();
+        return identifier.indexOf(navQuery) !== -1 || name.indexOf(navQuery) !== -1;
+      });
+    }
+    var maxNavaids = Math.min(filteredNavaids.length, navaidsCounter);
     for (var navaidsI = 0; navaidsI < maxNavaids; navaidsI++) {
-      var element2 = navaids[navaidsI];
+      var element2 = filteredNavaids[navaidsI];
       var lookupKey = ensureLookupKey(element2.properties, "navaid");
       var domId = element2.properties.lookupDomId || sanitizeDomId(lookupKey);
       var lookupDomId = element2.properties.lookupDomId || domId;
@@ -28432,7 +28580,7 @@ function listNavaids() {
         buildStationListItem(domId, lookupDomId, title, subtitle, navFrequency, navFrequencyMode)
       );
     }
-    if (navaids.length > navaidsCounter) {
+    if (filteredNavaids.length > navaidsCounter) {
       showMoreHtml = '<span class="station2" onclick="moreNavaids()">show&nbsp;more...</span>';
     }
   } else if (airportsToggle == "reportingPoints") {
@@ -28442,10 +28590,20 @@ function listNavaids() {
     if (reportingPointsCounter < optimalCount) {
       reportingPointsCounter = optimalCount;
     }
-    // Performance: Use for-loop with break instead of forEach (stops early)
-    var maxReportingPoints = Math.min(reportingPoints.length, reportingPointsCounter);
+    // Suchfilter anwenden
+    var filteredReportingPoints = reportingPoints;
+    var navQuery = navaidSearchQuery.toLowerCase().trim();
+    if (navQuery) {
+      filteredReportingPoints = reportingPoints.filter(function(element) {
+        var identifier = (element.properties.identifier || '').toLowerCase();
+        var name = (element.properties.name || '').toLowerCase();
+        var description = (element.properties.description || '').toLowerCase();
+        return identifier.indexOf(navQuery) !== -1 || name.indexOf(navQuery) !== -1 || description.indexOf(navQuery) !== -1;
+      });
+    }
+    var maxReportingPoints = Math.min(filteredReportingPoints.length, reportingPointsCounter);
     for (var reportingPointsI = 0; reportingPointsI < maxReportingPoints; reportingPointsI++) {
-      var element2 = reportingPoints[reportingPointsI];
+      var element2 = filteredReportingPoints[reportingPointsI];
       var lookupKey = ensureLookupKey(element2.properties, "reportingPoint");
       var domId = element2.properties.lookupDomId || sanitizeDomId(lookupKey);
       var lookupDomId = element2.properties.lookupDomId || domId;
@@ -28456,7 +28614,7 @@ function listNavaids() {
         buildStationListItem(domId, lookupDomId, titleRp, subtitleRp)
       );
     }
-    if (reportingPoints.length > reportingPointsCounter) {
+    if (filteredReportingPoints.length > reportingPointsCounter) {
       showMoreHtml = '<span class="station2" onclick="moreReportingPoints()">show&nbsp;more...</span>';
     }
   }
