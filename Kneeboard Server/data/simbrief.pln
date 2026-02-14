@@ -2,246 +2,56 @@
 <SimBase.Document Type="AceXML" version="1,0">
     <Descr>AceXML Document</Descr>
     <FlightPlan.FlightPlan>
-        <Title>EDSB to ETNL</Title>
-        <FPType>IFR</FPType>
-        <RouteType>HighAlt</RouteType>
-        <CruisingAlt>43000.000</CruisingAlt>
-        <DepartureID>EDSB</DepartureID>
-        <DepartureLLA>N48° 46' 45.67",E8° 4' 49.80",+000409.00</DepartureLLA>
-        <DestinationID>ETNL</DestinationID>
-        <DestinationLLA>N53° 55' 5.40",E12° 16' 45.60",+000140.00</DestinationLLA>
-        <Descr>EDSB to ETNL created by SimBrief</Descr>
-        <DepartureName>Karlsruhe/baden-baden</DepartureName>
-        <DestinationName>Rostock-laage</DestinationName>
+        <Title>HTDA to HTMA</Title>
+        <FPType>VFR</FPType>
+        <RouteType>Direct</RouteType>
+        <CruisingAlt>5000.000</CruisingAlt>
+        <DepartureID>HTDA</DepartureID>
+        <DepartureLLA>S6° 52' 41.19",E39° 12' 9.47",+000184.00</DepartureLLA>
+        <DestinationID>HTMA</DestinationID>
+        <DestinationLLA>S7° 55' 2.20",E39° 40' 6.65",+000102.00</DestinationLLA>
+        <Descr>HTDA to HTMA created by SimBrief</Descr>
+        <DepartureName>Julius Nyerere Intl</DepartureName>
+        <DestinationName>Mafia</DestinationName>
         <AppVersion>
             <AppVersionMajor>11</AppVersionMajor>
             <AppVersionBuild>282174</AppVersionBuild>
         </AppVersion>
-        <ATCWaypoint id="EDSB">
+        <ATCWaypoint id="HTDA">
             <ATCWaypointType>Airport</ATCWaypointType>
-            <WorldPosition>N48° 46' 45.67",E8° 4' 49.80",+000409.00</WorldPosition>
-            <RunwayNumberFP>3</RunwayNumberFP>
+            <WorldPosition>S6° 52' 41.19",E39° 12' 9.47",+000184.00</WorldPosition>
+            <RunwayNumberFP>5</RunwayNumberFP>
             <ICAO>
-                <ICAOIdent>EDSB</ICAOIdent>
+                <ICAOIdent>HTDA</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="SB050">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 52' 52.33",E8° 10' 35.03",+009500.00</WorldPosition>
-            <DepartureFP>GAGS1Y</DepartureFP>
-            <RunwayNumberFP>3</RunwayNumberFP>
+        <ATCWaypoint id="0700S03918E">
+            <ATCWaypointType>User</ATCWaypointType>
+            <WorldPosition>S7° 0' 0.00",E39° 18' 0.00",+005000.00</WorldPosition>
             <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>SB050</ICAOIdent>
+                <ICAOIdent>0700S03918E</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="SB051">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 52' 38.15",E8° 17' 15.53",+014500.00</WorldPosition>
-            <DepartureFP>GAGS1Y</DepartureFP>
-            <RunwayNumberFP>3</RunwayNumberFP>
+        <ATCWaypoint id="0725S03923E">
+            <ATCWaypointType>User</ATCWaypointType>
+            <WorldPosition>S7° 25' 0.00",E39° 23' 0.00",+005000.00</WorldPosition>
             <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>SB051</ICAOIdent>
+                <ICAOIdent>0725S03923E</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="PABLA">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 47' 18.91",E8° 21' 7.09",+019200.00</WorldPosition>
-            <DepartureFP>GAGS1Y</DepartureFP>
-            <RunwayNumberFP>3</RunwayNumberFP>
+        <ATCWaypoint id="0733S03924E">
+            <ATCWaypointType>User</ATCWaypointType>
+            <WorldPosition>S7° 33' 0.00",E39° 24' 0.00",+005000.00</WorldPosition>
             <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>PABLA</ICAOIdent>
+                <ICAOIdent>0733S03924E</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="GAGSI">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 37' 47.01",E8° 28' 0.84",+025900.00</WorldPosition>
-            <DepartureFP>GAGS1Y</DepartureFP>
-            <RunwayNumberFP>3</RunwayNumberFP>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>GAGSI</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="UBASI">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 39' 7.00",E8° 43' 22.00",+030300.00</WorldPosition>
-            <ATCAirway>Y712</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>UBASI</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="KOVAN">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N48° 52' 56.59",E9° 5' 3.45",+036300.00</WorldPosition>
-            <ATCAirway>Y712</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>KOVAN</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="LBU">
-            <ATCWaypointType>VOR</ATCWaypointType>
-            <WorldPosition>N48° 54' 46.71",E9° 20' 24.82",+038400.00</WorldPosition>
-            <ATCAirway>Y712</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>LBU</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="OKIBA">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N49° 12' 53.11",E9° 18' 58.05",+041900.00</WorldPosition>
-            <ATCAirway>N851</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>OKIBA</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="ROLSO">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N49° 21' 14.96",E9° 18' 19.16",+043000.00</WorldPosition>
-            <ATCAirway>N851</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>ROLSO</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="RIMKI">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N49° 44' 56.00",E9° 21' 50.00",+043000.00</WorldPosition>
-            <ATCAirway>N851</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>RIMKI</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="LOHRE">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N50° 4' 1.00",E9° 29' 11.00",+043000.00</WorldPosition>
-            <ATCAirway>Z99</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>LOHRE</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="ARNIX">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N50° 31' 44.00",E9° 33' 42.00",+043000.00</WorldPosition>
-            <ATCAirway>Z99</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>ARNIX</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="FUL">
-            <ATCWaypointType>VOR</ATCWaypointType>
-            <WorldPosition>N50° 35' 32.84",E9° 34' 19.81",+043000.00</WorldPosition>
-            <ATCAirway>Z99</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>FUL</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="MASEK">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N50° 43' 45.00",E9° 35' 54.00",+043000.00</WorldPosition>
-            <ATCAirway>Z99</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>MASEK</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="ELLUM">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N51° 5' 6.00",E9° 40' 3.00",+043000.00</WorldPosition>
-            <ATCAirway>Z99</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>ELLUM</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="ELNAT">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N51° 12' 15.54",E9° 41' 27.56",+043000.00</WorldPosition>
-            <ATCAirway>Z99</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>ELNAT</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="WERRA">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N51° 28' 12.03",E9° 44' 2.84",+043000.00</WorldPosition>
-            <ATCAirway>P605</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>WERRA</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="LUXUX">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N51° 37' 53.57",E9° 45' 52.63",+043000.00</WorldPosition>
-            <ATCAirway>P605</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>LUXUX</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="NORTA">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N51° 52' 6.56",E9° 48' 35.10",+043000.00</WorldPosition>
-            <ATCAirway>P605</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>NORTA</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="SAS">
-            <ATCWaypointType>VOR</ATCWaypointType>
-            <WorldPosition>N52° 15' 2.80",E9° 53' 3.19",+042400.00</WorldPosition>
-            <ATCAirway>P605</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>SAS</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="AMALI">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N52° 28' 47.04",E10° 24' 23.37",+034900.00</WorldPosition>
-            <ATCAirway>P717</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>AMALI</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="GARLU">
-            <ATCWaypointType>Intersection</ATCWaypointType>
-            <WorldPosition>N52° 49' 45.00",E11° 7' 5.00",+024600.00</WorldPosition>
-            <ATCAirway>P717</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>GARLU</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="BKD">
-            <ATCWaypointType>VOR</ATCWaypointType>
-            <WorldPosition>N53° 2' 4.29",E11° 32' 46.38",+018400.00</WorldPosition>
-            <ATCAirway>P717</ATCAirway>
-            <ICAO>
-                <ICAORegion>ED</ICAORegion>
-                <ICAOIdent>BKD</ICAOIdent>
-            </ICAO>
-        </ATCWaypoint>
-        <ATCWaypoint id="ETNL">
+        <ATCWaypoint id="HTMA">
             <ATCWaypointType>Airport</ATCWaypointType>
-            <WorldPosition>N53° 55' 5.40",E12° 16' 45.60",+000140.00</WorldPosition>
-            <RunwayNumberFP>9</RunwayNumberFP>
+            <WorldPosition>S7° 55' 2.20",E39° 40' 6.65",+000102.00</WorldPosition>
+            <RunwayNumberFP>33</RunwayNumberFP>
             <ICAO>
-                <ICAOIdent>ETNL</ICAOIdent>
+                <ICAOIdent>HTMA</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
     </FlightPlan.FlightPlan>

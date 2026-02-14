@@ -23110,6 +23110,13 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         }
     });
 
+    // Starthöhe: letzter Waypoint im verbleibenden Flightplan (für OFP-Höhenvalidierung)
+    var startAlt = 0;
+    if (flightplanArray.length > 0) {
+        var lastFpWp = flightplanArray[flightplanArray.length - 1];
+        startAlt = lastFpWp.altitude || 0;
+    }
+
     // 6. Erstelle STAR-Einträge in STAR-Reihenfolge
     //    Nutze OFP-Höhen wenn Navigraph keine hat (Altitude1=0)
     var starEntries = [];
@@ -23142,10 +23149,16 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
         else if (altConstraint === 'J' || altConstraint === 'V') { atbl = 'AB'; }
 
         // OFP-Höhe übernehmen wenn Navigraph keine hat
+        // Aber NUR wenn die OFP-Höhe niedriger als die letzte Enroute-Höhe ist
+        // (Reiseflughöhen sind keine sinnvollen STAR-Höhen)
         var finalAltitude = navAltitude;
         var ofpWp = ofpWaypointData[nameUpper];
         if (finalAltitude === 0 && ofpWp && ofpWp.altitude && ofpWp.altitude > 0) {
-            finalAltitude = ofpWp.altitude;
+            if (startAlt === 0 || ofpWp.altitude < startAlt) {
+                finalAltitude = ofpWp.altitude;
+            } else {
+                flightplanPanelLogger.debug('[STAR]', nameUpper, ': skipping OFP altitude', ofpWp.altitude, '(>= startAlt', startAlt + ')');
+            }
         }
 
         starEntries.push({
@@ -23168,12 +23181,7 @@ async function injectStarWaypointsIntoFlightplan(icao, starName, transition, sel
     //    Nutze den letzten Enroute-Waypoint VOR dem STAR als Startpunkt
     //    und den Destination-Waypoint als Endpunkt
     if (starEntries.length > 0) {
-        // Starthöhe: letzter Waypoint im verbleibenden Flightplan
-        var startAlt = 0;
-        if (flightplanArray.length > 0) {
-            var lastWp = flightplanArray[flightplanArray.length - 1];
-            startAlt = lastWp.altitude || 0;
-        }
+        // startAlt bereits oben berechnet
         // Endhöhe: Destination-Waypoint (Flughafenhöhe)
         var endAlt = (destination && destination.altitude) || 0;
 
