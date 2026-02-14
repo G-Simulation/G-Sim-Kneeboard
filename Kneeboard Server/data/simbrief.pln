@@ -2,56 +2,210 @@
 <SimBase.Document Type="AceXML" version="1,0">
     <Descr>AceXML Document</Descr>
     <FlightPlan.FlightPlan>
-        <Title>HTDA to HTMA</Title>
-        <FPType>VFR</FPType>
-        <RouteType>Direct</RouteType>
-        <CruisingAlt>5000.000</CruisingAlt>
-        <DepartureID>HTDA</DepartureID>
-        <DepartureLLA>S6° 52' 41.19",E39° 12' 9.47",+000184.00</DepartureLLA>
-        <DestinationID>HTMA</DestinationID>
-        <DestinationLLA>S7° 55' 2.20",E39° 40' 6.65",+000102.00</DestinationLLA>
-        <Descr>HTDA to HTMA created by SimBrief</Descr>
-        <DepartureName>Julius Nyerere Intl</DepartureName>
-        <DestinationName>Mafia</DestinationName>
+        <Title>EDDF to EDDM</Title>
+        <FPType>IFR</FPType>
+        <RouteType>HighAlt</RouteType>
+        <CruisingAlt>23000.000</CruisingAlt>
+        <DepartureID>EDDF</DepartureID>
+        <DepartureLLA>N50° 1' 59.90",E8° 34' 13.64",+000363.00</DepartureLLA>
+        <DestinationID>EDDM</DestinationID>
+        <DestinationLLA>N48° 21' 13.62",E11° 47' 9.91",+001487.00</DestinationLLA>
+        <Descr>EDDF to EDDM created by SimBrief</Descr>
+        <DepartureName>Frankfurt/main</DepartureName>
+        <DestinationName>Munich</DestinationName>
         <AppVersion>
             <AppVersionMajor>11</AppVersionMajor>
             <AppVersionBuild>282174</AppVersionBuild>
         </AppVersion>
-        <ATCWaypoint id="HTDA">
+        <ATCWaypoint id="EDDF">
             <ATCWaypointType>Airport</ATCWaypointType>
-            <WorldPosition>S6° 52' 41.19",E39° 12' 9.47",+000184.00</WorldPosition>
-            <RunwayNumberFP>5</RunwayNumberFP>
+            <WorldPosition>N50° 1' 59.90",E8° 34' 13.64",+000363.00</WorldPosition>
+            <RunwayNumberFP>18</RunwayNumberFP>
             <ICAO>
-                <ICAOIdent>HTDA</ICAOIdent>
+                <ICAOIdent>EDDF</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="0700S03918E">
-            <ATCWaypointType>User</ATCWaypointType>
-            <WorldPosition>S7° 0' 0.00",E39° 18' 0.00",+005000.00</WorldPosition>
+        <ATCWaypoint id="DF158">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N49° 58' 0.01",E8° 31' 34.98",+002900.00</WorldPosition>
+            <DepartureFP>CIND8S</DepartureFP>
+            <RunwayNumberFP>18</RunwayNumberFP>
             <ICAO>
-                <ICAOIdent>0700S03918E</ICAOIdent>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>DF158</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="0725S03923E">
-            <ATCWaypointType>User</ATCWaypointType>
-            <WorldPosition>S7° 25' 0.00",E39° 23' 0.00",+005000.00</WorldPosition>
+        <ATCWaypoint id="DF171">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N49° 56' 27.93",E8° 35' 49.31",+005200.00</WorldPosition>
+            <DepartureFP>CIND8S</DepartureFP>
+            <RunwayNumberFP>18</RunwayNumberFP>
             <ICAO>
-                <ICAOIdent>0725S03923E</ICAOIdent>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>DF171</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="0733S03924E">
-            <ATCWaypointType>User</ATCWaypointType>
-            <WorldPosition>S7° 33' 0.00",E39° 24' 0.00",+005000.00</WorldPosition>
+        <ATCWaypoint id="DF173">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N49° 56' 13.98",E8° 41' 44.59",+008100.00</WorldPosition>
+            <DepartureFP>CIND8S</DepartureFP>
+            <RunwayNumberFP>18</RunwayNumberFP>
             <ICAO>
-                <ICAOIdent>0733S03924E</ICAOIdent>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>DF173</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
-        <ATCWaypoint id="HTMA">
+        <ATCWaypoint id="DF174">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N49° 53' 5.61",E8° 45' 12.49",+010300.00</WorldPosition>
+            <DepartureFP>CIND8S</DepartureFP>
+            <RunwayNumberFP>18</RunwayNumberFP>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>DF174</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="DF170">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N49° 51' 53.99",E8° 48' 31.11",+011000.00</WorldPosition>
+            <DepartureFP>CIND8S</DepartureFP>
+            <RunwayNumberFP>18</RunwayNumberFP>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>DF170</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="AMTIX">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N49° 45' 43.59",E9° 5' 29.55",+016000.00</WorldPosition>
+            <DepartureFP>CIND8S</DepartureFP>
+            <RunwayNumberFP>18</RunwayNumberFP>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>AMTIX</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="CINDY">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N49° 44' 48.46",E9° 11' 15.15",+017200.00</WorldPosition>
+            <DepartureFP>CIND8S</DepartureFP>
+            <RunwayNumberFP>18</RunwayNumberFP>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>CINDY</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="HAREM">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N49° 37' 6.00",E9° 24' 52.00",+020800.00</WorldPosition>
+            <ATCAirway>Z74</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>HAREM</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="ELMOX">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N49° 23' 1.00",E9° 49' 29.00",+023000.00</WorldPosition>
+            <ATCAirway>T104</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>ELMOX</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="PIGAB">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N49° 11' 54.00",E10° 8' 36.00",+023000.00</WorldPosition>
+            <ATCAirway>T104</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>PIGAB</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="DKB">
+            <ATCWaypointType>VOR</ATCWaypointType>
+            <WorldPosition>N49° 8' 33.91",E10° 14' 17.90",+023000.00</WorldPosition>
+            <ATCAirway>T104</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>DKB</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="LEVBU">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N49° 0' 25.00",E10° 27' 24.00",+023000.00</WorldPosition>
+            <ATCAirway>T104</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>LEVBU</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="ANORA">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N48° 56' 58.00",E10° 32' 54.00",+023000.00</WorldPosition>
+            <ATCAirway>T104</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>ANORA</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="XERUM">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N48° 48' 40.00",E10° 46' 4.00",+023000.00</WorldPosition>
+            <ATCAirway>T104</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>XERUM</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="BURAM">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N48° 41' 43.79",E10° 56' 56.41",+023000.00</WorldPosition>
+            <ATCAirway>T104</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>BURAM</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="WLD">
+            <ATCWaypointType>VOR</ATCWaypointType>
+            <WorldPosition>N48° 34' 45.91",E11° 7' 45.79",+018000.00</WorldPosition>
+            <ATCAirway>T104</ATCAirway>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>WLD</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="ROKIL">
+            <ATCWaypointType>Intersection</ATCWaypointType>
+            <WorldPosition>N48° 30' 47.93",E11° 11' 48.21",+015500.00</WorldPosition>
+            <ATCAirway>T104</ATCAirway>
+            <ArrivalFP>ROKI1A</ArrivalFP>
+            <RunwayNumberFP>8</RunwayNumberFP>
+            <RunwayDesignatorFP>LEFT</RunwayDesignatorFP>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>ROKIL</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="MIQ">
+            <ATCWaypointType>NDB</ATCWaypointType>
+            <WorldPosition>N48° 34' 12.81",E11° 35' 51.01",+007500.00</WorldPosition>
+            <ArrivalFP>ROKI1A</ArrivalFP>
+            <RunwayNumberFP>8</RunwayNumberFP>
+            <RunwayDesignatorFP>LEFT</RunwayDesignatorFP>
+            <ICAO>
+                <ICAORegion>ED</ICAORegion>
+                <ICAOIdent>MIQ</ICAOIdent>
+            </ICAO>
+        </ATCWaypoint>
+        <ATCWaypoint id="EDDM">
             <ATCWaypointType>Airport</ATCWaypointType>
-            <WorldPosition>S7° 55' 2.20",E39° 40' 6.65",+000102.00</WorldPosition>
-            <RunwayNumberFP>33</RunwayNumberFP>
+            <WorldPosition>N48° 21' 13.62",E11° 47' 9.91",+001487.00</WorldPosition>
+            <RunwayNumberFP>8</RunwayNumberFP>
+            <RunwayDesignatorFP>LEFT</RunwayDesignatorFP>
             <ICAO>
-                <ICAOIdent>HTMA</ICAOIdent>
+                <ICAOIdent>EDDM</ICAOIdent>
             </ICAO>
         </ATCWaypoint>
     </FlightPlan.FlightPlan>

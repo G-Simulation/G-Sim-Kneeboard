@@ -4220,6 +4220,11 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     align-items: center;
     gap: 4px;
     min-width: 0;
+    cursor: pointer;
+}
+
+.fp-selector-row .fp-dropdown {
+    pointer-events: none;
 }
 
 /* Full-width for Transition selector */
@@ -4668,10 +4673,15 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     font-size: 10px;
     font-weight: 500;
     color: var(--fontDark);
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
 }
 
 .custom-select-option {
-    padding: 4px 8px;
+    padding: 6px 8px;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
     cursor: pointer;
     white-space: nowrap;
 }

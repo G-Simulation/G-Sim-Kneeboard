@@ -21747,86 +21747,86 @@ function initCustomSelectDropdowns() {
         }
     }
 
-    document.addEventListener('mousedown', function(e) {
-        var select = e.target.closest ? e.target.closest('.fp-dropdown') : null;
-        if (!select && e.target && e.target.classList && e.target.classList.contains('fp-dropdown')) {
-            select = e.target;
-        }
-
-        // Click outside - close dropdown
-        if (!select) {
-            if (activeDropdown && !activeDropdown.contains(e.target)) {
-                closeDropdown();
+    // Coherent GT blockt Events auf <select>-Elementen.
+    // Lösung: Click auf die ZEILE (.fp-selector-row) statt auf den Select.
+    // Select bekommt pointer-events:none per CSS.
+    document.addEventListener('click', function(e) {
+        // Option in offenem Dropdown angeklickt?
+        var optionEl = e.target.closest ? e.target.closest('.custom-select-option') : null;
+        if (optionEl) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (activeDropdown) {
+                var sel = activeDropdown._forSelect;
+                var val = optionEl.getAttribute('data-value');
+                sel.value = val;
+                if (typeof sel.onchange === 'function') {
+                    sel.onchange();
+                }
             }
-            return;
-        }
-
-        // Don't open if disabled or loading
-        if (select.disabled || select.classList.contains('loading')) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        // Toggle: close if already open for this select
-        if (activeDropdown && activeDropdown._forSelect === select) {
             closeDropdown();
             return;
         }
 
-        closeDropdown();
+        // Klick auf Selector-Row?
+        var row = e.target.closest ? e.target.closest('.fp-selector-row') : null;
+        if (row) {
+            var select = row.querySelector('.fp-dropdown');
+            if (!select || select.disabled || select.classList.contains('loading')) return;
 
-        // Build options list from the <select>
-        var options = select.querySelectorAll('option');
-        if (!options || options.length === 0) return;
+            e.preventDefault();
+            e.stopPropagation();
 
-        var dropdown = document.createElement('div');
-        dropdown.className = 'custom-select-dropdown';
-        dropdown._forSelect = select;
-
-        for (var i = 0; i < options.length; i++) {
-            var opt = options[i];
-            var item = document.createElement('div');
-            item.className = 'custom-select-option';
-            item.setAttribute('data-value', opt.value);
-            item.textContent = opt.textContent;
-            if (opt.value === select.value) {
-                item.classList.add('selected');
-            }
-            item.addEventListener('mousedown', function(ev) {
-                ev.preventDefault();
-                ev.stopPropagation();
-                var val = this.getAttribute('data-value');
-                select.value = val;
-                if (typeof select.onchange === 'function') {
-                    select.onchange();
-                }
+            // Toggle
+            if (activeDropdown && activeDropdown._forSelect === select) {
                 closeDropdown();
-            });
-            dropdown.appendChild(item);
+                return;
+            }
+            closeDropdown();
+
+            var options = select.querySelectorAll('option');
+            if (!options || options.length === 0) return;
+
+            var dropdown = document.createElement('div');
+            dropdown.className = 'custom-select-dropdown';
+            dropdown._forSelect = select;
+
+            for (var i = 0; i < options.length; i++) {
+                var opt = options[i];
+                var item = document.createElement('div');
+                item.className = 'custom-select-option';
+                item.setAttribute('data-value', opt.value);
+                item.textContent = opt.textContent;
+                if (opt.value === select.value) {
+                    item.classList.add('selected');
+                }
+                dropdown.appendChild(item);
+            }
+
+            var rect = select.getBoundingClientRect();
+            dropdown.style.left = rect.left + 'px';
+            dropdown.style.width = Math.max(rect.width, 120) + 'px';
+            document.body.appendChild(dropdown);
+
+            var dropdownHeight = dropdown.offsetHeight;
+            if (rect.bottom + dropdownHeight > window.innerHeight && rect.top > dropdownHeight) {
+                dropdown.style.top = (rect.top - dropdownHeight) + 'px';
+            } else {
+                dropdown.style.top = rect.bottom + 'px';
+            }
+
+            var selectedItem = dropdown.querySelector('.custom-select-option.selected');
+            if (selectedItem) {
+                selectedItem.scrollIntoView({ block: 'nearest' });
+            }
+            activeDropdown = dropdown;
+            return;
         }
 
-        // Position below (or above) the select
-        var rect = select.getBoundingClientRect();
-        dropdown.style.left = rect.left + 'px';
-        dropdown.style.width = Math.max(rect.width, 120) + 'px';
-
-        document.body.appendChild(dropdown);
-
-        // Check if there's enough space below
-        var dropdownHeight = dropdown.offsetHeight;
-        if (rect.bottom + dropdownHeight > window.innerHeight && rect.top > dropdownHeight) {
-            dropdown.style.top = (rect.top - dropdownHeight) + 'px';
-        } else {
-            dropdown.style.top = rect.bottom + 'px';
+        // Klick irgendwo anders - Dropdown schließen
+        if (activeDropdown) {
+            closeDropdown();
         }
-
-        // Scroll selected option into view
-        var selectedItem = dropdown.querySelector('.custom-select-option.selected');
-        if (selectedItem) {
-            selectedItem.scrollIntoView({ block: 'nearest' });
-        }
-
-        activeDropdown = dropdown;
     });
 }
 
