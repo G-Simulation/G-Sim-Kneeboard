@@ -16196,6 +16196,9 @@ function drawLines() {
     icon: iconAirplane,
   }).addTo(map);
 
+  // DOM-Cache aktualisieren - Element existiert erst nach addTo(map)
+  DOM.imageAirplane = document.getElementById("imageAirplane");
+
   // Klick auf eigenes Flugzeug: Route anzeigen/verstecken (nur im Controller-Modus)
   airplane.on('click', function() {
     if (!moverX) return;
