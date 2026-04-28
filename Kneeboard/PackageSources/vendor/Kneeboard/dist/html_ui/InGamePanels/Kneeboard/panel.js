@@ -93,13 +93,21 @@
   function probeServerReachability() {
     fetch(LOCAL_KNEEBOARD_URL, { method: 'HEAD', cache: 'no-cache' })
       .then(() => {
+        // HEAD succeeded → server is up. The iframe 'load' event fires very
+        // unreliably in Coherent GT across coui:// ↔ http:// boundaries, so we
+        // do NOT wait for it — mark connected immediately and load the iframe once.
         if (!isConnected) {
+          setConnectionState(true);
+          clearReconnectTimer();
+          stopServerProbe();
           reloadIframe();
+          if (TOOLBAR_DEBUG) console.log("[Kneeboard] Server reachable via HEAD probe");
         }
       })
       .catch(() => {
         if (isConnected) {
           setConnectionState(false);
+          startServerProbe();
         }
       });
   }
