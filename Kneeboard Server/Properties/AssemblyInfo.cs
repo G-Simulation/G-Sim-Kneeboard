@@ -31,6 +31,6 @@ using System.Runtime.InteropServices;
 // Sie können alle Werte angeben oder Standardwerte für die Build- und Revisionsnummern verwenden,
 // indem Sie "*" wie unten gezeigt eingeben:
 // [assembly: AssemblyVersion("1.0.*")]
-// Release v2.0.3 - Fix data folder not deployed to installation directory
-[assembly: AssemblyVersion("2.0.3.0")]
-[assembly: AssemblyFileVersion("2.0.3.0")]
+// Release v2.0.4 - Panel reconnect fix and various UI polish
+[assembly: AssemblyVersion("2.0.4.0")]
+[assembly: AssemblyFileVersion("2.0.4.0")]
