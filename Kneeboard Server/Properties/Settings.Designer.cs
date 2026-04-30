@@ -514,5 +514,41 @@ namespace Kneeboard_Server.Properties {
                 this["language"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool dsgvoAccepted {
+            get {
+                return ((bool)(this["dsgvoAccepted"]));
+            }
+            set {
+                this["dsgvoAccepted"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0001-01-01")]
+        public global::System.DateTime dsgvoAcceptedDate {
+            get {
+                return ((global::System.DateTime)(this["dsgvoAcceptedDate"]));
+            }
+            set {
+                this["dsgvoAcceptedDate"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string dsgvoAcceptedVersion {
+            get {
+                return ((string)(this["dsgvoAcceptedVersion"]));
+            }
+            set {
+                this["dsgvoAcceptedVersion"] = value;
+            }
+        }
     }
 }

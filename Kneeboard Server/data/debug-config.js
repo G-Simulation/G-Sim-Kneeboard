@@ -2,7 +2,8 @@ var DEBUG_MANAGER = (function() {
   'use strict';
   
   var DEFAULT_CONFIG = {
-    DISABLE_ALL_LOGS: false,
+    // Im Release-Build (KNEEBOARD_DEBUG=false): alle Logs aus
+    DISABLE_ALL_LOGS: !(typeof window !== 'undefined' && window.KNEEBOARD_DEBUG),
     MAP: false,
     WIND: false,
     CZ: false,

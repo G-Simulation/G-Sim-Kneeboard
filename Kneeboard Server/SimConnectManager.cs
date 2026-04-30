@@ -433,6 +433,8 @@ namespace Kneeboard_Server
             {
                 var position = (AircraftPosition)data.dwData[0];
 
+                KneeboardLogger.SimConnectDebug($"Position: {position.Latitude:F4}, {position.Longitude:F4}, Alt={position.Altitude:F0}, CameraState={position.CameraState}");
+
                 lock (dataLock)
                 {
                     latestPosition = position;
@@ -522,8 +524,9 @@ namespace Kneeboard_Server
             var pos = GetLatestPosition();
             if (!pos.HasValue) return false;
             var state = (int)pos.Value.CameraState;
-            // CameraState 2-6 = active flight (cockpit, external, drone, etc.)
-            return state >= 2 && state <= 6;
+            // CameraState 0 = menu, 1 = loading. Anything >= 2 = active flight
+            // MSFS 2024 has additional camera states beyond the original 2-6 range
+            return state >= 2;
         }
 
         public void Dispose()

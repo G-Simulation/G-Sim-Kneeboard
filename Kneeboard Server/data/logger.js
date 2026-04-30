@@ -20,7 +20,9 @@
         CONSOLE_OUTPUT: true,
         TIMESTAMP_FORMAT: 'SHORT',  // 'ISO' oder 'SHORT'
         MAX_STACK_DEPTH: 8,
-        VERSION: '1.0.0'
+        VERSION: '1.0.0',
+        // Im Release-Build (KNEEBOARD_DEBUG=false): nur ERROR/WARN
+        DEFAULT_MIN_LEVEL: (typeof window !== 'undefined' && window.KNEEBOARD_DEBUG) ? 'INFO' : 'ERROR'
     };
 
     // ========================================================================
@@ -74,7 +76,7 @@
         if (!levelConfig) return;
 
         // Prüfe Debug-Level pro Modul
-        var moduleConfig = moduleSettings[module] || { enabled: true, minLevel: 'INFO' };
+        var moduleConfig = moduleSettings[module] || { enabled: true, minLevel: CONFIG.DEFAULT_MIN_LEVEL };
         if (!moduleConfig.enabled) return;
         if (levelConfig.value < LOG_LEVELS[moduleConfig.minLevel].value) return;
 

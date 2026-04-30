@@ -478,4 +478,4 @@ Nach Änderungen an `map-layers.json`:
 
 Bei Problemen oder Fragen:
 - GitHub Issues: https://github.com/G-Simulation/G-Sim-Kneeboard-Server/issues
-- Website: https://www.gsimulations.com
+- Website: https://www.gsimulations.de

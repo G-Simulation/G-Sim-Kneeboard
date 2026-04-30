@@ -110,6 +110,15 @@ own respective licenses:
   add-on functionality. It is not included in this source distribution;
   users must obtain it through the MSFS SDK.
 
+## Navigraph (DFD v2 API & Navdata)
+- License: Proprietary - Navigraph Subscription required
+- Source: https://navigraph.com
+- Navdata is © Navigraph and is provided to end-users via their own
+  Navigraph account / subscription. The Navdata is not bundled with
+  this software for redistribution; the application acts only as a
+  client to fetch user-licensed data via the official Navigraph API.
+- Powered by Navigraph - https://navigraph.com
+
 ## @microsoft/msfs-sdk
 - License: MIT
 - Copyright (c) Microsoft Corporation
@@ -132,3 +141,60 @@ own respective licenses:
 - License: MIT
 - Source: https://github.com/sass/dart-sass
 - Copyright (c) Google Inc.
+
+================================================================================
+THIRD-PARTY DATA SOURCES & APIS
+================================================================================
+
+The application connects to the following data services at runtime. Each
+provider has its own terms of use; users are responsible for complying with
+the respective terms.
+
+## Leaflet
+- License: BSD-2-Clause
+- Source: https://leafletjs.com
+- Copyright (c) 2010-2024 Volodymyr Agafonkin
+
+## OpenAIP (Airport, Navaid, Airspace data)
+- License: Proprietary - API key required
+- Source: https://www.openaip.net
+- Terms: https://www.openaip.net/legal
+- Attribution required when displaying OpenAIP data.
+
+## VATSIM (Online Pilots & Controllers)
+- Source: https://vatsim.net
+- Privacy & Terms: https://vatsim.net/docs/policy/privacy-policy
+- Data is fetched read-only from public VATSIM endpoints.
+
+## IVAO (Online Pilots & Controllers)
+- Source: https://www.ivao.aero
+- Terms: https://www.ivao.aero/legal/legal.htm
+- Data is fetched read-only from public IVAO endpoints.
+
+## Aviation Weather (METAR / TAF)
+- Source: https://aviationweather.gov
+- Status: Public Domain (US National Weather Service / NOAA)
+
+## OpenWeatherMap (Wind data)
+- License: Proprietary - API key required
+- Source: https://openweathermap.org
+- Terms: https://openweathermap.org/terms
+
+## DFS - Deutsche Flugsicherung (ICAO chart tiles, Germany)
+- License: Proprietary
+- Source: https://secais.dfs.de
+- Tiles are sourced from the official DFS map service.
+
+## openflightmaps (VFR chart tiles, ofm)
+- License: openflightmaps Foundation - free for non-commercial use
+- Source: https://www.openflightmaps.org
+
+## SimBrief (Flight Plan Sync)
+- License: Proprietary - Free account required
+- Source: https://www.simbrief.com
+- Terms: https://www.simbrief.com/home/privacy.php
+
+## OpenStreetMap (base map tiles, fallback)
+- License: Open Database License (ODbL)
+- Source: https://www.openstreetmap.org
+- Copyright (c) OpenStreetMap contributors

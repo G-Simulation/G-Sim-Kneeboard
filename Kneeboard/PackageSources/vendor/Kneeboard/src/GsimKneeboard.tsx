@@ -22,8 +22,11 @@ class GsimKneeboardView extends AppView<RequiredProps<AppViewProps, "bus">> {
   private readonly iframeRef = FSComponent.createRef<HTMLIFrameElement>();
   private readonly fallbackRef = FSComponent.createRef<HTMLDivElement>();
   private probeIntervalId?: number;
+  private lastConnected = false;
+  private iframeLoaded = false;
 
   private readonly handleIframeLoad = (): void => {
+    this.iframeLoaded = true;
     this.setConnectionState(true);
   };
 
@@ -44,8 +47,15 @@ class GsimKneeboardView extends AppView<RequiredProps<AppViewProps, "bus">> {
       iframe.addEventListener("error", this.handleIframeError);
     }
 
-    // Probe server availability
+    // Probe server availability (immediately + on interval)
+    this.probeOnce();
     this.startProbing();
+  }
+
+  private probeOnce(): void {
+    fetch(LOCAL_KNEEBOARD_URL, { method: 'HEAD' })
+      .then(() => this.setConnectionState(true))
+      .catch(() => this.setConnectionState(false));
   }
 
   public destroy(): void {
@@ -63,21 +73,27 @@ class GsimKneeboardView extends AppView<RequiredProps<AppViewProps, "bus">> {
   }
 
   private startProbing(): void {
-    // Probe server every 10 seconds
+    // Probe server every second while disconnected
     this.probeIntervalId = window.setInterval(() => {
-      fetch(LOCAL_KNEEBOARD_URL, { method: 'HEAD' })
-        .then(() => this.setConnectionState(true))
-        .catch(() => this.setConnectionState(false));
-    }, 10000);
+      this.probeOnce();
+    }, 1000);
   }
 
   private setConnectionState(connected: boolean): void {
+    const iframe = this.iframeRef.instance;
+
+    // Transition disconnected -> connected: force a reload of the iframe
+    // if its initial load failed (server wasn't up yet).
+    if (connected && !this.lastConnected && iframe && !this.iframeLoaded) {
+      iframe.src = LOCAL_KNEEBOARD_URL + "?t=" + Date.now();
+    }
+    this.lastConnected = connected;
+
     const fallback = this.fallbackRef.instance;
     if (fallback) {
       fallback.style.display = connected ? "none" : "flex";
     }
 
-    const iframe = this.iframeRef.instance;
     if (iframe) {
       iframe.style.display = connected ? "block" : "none";
     }

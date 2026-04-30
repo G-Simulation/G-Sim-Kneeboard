@@ -8,7 +8,7 @@
   const KNEEBOARD_PORT = window.GSIM_KNEEBOARD_PORT || 815;
   const KNEEBOARD_HOST = window.GSIM_KNEEBOARD_HOST || "localhost";
   const LOCAL_KNEEBOARD_URL = `http://${KNEEBOARD_HOST}:${KNEEBOARD_PORT}/kneeboard.html`;
-  const SERVER_PROBE_RATE_MS = 5000;
+  const SERVER_PROBE_RATE_MS = 1000;
 
   // DOM references
   let iframe = null;
@@ -47,7 +47,7 @@
     clearReconnectTimer();
     reconnectTimerId = setTimeout(() => {
       reloadIframe();
-    }, 4000);
+    }, 1000);
   }
 
   function clearReconnectTimer() {
@@ -91,6 +91,9 @@
   }
 
   function probeServerReachability() {
+    // Active HEAD probe works in Coherent GT (confirmed via MSFS 2024 SDK EFB sample).
+    // Only reload the iframe once the server is actually reachable — this avoids the
+    // long "Waiting for Kneeboard server…" hang caused by passive iframe load events.
     fetch(LOCAL_KNEEBOARD_URL, { method: 'HEAD', cache: 'no-cache' })
       .then(() => {
         // HEAD succeeded → server is up. The iframe 'load' event fires very

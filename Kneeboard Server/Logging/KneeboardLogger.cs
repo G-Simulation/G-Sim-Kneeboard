@@ -75,6 +75,14 @@ namespace Kneeboard_Server.Logging
                 Initialize();
             }
 
+#if !DEBUG
+            // Release-Build: DEBUG/INFO komplett verschlucken, nur WARN/ERROR durchlassen
+            if (level < Level.WARN)
+            {
+                return;
+            }
+#endif
+
             if (level < _minLevel)
             {
                 return;

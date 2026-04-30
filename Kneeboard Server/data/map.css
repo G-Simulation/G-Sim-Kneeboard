@@ -674,6 +674,8 @@ table.popupTable td{
 .overlay2Table td{
     color: var(--fontDark);
     font-size: 2.5vmin;
+    padding: 4px 18px;
+    white-space: nowrap;
 }
 
 #MetarPanel {
@@ -1044,12 +1046,14 @@ h4 {
 
 #overlay {
     position: absolute;
-    width: 25vw;
-    min-width: 25vw;
-    max-width: 45vw;
+    width: clamp(280px, 32vw, 420px);
+    min-width: 180px;
+    max-width: 90vw;
     max-height: 85%;
     right: calc(7vmin + 15px);
     bottom: 5px;
+    container-type: inline-size;
+    container-name: fppanel;
     background-color: white;
     border: 2px solid rgba(0, 0, 0, 0.2);
     border-radius: 4px;
@@ -1120,7 +1124,7 @@ h4 {
 
 #controllerContainer {
     position: absolute;
-    width: 25vw;
+    width: clamp(280px, 32vw, 420px);
     min-width: 15vw;
     max-width: 45vw;
     max-height: 85%;
@@ -1230,6 +1234,8 @@ div#controllerHeaderDiv {
     max-height: 6vh;                 /* viewport-basiert wie andere Panels */
     left: 1vh;
     bottom: 8vh;
+    padding: 6px 20px;
+    box-sizing: border-box;
     background-color: white;
     z-index: 500;
     border: 2px solid rgba(0, 0, 0, 0.2);
@@ -3287,6 +3293,7 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
 /* Panel Content */
 .kneeboard-panel-content {
     flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
     padding: 8px 15px;
@@ -3363,6 +3370,8 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     align-items: baseline;
     gap: 8px;
     min-width: 0;
+    flex: 1;
+    width: 100%;
 }
 
 .kneeboard-list-item-title {
@@ -3371,6 +3380,9 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     font-weight: 600;
     line-height: 1.4;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 .kneeboard-list-item-subtitle {
@@ -3379,6 +3391,9 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     color: #666;
     line-height: 1.3;
     white-space: nowrap;
+    margin-left: auto;
+    padding-right: 8px;
+    flex-shrink: 0;
 }
 
 /* Panel Footer (Show more) */
@@ -3937,12 +3952,12 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
    Panel Mode Toggle (Zonen/Piloten)
    ========================================== */
 .panel-mode-toggle {
+    flex: 0 0 auto;
     display: flex;
     gap: 6px;
-    padding: 8px 16px;
+    padding: 10px 16px;
     width: 100%;
     box-sizing: border-box;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     background-color: white;
 }
 
@@ -4730,3 +4745,64 @@ form.leaflet-control-layers-list.leaflet-control-layers-scrollbar::-webkit-scrol
     background-color: #cc0000;
 }
 
+/* ============================================================================
+   RESPONSIVE FLIGHT PLAN PANEL - CONTAINER QUERIES
+   Reacts to the panel's OWN width (not viewport). Must be LAST in file.
+   ============================================================================ */
+@container fppanel (max-width: 320px) {
+    .fp-wp-row {
+        grid-template-columns: 18px minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(0, 1fr) 18px;
+        column-gap: 3px;
+        padding: 3px 4px;
+        font-size: 9px !important;
+    }
+    .fp-wp-row.fp-wp-header { font-size: 8px !important; }
+    .fp-route-header .fp-wp-ident,
+    .fp-route-header .fp-wp-bearing,
+    .fp-route-header .fp-wp-distance,
+    .fp-route-header .fp-wp-altitude,
+    .fp-route-header .fp-wp-extra { font-size: 9px !important; }
+    .fp-selectors { grid-template-columns: 1fr; gap: 3px; padding: 4px 6px; }
+    .fp-selector-row.fp-full-width { grid-column: span 1; }
+    .fp-selector-row label { font-size: 9px; min-width: 28px; width: 28px; }
+    .fp-dropdown { height: 22px; font-size: 9px; }
+    .fp-section-header { font-size: 9px; padding: 4px 6px; gap: 4px; }
+    .fp-section-header .fp-icao { font-size: 11px; margin-left: 4px; }
+    .fp-section-header .fp-name { font-size: 9px; }
+    #overlayListSum { font-size: 10px; padding: 3px; }
+    .fp-wp-freq, .fp-wp-airway { font-size: 8px; padding: 1px 2px; }
+}
+
+@container fppanel (min-width: 320px) and (max-width: 450px) {
+    .fp-wp-row {
+        column-gap: 5px;
+        padding: 4px 6px;
+        font-size: 10px !important;
+    }
+    .fp-wp-row.fp-wp-header { font-size: 9px !important; }
+    .fp-route-header .fp-wp-ident,
+    .fp-route-header .fp-wp-bearing,
+    .fp-route-header .fp-wp-distance,
+    .fp-route-header .fp-wp-altitude,
+    .fp-route-header .fp-wp-extra { font-size: 10px !important; }
+    .fp-selectors { gap: 3px 6px; }
+    .fp-section-header { font-size: 10px; }
+    .fp-section-header .fp-icao { font-size: 12px; }
+}
+
+/* === Browser-Mode Overrides — alle Map-Sidebar-Buttons auf identische Schriftgröße === */
+html.browser-mode {
+  --browser-btn-text: clamp(9px, 1.2vmin, 11px);
+}
+
+html.browser-mode .easy-button-button,
+html.browser-mode .easy-button-button .button-state,
+html.browser-mode .easy-button-button.getMetar,
+html.browser-mode .easy-button-button.getMetar .button-state,
+html.browser-mode button.getMetar {
+  font-size: var(--browser-btn-text) !important;
+}
+
+html.browser-mode .leaflet-touch .leaflet-control-layers-toggle::after {
+  font-size: var(--browser-btn-text) !important;
+}

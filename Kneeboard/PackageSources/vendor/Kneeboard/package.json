@@ -1,14 +1,15 @@
 {
   "name": "@efb/gsimkneeboard",
-  "version": "2.0.4",
-  "license": "MIT",
+  "version": "2.0.6",
+  "license": "GPL-3.0-or-later",
   "author": "Moses",
   "scripts": {
     "build": "node ./build.js",
     "clean": "npm run clean:dist && npm run clean:node_modules",
     "clean:dist": "if exist ./dist/ (rmdir /s /q dist)",
     "clean:node_modules": "if exist ./node_modules/ (rmdir /s /q node_modules)",
-    "rebuild": "npm run clean:dist && npm run build",
+    "package": "node ./package-msfs.js",
+    "rebuild": "npm run clean:dist && npm run build && npm run package",
     "watch": "cross-env SERVING_MODE=WATCH node ./build.js"
   },
   "dependencies": {

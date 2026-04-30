@@ -29888,21 +29888,21 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       }
     }
 
-    // Nach Hoehen-Resize: height durch max-height ersetzen damit Sektionen schrumpfen koennen
+    // Nach Hoehen-Resize: height fix beibehalten, damit Panel bei leerer Liste nicht schrumpft
     if (wasOverlayHeightResizing && configs.overlayHeight.element) {
       var el = configs.overlayHeight.element;
       var h = el.style.getPropertyValue('height');
       if (h) {
-        el.style.removeProperty('height');
-        el.style.setProperty('max-height', h, 'important');
+        el.style.setProperty('height', h, 'important');
+        el.style.removeProperty('max-height');
       }
     }
     if (wasControllerHeightResizing && configs.controllerHeight.element) {
       var el = configs.controllerHeight.element;
       var h = el.style.getPropertyValue('height');
       if (h) {
-        el.style.removeProperty('height');
-        el.style.setProperty('max-height', h, 'important');
+        el.style.setProperty('height', h, 'important');
+        el.style.removeProperty('max-height');
       }
     }
 
@@ -30081,21 +30081,21 @@ function finishAppendWaypoint(lat, lng, activePopup) {
       configs.elevationProfile.isResizing = false;
     }
 
-    // Nach Hoehen-Resize: height durch max-height ersetzen damit Sektionen schrumpfen koennen
+    // Nach Hoehen-Resize: height fix beibehalten, damit Panel bei leerer Liste nicht schrumpft
     if (wasOverlayHeightResizing && configs.overlayHeight.element) {
       var el = configs.overlayHeight.element;
       var h = el.style.getPropertyValue('height');
       if (h) {
-        el.style.removeProperty('height');
-        el.style.setProperty('max-height', h, 'important');
+        el.style.setProperty('height', h, 'important');
+        el.style.removeProperty('max-height');
       }
     }
     if (wasControllerHeightResizing && configs.controllerHeight.element) {
       var el = configs.controllerHeight.element;
       var h = el.style.getPropertyValue('height');
       if (h) {
-        el.style.removeProperty('height');
-        el.style.setProperty('max-height', h, 'important');
+        el.style.setProperty('height', h, 'important');
+        el.style.removeProperty('max-height');
       }
     }
 
@@ -33344,13 +33344,13 @@ var PanelPositionManager = (function() {
 
         if (pos.width) panel.style.width = pos.width + 'px';
         if (pos.height) {
-            // Height auf #map-Hoehe begrenzen
+            // Height auf #map-Hoehe begrenzen, dann fix setzen damit Panel bei leerer Liste nicht schrumpft
             var maxH = mh - 20;
             var h = Math.min(pos.height, maxH);
-            panel.style.removeProperty('height');
-            panel.style.setProperty('max-height', h + 'px', 'important');
+            panel.style.removeProperty('max-height');
+            panel.style.setProperty('height', h + 'px', 'important');
         }
-        // Tatsaechliche Panel-Hoehe nach max-height messen (kann kleiner sein als gespeichert)
+        // Tatsaechliche Panel-Hoehe messen
         ph = panel.offsetHeight;
 
         if (pos.useRight) {

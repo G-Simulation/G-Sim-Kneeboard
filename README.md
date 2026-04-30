@@ -231,7 +231,7 @@ Vielen Dank an die folgenden Unterstützer des Projekts:
 ## Autor
 
 Moses / Gsimulations
-Website: https://www.gsimulations.com
+Website: https://www.gsimulations.de
 
 ## Hinweise
 
@@ -239,3 +239,11 @@ Website: https://www.gsimulations.com
 - Die Anwendung benötigt Admin-Rechte für Netzwerk-Zugriff
 - Es kann nur eine Instanz gleichzeitig laufen
 - Firewall-Ausnahme wird beim ersten Start abgefragt
+
+## Lizenz
+
+Source-Code steht unter der **GNU General Public License v3.0 (GPLv3)**.
+Vollständiger Lizenztext: [LICENSE](LICENSE).
+
+- Datenschutzerklärung: https://www.gsimulations.de/datenschutzerklaerung/
+- Impressum: https://www.gsimulations.de/impressum/

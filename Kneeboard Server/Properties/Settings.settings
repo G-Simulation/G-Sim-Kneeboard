@@ -125,5 +125,14 @@
     <Setting Name="language" Type="System.String" Scope="User">
       <Value Profile="(Default)">de</Value>
     </Setting>
+    <Setting Name="dsgvoAccepted" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="dsgvoAcceptedDate" Type="System.DateTime" Scope="User">
+      <Value Profile="(Default)">0001-01-01</Value>
+    </Setting>
+    <Setting Name="dsgvoAcceptedVersion" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
   </Settings>
 </SettingsFile>

@@ -67,7 +67,7 @@ Nach erfolgreichem Release sind die Dateien unter folgenden URLs verfügbar:
 
 Die Datei `Kneeboard_version.xml` wird automatisch bei jedem Release generiert und als Asset angehängt. Sie kann auch manuell unter folgender URL bereitgestellt werden:
 ```
-https://gsimulations.com/Kneeboard_version.xml
+https://gsimulations.de/Kneeboard_version.xml
 ```
 
 **Format der XML-Datei:**

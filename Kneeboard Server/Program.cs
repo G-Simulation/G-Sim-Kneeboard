@@ -43,6 +43,10 @@ namespace Kneeboard_Server
                 m_Mutex = new Mutex(true, "KneeboardServerMutex", out createdNew);
                 if (createdNew)
                 {
+                        if (!EnsureDsgvoConsent())
+                        {
+                            return;
+                        }
                         Application.Run(new Kneeboard_Server());
                 }
                 else
@@ -57,7 +61,28 @@ namespace Kneeboard_Server
                 Thread.Sleep(milliseconds);
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
+                if (!EnsureDsgvoConsent())
+                {
+                    return;
+                }
                 Application.Run(new Kneeboard_Server());
+            }
+        }
+
+        /// <summary>
+        /// Zeigt den DSGVO-Consent-Dialog falls noch keine Zustimmung erteilt wurde.
+        /// Liefert true wenn die App weiterlaufen darf, false wenn der User abgelehnt hat.
+        /// </summary>
+        private static bool EnsureDsgvoConsent()
+        {
+            if (Properties.Settings.Default.dsgvoAccepted)
+            {
+                return true;
+            }
+            using (var form = new DsgvoConsentForm())
+            {
+                form.ShowDialog();
+                return form.Accepted;
             }
         }
 

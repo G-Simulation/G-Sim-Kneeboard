@@ -9,6 +9,20 @@
     <!-- MSFS Coherent GT: Panel soll Input-Focus haben -->
     <meta name="msfs-interaction-mode" content="interactive" />
     <meta name="msfs-capture-input" content="true" />
+    <script>
+      // Coherent GT (MSFS InGamePanel/Toolbar) injiziert globales `Coherent`-Objekt.
+      // Browser-Mode = Abwesenheit dieses Objekts.
+      if (typeof Coherent === 'undefined') {
+        document.documentElement.classList.add('browser-mode');
+      }
+    </script>
+    <script>
+      // Default Release. Wird vom nachfolgenden Server-Script ueberschrieben.
+      // Fallback wenn Server nicht erreichbar (Page laedt aus Cache).
+      window.KNEEBOARD_DEBUG = false;
+    </script>
+    <!-- Build-Mode vom Server (normales script-tag, weil Coherent GT sync-XHR blockt). -->
+    <script src="/api/build-mode.js"></script>
     <title>Kneeboard</title>
     <link rel="icon" href="./kneeboard.ico" />
 
@@ -23,12 +37,12 @@
     <link rel="stylesheet" href="./leaflet/plugins/leaflet-velocity.css" />
     <link rel="stylesheet" href="./leaflet/plugins/L.Control.MousePosition.css" />
     <!-- Pages CSS -->
-    <link rel="stylesheet" href="./kneeboard.css?v=3.10" />
-    <link rel="stylesheet" href="./navlog.css?v=3.10" />
-    <link rel="stylesheet" href="./documents.css?v=3.10" />
-    <link rel="stylesheet" href="./map.css?v=3.19" />
-    <link rel="stylesheet" href="./notepad.css?v=3.10" />
-    <link rel="stylesheet" href="./formulas.css?v=3.10" />
+    <link rel="stylesheet" href="./kneeboard.css" />
+    <link rel="stylesheet" href="./navlog.css" />
+    <link rel="stylesheet" href="./documents.css" />
+    <link rel="stylesheet" href="./map.css" />
+    <link rel="stylesheet" href="./notepad.css" />
+    <link rel="stylesheet" href="./formulas.css" />
 
     <!-- Pages JS - PERFORMANCE OPTIMIERT: defer für nicht-kritische Scripts -->
     <!-- Zentrales Logging-System - muss als erstes laden -->
@@ -58,7 +72,7 @@
     <!-- Leaflet WindBarb Plugin (meteorological wind symbols) -->
     <script src="./leaflet/plugins/leaflet-windbarb.js" defer></script>
     <!-- Kneeboard Core - muss nach Leaflet laden -->
-    <script src="./kneeboard.js?v=2.1" defer></script>
+    <script src="./kneeboard.js" defer></script>
   </head>
   <body id="border-box" class="border-box">
     <div id="appViewport">
@@ -134,12 +148,12 @@
     </script>
 
     <script type="text/javascript" src="./cssgg-svg.js"></script>
-    <script type="text/javascript" src="./ofp-mapping-config.js?v=3.2"></script>
-    <script type="text/javascript" src="./navlog.js?v=3.8"></script>
+    <script type="text/javascript" src="./ofp-mapping-config.js"></script>
+    <script type="text/javascript" src="./navlog.js"></script>
     <script type="text/javascript" src="./documents.js"></script>
     <script type="text/javascript" src="./notepad.js"></script>
     <script type="text/javascript" src="./formulas.js"></script>
-    <script type="text/javascript" src="./map.js?v=7.41"></script>
+    <script type="text/javascript" src="./map.js"></script>
   </body>
 </html>
 

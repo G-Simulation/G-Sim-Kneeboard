@@ -4165,7 +4165,10 @@
       super(...arguments);
       this.iframeRef = import_msfs_sdk2.FSComponent.createRef();
       this.fallbackRef = import_msfs_sdk2.FSComponent.createRef();
+      this.lastConnected = false;
+      this.iframeLoaded = false;
       this.handleIframeLoad = /* @__PURE__ */ __name(() => {
+        this.iframeLoaded = true;
         this.setConnectionState(true);
       }, "handleIframeLoad");
       this.handleIframeError = /* @__PURE__ */ __name(() => {
@@ -4180,7 +4183,11 @@
         iframe.addEventListener("load", this.handleIframeLoad);
         iframe.addEventListener("error", this.handleIframeError);
       }
+      this.probeOnce();
       this.startProbing();
+    }
+    probeOnce() {
+      fetch(LOCAL_KNEEBOARD_URL, { method: "HEAD" }).then(() => this.setConnectionState(true)).catch(() => this.setConnectionState(false));
     }
     destroy() {
       const iframe = this.iframeRef.instance;
@@ -4195,15 +4202,19 @@
     }
     startProbing() {
       this.probeIntervalId = window.setInterval(() => {
-        fetch(LOCAL_KNEEBOARD_URL, { method: "HEAD" }).then(() => this.setConnectionState(true)).catch(() => this.setConnectionState(false));
-      }, 1e4);
+        this.probeOnce();
+      }, 1e3);
     }
     setConnectionState(connected) {
+      const iframe = this.iframeRef.instance;
+      if (connected && !this.lastConnected && iframe && !this.iframeLoaded) {
+        iframe.src = LOCAL_KNEEBOARD_URL + "?t=" + Date.now();
+      }
+      this.lastConnected = connected;
       const fallback = this.fallbackRef.instance;
       if (fallback) {
         fallback.style.display = connected ? "none" : "flex";
       }
-      const iframe = this.iframeRef.instance;
       if (iframe) {
         iframe.style.display = connected ? "block" : "none";
       }

@@ -144,8 +144,9 @@ namespace Kneeboard_Server
             this.linkLabel1.Size = new System.Drawing.Size(466, 16);
             this.linkLabel1.TabIndex = 29;
             this.linkLabel1.TabStop = true;
-            this.linkLabel1.Text = "support@gsimulations.com";
+            this.linkLabel1.Text = "Datenschutz  ·  Impressum  ·  support@gsimulations.com";
             this.linkLabel1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.linkLabel1.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.LinkLabel1_LinkClicked);
             // 
             // autostart
             // 

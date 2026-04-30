@@ -120,20 +120,22 @@ jobs:
       shell: pwsh
       run: |
         $version = "${{ steps.get_version.outputs.VERSION }}"
-        $setupDir = "Kneeboard Server Setup/Debug"
+        $setupDir = "Kneeboard Server Setup/Release"
+        $msiFile = "$setupDir/Kneeboard Server Setup.msi"
+        $setupExe = "$setupDir/setup.exe"
         $zipName = "Kneeboard-Setup.zip"
 
-        if (-not (Test-Path "$setupDir/Kneeboard Server.msi")) {
-          echo "ERROR: MSI file not found!"
+        if (-not (Test-Path $msiFile)) {
+          echo "ERROR: MSI file not found at $msiFile!"
           exit 1
         }
 
-        if (-not (Test-Path "$setupDir/setup.exe")) {
-          echo "ERROR: setup.exe not found!"
+        if (-not (Test-Path $setupExe)) {
+          echo "ERROR: setup.exe not found at $setupExe!"
           exit 1
         }
 
-        Compress-Archive -Path "$setupDir/Kneeboard Server.msi", "$setupDir/setup.exe" -DestinationPath $zipName
+        Compress-Archive -Path $msiFile, $setupExe -DestinationPath $zipName
         echo "ZIP file created: $zipName"
 
     - name: Delete existing release if exists

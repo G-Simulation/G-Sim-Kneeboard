@@ -56,17 +56,34 @@ namespace Kneeboard_Server
             Timeout = TimeSpan.FromSeconds(15)
         };
 
+        // Build-Mode-Flag (Compile-Zeit konstant). Steuert Logger und DevTools im Frontend.
+        public static bool IsDebugBuild
+        {
 #if DEBUG
+            get { return true; }
+#else
+            get { return false; }
+#endif
+        }
+
         private static readonly string SOURCE_DIR = GetSourceDir();
         private static string GetSourceDir()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
-            string devPath = Path.GetFullPath(Path.Combine(baseDir, @"..\..\.."));
-            return Directory.Exists(Path.Combine(devPath, "data")) ? devPath : baseDir;
+            try
+            {
+                string devPath = Path.GetFullPath(Path.Combine(baseDir, @"..\..\.."));
+                // Don't use drive roots (C:\, D:\) — only valid project directories
+                if (Path.GetPathRoot(devPath) == devPath) return baseDir;
+                if (Directory.Exists(Path.Combine(devPath, "data")) &&
+                    Directory.Exists(Path.Combine(devPath, "Kneeboard Server")))
+                {
+                    return devPath;
+                }
+            }
+            catch { }
+            return baseDir;
         }
-#else
-        private static readonly string SOURCE_DIR = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
-#endif
 
         // Cache-Verzeichnis: %LOCALAPPDATA% statt ProgramData (Schreibrechte ohne Admin)
         private static readonly string CACHE_BASE_DIR = Path.Combine(
@@ -1818,19 +1835,43 @@ namespace Kneeboard_Server
                     });
 
                     // Check/update IVAO boundaries (from Little Navmap)
+                    // Try each available ZIP (newest first), fallback to older if corrupt
                     UpdateBoundaryFile("ivao_boundaries_geojson.json", () =>
                     {
-                        string latestUrl = GetLatestIvaoFileUrl();
-                        if (string.IsNullOrEmpty(latestUrl))
+                        var ivaoUrls = GetIvaoFileUrls();
+                        if (ivaoUrls.Count == 0)
                         {
-                            throw new Exception("Could not find IVAO boundaries file");
+                            throw new Exception("Could not find any IVAO boundaries files");
                         }
                         using (var client = new WebClient())
                         {
                             client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
-                            byte[] zipData = client.DownloadData(latestUrl);
-                            string rawJson = ExtractIvaoJsonFromZip(zipData);
-                            return ConvertIvaoToGeoJson(rawJson);
+                            for (int i = 0; i < ivaoUrls.Count; i++)
+                            {
+                                try
+                                {
+                                    byte[] zipData = client.DownloadData(ivaoUrls[i]);
+                                    string rawJson = ExtractIvaoJsonFromZip(zipData);
+                                    if (string.IsNullOrEmpty(rawJson))
+                                    {
+                                        KneeboardLogger.BoundariesError($"IVAO ZIP corrupt/empty: {ivaoUrls[i]}");
+                                        continue;
+                                    }
+                                    string result = ConvertIvaoToGeoJson(rawJson);
+                                    if (result != null && result.Length > 1024)
+                                    {
+                                        if (i > 0)
+                                            KneeboardLogger.Boundaries($"IVAO: used fallback file #{i + 1}");
+                                        return result;
+                                    }
+                                    KneeboardLogger.BoundariesError($"IVAO conversion produced empty result from: {ivaoUrls[i]}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    KneeboardLogger.BoundariesError($"IVAO download/extract failed for {ivaoUrls[i]}: {ex.Message}");
+                                }
+                            }
+                            throw new Exception($"All {ivaoUrls.Count} IVAO ZIP files failed (corrupt or unavailable)");
                         }
                     });
 
@@ -1902,7 +1943,7 @@ namespace Kneeboard_Server
                 try
                 {
                     string data = fetchData();
-                    if (!string.IsNullOrEmpty(data))
+                    if (!string.IsNullOrEmpty(data) && data.Length > 1024)
                     {
                         File.WriteAllText(filePath, data);
                         KneeboardLogger.Boundaries($"{fileName}: downloaded and saved ({data.Length / 1024}KB)");
@@ -1912,6 +1953,10 @@ namespace Kneeboard_Server
 
                         // Pre-load into memory cache
                         PreloadBoundaryToCache(fileName, data, DateTime.Now);
+                    }
+                    else
+                    {
+                        KneeboardLogger.BoundariesError($"{fileName}: downloaded data too small ({data?.Length ?? 0} bytes), keeping existing file");
                     }
                 }
                 catch (Exception ex)
@@ -2169,49 +2214,70 @@ namespace Kneeboard_Server
                     }
                 }
 
-                // First, get the directory listing to find the latest file
-                string latestFileUrl = GetLatestIvaoFileUrl();
-                if (string.IsNullOrEmpty(latestFileUrl))
+                // Try each available ZIP (newest first), fallback to older if corrupt
+                var ivaoUrls = GetIvaoFileUrls();
+                if (ivaoUrls.Count == 0)
                 {
-                    throw new Exception("Could not find IVAO boundaries file");
+                    throw new Exception("Could not find any IVAO boundaries files");
                 }
 
-                // Download and extract the ZIP file
+                string geoJsonContent = null;
                 using (var client = new WebClient())
                 {
                     client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
-                    byte[] zipData = client.DownloadData(latestFileUrl);
-
-                    string rawJsonContent = ExtractIvaoJsonFromZip(zipData);
-                    if (string.IsNullOrEmpty(rawJsonContent))
+                    for (int i = 0; i < ivaoUrls.Count; i++)
                     {
-                        throw new Exception("Could not extract JSON from IVAO ZIP file");
+                        try
+                        {
+                            byte[] zipData = client.DownloadData(ivaoUrls[i]);
+                            string rawJsonContent = ExtractIvaoJsonFromZip(zipData);
+                            if (string.IsNullOrEmpty(rawJsonContent))
+                            {
+                                KneeboardLogger.BoundariesError($"IVAO ZIP corrupt/empty: {ivaoUrls[i]}");
+                                continue;
+                            }
+                            geoJsonContent = ConvertIvaoToGeoJson(rawJsonContent);
+                            if (geoJsonContent != null && geoJsonContent.Length > 1024)
+                            {
+                                if (i > 0)
+                                    KneeboardLogger.Boundaries($"IVAO: used fallback file #{i + 1}");
+                                break;
+                            }
+                            KneeboardLogger.BoundariesError($"IVAO conversion produced empty result from: {ivaoUrls[i]}");
+                            geoJsonContent = null;
+                        }
+                        catch (Exception dlEx)
+                        {
+                            KneeboardLogger.BoundariesError($"IVAO download/extract failed for {ivaoUrls[i]}: {dlEx.Message}");
+                        }
                     }
-
-                    // Convert IVAO array format to GeoJSON FeatureCollection
-                    string geoJsonContent = ConvertIvaoToGeoJson(rawJsonContent);
-
-                    lock (_boundariesCacheLock)
-                    {
-                        _cachedIvaoBoundaries = geoJsonContent;
-                        _ivaoBoundariesCacheTime = DateTime.Now;
-                    }
-
-                    // Save to disk cache (as GeoJSON)
-                    try
-                    {
-                        Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
-                        File.WriteAllText(diskCachePath, geoJsonContent);
-                        KneeboardLogger.Boundaries("IVAO saved to disk cache (GeoJSON format)");
-                    }
-                    catch (Exception cacheEx)
-                    {
-                        KneeboardLogger.BoundariesError($"IVAO failed to save disk cache: {cacheEx.Message}");
-                    }
-
-                    ctx.Response.Headers.Add("X-Cache", "MISS");
-                    await ResponseJsonAsync(ctx, geoJsonContent);
                 }
+
+                if (string.IsNullOrEmpty(geoJsonContent) || geoJsonContent.Length <= 1024)
+                {
+                    throw new Exception($"All {ivaoUrls.Count} IVAO ZIP files failed (corrupt or unavailable)");
+                }
+
+                lock (_boundariesCacheLock)
+                {
+                    _cachedIvaoBoundaries = geoJsonContent;
+                    _ivaoBoundariesCacheTime = DateTime.Now;
+                }
+
+                // Save to disk cache (as GeoJSON)
+                try
+                {
+                    Directory.CreateDirectory(BOUNDARIES_CACHE_DIR);
+                    File.WriteAllText(diskCachePath, geoJsonContent);
+                    KneeboardLogger.Boundaries("IVAO saved to disk cache (GeoJSON format)");
+                }
+                catch (Exception cacheEx)
+                {
+                    KneeboardLogger.BoundariesError($"IVAO failed to save disk cache: {cacheEx.Message}");
+                }
+
+                ctx.Response.Headers.Add("X-Cache", "MISS");
+                await ResponseJsonAsync(ctx, geoJsonContent);
             }
             catch (Exception ex)
             {
@@ -2239,8 +2305,12 @@ namespace Kneeboard_Server
             }
         }
 
-        private string GetLatestIvaoFileUrl()
+        /// <summary>
+        /// Returns all IVAO ZIP file URLs sorted by date (newest first) for fallback support
+        /// </summary>
+        private List<string> GetIvaoFileUrls()
         {
+            var urls = new List<string>();
             try
             {
                 using (var client = new WebClient())
@@ -2248,53 +2318,42 @@ namespace Kneeboard_Server
                     client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
                     string html = client.DownloadString("https://www.littlenavmap.org/downloads/Airspace%20Boundaries/");
 
-                    // Parse HTML to find IVAO ZIP files and get the latest one
-                    // Files are named like "IVAO%20ATC%20Positions%2020250801.zip" (URL-encoded)
-                    // or "IVAO ATC Positions 20250801.zip" (plain text)
                     var regex = new System.Text.RegularExpressions.Regex(@"href=""(IVAO[^""]+\.zip)""", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     var matches = regex.Matches(html);
 
-                    string latestFile = null;
-                    int latestDate = 0;
+                    var files = new List<(string fileName, int date)>();
 
                     foreach (System.Text.RegularExpressions.Match match in matches)
                     {
                         string fileName = match.Groups[1].Value;
-                        // Decode URL-encoded filename to extract date
                         string decodedFileName = Uri.UnescapeDataString(fileName);
-                        // Extract date from filename (e.g., "20250801")
                         var dateMatch = System.Text.RegularExpressions.Regex.Match(decodedFileName, @"(\d{8})");
                         if (dateMatch.Success)
                         {
-                            int fileDate = int.Parse(dateMatch.Groups[1].Value);
-                            if (fileDate > latestDate)
-                            {
-                                latestDate = fileDate;
-                                latestFile = fileName; // Keep original (possibly URL-encoded) filename
-                            }
+                            files.Add((fileName, int.Parse(dateMatch.Groups[1].Value)));
                         }
                     }
 
-                    if (!string.IsNullOrEmpty(latestFile))
+                    // Sort by date descending (newest first)
+                    files.Sort((a, b) => b.date.CompareTo(a.date));
+
+                    foreach (var file in files)
                     {
                         string url;
-                        // File may already be URL-encoded in HTML, or not - handle both cases
-                        if (latestFile.Contains("%"))
-                        {
-                            // Already URL-encoded
-                            url = "https://www.littlenavmap.org/downloads/Airspace%20Boundaries/" + latestFile;
-                        }
+                        if (file.fileName.Contains("%"))
+                            url = "https://www.littlenavmap.org/downloads/Airspace%20Boundaries/" + file.fileName;
                         else
-                        {
-                            // Needs encoding
-                            url = "https://www.littlenavmap.org/downloads/Airspace%20Boundaries/" + Uri.EscapeDataString(latestFile);
-                        }
-                        KneeboardLogger.BoundariesDebug($"IVAO boundaries URL: {url}");
-                        return url;
+                            url = "https://www.littlenavmap.org/downloads/Airspace%20Boundaries/" + Uri.EscapeDataString(file.fileName);
+                        urls.Add(url);
+                    }
+
+                    if (urls.Count == 0)
+                    {
+                        KneeboardLogger.Warn("Boundaries", "No IVAO files found in directory listing");
                     }
                     else
                     {
-                        KneeboardLogger.Warn("Boundaries", "No IVAO files found in directory listing");
+                        KneeboardLogger.BoundariesDebug($"IVAO: found {urls.Count} files, newest: {files[0].fileName}");
                     }
                 }
             }
@@ -2303,11 +2362,18 @@ namespace Kneeboard_Server
                 KneeboardLogger.BoundariesError($"Error getting IVAO file list: {ex.Message}");
             }
 
-            return null;
+            return urls;
+        }
+
+        private string GetLatestIvaoFileUrl()
+        {
+            var urls = GetIvaoFileUrls();
+            return urls.Count > 0 ? urls[0] : null;
         }
 
         private string ExtractIvaoJsonFromZip(byte[] zipData)
         {
+            // Try standard ZipArchive first (requires valid Central Directory)
             try
             {
                 using (var zipStream = new MemoryStream(zipData))
@@ -2321,7 +2387,6 @@ namespace Kneeboard_Server
                             using (var reader = new StreamReader(entryStream, Encoding.UTF8))
                             {
                                 string rawJson = reader.ReadToEnd();
-                                // Pre-filter to only include items with valid map_region
                                 return FilterIvaoJson(rawJson);
                             }
                         }
@@ -2330,7 +2395,131 @@ namespace Kneeboard_Server
             }
             catch (Exception ex)
             {
-                KneeboardLogger.BoundariesError($"Error extracting IVAO ZIP: {ex.Message}");
+                KneeboardLogger.Warn("Boundaries", $"ZipArchive failed ({ex.Message}), trying raw deflate extraction...");
+
+                // Fallback: manually parse local file headers and decompress raw deflate stream
+                // This handles truncated ZIPs that are missing Central Directory / EOCD
+                string fallbackResult = ExtractIvaoJsonFromTruncatedZip(zipData);
+                if (fallbackResult != null) return fallbackResult;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extracts JSON from a truncated/corrupt ZIP by manually parsing local file headers
+        /// and decompressing the raw deflate stream. Handles ZIPs missing Central Directory.
+        /// </summary>
+        private string ExtractIvaoJsonFromTruncatedZip(byte[] zipData)
+        {
+            try
+            {
+                int offset = 0;
+                while (offset < zipData.Length - 30)
+                {
+                    // Look for local file header signature PK\x03\x04
+                    if (zipData[offset] != 0x50 || zipData[offset + 1] != 0x4B ||
+                        zipData[offset + 2] != 0x03 || zipData[offset + 3] != 0x04)
+                    {
+                        offset++;
+                        continue;
+                    }
+
+                    int method = BitConverter.ToUInt16(zipData, offset + 8);
+                    int nameLen = BitConverter.ToUInt16(zipData, offset + 26);
+                    int extraLen = BitConverter.ToUInt16(zipData, offset + 28);
+                    string entryName = Encoding.UTF8.GetString(zipData, offset + 30, nameLen);
+
+                    int dataStart = offset + 30 + nameLen + extraLen;
+
+                    if (entryName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) && dataStart < zipData.Length)
+                    {
+                        byte[] compressedData = new byte[zipData.Length - dataStart];
+                        Array.Copy(zipData, dataStart, compressedData, 0, compressedData.Length);
+
+                        string rawJson = null;
+                        if (method == 8) // Deflate
+                        {
+                            using (var compStream = new MemoryStream(compressedData))
+                            using (var deflateStream = new DeflateStream(compStream, CompressionMode.Decompress))
+                            using (var reader = new StreamReader(deflateStream, Encoding.UTF8))
+                            {
+                                rawJson = reader.ReadToEnd();
+                            }
+                        }
+                        else if (method == 0) // Stored (uncompressed)
+                        {
+                            rawJson = Encoding.UTF8.GetString(compressedData);
+                        }
+
+                        if (!string.IsNullOrEmpty(rawJson))
+                        {
+                            // Truncated stream may cut off mid-entry - repair JSON array
+                            rawJson = RepairTruncatedJsonArray(rawJson);
+                            if (!string.IsNullOrEmpty(rawJson))
+                            {
+                                KneeboardLogger.Boundaries($"IVAO: extracted {rawJson.Length / 1024}KB from truncated ZIP via raw deflate");
+                                return FilterIvaoJson(rawJson);
+                            }
+                        }
+                    }
+
+                    // Skip to next entry
+                    offset = dataStart;
+                    break; // Only need the first .json entry
+                }
+            }
+            catch (Exception ex)
+            {
+                KneeboardLogger.BoundariesError($"Raw deflate extraction failed: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Repairs a JSON array that was truncated mid-stream.
+        /// Finds the last complete object and closes the array.
+        /// </summary>
+        private string RepairTruncatedJsonArray(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+
+            json = json.Trim();
+
+            // If it already ends with ']', it's complete
+            if (json.EndsWith("]")) return json;
+
+            // Must start with '[' to be a valid array
+            if (!json.StartsWith("[")) return null;
+
+            // Find the last complete JSON object (last '}' that closes a top-level object)
+            int depth = 0;
+            int lastCompleteObject = -1;
+            bool inString = false;
+            bool escaped = false;
+
+            for (int i = 1; i < json.Length; i++)
+            {
+                char c = json[i];
+                if (escaped) { escaped = false; continue; }
+                if (c == '\\' && inString) { escaped = true; continue; }
+                if (c == '"') { inString = !inString; continue; }
+                if (inString) continue;
+
+                if (c == '{') depth++;
+                else if (c == '}')
+                {
+                    depth--;
+                    if (depth == 0) lastCompleteObject = i;
+                }
+            }
+
+            if (lastCompleteObject > 0)
+            {
+                string repaired = json.Substring(0, lastCompleteObject + 1) + "]";
+                KneeboardLogger.Boundaries($"IVAO: repaired truncated JSON array (cut at {json.Length}, last complete object at {lastCompleteObject})");
+                return repaired;
             }
 
             return null;
@@ -5486,18 +5675,23 @@ namespace Kneeboard_Server
 
                 if (rawBoundaries == null)
                 {
-                    // Fetch from IVAO API
-                    using (var client = new WebClient())
-                    {
-                        client.Encoding = Encoding.UTF8;
-                        client.Headers.Add(HttpRequestHeader.UserAgent, "KneeboardServer/1.0");
-                        rawBoundaries = client.DownloadString("https://api.ivao.aero/v2/firs");
+                    // Load from local data file (IVAO API v2/firs no longer exists)
+                    string dataFilePath = Path.Combine(BOUNDARIES_DATA_DIR, "ivao_boundaries_geojson.json");
+                    string cacheFilePath = Path.Combine(BOUNDARIES_CACHE_DIR, "ivao_boundaries_geojson.json");
+                    string filePath = File.Exists(dataFilePath) ? dataFilePath : (File.Exists(cacheFilePath) ? cacheFilePath : null);
 
+                    if (filePath != null)
+                    {
+                        rawBoundaries = File.ReadAllText(filePath);
                         lock (_boundariesCacheLock)
                         {
                             _cachedIvaoBoundaries = rawBoundaries;
                             _ivaoBoundariesCacheTime = DateTime.Now;
                         }
+                    }
+                    else
+                    {
+                        throw new Exception("No IVAO boundaries file found");
                     }
                 }
 
@@ -6948,6 +7142,18 @@ namespace Kneeboard_Server
             {
                 await ResponseStringAsync(ctx, "true");
             }
+            else if (command == "api/build-mode")
+            {
+                ctx.Response.ContentType = "application/json";
+                await ResponseStringAsync(ctx, "{\"debug\":" + (IsDebugBuild ? "true" : "false") + "}");
+            }
+            else if (command == "api/build-mode.js")
+            {
+                // JS-Snippet-Variant fuer Coherent GT (sync XHR ist dort blockiert).
+                // Wird via <script src> geladen und setzt window.KNEEBOARD_DEBUG synchron.
+                ctx.Response.ContentType = "application/javascript";
+                await ResponseStringAsync(ctx, "window.KNEEBOARD_DEBUG=" + (IsDebugBuild ? "true" : "false") + ";");
+            }
             else if (command == "setNavlogValues")
             {
                 string postedText = await GetPostedTextAsync(ctx);
@@ -7661,7 +7867,9 @@ namespace Kneeboard_Server
                         string ext = Path.GetExtension(filePath).ToLowerInvariant();
                         if (ext == ".html" || ext == ".htm" || ext == ".css" || ext == ".js" || ext == ".json" || ext == ".xml" || ext == ".txt" || ext == ".svg")
                         {
-                            ctx.Response.Headers["Cache-Control"] = "no-store, must-revalidate";
+                            ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+                            ctx.Response.Headers["Pragma"] = "no-cache";
+                            ctx.Response.Headers["Expires"] = "0";
                             string textContent = Encoding.UTF8.GetString(fileContent);
                             await ctx.SendStringAsync(textContent, contentType, Encoding.UTF8);
                         }

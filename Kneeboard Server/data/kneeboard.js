@@ -34,9 +34,9 @@ const logger = (typeof KneeboardLogger !== 'undefined')
 const PAGE_MAP = {
   navlog: "navlog.html",
   documents: "documents.html",
-  map: "map.html?v=1",
+  map: "map.html",
   notepad: "notepad.html",
-  formulas: "formulas.html?v=32",
+  formulas: "formulas.html",
 };
 
 /**

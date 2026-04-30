@@ -105,6 +105,32 @@ namespace Kneeboard_Server
             string currentLang = Properties.Settings.Default.language;
             languageComboBox.SelectedIndex = (currentLang == "en") ? 1 : 0;
             languageComboBox.SelectedIndexChanged += LanguageComboBox_SelectedIndexChanged;
+
+            // Datenschutz / Impressum / Support — drei Links im footer
+            linkLabel1.Links.Clear();
+            linkLabel1.Links.Add(0, 11, "https://www.gsimulations.de/datenschutzerklaerung/");
+            linkLabel1.Links.Add(16, 9, "https://www.gsimulations.de/impressum/");
+            linkLabel1.Links.Add(30, 24, "mailto:support@gsimulations.com");
+        }
+
+        private void LinkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            if (e?.Link?.LinkData is string url && !string.IsNullOrEmpty(url))
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = url,
+                        UseShellExecute = true
+                    });
+                    e.Link.Visited = true;
+                }
+                catch
+                {
+                    // Silent fail
+                }
+            }
         }
 
         private void InformationForm_Load(object sender, EventArgs e)
