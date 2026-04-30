@@ -335,3 +335,7 @@ Kneeboard Server/data/images/Simbrief/OFP/OFP_1.png
 Kneeboard Server/data/boundaries/vatsim_boundaries.json
 Kneeboard Server/data/simbrief.pln
 Kneeboard Server/data/boundaries/vatsim_boundaries.json
+
+# Tool/Test Outputs
+.playwright-mcp/
+screenshots/
