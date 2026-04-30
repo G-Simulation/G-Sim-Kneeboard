@@ -201,7 +201,7 @@ Der Server verwendet Port **815**. Stelle sicher, dass dieser Port nicht von and
 
 ## Version
 
-Aktuelle Version: 2.0.4
+Aktuelle Version: 2.0.6
 
 ## Lizenz
 
